@@ -10,10 +10,6 @@ import os
 from pathlib import Path
 from typing import Any
 
-from agent_result_receipts import load_result_receipt
-from agent_failure_receipts import load_failure_receipt
-from agent_role_contract import role_contract_enabled, binding_is_role_bound
-from harness_contract import contract_adoption_check_evidence
 from harness_core import ManifestError, _normalized_branch, is_full_sha
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
@@ -436,11 +432,6 @@ def _retained_execution(
             else {}
         ),
         **(
-            {"sandbox_attestation": copy.deepcopy(retained["sandbox_attestation"])}
-            if isinstance(retained.get("sandbox_attestation"), dict)
-            else {}
-        ),
-        **(
             {"host_execution_attestation": copy.deepcopy(retained["host_execution_attestation"])}
             if isinstance(retained.get("host_execution_attestation"), dict)
             else {}
@@ -526,6 +517,19 @@ def _record_passing_result(
         )
         return
 
+    _project_passing_result(plan, run, node_result, worker_result, retained_results)
+
+
+def _project_passing_result(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    node_result: dict[str, Any],
+    worker_result: dict[str, Any],
+    retained_results: list[dict[str, Any]],
+    *,
+    preserve_failed_dispatch: bool = False,
+) -> None:
+    """Project a fully validated pass; recovery retains the rejected dispatch."""
     node = _mission_node(plan, node_result["node_id"])
     mission_id = node.get("ref")
     node_state = run["graph_state"]["node_states"][node["id"]]
@@ -621,14 +625,11 @@ def _record_passing_result(
         ),
         None,
     )
-    if isinstance(dispatch, dict):
+    if isinstance(dispatch, dict) and not preserve_failed_dispatch:
         dispatch["result"] = "worker_passed"
         evidence = dispatch.setdefault("evidence", [])
         _extend_unique(evidence, node_result.get("evidence_paths", []))
         _extend_unique(evidence, worker_result.get("evidence_paths", []))
-        _extend_unique(
-            evidence, contract_adoption_check_evidence(worker_result.get("contract_adoption_check"))
-        )
 
 
 def _record_nonpassing_result(
@@ -887,18 +888,6 @@ def _receipt(
 def record_worker_result(
     plan: dict[str, Any], run: dict[str, Any], args: Any
 ) -> dict[str, Any]:
-    if not role_contract_enabled(run):
-        return _record_worker_result(plan, run, args)
-    staged = copy.deepcopy(run)
-    receipt = _record_worker_result(plan, staged, args)
-    run.clear()
-    run.update(staged)
-    return receipt
-
-
-def _record_worker_result(
-    plan: dict[str, Any], run: dict[str, Any], args: Any
-) -> dict[str, Any]:
     """Validate current evidence and atomically stage one mission result."""
 
     if args.repo_root is None:
@@ -908,15 +897,7 @@ def _record_worker_result(
         raise ManifestError("node result must identify a mission node")
     node = _mission_node(plan, node_result["node_id"])
     state = run.get("graph_state", {}).get("node_states", {}).get(node["id"], {})
-    worker = _bound_worker(run, node["ref"], state.get("bound_worker_id"))
-    result_receipt = None
-    if role_contract_enabled(run) and binding_is_role_bound(worker.get("runtime_binding")):
-        payload = node_result.get("worker_result") or node_result
-        result_receipt = load_result_receipt(
-            getattr(args, "result_receipt", None), run, worker, "mission", payload,
-        )
-    elif getattr(args, "result_receipt", None) is not None:
-        raise ManifestError("result receipts require a 0.58+ role-bound assignment")
+    _bound_worker(run, node["ref"], state.get("bound_worker_id"))
     observation = _observe_bound_worker(plan, run, node_result, args.repo_root)
     args.worker_observation = observation
     manifest_errors = validate_current_plan_run(plan, run, repo_root=args.repo_root)
@@ -927,8 +908,6 @@ def _record_worker_result(
     )
     if node_errors:
         raise _validation_failure("node result does not validate", node_errors)
-    if result_receipt is not None:
-        worker["result_receipt"] = result_receipt
 
     if node_result.get("status") == "succeeded" and node_result.get("outcome") == "pass":
         worker_result = node_result.get("worker_result")
@@ -959,19 +938,7 @@ def _record_worker_result(
     return _receipt(plan, run, node_result["node_id"], "record-worker-result")
 
 
-def reject_worker_result(
-    plan: dict[str, Any], run: dict[str, Any], args: Any
-) -> dict[str, Any]:
-    if not role_contract_enabled(run):
-        return _reject_worker_result(plan, run, args)
-    staged = copy.deepcopy(run)
-    receipt = _reject_worker_result(plan, staged, args)
-    run.clear()
-    run.update(staged)
-    return receipt
-
-
-def _reject_worker_result(plan: dict[str, Any], run: dict[str, Any], args: Any) -> dict[str, Any]:
+def reject_worker_result(plan: dict[str, Any], run: dict[str, Any], args: Any) -> dict[str, Any]:
     """Record a parent-rejected current worker attempt without hand-editing RUN."""
 
     if args.repo_root is None:
@@ -982,12 +949,7 @@ def _reject_worker_result(plan: dict[str, Any], run: dict[str, Any], args: Any) 
         raise ManifestError("reject-worker-result requires a running mission node")
     if state.get("bound_worker_id") != args.worker_id:
         raise ManifestError("reject-worker-result worker does not match the bound node")
-    worker = _bound_worker(run, node["ref"], args.worker_id)
-    failure_receipt = None
-    if getattr(args, "failure_receipt", None) is not None:
-        if not role_contract_enabled(run) or not binding_is_role_bound(worker.get("runtime_binding")):
-            raise ManifestError("failure receipts require a 0.58+ role-bound assignment")
-        failure_receipt = load_failure_receipt(args.failure_receipt, run, worker, "mission")
+    _bound_worker(run, node["ref"], args.worker_id)
     node_result = {
         "run_id": run.get("run_id"),
         "node_id": args.node_id,
@@ -1017,8 +979,6 @@ def _reject_worker_result(plan: dict[str, Any], run: dict[str, Any], args: Any) 
         raise ManifestError(
             f"outcome {args.outcome!r} is not declared by mission node {args.node_id!r}"
         )
-    if failure_receipt is not None:
-        worker["failure_receipt"] = failure_receipt
     _record_nonpassing_result(
         plan,
         run,

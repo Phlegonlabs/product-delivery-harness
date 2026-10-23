@@ -4,14 +4,11 @@
 from __future__ import annotations
 
 import copy
-import hashlib
 import json
-import os
 import sys
 import subprocess
 import tempfile
 import time
-import types
 import unittest
 from unittest import mock
 from argparse import Namespace
@@ -40,7 +37,7 @@ from harness_manifest import validate_run  # noqa: E402
 from select_ready_nodes import _resume_reconciliation_reasons  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 from manifest_fixtures import git  # noqa: E402
-from verifier_runtime import build_execution_key, execution_key_from_document  # noqa: E402
+from verifier_runtime import run_verifier, execution_key_from_document, observe_plan_host_runtimes  # noqa: E402
 
 
 def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
@@ -60,112 +57,11 @@ def make_repo() -> tuple[tempfile.TemporaryDirectory, Path, str, str]:
     return temp, root, base, head
 
 
-class _DirFdOs:
-    """Real ``os`` with a chosen ``name`` and ``dir_fd`` resolved against one directory."""
-
-    def __init__(self, name: str, directory: Path) -> None:
-        self.name = name
-        self._directory = directory
-
-    def __getattr__(self, attribute: str):
-        return getattr(os, attribute)
-
-    def _resolve(self, name, dir_fd):
-        return self._directory / name if dir_fd is not None else name
-
-    def stat(self, name, *, dir_fd=None, follow_symlinks=True):
-        return os.stat(self._resolve(name, dir_fd), follow_symlinks=follow_symlinks)
-
-    def open(self, name, flags, mode=0o777, *, dir_fd=None):
-        return os.open(self._resolve(name, dir_fd), flags | getattr(os, "O_BINARY", 0), mode)
-
-    def unlink(self, name, *, dir_fd=None):
-        os.unlink(self._resolve(name, dir_fd))
-
-    def rename(self, source, target, *, src_dir_fd=None, dst_dir_fd=None):
-        os.rename(self._resolve(source, src_dir_fd), self._resolve(target, dst_dir_fd))
-
-    def fsync(self, descriptor):
-        del descriptor
-
-
-def _exchange_race(
-    branch: str, writes: dict[tuple[str, int], object], payload: bytes
-) -> tuple[str, bytes | None, bytes, list[str]]:
-    """Run one RUN exchange commit with scripted concurrent writes to RUN.md.
-
-    ``writes`` maps ("before"|"after", primitive call number) to bytes written
-    (or a callable applied to the destination path)
-    to the destination around that call. Returns the error text, the final
-    destination bytes, the bytes at the path the error reports, and the
-    directory listing.
-    """
-
-    with tempfile.TemporaryDirectory() as temp:
-        directory = Path(temp)
-        destination = directory / "RUN.md"
-        destination.write_bytes(b"# original\n")
-        temporary = directory / ".RUN.md.pending"
-        temporary.write_bytes(payload)
-        expected = harness_transition._run_document_version_token(destination)
-        calls: list[int] = []
-
-        def write(stage: str) -> None:
-            data = writes.get((stage, len(calls)))
-            if callable(data):
-                data(destination)
-            elif data is not None:
-                destination.write_bytes(data)
-
-        def exchange(_parent_fd: int, left: str, right: str) -> None:
-            calls.append(1)
-            write("before")
-            hold = directory / ".swap-hold"
-            os.replace(directory / left, hold)
-            os.replace(directory / right, directory / left)
-            os.replace(hold, directory / right)
-            write("after")
-
-        def replace(target: Path, replacement: Path, backup: Path) -> None:
-            calls.append(1)
-            write("before")
-            if backup.exists():
-                raise ManifestError("backup exists")
-            os.replace(target, backup)
-            os.replace(replacement, target)
-            write("after")
-
-        primitive = (
-            ("_run_posix_exchange", exchange)
-            if branch == "posix"
-            else ("_run_windows_replace_with_backup", replace)
-        )
-        with mock.patch.object(harness_transition, "os", _DirFdOs(branch, directory)), \
-                mock.patch.object(harness_transition, primitive[0], side_effect=primitive[1]):
-            try:
-                harness_transition._run_exchange_commit(
-                    destination,
-                    temporary,
-                    temporary_name=temporary.name,
-                    parent_fd=7 if branch == "posix" else None,
-                    expected_version=expected,
-                    updated=payload,
-                )
-            except ManifestError as exc:
-                message = str(exc)
-            else:
-                raise AssertionError("exchange race was not detected")
-        retained = Path(message.rsplit(" at ", 1)[1]).read_bytes()
-        final = destination.read_bytes() if destination.is_file() else None
-        return message, final, retained, sorted(
-            item.name for item in directory.iterdir()
-        )
-
-
 class WritePathTransitionTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temp, self.root, self.base, self.head = make_repo()
         plan = mf.valid_plan()
+        mf.materialize_plan_sources(self.root, plan)
         run = mf.valid_run(plan)
         mf.authorize_execution(run, ["M1", "M2"])
         for action in (
@@ -189,16 +85,6 @@ class WritePathTransitionTests(unittest.TestCase):
                 "completion_channel_available": True,
             }
         )
-        source_contents = {
-            "prd": b"# Test PRD\n",
-            "architecture": b"# Test architecture\n",
-        }
-        for source in plan["sources"]:
-            contents = source_contents[source["kind"]]
-            source_path = self.root / source["location"]
-            source_path.parent.mkdir(parents=True, exist_ok=True)
-            source_path.write_bytes(contents)
-            source["content_sha256"] = hashlib.sha256(contents).hexdigest()
         git(self.root, "add", "docs/product")
         git(self.root, "commit", "-qm", "contracts")
         self.head = git(self.root, "rev-parse", "HEAD")
@@ -224,20 +110,6 @@ class WritePathTransitionTests(unittest.TestCase):
         )
         run["observed"]["captured_at"] = None
         self.plan, self.run = plan, run
-        self.run["observed"]["sandbox"] = mf.sandbox_observation(self.plan)
-
-        def observe_fixture_sandboxes(candidate_plan):
-            observation = mf.sandbox_observation(candidate_plan)
-            return observation["entries"], []
-
-        self._sandbox_probe = mock.patch.object(
-            harness_transition,
-            "observe_plan_sandboxes",
-            side_effect=observe_fixture_sandboxes,
-        )
-        self._sandbox_probe.start()
-        self.addCleanup(self._sandbox_probe.stop)
-
     def tearDown(self) -> None:
         self._temp.cleanup()
 
@@ -263,29 +135,6 @@ class WritePathTransitionTests(unittest.TestCase):
             with self.subTest(fields=fields), self.assertRaisesRegex(ManifestError, "capacity observation"):
                 harness_transition._record_observation(self.plan, self.run, Namespace(repo_root=self.root, **fields))
             self.assertEqual(before, self.run)
-
-    def test_run_document_replacement_binds_parent_on_posix(self) -> None:
-        if os.name == "nt":
-            self.skipTest("POSIX dirfd assertion is not applicable on Windows")
-        run_path = self.root / "RUN.md"
-        original = mf.manifest_markdown(
-            "## Harness Run State", "harness_run", self.run
-        )
-        run_path.write_text(original, encoding="utf-8")
-        with mock.patch.object(
-            harness_transition, "_run_posix_exchange", wraps=harness_transition._run_posix_exchange
-        ) as exchange:
-            try:
-                harness_transition._replace_run_document(
-                    run_path, self.run, expected_text=original
-                )
-            except ManifestError as exc:
-                if "renameat2" in str(exc):
-                    self.skipTest(str(exc))
-                raise
-        self.assertTrue(exchange.called)
-        _parent_fd, _temporary_name, _destination_name = exchange.call_args.args
-        self.assertNotEqual(original, run_path.read_text(encoding="utf-8"))
 
     def test_run_document_replacement_rejects_parent_symlink(self) -> None:
         link = self.root / "linked-run-parent"
@@ -326,155 +175,35 @@ class WritePathTransitionTests(unittest.TestCase):
                     run_path, self.run, expected_text=original
                 )
         self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
+        self.assertEqual(["RUN.md"], sorted(item.name for item in self.root.glob("*RUN.md*")))
 
-    def test_run_document_exchange_primitive_preserves_displaced_edit(self) -> None:
-        # Only the first primitive call races; the restore call must stay clean.
-        calls: list[int] = []
+    def test_run_document_replacement_writes_the_manifest_block_only(self) -> None:
         run_path = self.root / "RUN.md"
-        original = mf.manifest_markdown(
-            "## Harness Run State", "harness_run", self.run
+        original = mf.manifest_markdown("## Harness Run State", "harness_run", self.run)
+        run_path.write_bytes(original.encode("utf-8"))
+        changed = copy.deepcopy(self.run)
+        changed["control"]["source"] = "replacement writer test"
+        harness_transition._replace_run_document(run_path, changed, expected_text=original)
+        body_start = original.index("\n", original.index("```json")) + 1
+        fence_end = original.index("\n```", body_start)
+        expected = (
+            original[:body_start]
+            + json.dumps({"harness_run": changed}, indent=2, ensure_ascii=False)
+            + original[fence_end:]
         )
-        concurrent = "# concurrent primitive edit\n"
-        run_path.write_text(original, encoding="utf-8")
-        if os.name == "nt":
-            primitive = harness_transition._run_windows_replace_with_backup
+        self.assertEqual(expected.encode("utf-8"), run_path.read_bytes())
+        self.assertEqual(["RUN.md"], sorted(item.name for item in self.root.glob("*RUN.md*")))
 
-            def inject(destination: Path, replacement: Path, backup: Path) -> None:
-                if not calls:
-                    destination.write_text(concurrent, encoding="utf-8")
-                calls.append(1)
-                primitive(destination, replacement, backup)
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_windows_replace_with_backup", side_effect=inject
-            )
-        else:
-            primitive = harness_transition._run_posix_exchange
-
-            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
-                if not calls:
-                    run_path.write_text(concurrent, encoding="utf-8")
-                calls.append(1)
-                primitive(parent_fd, left_name, right_name)
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_posix_exchange", side_effect=inject
-            )
-        with patcher:
-            with self.assertRaisesRegex(ManifestError, "displaced bytes changed") as caught:
-                harness_transition._replace_run_document(
-                    run_path, self.run, expected_text=original
-                )
-        self.assertNotIn("restore", str(caught.exception))
-        self.assertEqual(concurrent, run_path.read_text(encoding="utf-8"))
-
-    def test_run_document_double_concurrent_write_keeps_displaced_bytes(self) -> None:
+    def test_run_document_replacement_refuses_text_that_changed_after_load(self) -> None:
         run_path = self.root / "RUN.md"
-        original = mf.manifest_markdown(
-            "## Harness Run State", "harness_run", self.run
-        )
-        first = "# first concurrent edit\n"
-        second = "# second concurrent edit\n"
-        run_path.write_text(original, encoding="utf-8")
-        if os.name == "nt":
-            primitive = harness_transition._run_windows_replace_with_backup
-
-            def inject(destination: Path, replacement: Path, backup: Path) -> None:
-                destination.write_text(first, encoding="utf-8")
-                primitive(destination, replacement, backup)
-                destination.write_text(second, encoding="utf-8")
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_windows_replace_with_backup", side_effect=inject
+        original = mf.manifest_markdown("## Harness Run State", "harness_run", self.run)
+        run_path.write_text("# edited after load\n" + original, encoding="utf-8")
+        before = run_path.read_bytes()
+        with self.assertRaisesRegex(ManifestError, "changed during this transition"):
+            harness_transition._replace_run_document(
+                run_path, self.run, expected_text=original
             )
-        else:
-            primitive = harness_transition._run_posix_exchange
-
-            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
-                run_path.write_text(first, encoding="utf-8")
-                primitive(parent_fd, left_name, right_name)
-                run_path.write_text(second, encoding="utf-8")
-
-            patcher = mock.patch.object(
-                harness_transition, "_run_posix_exchange", side_effect=inject
-            )
-        with patcher:
-            with self.assertRaisesRegex(ManifestError, "displaced bytes changed") as caught:
-                harness_transition._replace_run_document(
-                    run_path, self.run, expected_text=original
-                )
-        retained = Path(str(caught.exception).rsplit(" at ", 1)[1])
-        self.assertEqual(second, run_path.read_text(encoding="utf-8"))
-        self.assertEqual(first, retained.read_text(encoding="utf-8"))
-
-    def test_run_exchange_commit_races_keep_concurrent_bytes(self) -> None:
-        payload = b"# transaction output\n"
-        first, second = b"# first concurrent edit\n", b"# second concurrent edit\n"
-        scenarios = {
-            "concurrent edit": ({("before", 1): first}, "displaced bytes changed", first, first, 1),
-            "double write": (
-                {("before", 1): first, ("after", 1): second},
-                "displaced bytes changed",
-                second,
-                first,
-                2,
-            ),
-            "restore overwritten": (
-                {("before", 1): first, ("after", 2): second},
-                "restore verification failed",
-                second,
-                payload,
-                2,
-            ),
-            "second write before restore": (
-                {("before", 1): first, ("before", 2): second},
-                "restore verification failed",
-                first,
-                second,
-                2,
-            ),
-            "destination removed after exchange": (
-                {("before", 1): first, ("after", 1): Path.unlink},
-                "displaced bytes changed",
-                None,
-                first,
-                1,
-            ),
-            "destination replaced by a directory": (
-                {("before", 1): first, ("after", 1): lambda target: (target.unlink(), target.mkdir())},
-                "displaced bytes changed",
-                None,
-                first,
-                2,
-            ),
-        }
-        for branch in ("posix", "nt"):
-            for label, (writes, message, final, kept, count) in scenarios.items():
-                with self.subTest(branch=branch, scenario=label):
-                    result, destination, retained, names = _exchange_race(
-                        branch, writes, payload
-                    )
-                    self.assertIn(message, result)
-                    if message != "restore verification failed":
-                        self.assertNotIn("restore", result)
-                    self.assertEqual(final, destination)
-                    self.assertEqual(kept, retained)
-                    self.assertNotIn(".RUN.md.pending", names)
-                    self.assertEqual(count, len(names), names)
-
-    def test_run_posix_exchange_uses_linux_or_macos_primitive(self) -> None:
-        for symbol in ("renameat2", "renameatx_np"):
-            with self.subTest(symbol=symbol):
-                primitive = mock.Mock(return_value=0)
-                libc = types.SimpleNamespace(**{symbol: primitive})
-                with mock.patch("ctypes.CDLL", return_value=libc):
-                    harness_transition._run_posix_exchange(7, "left", "right")
-                primitive.assert_called_once_with(7, b"left", 7, b"right", 0x2)
-
-    def test_run_posix_exchange_fails_closed_without_exchange_primitive(self) -> None:
-        with mock.patch("ctypes.CDLL", return_value=types.SimpleNamespace()):
-            with self.assertRaisesRegex(ManifestError, "renameat2.*renameatx_np"):
-                harness_transition._run_posix_exchange(7, "left", "right")
+        self.assertEqual(before, run_path.read_bytes())
 
     def _sync_plan_digest(self) -> None:
         digest = plan_digest(self.plan)
@@ -604,25 +333,7 @@ class WritePathTransitionTests(unittest.TestCase):
         for declaration, _, _, _ in declarations:
             declaration["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
             declaration["read_only"] = True
-            declaration["execution"] = {
-                "parallel_safe": True,
-                "resources": [],
-                "isolation": "container",
-                "sandbox": {
-                    "runtime": "docker",
-                    "image": "fixture@sha256:" + "1" * 64,
-                    "network": "none",
-                    "read_only_rootfs": True,
-                    "no_new_privileges": True,
-                    "cap_drop": ["ALL"],
-                    "tmpfs": ["/tmp"],
-                    "memory": "512m",
-                    "cpus": "1",
-                    "pids_limit": "256",
-                    "user": "65532:65532",
-                    "pull": "never",
-                },
-            }
+            declaration["execution"] = {"parallel_safe": False, "resources": [], "isolation": "host"}
         self._sync_plan_digest()
         harness_transition._record_observation(
             self.plan, self.run, Namespace(repo_root=self.root)
@@ -702,67 +413,12 @@ class WritePathTransitionTests(unittest.TestCase):
                 "attempt_id": attempt_id,
                 "lease_id": "LEASE-M1-RESULT",
             }
-            policy = declaration["execution"]["sandbox"]
-            sandbox_preflight = next(
-                copy.deepcopy(entry)
-                for entry in self.run["observed"]["sandbox"]["entries"]
-                if entry["runtime"] == policy["runtime"]
-                and entry["image"] == policy["image"]
-            )
-            execution_key, key_document = build_execution_key(
-                declaration,
-                context,
-                checkout_root=worker_root,
-                environment={},
-                sandbox_preflight=sandbox_preflight,
-            )
-            normalized = copy.deepcopy(declaration)
-            normalized.setdefault("cache", {"mode": "disabled", "environment_keys": []})
-            sandbox_attestation = {
-                "runtime": sandbox_preflight["runtime"],
-                "runtime_probe": copy.deepcopy(sandbox_preflight["runtime_probe"]),
-                "image": sandbox_preflight["image"],
-                "image_probe": sandbox_preflight["repo_digest"],
-                "policy": policy,
-                "mount": {
-                    "source": "git_archive",
-                    "destination": "/workspace",
-                    "read_only": True,
-                },
-                "network": "none",
-            }
-            return {
-                "protocol": "harness-verifier-execution-v2",
-                "verifier_id": declaration["id"],
-                "status": "PASS",
-                "exit_code": 0,
-                "stdout": "",
-                "stderr": "",
-                "execution_key": execution_key,
-                "evidence_key": execution_key,
-                "verifier": normalized,
-                "context": context,
-                "key_document": key_document,
-                "cache_status": "bypassed",
-                "cache_reason": "cache_disabled",
-                "duration_ms": 0,
-                "metrics": {"executed": 1, "reused": 0},
-                "sandbox_attestation": sandbox_attestation,
-                "git_guard_attestation": {
-                    "checkout_root": str(worker_root.resolve()),
-                    "git_guard": {
-                        "expected_branch": "feature/m1-result",
-                        "expected_head_sha": head,
-                        "ignored_paths": [],
-                    },
-                    "isolation_mode": "container",
-                    "source_head_sha": head,
-                    "sandbox_attestation": copy.deepcopy(sandbox_attestation),
-                    "tracked_files": {},
-                    "protected_path_sha256": {},
-                    "protected_path_stats": {},
-                },
-            }
+            entries, errors = observe_plan_host_runtimes({"final_gates": [declaration]}, worker_root)
+            self.assertEqual([], errors)
+            return run_verifier(declaration, context, checkout_root=worker_root,
+                host_preflight=entries[0],
+                environment={}, git_guard={"expected_branch": "feature/m1-result",
+                "expected_head_sha": head, "ignored_paths": []})
 
         retained = [
             execute_verifier(
@@ -1006,76 +662,6 @@ class WritePathTransitionTests(unittest.TestCase):
             )
         )
 
-        # A worker's contract-adoption check is validated and retained. This
-        # fixture predates 0.55.1, so the check is optional here; the
-        # validator tests cover the 0.55.1 requirement.
-        adopted_run = copy.deepcopy(self.run)
-        gate = adopted_run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        gate.update(
-            {
-                "status": "adopted",
-                "loaded_contract_digest": None,
-                "installed_contract_digest": "c" * 64,
-                "contract_adoption": {
-                    "session_id": gate["session_id"],
-                    "adopted_at": "2026-09-27T00:00:00Z",
-                    "contract_digest_sha256": "c" * 64,
-                    "owner_source": "owner instruction in this test",
-                    "reading_evidence": ["parent re-read the fixed contract"],
-                },
-                "contract_adoption_history": [],
-            }
-        )
-
-        def record_with_check(run: dict, digest: str) -> None:
-            checked = copy.deepcopy(node_result)
-            checked["worker_result"]["contract_adoption_check"] = {
-                "digest": digest,
-                "matched": True,
-                "reading_evidence": ["worker read SKILL.md and WORKER_GOAL"],
-            }
-            checked_path = self.root / f"checked-{digest[0]}-node-result.json"
-            checked_path.write_text(
-                json.dumps({"node_result": checked}), encoding="utf-8"
-            )
-            record_worker_result(
-                self.plan,
-                run,
-                Namespace(
-                    repo_root=self.root,
-                    node_result=checked_path,
-                    worker_result=None,
-                    verifier_result=retained_paths,
-                ),
-            )
-
-        wrong_digest_run = copy.deepcopy(adopted_run)
-        record_with_check(wrong_digest_run, "d" * 64)
-        self.assertEqual(
-            "worker_failed", wrong_digest_run["mission_states"]["M1"]["phase"]
-        )
-        self.assertTrue(
-            any(
-                "adopted contract digest" in blocker
-                for blocker in wrong_digest_run["mission_states"]["M1"]["blockers"]
-            )
-        )
-        record_with_check(adopted_run, "c" * 64)
-        self.assertEqual("worker_passed", adopted_run["mission_states"]["M1"]["phase"])
-        dispatch = next(
-            item
-            for item in adopted_run["attempt_log"]
-            if item["attempt_id"] == "ATT-M1-RESULT"
-        )
-        self.assertIn(f"contract_adoption_digest:{'c' * 64}", dispatch["evidence"])
-        self.assertIn(
-            "contract_adoption_reading:worker read SKILL.md and WORKER_GOAL",
-            dispatch["evidence"],
-        )
-        self.assertEqual(
-            [], harness_transition.validate_current_plan_run(self.plan, adopted_run)
-        )
-
         record_args = Namespace(
             repo_root=self.root,
             node_result=node_path,
@@ -1106,12 +692,12 @@ class WritePathTransitionTests(unittest.TestCase):
         git(worker_root, "commit", "-qm", "move worker head")
         with self.assertRaisesRegex(ManifestError, "worker worktree changed"):
             verify_worker_observation(record_args.worker_observation)
-        git(worker_root, "mv", "docs/product/prd.md", "src/a/moved-prd.py")
+        git(worker_root, "mv", "docs/product/PRD.md", "src/a/moved-prd.py")
         git(worker_root, "commit", "-qm", "rename an out-of-scope source")
         rename_observation = _observe_bound_worker(
             self.plan, self.run, node_result, self.root
         )
-        self.assertIn("docs/product/prd.md", rename_observation["changed_files"])
+        self.assertIn("docs/product/PRD.md", rename_observation["changed_files"])
         self.assertIn("src/a/moved-prd.py", rename_observation["changed_files"])
 
     def test_record_worker_result_retains_a_retryable_failure(self) -> None:
@@ -1475,188 +1061,9 @@ class WritePathTransitionTests(unittest.TestCase):
 
         self.assertEqual("integrated", self.run["mission_states"]["M1"]["phase"])
 
-    def test_accept_wave_blocks_a_missing_ui_contract_source(self) -> None:
-        self.plan["ui_surfaces"] = [
-            {
-                "id": "UI-001",
-                "trace_ids": ["REQ-001"],
-                "route": "/home",
-                "breakpoints": ["390", "1200"],
-                "states": ["ready"],
-                "evidence_gate": "required",
-            }
-        ]
-        prd_path = self.root / self.plan["sources"][0]["location"]
-        prd_text = (
-            "<!-- ui-surface-contract:start -->\n"
-            "## UI Surface Contract\n\n"
-            "### UI-001 — Home\n\n"
-            "- `route`: /home\n"
-            "- `states`: ready\n"
-            "- `responsive`: viewports: 390, 1200\n"
-            "<!-- ui-surface-contract:end -->\n"
-        )
-        prd_path.write_text(prd_text, encoding="utf-8")
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd_path.read_bytes()
-        ).hexdigest()
-        git(self.root, "add", "docs/product/prd.md")
-        git(self.root, "commit", "-qm", "add UI contract")
-        self.head = git(self.root, "rev-parse", "HEAD")
-        self._sync_plan_digest()
-        harness_transition._record_observation(
-            self.plan, self.run, Namespace(repo_root=self.root)
-        )
 
-        with self.assertRaisesRegex(ManifestError, "frozen wireframes.html source"):
-            harness_transition._accept_wave(
-                self.plan,
-                self.run,
-                Namespace(
-                    wave_id="B-1",
-                    mission_id=["M1"],
-                    batch_base_sha=self.head,
-                    repo_root=self.root,
-                ),
-            )
 
-    def test_accept_wave_blocks_semantic_prd_route_drift(self) -> None:
-        self.plan["ui_surfaces"] = [
-            {
-                "id": "UI-001",
-                "trace_ids": ["REQ-001"],
-                "route": "/home",
-                "breakpoints": ["390"],
-                "states": ["ready"],
-                "evidence_gate": "required",
-            }
-        ]
-        prd_path = self.root / self.plan["sources"][0]["location"]
-        prd_path.write_text(
-            "<!-- ui-surface-contract:start -->\n"
-            "## UI Surface Contract\n\n"
-            "### UI-001 — Home\n\n"
-            "- `route`: /alias\n"
-            "- `states`: ready\n"
-            "<!-- ui-surface-contract:end -->\n",
-            encoding="utf-8",
-        )
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd_path.read_bytes()
-        ).hexdigest()
-        wireframe_path = self.root / "docs/product/wireframes.html"
-        wireframe_path.write_text(
-            mf.wireframes_html(
-                [{"id": "UI-001", "route": "/home", "states": ["ready"]}]
-            ),
-            encoding="utf-8",
-        )
-        self.plan["sources"].append(
-            {
-                "id": "SRC-WIREFRAME",
-                "kind": "wireframe",
-                "location": "docs/product/wireframes.html",
-                "owner": "product",
-                "status": "frozen",
-                "content_sha256": hashlib.sha256(
-                    wireframe_path.read_bytes()
-                ).hexdigest(),
-                "source_revision": None,
-                "staged_revision": None,
-                "notes": "approved projection",
-            }
-        )
-        git(self.root, "add", "docs/product")
-        git(self.root, "commit", "-qm", "add drifted UI artifacts")
-        self.head = git(self.root, "rev-parse", "HEAD")
-        self._sync_plan_digest()
-        harness_transition._record_observation(
-            self.plan, self.run, Namespace(repo_root=self.root)
-        )
 
-        with self.assertRaisesRegex(ManifestError, "differs from the PRD route"):
-            harness_transition._accept_wave(
-                self.plan,
-                self.run,
-                Namespace(
-                    wave_id="B-1",
-                    mission_id=["M1"],
-                    batch_base_sha=self.head,
-                    repo_root=self.root,
-                ),
-            )
-
-    def test_accept_wave_cannot_hide_prd_ui_by_emptying_plan_surfaces(self) -> None:
-        prd_path = self.root / self.plan["sources"][0]["location"]
-        prd_path.write_text(
-            "<!-- ui-surface-contract:start -->\n"
-            "## 介面契約\n\n"
-            "### UI-001 — 首頁\n\n"
-            "- `route`: /home\n"
-            "- `states`: ready\n"
-            "<!-- ui-surface-contract:end -->\n",
-            encoding="utf-8",
-        )
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd_path.read_bytes()
-        ).hexdigest()
-        git(self.root, "add", "docs/product/prd.md")
-        git(self.root, "commit", "-qm", "freeze UI contract")
-        self.head = git(self.root, "rev-parse", "HEAD")
-        self.run["integration"]["batch_base_sha"] = self.head
-        self._sync_plan_digest()
-        harness_transition._record_observation(
-            self.plan, self.run, Namespace(repo_root=self.root)
-        )
-
-        with self.assertRaisesRegex(ManifestError, "PRD surfaces absent from the PLAN"):
-            harness_transition._accept_wave(
-                self.plan,
-                self.run,
-                Namespace(
-                    wave_id="B-1",
-                    mission_id=["M1"],
-                    batch_base_sha=self.head,
-                    repo_root=self.root,
-                ),
-            )
-
-    def test_accept_wave_rejects_ui_headings_outside_the_machine_boundary(
-        self,
-    ) -> None:
-        prd_path = self.root / self.plan["sources"][0]["location"]
-        prd_path.write_text(
-            "<!-- ui-surface-contract:start -->\n"
-            "## 介面契約\n"
-            "<!-- ui-surface-contract:end -->\n"
-            "### UI-001 — Outside\n\n"
-            "- `route`: /home\n"
-            "- `states`: ready\n",
-            encoding="utf-8",
-        )
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd_path.read_bytes()
-        ).hexdigest()
-        git(self.root, "add", "docs/product/prd.md")
-        git(self.root, "commit", "-qm", "freeze malformed UI contract")
-        self.head = git(self.root, "rev-parse", "HEAD")
-        self.run["integration"]["batch_base_sha"] = self.head
-        self._sync_plan_digest()
-        harness_transition._record_observation(
-            self.plan, self.run, Namespace(repo_root=self.root)
-        )
-
-        with self.assertRaisesRegex(ManifestError, "headings outside"):
-            harness_transition._accept_wave(
-                self.plan,
-                self.run,
-                Namespace(
-                    wave_id="B-1",
-                    mission_id=["M1"],
-                    batch_base_sha=self.head,
-                    repo_root=self.root,
-                ),
-            )
 
     def test_tracked_run_cli_chain_works_from_a_linked_integration_worktree(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -1673,14 +1080,7 @@ class WritePathTransitionTests(unittest.TestCase):
             git(main_root, "worktree", "add", "-q", "-b", "integration", str(linked_root))
 
             plan = mf.valid_plan()
-            for source, contents in zip(
-                plan["sources"],
-                (b"# Product contract\n", b"# Architecture contract\n"),
-            ):
-                source_path = linked_root / source["location"]
-                source_path.parent.mkdir(parents=True, exist_ok=True)
-                source_path.write_bytes(contents)
-                source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+            mf.materialize_plan_sources(linked_root, plan)
             run = mf.valid_run(plan)
             mf.authorize_execution(run, ["M1", "M2"])
             for action in (
@@ -1737,14 +1137,9 @@ class WritePathTransitionTests(unittest.TestCase):
             git(linked_root, "add", ".")
             git(linked_root, "commit", "-qm", "tracked harness layout")
             head = git(linked_root, "rev-parse", "HEAD")
-            with mock.patch.object(
-                harness_transition,
-                "observe_plan_sandboxes",
-                return_value=(mf.sandbox_observation(plan)["entries"], []),
-            ):
-                harness_transition._record_observation(
-                    plan, run, Namespace(repo_root=linked_root)
-                )
+            harness_transition._record_observation(
+                plan, run, Namespace(repo_root=linked_root)
+            )
             run_path.write_text(
                 mf.manifest_markdown("## Harness Run State", "harness_run", run),
                 encoding="utf-8",
@@ -1794,11 +1189,9 @@ class WritePathTransitionTests(unittest.TestCase):
             self.assertEqual(["M1"], live["active_wave"]["selected_missions"])
             status = git(linked_root, "status", "--porcelain")
             self.assertIn("M docs/goal/RUN.md", status)
-            self.assertIn("?? docs/tasks.md", status)
-            self.assertTrue((linked_root / "docs/tasks.md").is_file())
+            self.assertFalse((linked_root / "docs/tasks.md").exists())
             self.assertEqual("", harness_transition._git_status_excluding_run(linked_root, run_path, live).strip())
-            with mock.patch.object(harness_transition, "observe_plan_sandboxes", return_value=(mf.sandbox_observation(plan)["entries"], [])):
-                harness_transition._record_observation(plan, live, Namespace(repo_root=linked_root, run=run_path))
+            harness_transition._record_observation(plan, live, Namespace(repo_root=linked_root, run=run_path))
             self.assertFalse(live["observed"]["git"]["parent_dirty"])
 
     def test_transition_lock_serializes_separate_processes(self) -> None:

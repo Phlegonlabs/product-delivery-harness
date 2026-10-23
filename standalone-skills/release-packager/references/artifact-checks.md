@@ -31,6 +31,6 @@ Use the existing release/task record. A compact per-artifact table is enough:
 | Component / version | Source identity | Runtime / platform | Artifact location | SHA-256 or image identity | Verification | Publication |
 | --- | --- | --- | --- | --- | --- | --- |
 
-Populate rows from actual evidence, including every requested component/target. For files, hash the final bytes after signing, stapling or repacking. For containers, distinguish local image ID, exported-file SHA-256 and remote manifest/per-platform digest. List source SHA plus scoped uncommitted input evidence when applicable. Record precise states such as built, install-tested, signature-verified, unverified target and published/read-back; do not combine them into a vague readiness claim.
+Populate rows from actual evidence, including every requested component/target. For files, hash the final bytes after signing, stapling or repacking. For containers, distinguish local image ID, exported-file SHA-256 and remote manifest/per-platform digest. List source SHA plus scoped uncommitted input evidence when applicable. Record precise states such as built, install-tested, signature-verified, unverified target and published/read-back.
 
 Link the actual package files, checksums, command results and required visual evidence. Name remaining capabilities, signing material or authority needed. Stop temporary task-owned processes by verified identity and retain task artifacts/logs; shared services are not task-owned cleanup targets.

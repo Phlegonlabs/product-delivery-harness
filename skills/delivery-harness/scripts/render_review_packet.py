@@ -13,6 +13,7 @@ from typing import Any
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import ui_acceptance_review
 from harness_manifest import ManifestError, load_plan, load_run, validate_current_plan_run
+from harness_schema import review_lenses, review_policy
 from check_launch_packet import (
     InvalidMessageBudgetError,
     MessageBudgetOverflowError,
@@ -130,7 +131,7 @@ def render_packet(
     if not isinstance(node, dict) or not isinstance(node.get("review"), dict):
         raise ManifestError(f"{node_id!r} is not a runtime review node")
     review = node["review"]
-    lineage = run["review_lineages"][review["lineage_id"]]
+    lenses = review_lenses(review)
     mission_ids = set(review["mission_ids"])
     missions = [item for item in plan["missions"] if item["id"] in mission_ids]
     if diff_artifact_out is not None and review.get("stage", "preintegration") == "preintegration":
@@ -181,15 +182,6 @@ def render_packet(
     acceptance_mappings, mappings_truncated = _relevant_acceptance_mappings(
         plan, missions
     )
-    version_gate = (
-        run.get("runtime_capabilities", {}).get("runtime_adapter", {}).get("version_gate")
-    )
-    contract_adoption = (
-        version_gate.get("contract_adoption")
-        if isinstance(version_gate, dict)
-        and version_gate.get("status") == "adopted"
-        else None
-    )
     # A security reviewer returns each PLAN required check with the key of
     # its one PASS execution at the reviewed head (null when there is none).
     required_checks = []
@@ -215,7 +207,7 @@ def render_packet(
         "",
         f"- Reviewed head: `{head}`",
         f"- Base: `{base}`",
-        f"- Lineage: `{review['lineage_id']}` ({lineage['consumed_attempts']}/{lineage['base_allowance'] + lineage['additional_allowance']} consumed)",
+        f"- Attempts: {run['graph_state']['node_states'][node_id]['attempts']}/{node['max_attempts']}",
         f"- Scope: {', '.join(review['scope'])}",
     ]
     if review.get("stage") == "integration" and review["type"] == "security":
@@ -224,7 +216,8 @@ def render_packet(
             "Perform a fresh full-scope review at the reviewed head. Prior mission"
             " reviews do not reduce security scope or replace required checks.",
         ]
-    elif review.get("stage") == "integration":
+    elif review.get("stage") == "integration" and review_policy(plan) == "per_mission":
+        # A final_candidate review has no earlier mission review to lean on.
         reviewed_heads = []
         for mission in missions:
             mission_head = (
@@ -246,7 +239,7 @@ def render_packet(
             " changed: merge seams, conflict resolutions, cross-mission"
             " interaction, and shared-contract boundaries.",
         ]
-    if review["type"] in {"frontend_code", "backend_code"}:
+    if lenses & {"frontend_code", "backend_code"}:
         packet_lines += [
             "",
             "## Architecture review",
@@ -272,11 +265,12 @@ def render_packet(
             "For consolidated acceptance, inspect parity and page quality in this one review at the reviewed head.",
             "Use current ui_evidence, target_comparison, layout_check, platform captures and source evidence.",
             "Cover the full required UI matrix for the planned review scope, normal/reduced motion and required native proof.",
-            "Check heuristic UX, accessibility, responsive/device behavior and performance alongside parity.",
+            "When parity passes within tolerance and the HiFi evidence is current, check only performance, the no-JavaScript path, console and network errors, and framework-rendered focus handling and accessible names.",
+            "Otherwise also check heuristic UX, accessibility and responsive/device behavior alongside parity.",
             "Merge-seam source reading does not reduce required UI evidence coverage.",
             "Return one consolidated finding set and verdict covering both components; do not reopen design direction.",
             "For a repair re-review, check original defects and affected consumers with current evidence.",
-            "Use the existing lineage budget; do not add a page-quality-only reviewer or another scoring wave.",
+            "Use the existing node attempt limit; do not add a page-quality-only reviewer or another scoring wave.",
             "Missing required evidence blocks acceptance. Security and final regression obligations remain separate.",
             "Return ui_parity:<retained comparison anchor> and ui_page_quality:<retained quality-report anchor> in review evidence.",
         ]
@@ -305,6 +299,7 @@ def render_packet(
         json.dumps(
             {
                 "review_type": review["type"],
+                "review_lenses": sorted(lenses),
                 "diff_artifact": diff_artifact,
                 "skill_binding_slot": (
                     "code_security_verification"
@@ -314,34 +309,14 @@ def render_packet(
                 "required_evidence": review["required_evidence"],
                 "required_tools": review.get("required_tools", []),
                 "required_checks": required_checks,
-                "reviewer_tool_capabilities": {
-                    tool_name: run.get("runtime_capabilities", {})
-                    .get("reviewer_tools", {})
-                    .get(tool_name)
-                    for tool_name in review.get("required_tools", [])
-                },
-                "contract_adoption": contract_adoption,
                 "acceptance": acceptance,
                 "acceptance_mappings": acceptance_mappings,
                 "acceptance_mappings_truncated": mappings_truncated,
-                "failure_families": lineage["failure_families"],
-                "owner_decisions": lineage["owner_decisions"],
             },
             indent=2,
             ensure_ascii=False,
         ),
         "```",
-        (
-            "Before any review action, independently recompute the seven-skill contract"
-            " digest, compare it with `contract_adoption.contract_digest_sha256`, read"
-            " the supplied fixed contract, and return your own reading evidence as"
-            " `contract_adoption_check` (shape: `references/worker-result-contract.md`,"
-            " Contract Adoption Check), beside your review result and never inside a"
-            " security review result. Stop on a mismatch. An adoption receipt is not"
-            " loaded-at-start evidence."
-            if contract_adoption is not None
-            else ""
-        ),
         "",
         f"## Diff{' (truncated)' if truncated else ''}",
         "",

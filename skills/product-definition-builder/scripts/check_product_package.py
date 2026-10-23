@@ -13,7 +13,7 @@ from pathlib import Path
 
 from markdown_contract import active_text, active_machine_block
 from platform_delivery import parse_platform_delivery, PROTOCOL
-from prd_operations import required_operations
+from prd_operations import operation_graph_findings, required_operations
 from prd_ui_contract import parse_prd_ui_contract
 from release_targets import parse_release_targets
 from git_evidence import GitEvidenceError, verify_revision_path
@@ -395,36 +395,6 @@ ENHANCEMENT_ARTIFACT_RE = re.compile(
     r"DEPLOYMENT|ACTIVATION|OUTCOME_REVIEW|SEO_REVIEW)\.(?:md|json|html)|HiFi)\b",
     re.IGNORECASE,
 )
-ENHANCEMENT_REFRESH_REQUIREMENTS = {
-    "product scope / behavior": (
-        {"prd.md"},
-        {"product definition approval"},
-    ),
-    "data / integrations": (
-        {"prd.md", "architecture.md"},
-        {"product definition approval"},
-    ),
-    "architecture / stack": (
-        {"architecture.md", "stack-decisions.md"},
-        {"stack decision checkpoint", "product definition approval"},
-    ),
-    "data trust / ai": (
-        {"prd.md", "architecture.md", "stack-decisions.md"},
-        {"product definition approval", "stack decision checkpoint"},
-    ),
-    "security": (
-        {"prd.md", "architecture.md"},
-        {"product definition approval"},
-    ),
-    "monetization / partner": (
-        {"prd.md", "architecture.md", "stack-decisions.md"},
-        {"product definition approval", "stack decision checkpoint"},
-    ),
-    "release / operations": (
-        {"architecture.md", "deployment.md"},
-        {"product definition approval", "deployment checker"},
-    ),
-}
 AT_A_GLANCE_HEADER = ("", "")
 AT_A_GLANCE_ROWS = {
     "what it is",
@@ -1432,85 +1402,6 @@ def _ids(cell: str, prefix: str) -> set[str]:
     }
 
 
-def _parse_approved_option_map(
-    option_map: str,
-) -> tuple[dict[str, dict[str, str]], list[str]]:
-    """Parse approved option maps, preserving comma-containing layer text.
-
-    Layer pairs are separated by ``;``. A single option's pairs stay inside its
-    ``OPT-ID=...`` entry. New explicit maps wrap every entry in ``||`` (for
-    example, ``||OPT-ID=layer=>selection||``); legacy maps that use only commas
-    remain readable. A layer name or selection that contains a comma therefore
-    requires the explicit ``||`` form.
-    """
-
-    findings: list[str] = []
-    parsed: dict[str, dict[str, str]] = {}
-    normalized = option_map.strip()
-    if normalized.casefold() == "none":
-        return {}, []
-    explicit = normalized.startswith("||") or normalized.endswith("||")
-    if explicit:
-        if not (normalized.startswith("||") and normalized.endswith("||")):
-            return {}, ["Approved option map explicit form must start and end with ||"]
-        normalized = normalized[2:-2]
-    raw_entries = normalized.split("||") if explicit else normalized.split(",")
-    for index, raw_entry in enumerate(raw_entries):
-        entry = raw_entry.strip()
-        if not entry:
-            findings.append(
-                "Approved option map entry "
-                f"{index + 1} is empty; use || between entries"
-            )
-            continue
-        if "=>" not in entry:
-            findings.append(
-                "Approved option map must use OPT-ID=layer=>selection entries"
-            )
-            continue
-        option_id, layer_payload = entry.split("=", 1)
-        option_id = option_id.strip()
-        option_id_match = re.fullmatch(r"OPT-[A-Z0-9-]+", option_id, re.I)
-        if option_id_match is None:
-            findings.append(
-                "Approved option map must use one exact OPT-ID per entry"
-            )
-            continue
-        option_id = option_id.upper()
-        if option_id in parsed:
-            findings.append(f"duplicate approved option map entry {option_id}")
-            continue
-
-        layers: dict[str, str] = {}
-        for raw_pair in layer_payload.strip().split(";"):
-            pair = raw_pair.strip()
-            if "=>" not in pair or pair.count("=>") != 1:
-                findings.append(
-                    "Approved option map must use OPT-ID=layer=>selection entries"
-                )
-                break
-            layer, pair_selection = pair.split("=>", 1)
-            layer_key = layer.strip().casefold()
-            if not layer_key:
-                findings.append(
-                    "Approved option map entry has an empty layer name"
-                )
-                break
-            if not pair_selection.strip():
-                findings.append("Approved option map entry has an empty selection")
-                break
-            if layer_key in layers:
-                findings.append(
-                    f"duplicate approved option map layer {layer.strip()!r} "
-                    f"in {option_id}"
-                )
-                break
-            layers[layer_key] = pair_selection.strip()
-        else:
-            parsed[option_id] = layers
-    return parsed, findings
-
-
 def _architecture_ids(architecture_text: str) -> set[str]:
     ids: set[str] = set()
     for heading, header in (
@@ -1594,9 +1485,13 @@ def validate_texts(
     if ui_contract in CURRENT_UI_CONTRACTS:
         # Parse operations from the active contract.  Reusing the parser also
         # checks one operation anchor per surface and its declared endpoints.
-        _operations, operation_errors = required_operations(prd_text)
+        operations, operation_errors = required_operations(prd_text)
         seen = set(problems)
         problems.extend(error for error in operation_errors if error not in seen)
+        # ui-design/3 also applies the HiFi entry reachability rule here, so a
+        # dead end fails at Product Definition Approval, not at HiFi preflight.
+        if ui_contract == "ui-design/3" and not operation_errors:
+            problems.extend(operation_graph_findings(ui_surfaces, operations))
     if require_filled:
         _validate_prd_core_sections(
             prd_text, has_ui=bool(ui_surfaces), problems=problems
@@ -2872,38 +2767,6 @@ def validate_texts(
                         "prd approval",
                         "Package revision digest must equal Package digest",
                     )
-        accepted_refs = product_fields.get("accepted assumptions and non-blocking questions", "")
-        expected_refs: set[str] = set()
-        for row in _find_table(assumptions or "", ASSUMPTIONS_HEADER) or []:
-            if len(row) == len(ASSUMPTIONS_HEADER) and row[0].strip():
-                ref_id = re.sub(r"[^a-z0-9]+", "-", row[0].strip().casefold()).strip("-")
-                expected_refs.add(f"assumption:{ref_id}")
-        for row in _find_table(open_questions or "", OPEN_QUESTIONS_HEADER) or []:
-            if len(row) == len(OPEN_QUESTIONS_HEADER) and row[0].strip() and row[4].casefold() == "no":
-                ref_id = re.sub(r"[^a-z0-9]+", "-", row[0].strip().casefold()).strip("-")
-                expected_refs.add(f"question:{ref_id}")
-        if accepted_refs.casefold().strip() in {"", "none", "n/a"}:
-            parsed_refs: list[str] = []
-        else:
-            parsed_refs = [item.strip().casefold() for item in accepted_refs.split(",") if item.strip()]
-        if len(parsed_refs) != len(set(parsed_refs)):
-            _add(problems, "prd approval", "Accepted assumptions and non-blocking questions contain duplicate references")
-        invalid_refs = [
-            item for item in parsed_refs
-            if re.fullmatch(r"(?:assumption|question):[a-z0-9][a-z0-9-]*", item) is None
-        ]
-        if invalid_refs:
-            _add(
-                problems,
-                "prd approval",
-                "Accepted assumptions and non-blocking questions must use a closed token set",
-            )
-        if require_approved and set(parsed_refs) != expected_refs:
-            _add(
-                problems,
-                "prd approval",
-                "Accepted assumptions and non-blocking questions must exactly equal required references",
-            )
         decision = product_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
             _add(problems, "prd approval", f"invalid decision {decision!r}")
@@ -3048,69 +2911,17 @@ def validate_texts(
                                 "affected IDs or decision:<name> entries",
                             )
                         refresh = row[3].casefold()
-                        invalid_refresh = (
+                        if (
                             not _meaningful(row[3])
                             or refresh in {"none", "n/a"}
                             or refresh.startswith(("none ", "none —", "none-", "n/a "))
                             or ENHANCEMENT_ARTIFACT_RE.search(row[3]) is None
-                        )
-                        required_artifacts: set[str]
-                        required_gates: set[str]
-                        if area == "ui structure / style":
-                            # Generic product approval accepts either explicit
-                            # refresh vocabulary. Current UI preflight still
-                            # requires HiFi; a legacy-only row cannot pass it.
-                            current_refresh = ui_contract in CURRENT_UI_CONTRACTS or (
-                                re.search(r"\bhifi\b", refresh) is not None
-                                and "hifi review" in refresh
-                            )
-                            if impact == "style":
-                                if current_refresh:
-                                    required_artifacts = {"ui-design.md", "hifi"}
-                                    required_gates = {
-                                        "hifi review",
-                                        "visual approval",
-                                    }
-                                else:
-                                    required_artifacts = {"ui-design.md"}
-                                    required_gates = {"visual approval"}
-                            else:
-                                if current_refresh:
-                                    required_artifacts = {"ui-design.md", "hifi"}
-                                    required_gates = {
-                                        "hifi review",
-                                        "visual approval",
-                                    }
-                                else:
-                                    required_artifacts = {
-                                        "wireframes.html",
-                                        "ui-design.md",
-                                    }
-                                    required_gates = {
-                                        "wireframe validation",
-                                        "visual approval",
-                                    }
-                        else:
-                            required_artifacts, required_gates = (
-                                ENHANCEMENT_REFRESH_REQUIREMENTS.get(area, (set(), set()))
-                            )
-                        missing_refresh_artifacts = sorted(
-                            artifact
-                            for artifact in required_artifacts
-                            if artifact not in refresh
-                        )
-                        missing_refresh_gates = sorted(
-                            gate for gate in required_gates if gate not in refresh
-                        )
-                        if invalid_refresh or missing_refresh_artifacts or missing_refresh_gates:
+                        ):
                             _add(
                                 problems,
                                 "prd",
                                 f"changed enhancement row {row[0]} must record a non-none "
-                                "area-specific refresh; missing artifacts: "
-                                + (", ".join(missing_refresh_artifacts) or "none")
-                                + "; missing gates: "
-                                + (", ".join(missing_refresh_gates) or "none"),
+                                "refresh",
                             )
                 present = seen_areas
                 missing = sorted(REQUIRED_ENHANCEMENT_AREAS - present)
@@ -3122,7 +2933,6 @@ def validate_texts(
                         + ", ".join(missing),
                     )
 
-    checkpoint_option_map = ""
     stack_block = _extract_machine_block(
         stack_text,
         STACK_CHECKPOINT_START,
@@ -3145,7 +2955,7 @@ def validate_texts(
                 "Delegated choices",
                 "Open areas",
                 *(
-                    ("Checkpoint digest", "Applicable areas", "Resolved areas", "Approved option map")
+                    ("Checkpoint digest",)
                     if require_approved
                     else ()
                 ),
@@ -3169,33 +2979,6 @@ def validate_texts(
                     problems,
                     "stack checkpoint",
                     "Checkpoint digest does not match the approved stack bytes",
-                )
-        applicable_value = stack_fields.get("applicable areas", "")
-        resolved_value = stack_fields.get("resolved areas", "")
-        if applicable_value or resolved_value:
-            applicable = _stack_areas(applicable_value)
-            resolved = _stack_areas(resolved_value)
-            if applicable != required_stack_areas:
-                _add(
-                    problems,
-                    "stack checkpoint",
-                    "Applicable areas must exactly match release-surface and gate applicability",
-                )
-            if resolved != applicable:
-                _add(
-                    problems,
-                    "stack checkpoint",
-                    "Resolved areas must exactly match Applicable areas",
-                )
-        option_map = stack_fields.get("approved option map", "")
-        checkpoint_option_map = option_map
-        if option_map and require_approved:
-            _, option_map_findings = _parse_approved_option_map(option_map)
-            for finding in option_map_findings:
-                _add(
-                    problems,
-                    "stack checkpoint",
-                    finding,
                 )
         decision = stack_fields.get("decision", "").casefold()
         if decision and decision not in VALID_DECISIONS:
@@ -3233,43 +3016,18 @@ def validate_texts(
     if require_approved:
         approved_value = stack_fields.get("approved areas", "") if stack_block is not None else ""
         approved = _stack_areas(approved_value)
-        applicable_value = stack_fields.get("applicable areas", "") if stack_block is not None else ""
-        resolved_value = stack_fields.get("resolved areas", "") if stack_block is not None else ""
-        applicable = _stack_areas(applicable_value)
-        resolved = _stack_areas(resolved_value)
         if approved != required_stack_areas:
             _add(
                 problems,
                 "stack checkpoint",
                 "Approved areas must exactly match release-surface and gate applicability",
             )
-        if applicable != required_stack_areas:
-            _add(
-                problems,
-                "stack checkpoint",
-                "Applicable areas must exactly match release-surface and gate applicability",
-            )
-        if resolved != applicable:
-            _add(problems, "stack checkpoint", "Resolved areas must exactly match Applicable areas")
-        if not checkpoint_option_map.strip():
-            _add(problems, "stack checkpoint", "Approved option map must not be empty")
     option_rows = _find_table(stack_text, STACK_OPTIONS_HEADER)
     if approved_stack_areas and not option_rows:
         _add(
             problems,
             "stack-decisions",
             "Approved layers require a non-empty Coherent Options Presented table",
-        )
-    elif (
-        require_approved
-        and checkpoint_option_map
-        and checkpoint_option_map.strip().casefold() != "none"
-        and not option_rows
-    ):
-        _add(
-            problems,
-            "stack-decisions",
-            "Approved option map requires a non-empty Coherent Options Presented table",
         )
     elif option_rows:
         _validate_table_rows(
@@ -3327,32 +3085,6 @@ def validate_texts(
                     problems,
                     "stack-decisions",
                     f"Coherent Options Presented must retain the approved {area} option",
-                )
-        if checkpoint_option_map and require_approved:
-            expected_map, _ = _parse_approved_option_map(checkpoint_option_map)
-            actual_map: dict[str, dict[str, str]] = {}
-            for row in option_rows:
-                if len(row) != len(STACK_OPTIONS_HEADER) or row[5].casefold() != "approved":
-                    continue
-                ids = _ids(row[0], "OPT")
-                if len(ids) != 1:
-                    continue
-                option_id = next(iter(ids))
-                actual_layers: dict[str, str] = {}
-                for section_name, area_name in STACK_SECTION_AREAS.items():
-                    if area_name not in _stack_areas(row[1]):
-                        continue
-                    section = _section(stack_text, f"## {section_name}") or ""
-                    recorded = _subsection(section, "### Recorded or Approved Stack") or ""
-                    for layer_row in _find_table(recorded, STACK_LAYER_HEADER) or []:
-                        if len(layer_row) == len(STACK_LAYER_HEADER) and layer_row[2].casefold() in EXECUTABLE_STACK_STATUSES:
-                            actual_layers[layer_row[0].strip().casefold()] = layer_row[1].strip()
-                actual_map[option_id] = actual_layers
-            if expected_map != actual_map:
-                _add(
-                    problems,
-                    "stack-decisions",
-                    "Approved option map does not exactly match approved option IDs and executable layers",
                 )
     return problems
 

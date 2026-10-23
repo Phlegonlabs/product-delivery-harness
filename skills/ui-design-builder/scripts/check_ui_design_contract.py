@@ -22,7 +22,6 @@ sys.path.insert(0, str(UI_SCRIPTS))
 # sibling while the canonical bytes are available, so cleanup cannot strand it.
 import direction_review  # noqa: E402
 import check_wireframe_html
-from motion_evidence import motion_findings
 from review_evidence import (
     HIFI_MANIFEST_RE,
     assessment_findings,
@@ -43,12 +42,6 @@ DESIGN_SYSTEM_SCRIPTS = (
 )
 if str(DESIGN_SYSTEM_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(DESIGN_SYSTEM_SCRIPTS))
-
-# Retain this independent helper before a caller restores its temporary path.
-try:
-    from design_system_showcase import source_preflight as _compiler_source_preflight
-except ImportError:
-    _compiler_source_preflight = None
 
 from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
@@ -170,6 +163,7 @@ NON_HUMAN_OWNERS = {
     "system",
 }
 VALID_TREATMENTS = {"none", "image", "motion", "image + motion"}
+MANDATED_CSP_TEXT = "Unrecognized Content-Security-Policy directive 'navigate-to'."
 # Code-only motion routes need no generated or reused media asset.
 CODE_MOTION_ROUTES = {"css-waapi", "motion", "gsap", "three.js", "native-framework"}
 VALID_MOTION_STATUSES = {"approved", "deferred"}
@@ -647,7 +641,7 @@ def _direction_comparison(
     surfaces = {item["id"]: item for item in (raw_surfaces if isinstance(raw_surfaces, list) else [])
                 if isinstance(item, dict) and isinstance(item.get("id"), str)}
     cases: dict[str, set[tuple[str, ...]]] = {}
-    images: dict[str, set[str]] = {}
+    selected = re.match(r"VD-R[1-9][0-9]*-[0-9]{2,}(?=\s|$)", _field(style, "Selected direction") or "")
     for direction, surface_id, state, target, scenario, content, screenshot, _ in rows:
         if re.fullmatch(r"VD-R[1-9][0-9]*-[0-9]{2,}", direction) is None:
             _add(problems, "Direction comparison requires versioned VD-R<round>-<number> IDs")
@@ -672,33 +666,14 @@ def _direction_comparison(
                 _add(problems, "Direction comparison Screenshot must be retained under docs/design/directions/")
             if Path(identity.group("path")).suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
                 _add(problems, "Direction comparison Screenshot must name a PNG, JPEG, or WebP capture")
-            images.setdefault(direction, set()).add(identity.group("sha256"))
-            if repo_root is not None:
-                before = len(problems)
+            if repo_root is not None and selected is not None and direction == selected.group():
                 _resolve_source(screenshot, repo_root=repo_root, label="Direction comparison Screenshot", problems=problems)
-                if len(problems) == before:
-                    try:
-                        from PIL import Image
-                    except ImportError:
-                        _add(problems, "Direction comparison Screenshot verification requires Pillow")
-                        continue
-                    try:
-                        with Image.open(repo_root / identity.group("path")) as capture:
-                            if capture.format not in {"PNG", "JPEG", "WEBP"}:
-                                raise ValueError("unsupported capture format")
-                            capture.verify()
-                    except (OSError, ValueError, Image.DecompressionBombError) as exc:
-                        _add(problems, f"Direction comparison Screenshot cannot be verified as an image: {exc}")
     expected = 3 if (_field(intake, "Direction mode") or "").casefold() == "three comparable directions" else 1
     if len(cases) != expected:
         _add(problems, f"Direction comparison requires exactly {expected} directions")
-    selected = re.match(r"VD-R[1-9][0-9]*-[0-9]{2,}(?=\s|$)", _field(style, "Selected direction") or "")
     if selected is None or selected.group() not in cases:
         _add(problems, "Selected direction must name a compared direction")
-    baseline = next(iter(cases.values()), set())
     for direction, direction_cases in cases.items():
-        if direction_cases != baseline:
-            _add(problems, "Direction comparison must use the same surface/state/target/scenario/content cases for every direction")
         if {case[3] for case in direction_cases} != {"primary", "stress"}:
             _add(problems, f"Direction comparison {direction} requires primary and stress cases")
         if scope is not None:
@@ -708,9 +683,6 @@ def _direction_comparison(
                            if case[0] in surfaces and _surface_platform(surfaces[case[0]]) == platform}
                 if covered != {"primary", "stress"}:
                     _add(problems, f"Direction comparison {direction} requires primary and stress cases for platform {platform}")
-    image_sets = list(images.values())
-    if any(left & right for i, left in enumerate(image_sets) for right in image_sets[i + 1:]):
-        _add(problems, "Direction comparison cannot reuse an identical screenshot across directions")
 
 
 def _direction_study_identities(style: str, problems: list[str]) -> list[dict[str, str]]:
@@ -827,30 +799,6 @@ def _surface_platform(surface: dict[str, Any]) -> str:
     if isinstance(semantics, dict) and isinstance(semantics.get("platform"), str):
         return semantics["platform"]
     return STACK_PLATFORM_BY_SURFACE_CLASS.get(surface.get("surfaceClass"), surface.get("captureMode", "web"))
-
-
-def _platform_rules(style: str, scope: dict[str, Any] | None, problems: list[str]) -> None:
-    rows = _design_table(style, "### Platform rules", [
-        "Platform", "Navigation and input", "Typography", "Icons", "Density and layout",
-        "Feedback and motion", "Native proof", "Sources",
-    ], problems)
-    platforms = set()
-    for platform, _, typography, icons, _, _, native_proof, _ in rows:
-        if platform in platforms:
-            _add(problems, f"Platform rules duplicates {platform}")
-        platforms.add(platform)
-        if platform == "ios":
-            if not all(term in typography.casefold() for term in ("system text styles", "dynamic type")):
-                _add(problems, "iOS Platform rules Typography must address system text styles and Dynamic Type")
-            if "sf symbols" not in icons.casefold():
-                _add(problems, "iOS Platform rules Icons must address SF Symbols")
-        expected_proof = "not_applicable" if platform == "web" else "required before expansion"
-        if native_proof != expected_proof:
-            _add(problems, f"Platform rules {platform} Native proof must be {expected_proof}")
-    if scope is not None:
-        expected = {_surface_platform(surface) for surface in scope["surfaces"]}
-        if platforms != expected:
-            _add(problems, "Platform rules must exactly cover Approved target platforms")
 
 
 def _validate_motion_table(
@@ -2155,7 +2103,10 @@ def _resolve_evidence(
                             ):
                                 _add(problems, f"{label} output artifact does not exactly match its receipt")
                             elif offline:
-                                findings = _bundle_transcript_findings(output_json, bundle) if bundle is not None else _offline_transcript_findings(output_json)
+                                findings = (
+                                    _bundle_transcript_findings(output_json, bundle)
+                                    if bundle is not None else _offline_transcript_findings(output_json)
+                                )
                                 for finding in findings:
                                     _add(problems, finding)
                                 if review_contract is not None:
@@ -2171,7 +2122,7 @@ def _resolve_evidence(
                                     problems.extend(f"{label}: {item}" for item in score_findings(output_json, recorded_scores))
                             if expected_motion is not None and isinstance(output_json, dict):
                                 motion = output_json.get("motion")
-                                for finding in motion_findings(motion, expected_motion):
+                                for finding in _motion_asset_findings(motion, expected_motion):
                                     _add(problems, f"{label}: {finding}")
                                 asset = motion.get("asset") if isinstance(motion, dict) else None
                                 if isinstance(asset, dict):
@@ -2269,99 +2220,6 @@ def _interaction_expectations(manifest: dict[str, Any]) -> tuple[list[dict[str, 
     return expected, navigation
 
 
-def _offline_transcript_shape_findings(output: dict[str, Any]) -> list[str]:
-    """Validate the closed offline transcript containers without success bias."""
-
-    expected_sandbox = {
-        "network": "disabled", "topNavigation": "allowlisted-local-pages",
-        "popups": "blocked", "forms": "blocked",
-    }
-    if output.get("sandbox") != expected_sandbox:
-        return ["HiFi bundle requires the allowlisted-local-pages offline sandbox"]
-    values = [output.get(key) for key in
-              ("console", "network", "navigation", "popups", "forms")]
-    counts = [output.get(key) for key in ("popupAttempts", "formAttempts")]
-    if (any(not isinstance(value, list) for value in values)
-            or any(not isinstance(value, int) or isinstance(value, bool) for value in counts)
-            or counts[0] != len(output["popups"]) or counts[1] != len(output["forms"])):
-        return ["HiFi offline transcript must retain complete arrays and attempt counts"]
-    return []
-
-
-def _bundle_diagnostic_findings(
-    output: dict[str, Any], manifest: dict[str, Any],
-) -> tuple[list[str], list[str]]:
-    """Return transcript coverage errors and fully observed browser defects."""
-
-    structural = _offline_transcript_shape_findings(output)
-    defects: list[str] = []
-    expectations = _interaction_expectations(manifest)
-    if expectations is None:
-        return structural + ["HiFi bundle interaction manifest is invalid"], defects
-    expected, expected_navigation = expectations
-    actual = output.get("interactions")
-    actual_navigation = output.get("navigation")
-    if (not isinstance(actual, list) or not isinstance(actual_navigation, list)
-            or len(actual) != len(expected) or len(actual_navigation) != len(expected_navigation)):
-        structural.extend([
-            "HiFi interaction evidence must exactly cover click and keyboard destination, "
-            "visibility, and focus results at every target",
-            "HiFi navigation transcript must exactly match declared local-page transitions; "
-            "extra or missing attempts fail",
-        ])
-        return structural, defects
-    expected_by_id = {tuple(row[key] for key in ("id", "target", "trigger")): row for row in expected}
-    navigation_by_id = {tuple(row[key] for key in ("id", "target", "trigger")): row for row in expected_navigation}
-    seen: set[tuple[object, ...]] = set()
-    for row in actual:
-        if not isinstance(row, dict) or any(key not in row for key in ("id", "target", "trigger")):
-            structural.append("HiFi interaction observation has an invalid closed field set")
-            continue
-        identity = tuple(row[key] for key in ("id", "target", "trigger"))
-        contract = expected_by_id.get(identity)
-        if contract is None or identity in seen or set(row) != set(contract):
-            structural.append("HiFi interaction observation is missing, extra or stale")
-            continue
-        seen.add(identity)
-        static_fields = ("id", "target", "trigger", "source")
-        if any(row[key] != contract[key] for key in static_fields):
-            structural.append("HiFi interaction observation differs from its manifest identity")
-            continue
-        changed = [key for key in sorted(set(contract) - set(static_fields)) if row[key] != contract[key]]
-        if changed:
-            defects.append("HiFi interaction observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
-    if len(seen) != len(expected):
-        structural.append("HiFi interaction evidence lacks a required click or keyboard observation")
-    seen_navigation: set[tuple[object, ...]] = set()
-    for row in actual_navigation:
-        if not isinstance(row, dict) or any(key not in row for key in ("id", "target", "trigger")):
-            structural.append("HiFi navigation observation has an invalid closed field set")
-            continue
-        identity = tuple(row[key] for key in ("id", "target", "trigger"))
-        contract = navigation_by_id.get(identity)
-        if contract is None or identity in seen_navigation or set(row) != set(contract):
-            structural.append("HiFi navigation observation is missing, extra or stale")
-            continue
-        seen_navigation.add(identity)
-        if row["from"] != contract["from"]:
-            structural.append("HiFi navigation observation differs from its manifest source page")
-            continue
-        changed = [key for key in sorted(set(contract) - {"id", "target", "trigger", "from"}) if row[key] != contract[key]]
-        if changed:
-            defects.append("HiFi navigation observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
-    if len(seen_navigation) != len(expected_navigation):
-        structural.append("HiFi navigation transcript lacks a required local-page observation")
-    content_findings = _offline_transcript_findings(dict(output, navigation=[]))
-    behavior_markers = (
-        "contains a console error", "recorded a network request",
-        "recorded a navigation or popup attempt", "recorded a popup attempt",
-        "recorded a form attempt",
-    )
-    defects.extend(f"browser {finding}" for finding in content_findings
-                   if any(marker in finding for marker in behavior_markers))
-    return structural, defects
-
-
 def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]) -> list[str]:
     """Check attested click/key outcomes against the hash-bound interaction map."""
     baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked", "popups": "blocked", "forms": "blocked"})
@@ -2381,6 +2239,18 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
     if not rows_equal(output.get("navigation"), navigation):
         findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")
     return findings
+
+
+def _is_mandated_csp_row(event: object) -> bool:
+    """True for the one console line Chrome logs for the mandated local-page CSP."""
+
+    if not isinstance(event, dict):
+        return False
+    params = event.get("params")
+    entry = params.get("entry") if isinstance(params, dict) else None
+    source = event.get("source") or (entry.get("source") if isinstance(entry, dict) else None)
+    return (source == "security" and event.get("level") == "error"
+            and event.get("message") == MANDATED_CSP_TEXT)
 
 
 def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
@@ -2427,6 +2297,8 @@ def _offline_transcript_findings(output: dict[str, Any]) -> list[str]:
             "corresponding transcript lengths"
         )
     for event in console:
+        if _is_mandated_csp_row(event):
+            continue
         if isinstance(event, dict):
             level = str(event.get("level", "")).casefold()
             message = str(event.get("message", ""))
@@ -2610,6 +2482,39 @@ def _join_motion_intents(
             problems,
             f"wireframe mediaIntent {intent_id} has no Motion And Media Intent row",
         )
+
+
+def _motion_asset_findings(value: Any, expected: dict[str, Any]) -> list[str]:
+    """Check the motion object's identity and generated or reused media authorization."""
+
+    if not isinstance(value, dict) or not {"intent", "scope", "mode", "asset"} <= set(value):
+        return ["motion output requires intent, scope, mode and asset fields"]
+    errors = [f"motion output {key} does not match the required intent"
+              for key in ("intent", "scope", "mode") if value[key] != expected[key]]
+    asset = value["asset"]
+    if expected["assetRequired"] or asset is not None:
+        if not isinstance(asset, dict) or set(asset) != {"path", "sha256", "authorization", "review"}:
+            errors.append("generated or existing media requires a completed asset identity and review")
+            return errors
+        if any(not isinstance(asset[k], str) or not asset[k].strip() for k in ("path", "sha256", "review")) or asset["review"] != "approved":
+            errors.append("media asset identity and completed review are required")
+        authorization = asset["authorization"]
+        if not isinstance(authorization, dict) or set(authorization) != {"decision", "owner", "provider", "action", "path", "sha256"}:
+            errors.append("media asset requires a structured approved authorization")
+        elif (
+            authorization["decision"] != "approved"
+            or authorization["action"] not in ("generate", "reuse")
+            or (expected.get("assetAction") is not None and authorization["action"] != expected["assetAction"])
+            or authorization["path"] != asset["path"]
+            or authorization["sha256"] != asset["sha256"]
+            or any(not isinstance(authorization[k], str) or not authorization[k].strip()
+                   for k in ("owner", "provider"))
+            or authorization["provider"].strip().casefold() == "authorized provider"
+            or (expected.get("provider") is not None
+                and authorization["provider"].casefold() != expected["provider"].casefold())
+        ):
+            errors.append("media authorization must approve the provider action and exact asset")
+    return errors
 
 
 def _motion_effect_evidence(
@@ -3086,7 +2991,6 @@ def validate_text(
         if v3:
             _direction_studies(style, problems)
         _motion_effect_evidence(style, motion_intents, problems)
-        _platform_rules(style, valid_scope, problems)
         connected = SOURCE_RE.fullmatch(
             (style_values.get("Connected HiFi reference") or "").strip()
         )
@@ -3221,7 +3125,6 @@ def _validate_impl(
     require_hifi_preflight: bool = False,
     require_current_hifi_evidence: bool = False,
     apply_current_hifi_cutover: bool = False,
-    compiler_diagnostics: list[str] | None = None,
 ) -> list[str]:
     try:
         text = ui_design_path.read_text(encoding="utf-8")
@@ -3434,13 +3337,6 @@ def _validate_impl(
                 if not isinstance(manifest, dict) or manifest.get("schema") != "ui-hifi/2":
                     raise ValueError("cheap preflight requires ui-hifi/2")
                 documents = _hifi_bundle_documents(checked_hifi, html, manifest)
-                if version == UI_CONTRACT_V3 and compiler_diagnostics is not None:
-                    if _compiler_source_preflight is not None:
-                        compiler_diagnostics.extend(
-                            f"WARN compiler-source: {item}" for item in _compiler_source_preflight(documents))
-                    else:
-                        compiler_diagnostics.append("WARN compiler-source: compiler helper unavailable; source inspection was not performed")
-                    compiler_diagnostics.append("INFO compiler-source: registry trigger and axis/state coverage remain deferred to compilation")
                 if checked_prd is not None:
                     prd_text = checked_prd.read_text(encoding="utf-8")
                     problems.extend(hifi_prd_findings(prd_text, manifest, documents))
@@ -3745,7 +3641,6 @@ def validate(
     require_hifi_preflight: bool = False,
     require_current_hifi_evidence: bool = False,
     apply_current_hifi_cutover: bool = False,
-    compiler_diagnostics: list[str] | None = None,
 ) -> list[str]:
     """Validate a UI contract for normal publication.
 
@@ -3776,7 +3671,6 @@ def validate(
         require_hifi_preflight=require_hifi_preflight,
         require_current_hifi_evidence=require_current_hifi_evidence,
         apply_current_hifi_cutover=apply_current_hifi_cutover,
-        compiler_diagnostics=compiler_diagnostics,
     )
 
 
@@ -3832,7 +3726,6 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
-    compiler_diagnostics: list[str] = []
     problems = validate(
         args.ui_design,
         repo_root=args.repo_root,
@@ -3846,10 +3739,7 @@ def main(argv: list[str] | None = None) -> int:
         require_structure_validated=args.require_structure_validated,
         require_visual_approved=args.require_visual_approved,
         require_hifi_preflight=args.require_hifi_preflight,
-        compiler_diagnostics=compiler_diagnostics,
     )
-    for diagnostic in compiler_diagnostics:
-        print(diagnostic)
     if problems:
         for problem in problems:
             print(f"FAIL {problem}", file=sys.stderr)

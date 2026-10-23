@@ -221,22 +221,34 @@ class CrossSkillPipelineTests(unittest.TestCase):
         harness = self.read("delivery-harness/references/contract-and-traceability.md")
         operating_rules = self.read("delivery-harness/references/project-operating-rules.md")
         promotion = self.read("delivery-harness/references/branch-promotion-contract.md")
+        publication = self.read("delivery-harness/references/trusted-host-publication.md")
 
-        self.assertIn("declares the project or initiative complete", harness)
-        self.assertIn("archive on the same instruction", harness)
-        self.assertIn("archive_run.py", harness)
+        self.assertIn("owner declares the initiative complete", harness)
+        self.assertIn("archive only after the Closeout Bar and authorized dry-run move list pass", harness)
+        self.assertIn("archive_run.py", promotion)
         self.assertIn("docs/goal/archived/<YYYYMMDD-HHMMSS>-<run-id>/", harness)
         managed_route = self.owner_section(
             operating_rules, "## Managed Product Delivery Harness Runs"
         )
-        self.assertIn("writes closed `ARCHIVE_RECEIPT.json`", managed_route)
-        self.assertIn("never moves anything under `docs/product/`", managed_route)
+        self.assertIn("branch-promotion-contract.md#managed-run-archive-before-promotion", managed_route)
+        self.assertIn("writes closed `ARCHIVE_RECEIPT.json`", promotion)
+        self.assertIn("never moves anything under `docs/product/`", promotion)
         self.assertIn("At RUN close, candidate C", promotion)
         self.assertIn("archive-only child A", promotion)
-        self.assertIn("If separately authorized, `push_archived_candidate.py`", promotion)
-        self.assertIn("PENDING_TRUSTED_HOST_PUBLICATION", promotion)
-        self.assertIn("never invokes `git push`", managed_route)
-        self.assertIn("fresh PLAN/RUN on the same non-default branch from exact A", harness)
+        self.assertIn("[Archive publication](trusted-host-publication.md)", promotion)
+        self.assertIn("owner's exact instruction naming the SHA and branch", promotion)
+        self.assertIn("exact receipt-bound C..A archive verification", promotion)
+        self.assertIn("Only receipt-listed coordination/evidence moves", promotion)
+        self.assertIn("all other paths stay unchanged", promotion)
+        for boundary in ("push_archived_candidate.py", "direct child of C",
+                         "C-to-A diff inside the archive allowlist", "never pushes",
+                         "owner's exact instruction naming the SHA and branch",
+                         "reconcile any unexpected movement", "git push --no-force",
+                         "Never add a force or lease flag", "verify-receipt",
+                         "passes only when the ref equals A", "grants no protected-branch landing"):
+            self.assertIn(boundary, publication)
+        self.assertIn("A post-A failure preserves A and its archived RUN", harness)
+        self.assertIn("on the same non-default run branch, create a fresh PLAN/RUN from exact A", promotion)
         self.assertIn("Activation readiness, outcome review and SEO keep their separate post-production gates and authorization", promotion)
         self.assertIn("Separately authorized Activation preparation cannot claim release readiness", promotion)
         self.assertLess(
@@ -277,7 +289,8 @@ class CrossSkillPipelineTests(unittest.TestCase):
         )
         self.assertNotIn("`../../../delivery-harness/", stage)
         self.assertIn("source to sink", stage)
-        self.assertIn("does not start a nested scan coordinator", stage)
+        self.assertIn("A reviewer child never starts a nested scan", contract)
+        self.assertIn("does not edit PLAN or RUN or start nested agents", contract)
         self.assertIn("Do not change code", stage)
         self.assertIn("source_to_sink", contract)
         self.assertIn("coverage.status", contract)
@@ -363,15 +376,29 @@ class CrossSkillPipelineTests(unittest.TestCase):
 
         runtime = valid_graph_run(plan)["runtime_capabilities"]
         runtime["runtime_adapter"] = {
-            "capability_probe": native_capability_probe(app_threads=True),
+            "capability_probe": native_capability_probe(subagents=True),
             "provider": "codex",
-            "available_drivers": ["app_threads", "sequential_parent"],
+            "available_drivers": ["subagents", "sequential_parent"],
             "detection_source": "observed",
         }
         binding = _runtime_binding(review, runtime)
         self.assertEqual("codex", binding["provider"])
-        self.assertEqual("app_threads", binding["driver"])
+        self.assertEqual("subagents", binding["driver"])
         self.assertEqual("gpt-5.6-sol", binding["model"])
+        self.assertEqual("xhigh", binding["reasoning_effort"])
+        runtime["runtime_adapter"]["provider"] = "claude_code"
+        binding = _runtime_binding(review, runtime)
+        self.assertEqual("claude_code", binding["provider"])
+        self.assertEqual("claude-fable-5", binding["model"])
+        runtime["runtime_adapter"]["provider"] = "generic"
+        self.assertIsNone(_runtime_binding(review, runtime))
+
+        adapter = self.read("delivery-harness/references/runtime-adapters.md")
+        for boundary in ("`subagents`", "`sequential_parent`",
+                         "It cannot satisfy a fresh independent review node",
+                         "Unsupported explicit options block without substitution",
+                         "Effective agent configuration and AGENTS instructions own"):
+            self.assertIn(boundary, adapter)
 
 
 if __name__ == "__main__":

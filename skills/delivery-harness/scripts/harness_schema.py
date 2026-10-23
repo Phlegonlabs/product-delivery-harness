@@ -104,33 +104,7 @@ EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
 # blocked/complete run can retain historical authorization, but must not be
 # resumed by a selector until its parent explicitly transitions it back.
 RUN_DISPATCH_STATUSES = {"ready", "running"}
-NESTED_SUBAGENT_ROLES = {"explorer", "researcher", "reviewer", "tester"}
-PERMISSION_SELECTED_MODES = {
-    "ask_for_approval",
-    "approve_for_me",
-    "full_access",
-    "named_profile",
-    "unknown",
-}
-PERMISSION_APPROVAL_POLICIES = {
-    "untrusted",
-    "on-request",
-    "never",
-    "granular",
-    "unknown",
-}
-PERMISSION_FILESYSTEM_SCOPES = {
-    "read_only",
-    "workspace",
-    "custom",
-    "unrestricted",
-    "unknown",
-}
-PERMISSION_NETWORK_SCOPES = {"disabled", "filtered", "open", "unknown"}
-PERMISSION_LOCAL_BINDINGS = {"allowed", "blocked", "unknown"}
-PERMISSION_INHERITANCE = {"inherited", "not_inherited", "unknown"}
-PERMISSION_STATUSES = {"ready", "may_prompt", "blocked", "unknown"}
-SUPPORTED_RUN_SCHEMA_VERSIONS = {2, 3, 4, 5, 6, 7, 8, 9, 10, 11}
+SUPPORTED_RUN_SCHEMA_VERSIONS = {11}
 CURRENT_PLAN_SCHEMA_VERSION = 6
 CURRENT_RUN_SCHEMA_VERSION = 11
 CURRENT_SCHEMA_PAIR = (CURRENT_PLAN_SCHEMA_VERSION, CURRENT_RUN_SCHEMA_VERSION)
@@ -252,43 +226,16 @@ RUNTIME_REASONING_EFFORTS = {
 }
 MODEL_TOKEN_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 RUNTIME_DRIVERS = {
-    "app_threads",
     "subagents",
     "sequential_parent",
 }
 RUNTIME_DETECTION_SOURCES = {"observed", "explicit", "fallback"}
 RUNTIME_VERSION_STATUSES = {
     "unobserved",
-    "adopted",
     "current",
     "compatible_old",
     "upgrade_required",
     "restart_required",
-}
-CAPABILITY_PROBE_STATUSES = {"available", "unavailable", "unobserved"}
-CAPABILITY_PROBE_KEYS = (
-    "app_project_list",
-    "app_thread_create",
-    "app_thread_read",
-    "app_thread_message",
-    "app_thread_wait",
-    "app_managed_worktree",
-    "direct_subagent_spawn",
-    "direct_agent_result",
-)
-DRIVER_CAPABILITY_REQUIREMENTS = {
-    "app_threads": (
-        "app_project_list",
-        "app_thread_create",
-        "app_thread_read",
-        "app_thread_message",
-        "app_thread_wait",
-        "app_managed_worktree",
-    ),
-    "subagents": (
-        "direct_subagent_spawn",
-        "direct_agent_result",
-    ),
 }
 GRAPH_NODE_KINDS = {"mission", "verifier", "approval", "external_wait", "lifecycle"}
 GRAPH_EXECUTORS = {
@@ -316,10 +263,47 @@ GRAPH_NODE_PHASES = {
     "superseded",
 }
 GRAPH_EDGE_PHASES = {"dormant", "eligible", "traversed", "exhausted", "skipped"}
-RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
 REVIEWER_TOOL_KEYS = {"chrome_devtools"}
-REVIEWER_TOOL_STATUSES = {"available", "unavailable", "unobserved"}
-REVIEWER_TOOL_PROBE_SCOPES = {"reviewer_session", "parent_session", "unobserved"}
+RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
+# A review node with `lenses` sets `type` to its widest lens in this order, so
+# every security and visual rule keyed on `type` still applies to it.
+REVIEW_LENS_ORDER = ("security", "visual", "frontend_code", "backend_code")
+# An absent PLAN `review_policy` means per_mission, the rule of every older PLAN.
+REVIEW_POLICIES = {"per_mission", "final_candidate"}
+
+
+
+def review_lenses(review: object) -> set[str]:
+    """Return a review's lenses; a review without `lenses` has one, its type."""
+
+    if not isinstance(review, dict):
+        return set()
+    lenses = review.get("lenses")
+    if isinstance(lenses, list):
+        return {lens for lens in lenses if isinstance(lens, str)}
+    review_type = review.get("type")
+    return {review_type} if isinstance(review_type, str) else set()
+
+
+def review_policy(plan: object) -> str:
+    value = plan.get("review_policy") if isinstance(plan, dict) else None
+    return value if isinstance(value, str) else "per_mission"
+
+
+def security_result_decision(review: object, outcome: object, result: object) -> object:
+    """Return the decision a review's security result must carry.
+
+    On a combined node another lens may fail while the security lens passes.
+    """
+
+    if (
+        len(review_lenses(review)) > 1
+        and outcome != "pass"
+        and isinstance(result, dict)
+        and result.get("decision") == "pass"
+    ):
+        return "pass"
+    return outcome
 
 
 def run_required_harness_version(run: object) -> str | None:

@@ -159,6 +159,21 @@ class SecurityPacketCheckTests(unittest.TestCase):
         self.assertIn("For unchanged boundaries, reuse the accepted design", packets["backend_code"])
         self.assertIn("do not reset repair budgets", packets["frontend_code"])
 
+    def test_combined_node_packet_carries_every_lens(self) -> None:
+        node = next(n for n in self.plan["graph"]["nodes"] if n["id"] == "N-REVIEW-M1")
+        self.plan["ui_surfaces"] = [{"id": "dashboard"}]
+        node["review"]["lenses"] = ["frontend_code", "visual", "security"]
+        node["review"]["required_evidence"].append("ui_acceptance")
+
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+        contract = _contract(packet)
+
+        self.assertEqual("security", contract["review_type"])
+        self.assertEqual(["frontend_code", "security", "visual"], contract["review_lenses"])
+        self.assertEqual("code_security_verification", contract["skill_binding_slot"])
+        for section in ("## Security coverage", "## Architecture review", "## Final UI Acceptance"):
+            self.assertIn(section, packet)
+
     def test_ui_acceptance_combines_parity_and_quality_at_either_visual_stage(self) -> None:
         node = next(n for n in self.plan["graph"]["nodes"] if n["id"] == "N-REVIEW-M1")
         self.plan["ui_surfaces"] = [{"id": "dashboard"}]
@@ -176,7 +191,7 @@ class SecurityPacketCheckTests(unittest.TestCase):
                         self.assertIn("layout_check", packet)
                         self.assertIn("full required UI matrix", packet)
                         self.assertIn("original defects and affected consumers", packet)
-                        self.assertIn("existing lineage budget", packet)
+                        self.assertIn("existing node attempt limit", packet)
                         self.assertIn("pinned contract", packet)
                         self.assertIn("ui_parity:<retained comparison anchor>", packet)
                         self.assertIn("ui_page_quality:<retained quality-report anchor>", packet)

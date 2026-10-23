@@ -10,11 +10,11 @@ Derive a short execution summary from accepted sources: goal, PRD/TEST reference
 
 Record the owner's instruction, affected requirement IDs, acceptance conditions, write boundaries, test environments, permitted actions, repair budget, and stopping condition once. Reuse that instruction for covered implementation, document synchronization, synthetic fixture preparation, repair, module replacement, and retesting. Do not ask the owner to approve the same decision after each failed test or technical hash refresh.
 
-The default is at most two repair rounds per root-cause family, including a replacement strategy; a stricter graph or reviewer attempt limit wins. Record attempts across sessions and revisions. Never reset the counter by renaming the issue, changing workers, or opening another graph revision. A new task is not launched automatically.
+The default is one consolidated repair per root-cause family and one targeted re-check; a second round needs an explicit owner decision, and a stricter graph or reviewer attempt limit wins. Record attempts across sessions and revisions. Never reset the counter by renaming the issue, changing workers, or opening another graph revision. A new task is not launched automatically.
 
 Selecting a skill alone grants no writes. Preserve every action-specific authorization, exact target, runtime boundary, and host confirmation requirement. Spending, production data, external writes, publication, installation, branch/worktree deletion, or a new product requirement are not implied by local delivery authority. Check existing grants before asking again; do not repeat a still-valid authorization.
 
-Reuse a semantic template audit only in the same Epic or task after a complete prior audit proves recorded SHA-256 equality for template, VERSION, bundle, instructions, owner references, scope, capabilities, and source text. A first, newly applicable, missing, or changed input invalidates reuse, as do restart, summary compaction, and failed action/source guards.
+Reuse of a semantic template audit follows [Handoff Documentation Audit](governance/task-and-handoff.md#handoff-documentation-audit).
 
 ## Epic Selection And Change History
 
@@ -29,7 +29,7 @@ Keep a short Change Log in the chosen record: request or finding, reason, affect
 
 ## Repository Change Checkpoints
 
-Repository observations also happen outside this delivery flow. Follow the self-contained **Repository Change Checkpoints** in project `AGENTS.md` at task start, significant change boundaries and completion/handoff. Compare local HEAD/history and staged, unstaged and non-ignored untracked changes with prior Epic evidence. Missing or changed baselines stay explicit. Record meaningful external changes as observed/unverified until scope and evidence are known; never infer approval or rewrite historical results. An unchanged observation needs no log row. Read-only tasks report proposed updates instead of writing. This requires no PLAN/RUN, installed Harness tooling or background service.
+Follow [Repository Change Checkpoints](governance/task-and-handoff.md#repository-change-checkpoints); they apply outside this flow too.
 
 ## Repair Or Replace
 

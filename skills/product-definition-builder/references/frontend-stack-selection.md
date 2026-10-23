@@ -1,6 +1,6 @@
 # Frontend Stack Selection
 
-Use this guide for every PRD package that includes a browser frontend. The wider architecture may remain technology-neutral. This guide turns product evidence into two or three coherent stack choices and one recommendation, then records the owner's accepted stack instead of handing an unapproved tool list to implementation.
+Use this guide for every PRD package that includes a browser frontend. The wider architecture may remain technology-neutral. This guide turns product evidence into coherent stack choices and one recommendation, then records the owner's accepted stack instead of handing an unapproved tool list to implementation.
 
 Label the decision status accurately:
 
@@ -88,7 +88,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Any Platform
 
-- Use one codebase and isolated non-production/production targets. Follow [Release Targets](output-contract.md#release-targets). New packages use `Release source policy: main-preview/1`: development is the exact candidate PR/branch SHA. Production uses `refs/heads/main` and `promotion.verified_main_sha` after separately authorized promotion and readback. Freeze remote main for ordinary work and hotfixes. Keep logical release names separate from provider-generated Preview identities. Historical dual-branch/1 packages retain their protected-development source and runtime pin. Isolate bindings, data, auth and sandbox payments.
+- Use one codebase and isolated non-production/production targets. [Release Targets](output-contract.md#release-targets) owns the source policy, release names and promotion. Isolate bindings, data, auth and sandbox payments.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
 - Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 
@@ -102,7 +102,6 @@ Verify these rules against current official documentation on the date the PRD is
 6. For Worker-backed apps, document the `compatibility_date`, flags, bindings, secrets, asset routing, local preview and build requirements. Explicitly create separate D1/KV/R2 resources and record both ID sets in Resource Isolation. Native Previews provision isolated Durable Objects and Containers; record their observed IDs. An approved named-environment fallback declares all bindings explicitly.
 7. If authentication or middleware must run before protected assets, explicitly verify asset routing/order; never assume frontend route guards provide authorization.
 8. Use one codebase with native Workers Previews and production, or an approved isolated alternative, following the Any Platform promotion rule above.
-9. Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each Worker.
 
 If the owner approves Void, record it as one coherent full-stack choice, not an automatic build-tool or auth decision. Native Void mode owns routing and rendering. Framework mode retains the selected framework's router and renderer while adding Void data, bindings, jobs and deployment. Auth remains a separate layer; official framework-mode docs currently describe Better Auth rather than Void-managed auth, so preserve an existing approved provider unless the owner accepts a new decision.
 
@@ -136,7 +135,7 @@ The `Frontend Technology Decision` section in `stack-decisions.md` must include:
 - Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
 - Official documentation links and verification date.
 - Platform adapter/plugin, build runtime, compatibility date, asset routing, binding, auth, and local-preview constraints when applicable (Cloudflare `compatibility_date` and bindings when that is the resolved platform).
-- For a deployable product, the distinct development and production deployment-unit names (Workers for Cloudflare, the platform's equivalent for another target), exact release sources, resource/auth/payment isolation, migration order, deployed-environment verification, and rollback path.
+- For a deployable product, the deployment-unit names, release sources, isolation, migration order, deployed-environment verification, and rollback path required by Any Platform.
 - Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck

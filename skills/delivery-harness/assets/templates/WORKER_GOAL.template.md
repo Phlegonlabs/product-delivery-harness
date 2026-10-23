@@ -9,20 +9,19 @@ Identity:
 - PLAN: <path>; ID <id>; revision <revision>; digest <sha256>
 - RUN snapshot: <path or payload>
 - Mission/tasks: <IDs>
-- Runtime slice: one bounded mission slice; target 10-20 minutes including focused verification
+- Runtime slice: tasks in order; each targets 10-20 minutes with focused verification
 - Lease: <lease-id>
 - Batch base: <full SHA>
 
 Runtime:
 - required_skills: <mission skill list verbatim or none>
 - Provider/driver: <provider> / <driver>
-- Logical/resolved role: <worker_role> / <resolved_role>
+- Executor/model/effort: <observed host policy values>
 - Worker/workspace/completion: <worker_runtime> / <workspace_mode> / <completion_channel>
 - Worktree and branch/ref: <exact values>
 - Host-specific context: <ordered paths>
 - Worker contract: <matching adapter contract>
-- Launch record: <assignment/attempt/worker/session receipt or none>
-- Runtime-contract adoption: <contract_adoption receipt or none>
+- Parent launch identity: <actual session and assignment/attempt evidence>
 - Handoff: <fresh bounded packet or host-native task context; max_message_bytes <positive integer>>
 - Context source hashes: <ordered paths with matching hashes>
 - Visual inputs: <frontend-visual-inputs.md block; omit for non-UI>
@@ -51,10 +50,9 @@ Repair context (omit for an initial implementation):
 ## Launch
 
 1. Enter the assigned worktree. Read the ordered repository context and only the named skills. Keep automatic context discovery enabled.
-2. With a contract-adoption receipt, independently recompute the seven-skill contract digest and stop on a mismatch. Read the fixed contract and report it as `contract_adoption_check`.
-3. Use this complete handoff. Do not reconstruct parent context. Open PLAN/RUN only for named missing fields.
-4. The parent ran `scripts/check_launch_packet.py` before dispatch. Verify source hashes, repository, branch/ref, base SHA, clean state, digest, lease, scope, resources, permissions, authorizations. Stop on invalid, stale, or drift.
-5. Apply only the matching host contract; never borrow another host's model, role, context, or launch mechanics. Confirm temp/cache paths, network, local bindings, and sockets fit its boundary.
+2. Use this complete handoff. Do not reconstruct parent context. Open PLAN/RUN only for named missing fields.
+3. The parent ran `scripts/check_launch_packet.py` before dispatch. Verify source hashes, repository, branch/ref, base SHA, clean state, digest, lease, scope, resources, permissions, authorizations. Stop on invalid, stale, or drift.
+4. Apply only the matching host contract; never borrow another host's model, role, context, or launch mechanics. Confirm temp/cache paths, network, local bindings, and sockets fit its boundary.
 
 ## Work
 
@@ -80,7 +78,7 @@ For any UI-touching mission, classify the completed change against frozen produc
 
 Select focused checks from parent-observed changed files using `selection.mode: "changed_files"`. Run each declared verifier through `scripts/verifier_runtime.py` so the result includes an `execution_key`; a free-form shell transcript is not verifier evidence. A required security check without its tool or retained evidence is blocked, not skipped.
 
-There is no disk verifier cache; do not pass `cache_root`.
+Host verifiers execute fresh and serially per runner, with exact source/Git guards.
 
 ## Return
 
@@ -90,17 +88,16 @@ Read the supplied `references/worker-result-contract.md` only when preparing the
 - `REFINEMENT_REQUEST` when the current task cannot remain one independently verifiable unit; or
 - the graph node wrapper when the parent requests it.
 
-Report `worker_passed`, never integrated. The parent validates live Git, runs exact-head review, integrates, and updates RUN.
+Report `worker_passed`, never integrated. The parent validates live Git, runs its `review_policy` reviews, integrates, and updates RUN.
 
 ## No Nested Delegation
 
-Do not spawn, create, or delegate to another agent. All explorers, writers, and reviewers are parent-dispatched siblings. Report `subagent_activity.status: "not_applicable"`, a concrete flat-topology reason, and an empty `children` list.
+Do not spawn, create, or delegate to another agent. All explorers, writers, and reviewers are parent-dispatched siblings. The parent records the flat topology and actual result origin in its attempt evidence.
 
 ## Workspace Notes
 
 - `shared_checkout`: only the parent may be the sole writer.
 - `parent_managed_worktree`: use the exact parent-created worktree and base.
-- `app_managed_worktree`: remain on the assigned ref; create or attach a durable branch only when explicitly authorized.
 
 ## Launch Checklist
 
@@ -108,6 +105,6 @@ Do not spawn, create, or delegate to another agent. All explorers, writers, and 
 - [ ] PLAN schema v6 and RUN schema v11 validate and match the supplied digest.
 - [ ] Lease, base, worktree, branch/ref, permission boundary, and required actions are current.
 - [ ] Host-specific repository context and matching adapter contract were read.
-- [ ] Any adoption digest was recomputed, matched, read, and reported.
+- [ ] Loaded identity is reported as observed, or explicitly unknown.
 - [ ] Exact skills, write/deny scope, resources, stop conditions, and verifiers are known.
 - [ ] The result-contract path is readable.

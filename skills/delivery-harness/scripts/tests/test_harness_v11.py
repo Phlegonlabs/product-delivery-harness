@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import contextlib
-import copy
-import hashlib
 import io
 import json
 import subprocess
@@ -31,12 +29,11 @@ import harness_transition  # noqa: E402
 from harness_core import load_plan, load_run, plan_digest  # noqa: E402
 from harness_manifest import validate_run  # noqa: E402
 from harness_ui_evidence import validate_integration_head_against_git  # noqa: E402
-from manifest_fixtures import manifest_markdown  # noqa: E402
+from manifest_fixtures import manifest_markdown, materialize_plan_sources  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
 from select_ready_nodes import select_ready_nodes  # noqa: E402
 from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from test_select_ready_nodes import current_preintegration_review_state  # noqa: E402
-from test_wireframe_contract import render_html, wireframe_data  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
 
 while str(UI_TESTS_DIR) in sys.path:
@@ -143,7 +140,6 @@ class HarnessV11Tests(unittest.TestCase):
         before = validate_run(plan, run)
         self.assertTrue(any("every covered mission is integrated" in error for error in before))
         self.assertTrue(any("current attempt or a retained" in error for error in before))
-        self.assertTrue(any("attempt_log lineage count" in error for error in before))
 
         harness_transition._reconcile_interrupted_reviews(
             plan,
@@ -160,37 +156,8 @@ class HarnessV11Tests(unittest.TestCase):
         self.assertEqual("blocked", review_worker["phase"])
         self.assertEqual("dormant", run["graph_state"]["node_states"][node_id]["phase"])
         self.assertEqual("dormant", fake_edge["status"])
-        self.assertEqual(3, run["review_lineages"][lineage_id]["consumed_attempts"])
+        self.assertEqual(1, run["graph_state"]["node_states"][node_id]["attempts"])
 
-    def test_review_lineage_survives_plan_revision(self) -> None:
-        plan = valid_plan()
-        run = valid_run(plan)
-        lineage_id = "REVIEW-M1"
-        run["attempt_log"].append(
-            {
-                "attempt_id": "ATT-REVIEW-M1-1",
-                "mission_id": "M1",
-                "task_id": None,
-                "lease_id": None,
-                "kind": "review",
-                "result": "fix_required",
-                "evidence": ["one root-cause family"],
-                "review_lineage_id": lineage_id,
-                "failure_family_ids": ["FAMILY-MARKDOWN-PARSE"],
-            }
-        )
-        run["review_lineages"][lineage_id]["consumed_attempts"] = 1
-        self.assertEqual([], validate_run(plan, run))
-
-        revised = copy.deepcopy(plan)
-        revised["revision"] = 2
-        run["plan"]["revision"] = 2
-        run["plan"]["digest_sha256"] = plan_digest(revised)
-        run["active_wave"]["plan_revision"] = 2
-        run["graph_state"]["graph_revision"] = 2
-
-        self.assertEqual([], validate_run(revised, run))
-        self.assertEqual(1, run["review_lineages"][lineage_id]["consumed_attempts"])
 
     def test_contract_digest_mismatch_requires_restart(self) -> None:
         plan = valid_plan()
@@ -483,12 +450,9 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertIn("diff --git a/file.txt b/file.txt", full_packet)
             self.assertEqual(packet.split("## Contract")[1].split("## Diff")[0],
                              full_packet.split("## Contract")[1].split("## Diff")[0])
-            self.assertIn("REVIEW-M1", packet)
+            self.assertIn("- Attempts:", packet)
             self.assertIn('"required_tools": []', packet)
-            self.assertIn('"contract_adoption"', packet)
-            self.assertIn("independently recompute the seven-skill contract digest", packet)
-            self.assertIn("`contract_adoption_check`", packet)
-            self.assertIn("never inside a security review result", packet)
+            self.assertNotIn('"contract_adoption"', packet)
             self.assertNotIn('"harness_plan"', packet)
 
             for node in plan["graph"]["nodes"]:
@@ -504,6 +468,12 @@ class HarnessV11Tests(unittest.TestCase):
             self.assertIn("## Integration focus", integration_packet)
             self.assertIn("merge seams", integration_packet)
             self.assertIn("cross-mission interaction", integration_packet)
+            # No mission review precedes a final_candidate review.
+            plan["review_policy"] = "final_candidate"
+            final_packet = render_packet(plan, run, "N-REVIEW-M1", root, max_diff_bytes=64)
+            self.assertNotIn("## Already-reviewed mission heads", final_packet)
+            self.assertNotIn("## Integration focus", final_packet)
+            del plan["review_policy"]
 
             review_node = next(
                 node
@@ -638,183 +608,9 @@ class HarnessV11Tests(unittest.TestCase):
         self.assertEqual("worker_failed", run["review_workers"][-1]["phase"])
         self.assertEqual(
             1,
-            run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"][
-                "consumed_attempts"
-            ],
+            run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]["attempts"],
         )
 
-    def test_review_under_adopted_contract_requires_the_reviewer_check(self) -> None:
-        plan, run = current_preintegration_review_state()
-        harness_transition._reserve_review_dispatch(
-            plan,
-            run,
-            Namespace(
-                node_id="N-FRONTEND-REVIEW",
-                worker_id="RW-ADOPTED",
-                attempt_id="ATT-ADOPTED",
-                report_path=None,
-            ),
-            repo_root=None,
-        )
-        gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-        fixture_version = gate["required_harness_version"]
-        gate.update(
-            {
-                "status": "adopted",
-                "required_harness_version": "0.55.1",
-                "loaded_contract_digest": None,
-                "installed_contract_digest": "c" * 64,
-                "contract_adoption": {
-                    "session_id": gate["session_id"],
-                    "adopted_at": "2026-09-27T00:00:00Z",
-                    "contract_digest_sha256": "c" * 64,
-                    "owner_source": "owner instruction in this test",
-                    "reading_evidence": ["parent re-read the fixed contract"],
-                },
-                "contract_adoption_history": [],
-            }
-        )
-
-        def record(result: str, check: object | None, root: Path) -> None:
-            path = None
-            if check is not None:
-                path = root / f"check-{len(list(root.iterdir()))}.json"
-                path.write_text(json.dumps(check), encoding="utf-8")
-            harness_transition._record_review_attempt(
-                plan,
-                run,
-                Namespace(
-                    lineage="REVIEW-N-FRONTEND-REVIEW",
-                    worker_id="RW-ADOPTED",
-                    attempt_id="ATT-ADOPTED",
-                    mission_id="M1",
-                    result=result,
-                    evidence=["reviewed the reserved head"],
-                    finding=["digest mismatch"] if result != "pass" else None,
-                    security_result=None,
-                    contract_adoption_check=path,
-                    failure_family_id=None,
-                    failure_primitive=None,
-                    equivalence_class=None,
-                    strategy=None,
-                    tree_sha=None,
-                ),
-            )
-
-        valid = {
-            "digest": "c" * 64,
-            "matched": True,
-            "reading_evidence": ["reviewer read SKILL.md and the review packet"],
-        }
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            for check, message in (
-                (None, "is required"),
-                ({**valid, "digest": "d" * 64}, "adopted contract digest"),
-                ({**valid, "matched": False}, "matched must be true"),
-                (
-                    {**valid, "reading_evidence": ["parent re-read the fixed contract"]},
-                    "not the parent receipt",
-                ),
-                (
-                    {"contract_adoption_check": valid, "extra": True},
-                    "exactly digest, matched, and reading_evidence",
-                ),
-                ({"contract_adoption_check": None}, "must contain an object"),
-            ):
-                with self.subTest(message=message):
-                    with self.assertRaisesRegex(harness_transition.ManifestError, message):
-                        record("pass", check, root)
-            self.assertEqual("leased", run["review_workers"][-1]["phase"])
-
-            # A reviewer that stopped on a mismatch can still report blocked.
-            blocked_run = copy.deepcopy(run)
-            original = run
-            run = blocked_run
-            record("blocked", None, root)
-            self.assertEqual("blocked", run["review_workers"][-1]["phase"])
-            run = original
-
-            # fix_required still needs the reviewer's check.
-            run = copy.deepcopy(original)
-            with self.assertRaisesRegex(harness_transition.ManifestError, "is required"):
-                record("fix_required", None, root)
-            run = original
-
-            # The parent can record a crashed or timed-out reviewer, or a
-            # contract gap, without child output, so the node can retry.
-            # The PLAN template's review nodes allow retryable_failure.
-            outcomes = next(
-                item for item in plan["graph"]["nodes"] if item["id"] == "N-FRONTEND-REVIEW"
-            )["allowed_outcomes"]
-            outcomes.append("retryable_failure")
-            for result in ("retryable_failure", "contract_gap"):
-                with self.subTest(optional=result):
-                    run = copy.deepcopy(original)
-                    record(result, None, root)
-                    self.assertEqual(result, run["review_workers"][-1]["outcome"])
-                    # Recording adds no RUN validation error (the CLI refuses
-                    # a write that would). The fixture has unrelated errors.
-                    self.assertEqual(
-                        set(),
-                        set(validate_run(plan, run)) - set(validate_run(plan, original)),
-                    )
-                    if result == "retryable_failure":
-                        self.assertEqual(
-                            "failed",
-                            run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]["phase"],
-                        )
-                    # A check that is supplied is still validated in full.
-                    for check, message in (
-                        ({**valid, "matched": False}, "matched must be true"),
-                        ({**valid, "digest": "d" * 64}, "adopted contract digest"),
-                    ):
-                        run = copy.deepcopy(original)
-                        with self.assertRaisesRegex(harness_transition.ManifestError, message):
-                            record(result, check, root)
-            outcomes.remove("retryable_failure")
-            run = original
-
-            # A blocked reviewer may report the digest it saw; it is kept.
-            mismatch = {"digest": "d" * 64, "matched": False, "reading_evidence": []}
-            for check, message in (
-                ({**mismatch, "matched": True}, "matched must be true exactly when"),
-                ({**valid, "matched": False}, "matched must be true exactly when"),
-            ):
-                with self.subTest(blocked=message):
-                    run = copy.deepcopy(original)
-                    with self.assertRaisesRegex(harness_transition.ManifestError, message):
-                        record("blocked", check, root)
-            run = copy.deepcopy(original)
-            record("blocked", mismatch, root)
-            self.assertEqual("blocked", run["review_workers"][-1]["phase"])
-            self.assertIn(
-                f"contract_adoption_mismatch:{'d' * 64}", run["attempt_log"][-1]["evidence"]
-            )
-            run = original
-
-            # The file may hold the bare object or the reviewer's wrapped reply.
-            wrapped_run = copy.deepcopy(run)
-            run = wrapped_run
-            record("pass", {"contract_adoption_check": valid}, root)
-            self.assertEqual("worker_passed", run["review_workers"][-1]["phase"])
-            run = original
-
-            record("pass", valid, root)
-
-        self.assertEqual("worker_passed", run["review_workers"][-1]["phase"])
-        evidence = run["attempt_log"][-1]["evidence"]
-        self.assertIn(f"contract_adoption_digest:{'c' * 64}", evidence)
-        self.assertIn(
-            "contract_adoption_reading:reviewer read SKILL.md and the review packet",
-            evidence,
-        )
-        # The fixture predates other 0.55.1 PLAN rules; check the recorded
-        # attempt under its own pin.
-        run["runtime_capabilities"]["runtime_adapter"]["version_gate"][
-            "required_harness_version"
-        ] = fixture_version
-        self.assertEqual([], validate_run(plan, run))
 
     def test_subagent_review_reservation_records_exact_spawn_receipt(self) -> None:
         plan, run = current_preintegration_review_state()
@@ -983,103 +779,7 @@ class HarnessV11Tests(unittest.TestCase):
         self.assertEqual("ATT-REVIEW-PASS", edge["source_attempt_id"])
         self.assertEqual([], validate_run(plan, run))
 
-    def test_owner_review_grant_is_exact_and_one_shot(self) -> None:
-        plan, run = current_preintegration_review_state()
-        lineage = run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"]
-        for index in (1, 2):
-            run["attempt_log"].append(
-                {
-                    "attempt_id": f"ATT-HISTORICAL-REVIEW-{index}",
-                    "mission_id": "M1",
-                    "task_id": None,
-                    "lease_id": None,
-                    "kind": "review",
-                    "result": "fix_required",
-                    "evidence": ["historical review defect"],
-                    "review_lineage_id": "REVIEW-N-FRONTEND-REVIEW",
-                    "failure_family_ids": ["FAMILY-MARKDOWN"],
-                }
-            )
-        lineage["consumed_attempts"] = 2
-        lineage["failure_families"] = [
-            {
-                "id": "FAMILY-MARKDOWN",
-                "primitive": "Markdown scanner",
-                "equivalence_classes": ["reference links", "fenced code"],
-                "strategy": "replace regex patches with a fence-aware scanner",
-                "status": "open",
-            }
-        ]
-        args = Namespace(
-            lineage="REVIEW-N-FRONTEND-REVIEW",
-            decision_id="OWNER-REVIEW-1",
-            source="I approve OWNER-REVIEW-1 for one additional review",
-            source_ref="user_turn:turn-123",
-            failure_family_id="FAMILY-MARKDOWN",
-            strategy="structural scanner repair",
-            acceptance=["all Markdown reference classes"],
-            additional_attempts=1,
-        )
 
-        blanket = copy.copy(args)
-        blanket.source = "User blanket approval to complete the phase"
-        with self.assertRaisesRegex(
-            harness_transition.ManifestError, "name the approved decision ID"
-        ):
-            harness_transition._grant(run, blanket)
-
-        harness_transition._grant(run, args)
-
-        self.assertEqual(1, lineage["additional_allowance"])
-        self.assertEqual("user_turn:turn-123", lineage["owner_decisions"][0]["source_ref"])
-        self.assertEqual([], validate_run(plan, run))
-        with self.assertRaisesRegex(
-            harness_transition.ManifestError, "already used its one owner-granted successor"
-        ):
-            harness_transition._grant(run, args)
-
-    def test_manifest_rejects_a_backfilled_blanket_owner_grant(self) -> None:
-        plan, run = current_preintegration_review_state()
-        lineage = run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"]
-        for index in (1, 2):
-            run["attempt_log"].append(
-                {
-                    "attempt_id": f"ATT-HISTORICAL-REVIEW-{index}",
-                    "mission_id": "M1",
-                    "task_id": None,
-                    "lease_id": None,
-                    "kind": "review",
-                    "result": "fix_required",
-                    "evidence": ["historical review defect"],
-                    "review_lineage_id": "REVIEW-N-FRONTEND-REVIEW",
-                    "failure_family_ids": ["FAMILY-MARKDOWN"],
-                }
-            )
-        lineage["consumed_attempts"] = 2
-        lineage["additional_allowance"] = 2
-        lineage["failure_families"] = [
-            {
-                "id": "FAMILY-MARKDOWN",
-                "primitive": "Markdown scanner",
-                "equivalence_classes": ["reference links"],
-                "strategy": "structural scanner repair",
-                "status": "open",
-            }
-        ]
-        lineage["owner_decisions"] = [
-            {
-                "id": "OWNER-BLANKET",
-                "source": "User blanket approval to complete the phase",
-                "strategy": "continue repairing",
-                "acceptance_matrix": ["try again"],
-                "additional_review_attempts": 2,
-            }
-        ]
-
-        errors = validate_run(plan, run)
-
-        self.assertTrue(any("source_ref" in error for error in errors))
-        self.assertTrue(any("failure_family_id" in error for error in errors))
 
     def test_sequential_parent_cannot_impersonate_an_independent_reviewer(self) -> None:
         plan, run = current_preintegration_review_state()
@@ -1171,57 +871,12 @@ class HarnessV11Tests(unittest.TestCase):
     def _write_review_cli_fixture(self, root: Path) -> tuple[Path, Path]:
         """Persist the dispatchable preintegration review state under a real repo root."""
         plan, run = current_preintegration_review_state()
-        plan["ui_surfaces"][0].update(
-            {
-                "route": "/review",
-                "breakpoints": ["390", "768", "1200"],
-                "states": ["ready"],
-            }
-        )
-        prd = root / "docs" / "goal" / "PRD.md"
-        prd.parent.mkdir(parents=True)
-        prd.write_text(
-            "<!-- ui-surface-contract:start -->\n"
-            "## UI Surface Contract\n\n"
-            "### UI-001 — Review\n\n"
-            "- `route`: /review\n"
-            "- `states`: ready\n"
-            "- `responsive`: viewports: 390, 768, 1200\n"
-            "- `copy`: approved — static copy is implementation-bound\n"
-            "<!-- ui-surface-contract:end -->\n",
-            encoding="utf-8",
-        )
-        wireframes = root / "docs" / "goal" / "wireframes.html"
-        wireframe_data_value = wireframe_data()
-        wireframe_data_value["screens"][0]["route"] = "/review"
-        wireframes.write_text(
-            render_html(wireframe_data_value),
-            encoding="utf-8",
-        )
-        plan["sources"] = [
-            {
-                "id": "SRC-001",
-                "kind": "prd",
-                "location": "docs/goal/PRD.md",
-                "owner": "user",
-                "status": "frozen",
-                "content_sha256": hashlib.sha256(prd.read_bytes()).hexdigest(),
-                "source_revision": None,
-                "staged_revision": None,
-                "notes": "frozen prd",
-            },
-            {
-                "id": "SRC-002",
-                "kind": "wireframes",
-                "location": "docs/goal/wireframes.html",
-                "owner": "user",
-                "status": "frozen",
-                "content_sha256": hashlib.sha256(wireframes.read_bytes()).hexdigest(),
-                "source_revision": None,
-                "staged_revision": None,
-                "notes": "frozen wireframes",
-            }
-        ]
+        plan["ui_surfaces"] = []
+        plan["sources"] = valid_plan()["sources"]
+        materialize_plan_sources(root, plan)
+        for edge in plan["graph"]["edges"]:
+            run["graph_state"]["edge_states"].setdefault(edge["id"], {
+                "status": "dormant", "traversals": 0, "source_attempt_id": None})
         digest = plan_digest(plan)
         run["plan"]["digest_sha256"] = digest
 
@@ -1368,8 +1023,7 @@ class HarnessV11Tests(unittest.TestCase):
             self._git(
                 root,
                 "add",
-                "docs/goal/PRD.md",
-                "docs/goal/wireframes.html",
+                "docs/product",
                 "PLAN.md",
                 "RUN.md",
             )
@@ -1436,8 +1090,7 @@ class HarnessV11Tests(unittest.TestCase):
             self._git(
                 root,
                 "add",
-                "docs/goal/PRD.md",
-                "docs/goal/wireframes.html",
+                "docs/product",
                 "PLAN.md",
                 "RUN.md",
             )
@@ -1490,217 +1143,14 @@ class HarnessV11Tests(unittest.TestCase):
             )
             self.assertEqual(
                 1,
-                run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"][
-                    "consumed_attempts"
-                ],
+                run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"]["attempts"],
             )
             edge = run["graph_state"]["edge_states"]["E-FRONTEND-VISUAL-REVIEW"]
             self.assertEqual("traversed", edge["status"])
             self.assertEqual(1, edge["traversals"])
             self.assertEqual("ATT-REVIEW-1", edge["source_attempt_id"])
 
-    def test_thread_poll_review_binds_actual_task_after_reserved_launch(self) -> None:
-        plan, run = current_preintegration_review_state()
-        digest = plan_digest(plan)
-        run["authorizations"]["create_user_owned_tasks"] = {
-            "authorized": True,
-            "source": "user authorized a review task",
-            "scope": {
-                "run_id": run["run_id"],
-                "plan_revision": plan["revision"],
-                "plan_digest_sha256": digest,
-                "mission_ids": ["M1"],
-                "targets": ["*"],
-            },
-            "expires_when": "run_complete",
-        }
-        review_worker = {
-            "worker_id": "RW-THREAD",
-            "node_id": "N-FRONTEND-REVIEW",
-            "attempt_id": "ATT-REVIEW-THREAD",
-            "plan_revision": plan["revision"],
-            "plan_digest_sha256": digest,
-            "graph_revision": run["graph_state"]["graph_revision"],
-            "reviewed_sha": "b" * 40,
-            "review_path": "C:/repo/worktrees/M1",
-            "worker_runtime": "app_task",
-            "completion_channel": "thread_poll",
-            "runtime_binding": {
-                "provider": "codex",
-                "driver": "app_threads",
-                "source": "host",
-                "model": "gpt-5.6-sol",
-                "reasoning_effort": "medium",
-                "option_source": "plan_provider_options",
-            },
-            "task_thread_id": None,
-            "report_path": None,
-            "phase": "leased",
-            "outcome": None,
-            "findings": [],
-        }
-        run["review_workers"] = [review_worker]
-        run["graph_state"]["node_states"]["N-FRONTEND-REVIEW"].update(
-            {
-                "phase": "running",
-                "attempts": 1,
-                "last_attempt_id": "ATT-REVIEW-THREAD",
-                "last_outcome": None,
-                "bound_worker_id": "RW-THREAD",
-                "blockers": [],
-            }
-        )
 
-        with self.assertRaisesRegex(
-            harness_transition.ManifestError,
-            "requires the bound actual task_thread_id",
-        ):
-            harness_transition._record_review_attempt(
-                plan,
-                run,
-                Namespace(
-                    lineage="REVIEW-N-FRONTEND-REVIEW",
-                    attempt_id="ATT-REVIEW-THREAD",
-                    worker_id="RW-THREAD",
-                    mission_id="M1",
-                    result="pass",
-                    evidence=["reviewed the reserved head"],
-                    finding=[],
-                    security_result=None,
-                    failure_family_id=None,
-                    failure_primitive=None,
-                    equivalence_class=[],
-                    strategy=None,
-                    tree_sha=None,
-                ),
-            )
-
-        receipt = harness_transition._bind_review_task_thread(
-            plan,
-            run,
-            Namespace(worker_id="RW-THREAD", task_thread_id="THREAD-REVIEW-ACTUAL"),
-        )
-        self.assertEqual("worker_running", receipt["phase"])
-        self.assertEqual("THREAD-REVIEW-ACTUAL", review_worker["task_thread_id"])
-        self.assertIn(
-            "task:THREAD-REVIEW-ACTUAL",
-            run["authorizations"]["create_user_owned_tasks"]["scope"]["targets"],
-        )
-
-        harness_transition._record_review_attempt(
-            plan,
-            run,
-            Namespace(
-                lineage="REVIEW-N-FRONTEND-REVIEW",
-                attempt_id="ATT-REVIEW-THREAD",
-                worker_id="RW-THREAD",
-                mission_id="M1",
-                result="pass",
-                evidence=["reviewed the reserved head through the bound thread"],
-                finding=[],
-                security_result=None,
-                failure_family_id=None,
-                failure_primitive=None,
-                equivalence_class=[],
-                strategy=None,
-                tree_sha=None,
-            ),
-        )
-        self.assertEqual("worker_passed", review_worker["phase"])
-
-    def test_cli_grant_review_attempts_is_exact_and_one_shot(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            plan, run = current_preintegration_review_state()
-            lineage = run["review_lineages"]["REVIEW-N-FRONTEND-REVIEW"]
-            for index in (1, 2):
-                run["attempt_log"].append(
-                    {
-                        "attempt_id": f"ATT-HISTORICAL-REVIEW-{index}",
-                        "mission_id": "M1",
-                        "task_id": None,
-                        "lease_id": None,
-                        "kind": "review",
-                        "result": "fix_required",
-                        "evidence": ["historical review defect"],
-                        "review_lineage_id": "REVIEW-N-FRONTEND-REVIEW",
-                        "failure_family_ids": ["FAMILY-MARKDOWN"],
-                    }
-                )
-            lineage["consumed_attempts"] = 2
-            lineage["failure_families"] = [
-                {
-                    "id": "FAMILY-MARKDOWN",
-                    "primitive": "Markdown scanner",
-                    "equivalence_classes": ["reference links", "fenced code"],
-                    "strategy": "replace regex patches with a fence-aware scanner",
-                    "status": "open",
-                }
-            ]
-            plan_path = root / "PLAN.md"
-            run_path = root / "RUN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            run_path.write_text(
-                manifest_markdown("## Harness Run State", "harness_run", run),
-                encoding="utf-8",
-            )
-            grant_arguments = [
-                "--plan",
-                str(plan_path),
-                "--run",
-                str(run_path),
-                "grant-review-attempts",
-                "--lineage",
-                "REVIEW-N-FRONTEND-REVIEW",
-                "--decision-id",
-                "OWNER-REVIEW-1",
-                "--source",
-                "I approve OWNER-REVIEW-1 for one additional review",
-                "--source-ref",
-                "user_turn:turn-123",
-                "--failure-family-id",
-                "FAMILY-MARKDOWN",
-                "--strategy",
-                "structural scanner repair",
-                "--acceptance",
-                "all Markdown reference classes",
-                "--acceptance",
-                "fenced code renders identically",
-                "--additional-attempts",
-                "1",
-            ]
-
-            with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(0, harness_transition.main(grant_arguments))
-
-            granted = load_run(run_path)["review_lineages"][
-                "REVIEW-N-FRONTEND-REVIEW"
-            ]
-            self.assertEqual(1, granted["additional_allowance"])
-            decision = granted["owner_decisions"][0]
-            self.assertEqual("user_turn:turn-123", decision["source_ref"])
-            self.assertEqual("FAMILY-MARKDOWN", decision["failure_family_id"])
-            self.assertEqual("structural scanner repair", decision["strategy"])
-            self.assertEqual(
-                [
-                    "all Markdown reference classes",
-                    "fenced code renders identically",
-                ],
-                decision["acceptance_matrix"],
-            )
-            family = granted["failure_families"][0]
-            self.assertEqual("repairing", family["status"])
-            self.assertEqual("structural scanner repair", family["strategy"])
-
-            before = run_path.read_text(encoding="utf-8")
-            with contextlib.redirect_stderr(io.StringIO()) as stderr:
-                code = harness_transition.main(grant_arguments)
-            self.assertEqual(2, code)
-            self.assertIn("one owner-granted successor", stderr.getvalue())
-            self.assertEqual(before, run_path.read_text(encoding="utf-8"))
 
     def test_interrupted_mission_worker_is_reconciled(self) -> None:
         plan, run = current_preintegration_review_state()

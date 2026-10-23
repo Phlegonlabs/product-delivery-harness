@@ -13,6 +13,7 @@ Adapt the idea, proof and next action to each channel instead of pasting one cap
 Read effective instructions, positioning, audience, brand voice, product facts and accepted campaign decisions.
 Use a `go-to-market` strategy when available; the companion skill and Harness are optional.
 Without one, derive a provisional brief from supplied facts and identify consequential missing decisions.
+Missing records or unverified sources are gaps to state, not prerequisites for drafts.
 Do not redefine the product or require a full upstream workflow merely to draft content.
 
 Establish the target channel/account or Page when known, goal, audience, market, language and intended action.
@@ -48,20 +49,13 @@ Adapt locales naturally while preserving facts, offers and destinations; keep va
 
 Use [the campaign template](assets/templates/CAMPAIGN.template.md) when saving helps, or provide equivalent information inline.
 Save only within scope and preserve existing records.
-Each item needs a stable ID, channel/account, audience, purpose, exact copy, destination, media and factual sources.
-Include proposed time/timezone, dependencies, owner and review status.
-Reuse tracking conventions or propose non-sensitive identifiers; state measurement gaps.
-Reference existing product page/operation IDs, exact success-metric names and applicable Activation `MS-*` sources when available.
-Preserve source status and scope. Missing records or unverified sources remain gaps, not prerequisites for preparing drafts.
-Check destination behavior. Tagged links do not prove conversion tracking.
-
-Reuse verified product demonstrations and existing campaign items for the draft-to-measurement handoff.
-Keep each item's revision, availability claim, supporting build/release, destination and intended product outcome together.
-Readiness and content approval do not authorize publication. Later publisher readback adds the actual post ID/URL to the same record.
-Review aggregate results through the existing experiment workflow when requested; no new review wave or automatic monitoring is added.
+Each item carries the template's fields. Check destination behavior.
+Keep each item's revision, availability claim, supporting release, destination and intended outcome together.
+The publisher adds the post ID and URL to the same record.
 
 Review facts, brand voice, native language, channel fit, CTA, media rights, accessibility and workload.
-Refresh official format limits and account capabilities before calling an item execution-ready.
+Refresh official format limits, account capabilities and link previews once per campaign, at execution readiness. Record the check date in the package.
+Strategy and drafting use the dated playbook sources and label them.
 Unavailable checks leave execution readiness unverified; the copy can still be reviewed.
 Show exact copy and media together so the owner can assess what the audience would see.
 
@@ -71,6 +65,7 @@ New items remain drafts until the owner reviews them. The agent cannot owner-app
 Record approval only from the actual owner instruction, bound to item IDs and reviewed revision or exact bytes.
 Changed copy, media, links, account or timing needs review for the changed scope; retain prior decisions as history.
 Content approval and permission to publish or schedule are separate facts.
+A calendar or approval alone proves no scheduled or published result.
 
 This skill does not write to a live platform, create remote drafts, schedule posts, send messages or activate automation.
 For a later publication request, hand the exact package to the existing authorized publishing tool or responsible person.
@@ -81,4 +76,4 @@ After an uncertain write, inspect remote state before retrying to avoid duplicat
 Missing access or connectors remain handoff gaps; do not build or install a client to bypass them.
 
 Deliver completed copy, the proposed calendar, assumptions, asset gaps and remaining owner decisions.
-Distinguish prepared, approved, scheduled and published results. A calendar or approval alone proves none of the later states.
+Distinguish prepared, approved, scheduled and published results.

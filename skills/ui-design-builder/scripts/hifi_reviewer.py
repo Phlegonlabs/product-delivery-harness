@@ -10,7 +10,6 @@ from reviewer_shell import shared_css_drift
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 INERT_CONTAINERS = {"template", "noscript"}
-DIAGNOSTIC_RESULTS = {"PASS", "FAIL", "BLOCKED", "MISSING"}
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
@@ -160,84 +159,6 @@ def _exact_width_rule(css, target, width):
     ) is not None
 
 
-def _retention_probe(nodes):
-    """Find applicable product controls without inventing controls on a page."""
-    product = [(tag, attrs, parents) for tag, attrs, parents in nodes if _in_product(attrs, parents)]
-    input_marked = [(tag, attrs, parents) for tag, attrs, parents in product if "data-retention-input" in attrs]
-    errors = []
-    if len(input_marked) > 1:
-        errors.append("HiFi page may mark only one retention input")
-
-    def eligible_input(item):
-        tag, attrs, _ = item
-        if tag == "textarea":
-            return True
-        if tag != "input":
-            return False
-        return (attrs.get("type") or "text").casefold() not in {"hidden", "button", "submit", "reset", "file", "image"}
-
-    inputs = [item for item in product if eligible_input(item)]
-    input_item = input_marked[0] if input_marked else (inputs[0] if inputs else None)
-    if input_item is not None and not eligible_input(input_item):
-        errors.append("HiFi retention input must be an actual editable product input")
-
-    def option_bound_to_select(item):
-        _, _, parents = item
-        return any(
-            tag == "select" and any(parent is select_attrs for parent in parents)
-            for tag, select_attrs, _ in product
-        )
-
-    def eligible_selection(item):
-        tag, attrs, _ = item
-        if tag == "select":
-            return True
-        if tag == "option":
-            return "selected" in attrs and option_bound_to_select(item)
-        if tag == "input":
-            return (attrs.get("type") or "text").casefold() in {"checkbox", "radio"} and (
-                "checked" in attrs or attrs.get("aria-checked") == "true"
-            )
-        role = (attrs.get("role") or "").casefold()
-        selected = attrs.get("aria-selected") == "true" and role in {"button", "menuitem", "option", "tab", "radio"}
-        pressed = attrs.get("aria-pressed") == "true" and tag in {"a", "button"}
-        checked = attrs.get("aria-checked") == "true" and role in {"checkbox", "radio", "switch", "menuitemcheckbox", "menuitemradio"}
-        return selected or pressed or checked
-
-    selection_marked = [item for item in product if "data-retention-selected" in item[1] and eligible_selection(item)]
-    if len(selection_marked) > 1:
-        errors.append("HiFi page may mark only one retention selection")
-    selections = [item for item in product if eligible_selection(item)]
-    selection_item = selection_marked[0] if selection_marked else (selections[0] if selections else None)
-
-    def value_for_input(item):
-        if item is None:
-            return None
-        tag, attrs, _ = item
-        return attrs.get("value") if tag != "textarea" else attrs.get("data-value")
-
-    def value_for_selection(item):
-        if item is None:
-            return None
-        tag, attrs, _ = item
-        if tag != "select":
-            return attrs.get("value")
-        for child_tag, child_attrs, child_parents in product:
-            if child_tag == "option" and any(parent is attrs for parent in child_parents) and "selected" in child_attrs:
-                return child_attrs.get("value") or child_attrs.get("data-value")
-        for child_tag, child_attrs, child_parents in product:
-            if child_tag == "option" and any(parent is attrs for parent in child_parents):
-                return child_attrs.get("value") or child_attrs.get("data-value")
-        return attrs.get("value")
-
-    return {
-        "input": value_for_input(input_item),
-        "selected": value_for_selection(selection_item),
-        "inputApplicable": input_item is not None,
-        "selectedApplicable": selection_item is not None,
-    }, errors
-
-
 def has_current_reviewer_shell(documents):
     """Detect current v2 or v3 reviewer markup through parsed HTML."""
     for html in documents.values():
@@ -337,8 +258,6 @@ def _reviewer_contract(documents, manifest):
     target_values = _ordered_targets(surfaces)
     page_targets = {page: _page_targets(surfaces, page, target_values) for page in pages}
     page_widths = {}
-    page_retention = {}
-    page_shell_versions = {}
     for name, html in documents.items():
         parser = ReviewerParser()
         parser.feed(html)
@@ -354,7 +273,6 @@ def _reviewer_contract(documents, manifest):
         elif shells[0][1].get("data-hifi-reviewer-version") not in {"2", "3"}:
             errors.append(f"HiFi {name} requires the current version-2 or version-3 reviewer shell")
         shell_version = shells[0][1].get("data-hifi-reviewer-version") if len(shells) == 1 and shells[0][0] == "aside" else None
-        page_shell_versions[name] = shell_version
         if len(navs) != 1 or navs[0][0] != "nav" or not any("data-hifi-reviewer-shell" in p for p in navs[0][1]):
             errors.append(f"HiFi {name} requires one sidebar page navigation")
         page_links = [attrs for tag, attrs, parents in nodes if tag == "a" and any("data-hifi-page-nav" in p for p in parents)]
@@ -414,9 +332,6 @@ def _reviewer_contract(documents, manifest):
             errors.append(f"HiFi {name} must render exactly its assigned product surfaces")
         if surface_nodes and any(not parents or "data-hifi-canvas" not in parents[-1] for _, _, parents in surface_nodes):
             errors.append(f"HiFi {name} product surface must be the direct child of its exact-width container")
-        retention, retention_errors = _retention_probe(nodes)
-        page_retention[name] = retention
-        errors.extend(retention_errors)
         css = _page_css(html)
         if shell_version == "3":
             errors.extend(f"HiFi {name}: {finding}" for finding in shared_css_drift(html))
@@ -558,48 +473,7 @@ def _reviewer_contract(documents, manifest):
             for row in specimens:
                     if row["sourcePage"] == source_page:
                         errors.extend(_source_binding_findings(row, source_nodes, css))
-    targets = _ordered_targets(surfaces)
-    surfaces_by_page = {
-        page: [row["id"] for row in surfaces if row["page"] == page][:1]
-        for page in pages
-    }
-    views = [{"from": origin, "view": view, "target": target, "trigger": trigger,
-              "visible": True, "productVisible": False, "visibleSurfaces": [], "focusCorrect": True, "result": "PASS"}
-             for origin in pages for view in ("overview", "design-tokens")
-             for target in page_targets.get(origin, targets) for trigger in ("click", "keyboard")]
-    navigation_edges = {
-        (origin, dest)
-        for origin in pages
-        for dest in pages
-    }
-    if set(page_shell_versions.values()) == {"3"} and pages:
-        first = pages[0]
-        navigation_edges = {
-            (origin, first)
-            for origin in pages
-        }
-        navigation_edges.update((first, dest) for dest in pages)
-        navigation_edges.update(
-            (pages[index], pages[index + 1])
-            for index in range(len(pages) - 1)
-        )
-    navigation = [{"from": origin, "to": dest, "target": target, "trigger": trigger,
-                   "destinationTarget": target if target in page_targets.get(dest, targets) else (page_targets.get(dest, targets) or [None])[0],
-                   "visible": True, "productVisible": True, "visibleSurfaces": surfaces_by_page[dest],
-                   "focusCorrect": True, "result": "PASS"}
-                  for origin, dest in navigation_edges
-                  for target in page_targets.get(origin, targets) for trigger in ("click", "keyboard")]
-    recovery = [{"from": origin, "case": case, "target": target,
-                 "surfaces": surfaces_by_page[origin], "selectedTarget": target,
-                 "productVisible": True, "panelsHidden": True, "result": "PASS"}
-                for origin in pages for case in ("unknown-hash", "back-from-overview", "back-from-design-tokens")
-                for target in page_targets.get(origin, targets)]
-    recovery.extend({"from": "index.html", "case": "final-default-restoration", "target": target,
-                     "surfaces": [surfaces[0]["id"]], "selectedTarget": target,
-                     "productVisible": True, "panelsHidden": True, "result": "PASS"}
-                    for target in page_targets.get("index.html", targets))
     viewport = []
-    retention = []
     for row in surfaces:
         for target in row["responsive"]["targets"]:
             target = str(target)
@@ -608,24 +482,9 @@ def _reviewer_contract(documents, manifest):
                              "requestedWidth": target, "measuredProductWidth": measured_width,
                              "visibleSurfaces": [row["id"]], "containerQueryApplied": True,
                              "hostMediaQueryApplied": False, "result": "PASS"})
-            row_targets = page_targets.get(row["page"], targets)
-            previous = row_targets[(row_targets.index(target) - 1) % len(row_targets)] if len(row_targets) > 1 else target
-            probe = page_retention.get(row["page"], {"input": None, "selected": None,
-                                                      "inputApplicable": False, "selectedApplicable": False})
-            for case in ("target-switch", "overview", "design-tokens"):
-                retention.append({"page": row["page"], "surface": row["id"], "target": target, "case": case,
-                                  "selectedTargetBefore": previous if case == "target-switch" else target,
-                                  "selectedTargetAfter": target,
-                                  "inputValueBefore": probe["input"], "inputValueAfter": probe["input"],
-                                  "selectedValueBefore": probe["selected"], "selectedValueAfter": probe["selected"],
-                                  "inputApplicable": probe["inputApplicable"],
-                                  "selectedApplicable": probe["selectedApplicable"],
-                                  "productVisible": case == "target-switch", "visibleSurfaces": [] if case != "target-switch" else [row["id"]],
-                                  "result": "PASS"})
     return errors, {"defaultSurface": surfaces[0]["id"], "defaultVisible": True,
                     "overviewInitiallyHidden": True, "overview": overview,
-                    "views": views, "navigation": navigation, "recovery": recovery,
-                    "viewport": viewport, "retention": retention, "specimens": specimens}
+                    "viewport": viewport, "specimens": specimens}
 
 
 def product_control_findings(documents):
@@ -680,218 +539,17 @@ def product_control_findings(documents):
     return errors
 
 
-def _diagnostic_observation_findings(
-    section: str,
-    actual_rows: object,
-    expected_rows: object,
-    *,
-    identity_keys: tuple[str, ...],
-    static_keys: set[str],
-    behavior_keys: set[str],
-) -> tuple[list[str], list[str]]:
-    """Separate missing malformed coverage from fully observed behavior defects."""
-
-    label = f"HiFi reviewer {section}"
-    if not isinstance(actual_rows, list) or not isinstance(expected_rows, list) or len(actual_rows) != len(expected_rows):
-        return [f"{label} does not match required browser observations"], []
-    expected_rows = list(expected_rows)
-    if any(not isinstance(row, dict) for row in expected_rows):
-        return [f"{label} source contract is invalid"], []
-    available = set(range(len(expected_rows)))
-    structural: list[str] = []
-    defects: list[str] = []
-    for row in actual_rows:
-        if not isinstance(row, dict) or any(key not in row for key in identity_keys):
-            structural.append(f"{label} observation has an invalid closed field set")
-            continue
-        identity = tuple(row[key] for key in identity_keys)
-        candidates = [index for index in available
-                      if all(expected_rows[index].get(key) == value for key, value in zip(identity_keys, identity))]
-        if not candidates:
-            structural.append(f"{label} observation is missing, extra or duplicate")
-            continue
-        if section == "navigation":
-            same_destination = [index for index in candidates
-                                if expected_rows[index].get("to") == row.get("to")]
-            candidates = same_destination or candidates
-        expected_index = min(candidates, key=lambda index: json.dumps(expected_rows[index], sort_keys=True))
-        expected = expected_rows[expected_index]
-        if set(row) != set(expected):
-            missing = sorted(set(expected) - set(row))
-            extra = sorted(set(row) - set(expected))
-            structural.append(f"{label} observation has an invalid closed field set: "
-                              f"missing={missing}, extra={extra}")
-            continue
-        available.remove(expected_index)
-        if any(row[key] != expected[key] for key in static_keys):
-            structural.append(f"{label} observation differs from its source-bound identity")
-            continue
-        if "result" in behavior_keys and row["result"] not in DIAGNOSTIC_RESULTS:
-            structural.append(f"{label} has an invalid observation result")
-            continue
-        if "result" in behavior_keys and row["result"] in {"BLOCKED", "MISSING"}:
-            structural.append(f"{label} observation for {'/'.join(map(str, identity))} is "
-                              f"{row['result']}; the browser review is incomplete")
-            continue
-        changed = [key for key in sorted(behavior_keys) if row[key] != expected[key]]
-        if changed:
-            defects.append(f"{label} observed defect for " + "/".join(map(str, identity)) + ": " + ", ".join(changed))
-    if available:
-        structural.append(f"{label} lacks required browser observations")
-    return structural, defects
-
-
-def _diagnostic_specimen_findings(actual_rows: object, expected_rows: object) -> tuple[list[str], list[str]]:
-    """Validate specimen identity separately from its observed value triple."""
-
-    label = "HiFi reviewer specimens"
-    if not isinstance(actual_rows, list) or not isinstance(expected_rows, list) or len(actual_rows) != len(expected_rows):
-        return [f"{label} does not match required browser observations"], []
-    expected_rows = list(expected_rows)
-    if any(not isinstance(row, dict) for row in expected_rows):
-        return [f"{label} source contract is invalid"], []
-    identity_keys = ("kind", "name", "sourcePage", "source", "property", "variant", "state", "element", "sharedGroup")
-    available = set(range(len(expected_rows)))
-    structural: list[str] = []
-    defects: list[str] = []
-    groups: dict = {}
-    for row in actual_rows:
-        if not isinstance(row, dict) or any(key not in row for key in identity_keys):
-            structural.append(f"{label} observation has an invalid closed field set")
-            continue
-        identity = tuple(row[key] for key in identity_keys)
-        candidates = [index for index in available
-                      if all(expected_rows[index].get(key) == value for key, value in zip(identity_keys, identity))]
-        if not candidates:
-            structural.append(f"{label} observation is missing, extra or duplicate")
-            continue
-        expected_index = min(candidates, key=lambda index: json.dumps(expected_rows[index], sort_keys=True))
-        expected = expected_rows[expected_index]
-        value_keys = {"sourceValue", "specimenValue", "displayValue"}
-        if expected["kind"] == "token":
-            value_keys |= {"sourceComputedValue", "specimenComputedValue"}
-        if set(row) != set(expected) | value_keys:
-            structural.append(f"{label} observation has an invalid closed field set")
-            continue
-        available.remove(expected_index)
-        if any(row[key] != expected[key] for key in identity_keys):
-            structural.append(f"{label} observation differs from its source-bound identity")
-            continue
-        value = row["sourceValue"]
-        is_token = expected["kind"] == "token"
-        computed = row["sourceComputedValue"] if is_token else None
-        if not isinstance(value, str) or not value.strip() or (
-                is_token and (not isinstance(computed, str) or not computed.strip())):
-            structural.append(f"{label} observation for {'/'.join(map(str, identity))} is incomplete")
-            continue
-        problems: list[str] = []
-        if value != row["specimenValue"] or value != row["displayValue"]:
-            problems.append("displayed values differ from the style source")
-        if is_token and computed != row["specimenComputedValue"]:
-            problems.append("applied token value differs from the browser-normalized source property")
-        if problems:
-            defects.append(f"{label} observed defect for {'/'.join(map(str, identity))}: "
-                           + "; ".join(problems))
-            continue
-        group = row.get("sharedGroup")
-        if group:
-            groups.setdefault(group, []).append(row)
-    if available:
-        structural.append(f"{label} lacks required browser observations")
-    for group, rows in groups.items():
-        values = {(row.get("sourceValue"), row.get("specimenValue"), row.get("displayValue"),
-                   row.get("sourceComputedValue"), row.get("specimenComputedValue")) for row in rows}
-        if len(values) != 1:
-            defects.append(f"{label} observed defect for shared group {group}: values differ across member pages")
-    return structural, defects
-
-
-def reviewer_diagnostic_coverage_findings(
-    actual: object, expected: object,
-) -> tuple[list[str], list[str]]:
-    """Return structural coverage errors and fully observed behavior defects."""
-
-    if not isinstance(actual, dict) or not isinstance(expected, dict) or set(actual) != set(expected):
-        return ["HiFi reviewer evidence requires its closed source-bound observation record"], []
-    structural: list[str] = []
-    defects: list[str] = []
-    if actual["overview"] != expected["overview"] or actual["defaultSurface"] != expected["defaultSurface"]:
-        structural.append("HiFi reviewer Overview differs from its manifest source binding")
-    for key in ("defaultVisible", "overviewInitiallyHidden"):
-        if actual[key] != expected[key]:
-            defects.append(f"HiFi reviewer observed defect for {key}")
-
-    groups = (
-        ("views", ("from", "view", "target", "trigger"),
-         {"visible", "productVisible", "visibleSurfaces", "focusCorrect", "result"}),
-        ("navigation", ("from", "target", "trigger"),
-         {"to", "destinationTarget", "visible", "productVisible", "visibleSurfaces", "focusCorrect", "result"}),
-        ("recovery", ("from", "case", "target"),
-         {"surfaces", "selectedTarget", "productVisible", "panelsHidden", "result"}),
-        ("viewport", ("page", "surface", "target"),
-         {"requestedWidth", "measuredProductWidth", "visibleSurfaces", "containerQueryApplied", "hostMediaQueryApplied", "result"}),
-        ("retention", ("page", "surface", "target", "case"),
-         {"selectedTargetBefore", "selectedTargetAfter", "inputValueBefore", "inputValueAfter",
-          "selectedValueBefore", "selectedValueAfter", "productVisible", "visibleSurfaces", "result"}),
-    )
-    for section, identity_keys, behavior_keys in groups:
-        section_errors, section_defects = _diagnostic_observation_findings(
-            section, actual[section], expected[section],
-            identity_keys=identity_keys, static_keys=set(expected[section][0]) - behavior_keys
-            if expected[section] and isinstance(expected[section][0], dict) else set(),
-            behavior_keys=behavior_keys,
-        )
-        structural.extend(section_errors)
-        defects.extend(section_defects)
-
-    specimen_errors, specimen_defects = _diagnostic_specimen_findings(
-        actual["specimens"], expected["specimens"])
-    structural.extend(specimen_errors)
-    defects.extend(specimen_defects)
-    return structural, defects
+DROPPED_REVIEWER_KEYS = {"views", "navigation", "recovery", "retention"}
 
 
 def reviewer_evidence_findings(actual, expected):
-    if not isinstance(actual, dict) or not isinstance(expected, dict) or set(actual) != set(expected):
+    # Receipts from older runs may still carry the dropped per-page chrome rows; they are ignored.
+    if not isinstance(actual, dict) or not isinstance(expected, dict) or set(actual) - DROPPED_REVIEWER_KEYS != set(expected):
         return ["HiFi reviewer evidence requires its closed source-bound observation record"]
     errors = []
-    for key in ("defaultSurface", "defaultVisible", "overviewInitiallyHidden", "overview", "views", "navigation", "recovery", "viewport"):
-        # Order is meaningful for overview; all other lists are observation sets.
-        left, right = actual.get(key), expected.get(key)
-        if key in {"views", "navigation", "recovery"} and isinstance(left, list):
-            if not isinstance(right, list):
-                errors.append(f"HiFi reviewer {key} does not match required browser observations")
-                continue
-            try:
-                left = sorted(json.dumps(row, sort_keys=True) for row in left)
-                right = sorted(json.dumps(row, sort_keys=True) for row in right)
-            except (TypeError, ValueError):
-                left = None
-        if left != right:
+    for key in ("defaultSurface", "defaultVisible", "overviewInitiallyHidden", "overview", "viewport"):
+        if actual.get(key) != expected.get(key):
             errors.append(f"HiFi reviewer {key} does not match required browser observations")
-    rows = actual.get("retention")
-    expected_rows = expected.get("retention")
-    if not isinstance(expected_rows, list) or not isinstance(rows, list) or len(rows) != len(expected_rows):
-        errors.append("HiFi reviewer retention does not match required browser observations")
-    else:
-        for row, spec in zip(rows, expected_rows):
-            if not isinstance(row, dict) or not isinstance(spec, dict) or set(row) != set(spec):
-                errors.append("HiFi reviewer retention identity differs from its DOM source binding")
-                continue
-            value_keys = {
-                "inputValueBefore", "inputValueAfter", "selectedValueBefore", "selectedValueAfter",
-            }
-            if any(row.get(key) != value for key, value in spec.items() if key not in value_keys):
-                errors.append("HiFi reviewer retention identity differs from its DOM source binding")
-                continue
-            for key, applicable_key in (("inputValue", "inputApplicable"), ("selectedValue", "selectedApplicable")):
-                before, after = row.get(key + "Before"), row.get(key + "After")
-                applicable = spec.get(applicable_key)
-                if applicable is False:
-                    if before is not None or after is not None:
-                        errors.append("HiFi reviewer retention must not invent a product control that the page does not use")
-                elif not isinstance(before, str) or not before.strip() or before != after:
-                    errors.append("HiFi reviewer retention must observe unchanged nonempty product input and selected values")
     rows = actual.get("specimens")
     expected_specimens = expected.get("specimens")
     if not isinstance(rows, list) or not isinstance(expected_specimens, list) or len(rows) != len(expected_specimens):

@@ -5,7 +5,6 @@ from __future__ import annotations
 import copy
 import contextlib
 from concurrent.futures import ThreadPoolExecutor
-import hashlib
 import io
 import json
 import sys
@@ -23,7 +22,6 @@ import manifest_fixtures as mf
 import verifier_runtime as vr
 import harness_transition as transition
 from harness_manifest import load_run, plan_digest, validate_run
-from harness_core import host_execution_binding_errors
 from test_verifier_runtime import context
 
 
@@ -66,17 +64,13 @@ class HostVerifierTests(unittest.TestCase):
         values.update(kwargs)
         return vr.run_verifier(declaration, self.context, **values)
 
-    def test_actual_command_uses_declared_cwd_without_container_or_archive(self):
+    def test_actual_command_uses_declared_cwd(self):
         declaration = host_verifier("from pathlib import Path; print(Path('input.txt').read_text())", "app")
-        with patch.object(vr, "_run_container_verifier", side_effect=AssertionError("container invoked")), \
-             patch.object(vr, "_materialize_git_snapshot", side_effect=AssertionError("archive invoked")):
-            result = self.execute(declaration)
+        result = self.execute(declaration)
         self.assertEqual("PASS", result["status"])
         self.assertEqual(str((self.root / "app").resolve()), result["host_execution_attestation"]["cwd"])
         self.assertEqual(result["host_execution_attestation"], result["git_guard_attestation"]["host_execution_attestation"])
         self.assertEqual([], vr.execution_retention_binding_errors(result))
-        self.assertEqual([], host_execution_binding_errors(result["key_document"]["host_preflight"],
-                         result["host_execution_attestation"], result["key_document"], str(self.root)))
 
     def delayed_mutation_command(self, delay, *, timeout=False, inherit_output=False):
         path = self.root / "tracked.txt"
@@ -103,7 +97,6 @@ class HostVerifierTests(unittest.TestCase):
     def test_host_only_preflight_does_not_launch_any_process(self):
         declaration = host_verifier()
         with patch.object(vr.subprocess, "run", side_effect=AssertionError("process invoked")):
-            self.assertEqual(([], []), vr.observe_plan_sandboxes({"final_gates": [declaration]}))
             self.preflight(declaration)
 
     @unittest.skipUnless(sys.platform == "win32", "uses the Windows job mechanism")
@@ -220,13 +213,13 @@ class HostVerifierTests(unittest.TestCase):
 
     def test_retained_wrong_cwd_and_command_are_rejected(self):
         result = self.execute(host_verifier())
-        attestation = copy.deepcopy(result["host_execution_attestation"])
-        attestation["cwd"] = str(self.root / "wrong")
-        issues = host_execution_binding_errors(result["key_document"]["host_preflight"], attestation, result["key_document"], str(self.root))
+        changed = copy.deepcopy(result)
+        changed["host_execution_attestation"]["cwd"] = str(self.root / "wrong")
+        issues = vr.execution_retention_binding_errors(changed)
         self.assertTrue(any("cwd differs" in item for item in issues))
-        document = copy.deepcopy(result["key_document"])
-        document["argv"][0] = "other"
-        issues = host_execution_binding_errors(document["host_preflight"], result["host_execution_attestation"], document, str(self.root))
+        changed = copy.deepcopy(result)
+        changed["key_document"]["argv"][0] = "other"
+        issues = vr.execution_retention_binding_errors(changed)
         self.assertTrue(any("argv0 differs" in item for item in issues))
 
     def test_host_cache_parallel_and_malformed_resources_refused(self):
@@ -265,16 +258,12 @@ class HostVerifierTests(unittest.TestCase):
         plan = mf.valid_plan()
         for _, declaration in vr._plan_verifier_declarations(plan):
             declaration.update({**host_verifier(), "id": declaration["id"]})
-        gate_id = plan["final_gates"][0]["id"]
+        plan["final_gates"].append(host_verifier())
+        gate_id = plan["final_gates"][-1]["id"]
         plan["graph"]["nodes"].append({"id": "N-HOST", "kind": "verifier", "ref": gate_id,
             "executor": "local_command", "allowed_outcomes": ["pass", "blocked"], "max_attempts": 1, "runtime": None})
         plan["graph"]["entry_nodes"].append("N-HOST")
-        for source in plan["sources"]:
-            payload = f"# Test {source['kind']}\n".encode()
-            path = self.root / source["location"]
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(payload)
-            source["content_sha256"] = hashlib.sha256(payload).hexdigest()
+        mf.materialize_plan_sources(self.root, plan)
         mf.git(self.root, "add", "docs/product")
         mf.git(self.root, "commit", "-qm", "contracts")
         head = mf.git(self.root, "rev-parse", "HEAD")
@@ -298,13 +287,12 @@ class HostVerifierTests(unittest.TestCase):
                     code = transition.main([*common, *args])
                 self.assertEqual(0, code, output.getvalue())
             step("acquire-run-lock")
-            with patch.object(vr, "_run_container_verifier", side_effect=AssertionError("container invoked")):
-                step("record-observation", "--available-worker-slots", "2", "--isolation-capacity", "2", "--capacity-evidence", "fixture capacity")
-                step("reserve-node-attempt", "--node-id", "N-HOST", "--attempt-id", "ATT-HOST", "--request-out", str(request_path))
-                output = io.StringIO()
-                with contextlib.redirect_stdout(output):
-                    code = vr.main(["--request", str(request_path)])
-                self.assertEqual(0, code, output.getvalue())
+            step("record-observation", "--available-worker-slots", "2", "--isolation-capacity", "2", "--capacity-evidence", "fixture capacity")
+            step("reserve-node-attempt", "--node-id", "N-HOST", "--attempt-id", "ATT-HOST", "--request-out", str(request_path))
+            output = io.StringIO()
+            with contextlib.redirect_stdout(output):
+                code = vr.main(["--request", str(request_path)])
+            self.assertEqual(0, code, output.getvalue())
             result_path.write_text(output.getvalue(), encoding="utf-8")
             result = json.loads(output.getvalue())
             self.assertEqual("PASS", result["status"])
@@ -312,8 +300,14 @@ class HostVerifierTests(unittest.TestCase):
             recorded = load_run(run_path)
             self.assertEqual("succeeded", recorded["graph_state"]["node_states"]["N-HOST"]["phase"])
             self.assertEqual([], validate_run(plan, recorded))
-            recorded["observed"]["host_runtime"]["entries"][0]["executable_sha256"] = "0" * 64
-            self.assertTrue(any("host_preflight" in issue for issue in validate_run(plan, recorded)))
+            recorded["observed"]["host_runtime"] = {"entries": [{"executable_sha256": "0" * 64}]}
+            self.assertEqual([], validate_run(plan, recorded), "historical observation is opaque")
+            execution = recorded["verifier_executions"][-1]
+            execution["key_document"]["host_preflight"]["executable_sha256"] = "0" * 64
+            execution["execution_key"] = vr.execution_key_from_document(execution["key_document"])
+            execution["evidence_key"] = execution["execution_key"]
+            self.assertTrue(any("host attestation executable differs from preflight" in issue
+                                for issue in validate_run(plan, recorded)))
 
 
 if __name__ == "__main__":

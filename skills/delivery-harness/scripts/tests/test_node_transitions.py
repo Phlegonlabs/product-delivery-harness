@@ -4,8 +4,6 @@
 from __future__ import annotations
 
 import copy
-import hashlib
-import os
 import sys
 import json
 import subprocess
@@ -13,7 +11,6 @@ import tempfile
 import unittest
 from argparse import Namespace
 from pathlib import Path
-from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -53,6 +50,12 @@ def dispatch_attestation(
     }
 
 
+def execute_reserved(request, root):
+    return run_verifier(request["verifier"], request["context"], checkout_root=root,
+                        host_preflight=request["host_preflight"], git_guard=request["git_guard"],
+                        reservation=request["reservation"], request_sha256=harness_transition._json_sha256(request))
+
+
 def fake_verifier_dispatch(
     node_id: str, attempt_id: str, head_sha: str = "a" * 40
 ) -> dict[str, object]:
@@ -74,6 +77,7 @@ def fake_verifier_dispatch(
 class NodeTransitionTests(unittest.TestCase):
     def _approval_pair(self):
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         mf.authorize_execution(run, ["M1", "M2"])
         run["status"] = "running"
@@ -135,7 +139,6 @@ class NodeTransitionTests(unittest.TestCase):
         return plan, run
 
     def test_cli_local_verifier_reserve_execute_record_spine(self) -> None:
-        windows_fixture = os.name == "nt"
         with (
             tempfile.TemporaryDirectory() as repo_dir,
             tempfile.TemporaryDirectory() as control_dir,
@@ -144,17 +147,21 @@ class NodeTransitionTests(unittest.TestCase):
             control = Path(control_dir).resolve()
             mf.init_repo(root, "README.md", default_branch="codex/test")
             plan = mf.valid_plan()
+            plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
             plan["final_gates"][0]["argv"] = [
                 sys.executable,
                 "-c",
                 "raise SystemExit(0)",
             ]
             plan["final_gates"][0]["pass_signal"] = "exit 0"
+            cli_gate = copy.deepcopy(plan["final_gates"][0])
+            cli_gate["id"] = "cli-final"
+            plan["final_gates"].append(cli_gate)
             plan["graph"]["nodes"].append(
                 {
                     "id": "N-CLI-FINAL",
                     "kind": "verifier",
-                    "ref": plan["final_gates"][0]["id"],
+                    "ref": "cli-final",
                     "executor": "local_command",
                     "allowed_outcomes": ["pass", "blocked"],
                     "max_attempts": 1,
@@ -162,53 +169,11 @@ class NodeTransitionTests(unittest.TestCase):
                 }
             )
             plan["graph"]["entry_nodes"].append("N-CLI-FINAL")
-            source_contents = {
-                "prd": b"# Test PRD\n",
-                "architecture": b"# Test architecture\n",
-            }
-            for source in plan["sources"]:
-                payload = source_contents[source["kind"]]
-                source_path = root / source["location"]
-                source_path.parent.mkdir(parents=True, exist_ok=True)
-                source_path.write_bytes(payload)
-                source["content_sha256"] = hashlib.sha256(payload).hexdigest()
+            mf.materialize_plan_sources(root, plan)
             mf.git(root, "add", "docs/product")
             mf.git(root, "commit", "-qm", "contracts")
             head = mf.git(root, "rev-parse", "HEAD")
-            fake_runtime = control / ("docker.exe" if windows_fixture else "docker")
-            if windows_fixture:
-                fake_runtime.write_text(
-                    "@echo off\r\n"
-                    "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
-                    "if \"%1\"==\"image\" (echo [\"fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111\"]&exit /b 0)\r\n"
-                    "if \"%1\"==\"run\" exit /b 0\r\n"
-                    "exit /b 1\r\n",
-                    encoding="utf-8",
-                )
-            else:
-                fake_runtime.write_text(
-                    "#!/bin/sh\n"
-                    'if [ "$1" = "version" ]; then echo fixture-runtime; exit 0; fi\n'
-                    'if [ "$1" = "image" ]; then echo ["fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111"]; exit 0; fi\n'
-                    'if [ "$1" = "run" ]; then exit 0; fi\n'
-                    "exit 1\n",
-                    encoding="utf-8",
-                    newline="\n",
-                )
-                fake_runtime.chmod(0o755)
             run = mf.valid_run(plan)
-            sandbox_entry = run["observed"]["sandbox"]["entries"][0]
-            sandbox_entry["runtime_probe"]["executable"] = str(fake_runtime)
-            sandbox_entry["runtime_probe"]["executable_sha256"] = hashlib.sha256(fake_runtime.read_bytes()).hexdigest()
-            sandbox_entry["runtime_probe"]["version_output_sha256"] = hashlib.sha256(b"fixture-runtime\n").hexdigest()
-            sandbox_entry["runtime_probe"]["trust"] = {
-                "path": str(fake_runtime),
-                "runtime": sandbox_entry["runtime"],
-                "ownership": "fixture-machine-policy",
-                "uid": 0,
-                "mode": 493,
-                "reparse": False,
-            }
             mf.authorize_execution(run, ["M1", "M2"])
             run.update({"status": "running", "plan_readiness": "ready"})
             run["observed"].update({"captured_at": "2026-01-01T00:00:00Z"})
@@ -276,56 +241,12 @@ class NodeTransitionTests(unittest.TestCase):
                     ]
                 ),
             )
-            fake_runtime = control / ("docker.exe" if windows_fixture else "docker")
-            if windows_fixture:
-                fake_runtime.write_text(
-                    "@echo off\r\n"
-                    "if \"%1\"==\"version\" (echo fixture-runtime&exit /b 0)\r\n"
-                    "if \"%1\"==\"image\" (echo [\"fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111\"]&exit /b 0)\r\n"
-                    "if \"%1\"==\"run\" exit /b 0\r\n"
-                    "exit /b 1\r\n",
-                    encoding="utf-8",
-                )
-            else:
-                fake_runtime.write_text(
-                    "#!/bin/sh\n"
-                    'if [ "$1" = "version" ]; then echo fixture-runtime; exit 0; fi\n'
-                    'if [ "$1" = "image" ]; then echo ["fixture@sha256:1111111111111111111111111111111111111111111111111111111111111111"]; exit 0; fi\n'
-                    'if [ "$1" = "run" ]; then exit 0; fi\n'
-                    "exit 1\n",
-                    encoding="utf-8",
-                    newline="\n",
-                )
-                fake_runtime.chmod(0o755)
-            # The container runtime is never executed: the fixture shim only
-            # feeds the recorded preflight digests, and _run_container_verifier
-            # is mocked so the CLI spine runs identically on every host.
             import contextlib
             import io
             import verifier_runtime as runtime_module
 
-            def fake_container(
-                _checkout_root: Path,
-                _snapshot_root: Path,
-                _declared_cwd: str,
-                _argv: list[str],
-                policy: dict[str, object],
-                _timeout_seconds: float,
-                sandbox_preflight: dict[str, object] | None = None,
-            ) -> tuple[subprocess.CompletedProcess[str], dict[str, object]]:
-                assert isinstance(sandbox_preflight, dict)
-                return subprocess.CompletedProcess(["docker", "run"], 0, "", ""), {
-                    "runtime": policy["runtime"],
-                    "runtime_probe": sandbox_preflight["runtime_probe"],
-                    "image": policy["image"],
-                    "image_probe": sandbox_preflight["repo_digest"],
-                    "policy": policy,
-                    "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
-                    "network": "none",
-                }
-
             output = io.StringIO()
-            with patch.object(runtime_module, "_run_container_verifier", side_effect=fake_container), contextlib.redirect_stdout(output):
+            with contextlib.redirect_stdout(output):
                 code = runtime_module.main(["--request", str(request_path)])
             completed = subprocess.CompletedProcess(["verifier_runtime.py"], code, output.getvalue(), "")
             self.assertEqual(0, completed.returncode, completed.stdout + completed.stderr)
@@ -408,6 +329,7 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_local_final_gate_retention_projects_gate_array(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         mf.authorize_execution(run, ["M1", "M2"])
         run["status"] = "running"
@@ -465,15 +387,8 @@ class NodeTransitionTests(unittest.TestCase):
             digest = plan_digest(plan)
             run["plan"]["digest_sha256"] = digest
             run["execution_authorization_scope"]["plan_digest_sha256"] = digest
-            retained = mf.retained_gate_execution(
-                plan,
-                run,
-                plan["final_gates"][0],
-                layer="final",
-                execution_id="EXEC-FINAL-1",
-            )
-            retained["reservation"] = request["reservation"]
-            retained["dispatch_attestation"] = dispatch_attestation(request)
+            retained = execute_reserved(request, root)
+            self.assertEqual("PASS", retained["status"], retained)
             verifier_path = Path(evidence_dir) / "final.json"
             wrong_checkout = copy.deepcopy(retained)
             wrong_checkout["dispatch_attestation"]["checkout_root"] = str(
@@ -527,117 +442,11 @@ class NodeTransitionTests(unittest.TestCase):
             )
         )
 
-    def test_app_task_lease_materializes_exact_targets_and_binding(self) -> None:
-        plan = mf.valid_plan()
-        run = mf.valid_run(plan)
-        mf.authorize_execution(run, ["M1"])
-        run.update({"status": "running", "plan_readiness": "ready"})
-        run["active_wave"].update(
-            {
-                "wave_id": "W-APP",
-                "status": "active",
-                "batch_base_sha": "a" * 40,
-                "selected_missions": ["M1"],
-            }
-        )
-        run["integration"]["batch_base_sha"] = "a" * 40
-        run["runtime_capabilities"].update(
-            {
-                "worker_runtime": "app_task",
-                "workspace_mode": "app_managed_worktree",
-                "completion_channel": "thread_poll",
-            }
-        )
-        adapter = run["runtime_capabilities"]["runtime_adapter"]
-        adapter.update(
-            {
-                "provider": "codex",
-                "available_drivers": ["app_threads"],
-                "detection_source": "observed",
-                "capability_probe": mf.native_capability_probe(app_threads=True),
-            }
-        )
-        digest = plan_digest(plan)
-        run["plan"]["digest_sha256"] = digest
-        run["execution_authorization_scope"]["plan_digest_sha256"] = digest
-        for entry in run["authorizations"].values():
-            if isinstance(entry, dict) and isinstance(entry.get("scope"), dict):
-                entry["scope"]["plan_digest_sha256"] = digest
-        for action in (
-            "create_user_owned_tasks",
-            "create_app_managed_worktrees",
-            "create_local_branches",
-            "create_local_commits",
-        ):
-            mf.authorize_action(run, action, ["M1"], ["*"])
-        harness_transition._lease_worker(
-            plan,
-            run,
-            Namespace(
-                mission_id="M1",
-                node_id="N-M1",
-                worker_id="W-APP",
-                lease_id="L-APP",
-                attempt_id="ATT-APP-WORKER",
-                branch_ref="refs/heads/codex/m1-app",
-                worktree_path="C:/tmp/m1-app",
-                provider=None,
-                driver=None,
-                worker_runtime=None,
-                workspace_mode=None,
-                completion_channel=None,
-                task_thread_id="thread-123",
-                report_path=None,
-            ),
-        )
-        worker = run["workers"][-1]
-        self.assertEqual("app_threads", worker["runtime_binding"]["driver"])
-        self.assertEqual("thread-123", worker["task_thread_id"])
-        self.assertIn("task:thread-123", run["authorizations"]["create_user_owned_tasks"]["scope"]["targets"])
-        self.assertIn("worktree:C:/tmp/m1-app", run["authorizations"]["create_app_managed_worktrees"]["scope"]["targets"])
-        self.assertIn("*", run["authorizations"]["create_user_owned_tasks"]["scope"]["targets"])
 
-        with self.assertRaisesRegex(ManifestError, "already bound to another worker"):
-            harness_transition._lease_worker(
-                plan,
-                run,
-                Namespace(
-                    mission_id="M1",
-                    node_id="N-M1",
-                    worker_id="W-APP-SECOND",
-                    lease_id="L-APP-SECOND",
-                    attempt_id="ATT-APP-WORKER-SECOND",
-                    branch_ref="refs/heads/codex/m1-app-second",
-                    worktree_path="C:/tmp/m1-app-second",
-                    provider=None,
-                    driver=None,
-                    worker_runtime=None,
-                    workspace_mode=None,
-                    completion_channel=None,
-                    task_thread_id="thread-123",
-                    report_path=None,
-                ),
-            )
-
-        duplicate = copy.deepcopy(worker)
-        duplicate.update(
-            {
-                "worker_id": "W-APP-DUPLICATE",
-                "mission_id": "M2",
-                "lease_id": "L-APP-DUPLICATE",
-                "worktree_path": "C:/tmp/m2-app",
-                "branch_ref": "refs/heads/codex/m2-app",
-            }
-        )
-        run["workers"].append(duplicate)
-        errors = validate_current_plan_run(plan, run)
-        self.assertTrue(
-            any("task_thread_id: must be unique across workers" in error for error in errors),
-            errors,
-        )
 
     def test_fallback_parent_lease_still_materializes_exact_targets(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         mf.authorize_execution(run, ["M1"])
         run.update({"status": "running", "plan_readiness": "ready"})
@@ -689,6 +498,8 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_local_verifier_request_contains_exact_head_and_context(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -712,37 +523,11 @@ class NodeTransitionTests(unittest.TestCase):
                 attempt_id="ATT-FINAL-REQUEST",
                 repo_root=root,
             )
-            request["verifier"]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
-            policy = request["verifier"]["execution"]["sandbox"]
-            image = policy["image"]
-            fake_attestation = {
-                "runtime": policy["runtime"],
-                "runtime_probe": request["sandbox_preflight"]["runtime_probe"],
-                "image": image,
-                "image_probe": request["sandbox_preflight"]["repo_digest"],
-                "policy": policy,
-                "mount": {"source": "git_archive", "destination": "/workspace", "read_only": True},
-                "network": "none",
-            }
-            with patch(
-                "verifier_runtime._run_container_verifier",
-                return_value=(
-                    subprocess.CompletedProcess(
-                        args=["docker", "run"], returncode=0, stdout="", stderr=""
-                    ),
-                    fake_attestation,
-                ),
-            ):
-                execution = run_verifier(
-                    request["verifier"],
-                    request["context"],
-                    checkout_root=root,
-                    environment={},
-                    git_guard=request["git_guard"],
-                    reservation=request["reservation"],
-                    request_sha256=harness_transition._json_sha256(request),
-                    sandbox_preflight=request["sandbox_preflight"],
-                )
+            execution = run_verifier(request["verifier"], request["context"],
+                checkout_root=root, environment={}, git_guard=request["git_guard"],
+                reservation=request["reservation"],
+                request_sha256=harness_transition._json_sha256(request),
+                host_preflight=request["host_preflight"])
             self.assertEqual("PASS", execution["status"])
             self.assertEqual(request["reservation"], execution["reservation"])
             self.assertEqual(
@@ -775,6 +560,8 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_local_verifier_request_proves_root_head_and_clean_state(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -826,6 +613,7 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_local_verifier_result_rechecks_the_live_integration_head(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         run.update({"status": "running", "plan_readiness": "ready"})
         with tempfile.TemporaryDirectory() as repo_dir, tempfile.TemporaryDirectory() as evidence_dir:
@@ -958,6 +746,7 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_local_verifier_result_rejects_changed_protected_run(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         run.update({"status": "running", "plan_readiness": "ready"})
         with tempfile.TemporaryDirectory() as repo_dir, tempfile.TemporaryDirectory() as evidence_dir:
@@ -1061,6 +850,7 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_interrupted_local_verifier_may_block_without_a_result(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         next(
             node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL"
         )["allowed_outcomes"].append("retryable_failure")
@@ -1121,16 +911,19 @@ class NodeTransitionTests(unittest.TestCase):
         self.assertEqual("BLOCKED", run["final_gate_results"][0]["status"])
 
     def test_local_verifier_retry_retains_fail_then_pass_on_same_head(self) -> None:
+        repo_temp = tempfile.TemporaryDirectory()
+        evidence_temp = tempfile.TemporaryDirectory()
+        self.addCleanup(repo_temp.cleanup)
+        self.addCleanup(evidence_temp.cleanup)
+        marker = Path(evidence_temp.name) / "first-attempt-finished"
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c",
+            f"from pathlib import Path; p=Path({str(marker)!r}); existed=p.exists(); p.touch(); raise SystemExit(0 if existed else 1)"]
         next(
             node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL"
         )["allowed_outcomes"].append("retryable_failure")
         run = mf.valid_run(plan)
         run.update({"status": "running", "plan_readiness": "ready"})
-        repo_temp = tempfile.TemporaryDirectory()
-        evidence_temp = tempfile.TemporaryDirectory()
-        self.addCleanup(repo_temp.cleanup)
-        self.addCleanup(evidence_temp.cleanup)
         root = Path(repo_temp.name)
         head = mf.init_repo(root, "README.md", default_branch="codex/test")
         run["integration"].update(
@@ -1150,30 +943,10 @@ class NodeTransitionTests(unittest.TestCase):
             }
         )
         state = run["graph_state"]["node_states"]["N-FINAL"]
-        declaration = plan["final_gates"][0]
-        first = mf.retained_gate_execution(
-            plan,
-            run,
-            declaration,
-            layer="final",
-            execution_id="EXEC-FINAL-RETRY-1",
-        )
-        first.update({"status": "FAIL", "exit_code": 1})
-
         previous_execution = None
-        for attempt_id, outcome, execution in (
-            ("ATT-FINAL-FAIL", "retryable_failure", first),
-            (
-                "ATT-FINAL-PASS",
-                "pass",
-                mf.retained_gate_execution(
-                    plan,
-                    run,
-                    declaration,
-                    layer="final",
-                    execution_id="EXEC-FINAL-RETRY-2",
-                ),
-            ),
+        for attempt_id, outcome in (
+            ("ATT-FINAL-FAIL", "retryable_failure"),
+            ("ATT-FINAL-PASS", "pass"),
         ):
             request = harness_transition._local_verifier_request(
                 plan,
@@ -1186,9 +959,8 @@ class NodeTransitionTests(unittest.TestCase):
                 attempt_id=attempt_id,
                 repo_root=root,
             )
-            execution = copy.deepcopy(execution)
-            execution["reservation"] = request["reservation"]
-            execution["dispatch_attestation"] = dispatch_attestation(request)
+            execution = execute_reserved(request, root)
+            self.assertEqual("PASS" if outcome == "pass" else "FAIL", execution["status"], execution)
             state.update(
                 {
                     "phase": "running",
@@ -1265,109 +1037,10 @@ class NodeTransitionTests(unittest.TestCase):
         )
         self.assertEqual("PASS", run["final_gate_results"][0]["status"])
 
-    def test_lifecycle_reservation_rejects_a_changed_authorized_head(self) -> None:
-        plan = mf.valid_plan()
-        run = mf.valid_run(plan)
-        mf.authorize_execution(run, ["M1", "M2"])
-        run.update({"status": "running", "plan_readiness": "ready"})
-        run["integration"].update(
-            {
-                "branch": "codex/test",
-                "batch_base_sha": "a" * 40,
-                "integration_head_sha": "a" * 40,
-            }
-        )
-        run["observed"]["captured_at"] = "2026-01-01T00:00:00Z"
-        run["observed"]["git"].update(
-            {
-                "parent_branch": "codex/test",
-                "parent_head_sha": "a" * 40,
-                "parent_dirty": False,
-                "default_branch": "main",
-            }
-        )
-        lifecycle = {
-            "id": "N-PUSH",
-            "kind": "lifecycle",
-            "ref": "push",
-            "executor": "harness_parent",
-            "allowed_outcomes": ["pass", "blocked"],
-            "max_attempts": 1,
-            "runtime": None,
-            "target": "branch:codex/test",
-        }
-        plan["graph"]["nodes"].append(lifecycle)
-        plan["graph"]["entry_nodes"].append("N-PUSH")
-        run["graph_state"]["node_states"]["N-PUSH"] = {
-            "phase": "running",
-            "attempts": 1,
-            "last_attempt_id": "ATT-PUSH",
-            "last_outcome": None,
-            "bound_worker_id": None,
-            "blockers": [],
-        }
-        run["attempt_log"].append(
-            {
-                "attempt_id": "ATT-PUSH",
-                "node_id": "N-PUSH",
-                "mission_id": None,
-                "task_id": None,
-                "lease_id": None,
-                "kind": "node_attempt",
-                "result": "reserved",
-                "evidence": ["push reserved"],
-                "node_dispatch": {
-                    "target": "branch:codex/test",
-                    "authorized_head_sha": "a" * 40,
-                },
-            }
-        )
-        run["authorizations"]["push"] = {
-            "authorized": True,
-            "source": "user hereby authorizes push",
-            "authorized_head_sha": "a" * 40,
-            "scope": {
-                "run_id": run["run_id"],
-                "plan_revision": run["plan"]["revision"],
-                "plan_digest_sha256": run["plan"]["digest_sha256"],
-                "mission_ids": ["M1", "M2"],
-                "targets": ["branch:codex/test"],
-            },
-            "expires_when": "run_complete",
-        }
-        run["integration"]["integration_head_sha"] = "b" * 40
-        with self.assertRaisesRegex(ManifestError, "authorization target or head is stale"):
-            harness_transition._record_node_result(
-                plan,
-                run,
-                Namespace(
-                    node_id="N-PUSH",
-                    attempt_id="ATT-PUSH",
-                    outcome="pass",
-                    evidence=["push complete"],
-                    blocker=[],
-                    verifier_result=[],
-                    node_result=None,
-                ),
-            )
-        run["authorizations"]["push"] = {"authorized": False, "source": None}
-        receipt = harness_transition._record_node_result(
-            plan,
-            run,
-            Namespace(
-                node_id="N-PUSH",
-                attempt_id="ATT-PUSH",
-                outcome="blocked",
-                evidence=["push result became uncertain after head drift"],
-                blocker=["authorization revoked before the result was observed"],
-                verifier_result=[],
-                repo_root=None,
-            ),
-        )
-        self.assertEqual("blocked", receipt["phase"])
 
     def test_node_attempt_requires_null_worker_identity_fields(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         run["attempt_log"].append(
             {
@@ -1390,6 +1063,7 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_root_retryable_verifier_rearms_without_route(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         mf.authorize_execution(run, ["M1", "M2"])
         run.update({"status": "running", "plan_readiness": "ready"})
@@ -1435,6 +1109,7 @@ class NodeTransitionTests(unittest.TestCase):
 
     def test_root_retryable_lifecycle_stays_route_gated(self) -> None:
         plan = mf.valid_plan()
+        plan["final_gates"][0]["argv"] = [sys.executable, "-c", "raise SystemExit(0)"]
         run = mf.valid_run(plan)
         mf.authorize_execution(run, ["M1", "M2"])
         run.update({"status": "running", "plan_readiness": "ready"})
@@ -1508,16 +1183,6 @@ class NodeTransitionTests(unittest.TestCase):
         self.assertNotIn(node["id"], [item["node_id"] for item in directives])
 
 
-    def test_archive_first_v11_refuses_push_transition_before_git_checks(self) -> None:
-        plan = mf.valid_plan()
-        run = mf.valid_run(plan)
-        run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = "0.38.0"
-        with self.assertRaisesRegex(ManifestError, "archive-first"):
-            harness_transition._validate_push_side_effect(
-                run,
-                Path("C:/not-used"),
-                "a" * 40,
-            )
 
 
     def test_transition_git_reads_reject_replace_refs(self) -> None:

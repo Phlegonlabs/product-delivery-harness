@@ -18,15 +18,18 @@ Do not run Impeccable or another design pass merely to compile the pair. Their a
 
 ## Inputs And Ownership
 
-Read the current sources in full before drafting:
+Before drafting, read only these sections of the current sources. The Workflow and Validation checkers still join each complete source.
 
-- `PRD.md`, including Product Definition Approval and its UI Surface Contract;
-- `docs/design/ui-design.md`, including UI Design Intake, Motion and Media Intent, Style Integration, Impeccable HiFi review, H1-H9 grading, Visual Approval, and `Design System Need Gate: required`;
-- the approved complete `ui-hifi/2` package, including the entry, closed child-page manifest, matching `UI-*` surfaces, complete viewport or size-class set, states, product controls, reviewer shell, and inline assets;
+- `PRD.md`: `UI Surface Contract`, `UX Requirements`, and `Frontend Delivery Requirements`;
+- `docs/design/ui-design.md`: `UI Design Intake`, `Motion And Media Intent`, `Style Integration` without unselected directions' `Direction comparison` and `Direction studies` rows, the `HiFi Review` result and score lines, `Visual Approval`, and `Design System Need Gate`;
+- the approved complete `ui-hifi/2` package: the entry manifest and copy record, plus each page's product surface markup, CSS, and inline product scripts. Skip the reviewer shell and inline asset data; the pair checker validates and hashes them;
 - a legacy `wireframes.html` only when the named unmarked legacy UI package retains it under its original approval semantics;
-- `architecture.md` and `stack-decisions.md`, including the approved Stack Decision Checkpoint and its platform, rendering, component-foundation, styling, accessibility, and performance constraints;
-- existing `design-system.md` and `design-system.json` for an enhancement or delta; and
+- `architecture.md`: `Frontend Architecture` and `Release Targets`;
+- `stack-decisions.md`: `Stack Decision Checkpoint`, `Frontend Technology Decision`, and `Mobile/Desktop Technology Decision` for native or desktop surfaces;
+- existing `design-system.md` and `design-system.json` in full for an enhancement or delta; and
 - the immutable approved UI target and any confirmed `REF-*` / `RP-*` evidence named by `ui-design.md`.
+
+Read another section when a finding or an unresolved mapping needs it.
 
 Read `market-research.md` only when `ui-design.md` cites its `MR-*` evidence. Repository-discovered images remain non-canonical design inspiration unless the UI design contract promotes one to a scoped page-faithful target with its hash, route, state, responsive scope, and tolerance.
 
@@ -45,11 +48,12 @@ Product scope, route, content, action, flow, state, responsive, architecture, or
 1. From the repository root, run the current-package preflight with the package's own marker (`ui-design/3` or `ui-design/2`): `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved --ui-contract <ui-design/3|ui-design/2>`. Stop on a missing or stale Product Definition/Stack approval or on missing PRD copy, operations, states, or responsive inputs.
 2. Confirm that `ui-design.md` says `Design System Need Gate: required`; otherwise stop. A greenfield UI may carry the exact pending marker `Compiled design system pair: pending — design-system-compiler` during this preflight only.
 3. Pass the Compilation Skills Gate.
-4. The UI builder's pair-less preflight has no separate command; it runs inside `check_design_system_pair.py --repo-root`. That check validates the `ui-design.md` named by `sourceBindings.uiDesign` against the PRD UI Surface Contract, complete approved `ui-hifi/2` package, component foundation, styling approach, and approved Stack rows, and accepts the pending pair marker only there. `design-system/4` requires the `ui-design/3` marker and `design-system/3` the `ui-design/2` marker; both reject a missing, unknown, duplicate or mismatched marker and every wireframe binding. Draft the source bindings first, run the pair checker, and fix every `ui-design:` finding upstream before completing compilation. A visual direction that needs another stack returns upstream.
+4. The UI builder's pair-less preflight has no separate command; it runs inside `check_design_system_pair.py --repo-root`. That check validates the `ui-design.md` named by `sourceBindings.uiDesign` against the PRD UI Surface Contract, complete approved `ui-hifi/2` package, component foundation, styling approach, and approved Stack rows, and accepts the pending pair marker only there. Each schema requires its matching UI marker and rejects a missing, unknown, duplicate or mismatched marker and every wireframe binding. Draft the source bindings first, run the pair checker, and fix every `ui-design:` finding upstream before completing compilation. A visual direction that needs another stack returns upstream.
 5. Read [Design System Guide](../design-system-guide.md) and compile only approved visual consequences with `frontend-design`. Register motion variants only for approved `functional_only` or `expressive` intents that use deterministic UI motion; `not_required` gets no decorative variant, and a blocked intent returns upstream. Generated provider assets remain media sources rather than motion variants. Every variant records reduced-motion behavior.
 6. Build a `design-system/4` pair for `ui-design/3` (`design-system/3` for `ui-design/2`) whose JSON `sourceBindings` names exactly the current PRD, architecture, stack, `ui-design.md`, and approved HiFi entry with their current SHA-256 values. It has no wireframe binding. Bind rendering model, platform, component foundation, and styling per homogeneous or hybrid surface from the approved Stack rows; do not leave executable platform fields ungrounded.
 7. For `design-system/4`, register the `showcase` in [Output Contract](../output-contract.md): one specimen per primitive variant value, product-component state and motion variant, each bound to an approved HiFi product element by page, simple selector, `data-specimen-variant` and `data-specimen-state`. Never add a style, sample or selector the approved HiFi lacks; a missing element returns to `ui-design-builder` for the same frontend author and renewed approval.
    Reuse the UI preflight's advisory source limitations as context. They do not replace registry coverage or trigger-specific provenance checks.
+   For approved motion that a product script or product state drives, use `ds-showcase/2` with a `source-runtime` row bound to its approved intent, evidence, script hash, surface, state and target. Never relabel it as a CSS trigger or invent a substitute animation. Missing intents, evidence or specimen annotations return to `ui-design-builder`.
 8. Run the validation commands and final checklist, then stage and publish the files together through the existing artifact lifecycle. Generate and check `docs/design/design-system-preview.html` with `scripts/render_design_system_preview.py` as described in [Output Contract](../output-contract.md). This derived view adds no approval gate or new authority; it never rewrites an approved HiFi package or a historical wireframe.
 
 ## Validation
@@ -61,13 +65,12 @@ python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py"
 python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py" --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --require-filled
 python "<design-system-compiler-skill-root>/scripts/check_color_contrast.py" --pair <foreground-hex>,<background-hex>[,normal|large|ui] (one --pair per registry color pairing)
 python "<design-system-compiler-skill-root>/scripts/check_type_scale.py" --step <role>,<font-size>,<line-height>[,text|heading] (one --step per registry type role) [--root-font-size <px>]
-python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <PRD.md> --architecture <architecture.md> --stack-decisions <stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved
 ```
 
 Also confirm:
 
 - `ui-design.md` records the Design System Need Gate as `required` with its owner and exact decision date; the pair remains absent until the Product Definition is published and all UI inputs and this compiled pair stage together;
-- `design-system.json` is `design-system/4` for `ui-design/3` or `design-system/3` for `ui-design/2`, has exactly PRD, architecture, stack, UI design, and HiFi source bindings, and binds every listed source to its current bytes; legacy `design-system/1` is inspection-only; `design-system/2` retains its original checks for pinned legacy packages;
+- `design-system.json` has exactly PRD, architecture, stack, UI design, and HiFi source bindings, and binds every listed source to its current bytes; legacy `design-system/1` is inspection-only; `design-system/2` retains its original checks for pinned legacy packages;
 - for `design-system/4`, every showcase specimen resolves to the hash-checked HiFi package and the checker reports no coverage gap;
 - Product Definition Approval and the Stack Decision Checkpoint are approved, with no `Recommended` or `Provisional` executable layer;
 - every PRD UI surface has an addressable route or an explicit `n/a` reason;

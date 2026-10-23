@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""An integration-stage review may be skipped only on a byte-identical tree."""
+"""An integration-stage review skips only on a byte-identical tree or a reviewed merge chain."""
 
 from __future__ import annotations
 
@@ -198,6 +198,16 @@ class IntegrationReviewSkipTests(unittest.TestCase):
 
         self.assertTrue(self.skip_errors(plan, run))
 
+    def test_skip_needs_a_pass_that_covers_every_lens(self) -> None:
+        plan, run = self.state(reviewed_sha=HEAD)
+        reviews = {node["id"]: node.get("review") for node in plan["graph"]["nodes"]}
+        reviews["N-VISUAL-REVIEW"]["lenses"] = ["frontend_code", "visual"]
+
+        self.assertTrue(self.skip_errors(plan, run))
+
+        reviews["N-FRONTEND-REVIEW"]["lenses"] = ["frontend_code", "visual"]
+        self.assertEqual([], self.skip_errors(plan, run))
+
     def test_security_review_is_never_skippable(self) -> None:
         plan, run = self.state(reviewed_sha=HEAD, review_type="security")
         for node in plan["graph"]["nodes"]:
@@ -386,6 +396,183 @@ class IntegrationReviewSkipTests(unittest.TestCase):
         run["review_workers"][0].update({"phase": "worker_failed", "outcome": "fix_required"})
 
         self.assertTrue(self.skip_errors(plan, run))
+
+
+def git(root: Path, *args: str) -> str:
+    return subprocess.run(
+        ["git", *args], cwd=root, check=True, capture_output=True, text=True
+    ).stdout.strip()
+
+
+class MergeChainSkipTests(unittest.TestCase):
+    """A code integration review may skip on clean merges of reviewed heads."""
+
+    def repo(self, root: Path, *, conflict: bool = False, extra: str | None = None) -> dict[str, str]:
+        git(root, "init", "-q", "-b", "run")
+        git(root, "config", "user.email", "t@example.com")
+        git(root, "config", "user.name", "T")
+        for path in ("src/example/a.txt", "src/other/b.txt"):
+            (root / path).parent.mkdir(parents=True, exist_ok=True)
+            (root / path).write_text("base\n", encoding="utf-8")
+        git(root, "add", ".")
+        git(root, "commit", "-qm", "base")
+        base = git(root, "rev-parse", "HEAD")
+        heads = {}
+        for mission, path in (("M1", "src/example/a.txt"), ("M3", "src/other/b.txt")):
+            git(root, "checkout", "-q", "-b", mission, base)
+            target = "src/example/a.txt" if conflict else path
+            (root / target).write_text(f"{mission}\n", encoding="utf-8")
+            if extra == "out_of_scope" and mission == "M3":
+                (root / "src/example/m3.txt").write_text("M3\n", encoding="utf-8")
+            git(root, "add", ".")
+            git(root, "commit", "-qm", mission)
+            heads[mission] = git(root, "rev-parse", "HEAD")
+        git(root, "checkout", "-q", "run")
+        if extra == "direct_commit":
+            (root / "src/unreviewed.txt").write_text("unreviewed\n", encoding="utf-8")
+            git(root, "add", ".")
+            git(root, "commit", "-qm", "unreviewed")
+        git(root, "merge", "-q", "--no-ff", "-m", "merge M1", "M1")
+        if conflict:
+            subprocess.run(["git", "merge", "-q", "--no-ff", "M3"], cwd=root, capture_output=True)
+            (root / "src/example/a.txt").write_text("resolved\n", encoding="utf-8")
+            git(root, "commit", "-qam", "merge M3")
+        else:
+            git(root, "merge", "-q", "--no-ff", "--no-commit", "M3")
+            if extra == "evil_merge":
+                (root / "src/example/a.txt").write_text("edited in merge\n", encoding="utf-8")
+                git(root, "add", ".")
+            git(root, "commit", "-qm", "merge M3")
+        heads["head"] = git(root, "rev-parse", "HEAD")
+        return heads
+
+    def state(self, heads: dict[str, str], *, review_type: str = "frontend_code"):
+        plan, run = current_preintegration_review_state()
+        missions = {mission["id"]: mission for mission in plan["missions"]}
+        missions["M3"]["write_scope"] = ["src/other/**"]
+        nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
+        nodes["N-VISUAL-REPAIR-CODE-REVIEW"]["review"]["scope"] = ["src/other/**"]
+        target = nodes["N-VISUAL-REVIEW"]["review"]
+        target.update(type=review_type, mission_ids=["M1", "M3"], scope=["src/example/**", "src/other/**"])
+        digest = plan_digest(plan)
+        run["plan"]["digest_sha256"] = digest
+        run["integration"]["integration_head_sha"] = heads["head"]
+        run["review_workers"] = [
+            {
+                "worker_id": f"RW-{mission}",
+                "node_id": node_id,
+                "attempt_id": f"ATT-{mission}",
+                "plan_revision": plan["revision"],
+                "plan_digest_sha256": digest,
+                "graph_revision": run["graph_state"]["graph_revision"],
+                "reviewed_sha": heads[mission],
+                "review_path": f"C:/repo/worktrees/{mission}",
+                "worker_runtime": "subagent",
+                "completion_channel": "agent_result",
+                "runtime_binding": None,
+                "task_thread_id": None,
+                "report_path": None,
+                "phase": "worker_passed",
+                "outcome": "pass",
+                "findings": [],
+            }
+            for mission, node_id in (("M1", "N-FRONTEND-REVIEW"), ("M3", "N-VISUAL-REPAIR-CODE-REVIEW"))
+        ]
+        return plan, run
+
+    def skip(self, plan, run, root: Path) -> None:
+        harness_transition._skip_integration_review(
+            plan, run, Namespace(node_id="N-VISUAL-REVIEW", worker_id=None, repo_root=root)
+        )
+
+    def skip_errors(self, plan, run) -> list[str]:
+        return [error for error in validate_run(plan, run) if "skipped integration review" in error]
+
+    def test_clean_merges_of_reviewed_heads_skip_with_a_recorded_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            heads = self.repo(root)
+            plan, run = self.state(heads)
+
+            self.skip(plan, run, root)
+
+            self.assertEqual("skipped", run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"])
+            chain = run["integration"]["reviewed_merge_chain"]
+            self.assertEqual(heads["head"], chain["head_sha"])
+            self.assertEqual(
+                [("M3", heads["M3"]), ("M1", heads["M1"])],
+                [(link["mission_id"], link["reviewed_sha"]) for link in chain["links"]],
+            )
+            self.assertEqual([], self.skip_errors(plan, run))
+            self.assertFalse(
+                [error for error in validate_run(plan, run) if "reviewed_merge_chain" in error]
+            )
+
+    def test_merge_chain_skip_fails_closed(self) -> None:
+        cases = {
+            "conflict": ({"conflict": True}, None),
+            "evil_merge": ({"extra": "evil_merge"}, None),
+            "unreviewed_base_commit": ({"extra": "direct_commit"}, None),
+            "outside_write_scope": ({"extra": "out_of_scope"}, None),
+            "unreviewed_head": ({}, "unreviewed_head"),
+            "overlapping_scope": ({}, "overlapping_scope"),
+            "visual_review": ({}, "visual_review"),
+        }
+        for name, (repo_options, change) in cases.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as temp:
+                root = Path(temp)
+                heads = self.repo(root, **repo_options)
+                plan, run = self.state(heads, review_type="visual" if change == "visual_review" else "frontend_code")
+                if change == "unreviewed_head":
+                    run["review_workers"][1].update(phase="worker_failed", outcome="fix_required")
+                elif change == "overlapping_scope":
+                    next(m for m in plan["missions"] if m["id"] == "M3")["write_scope"].append("src/example/**")
+                state = run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]
+
+                with self.assertRaisesRegex(ManifestError, "review must run|applies only to"):
+                    self.skip(plan, run, root)
+
+                self.assertEqual("dormant", state["phase"])
+                self.assertNotIn("reviewed_merge_chain", run["integration"])
+
+    def test_validator_rejects_a_chain_without_live_proof_or_for_another_head(self) -> None:
+        heads = {"M1": "1" * 40, "M3": "3" * 40, "head": "c" * 40}
+        links = [
+            {"mission_id": "M3", "reviewed_sha": heads["M3"], "commit_sha": heads["head"]},
+            {"mission_id": "M1", "reviewed_sha": heads["M1"], "commit_sha": "b" * 40},
+        ]
+        plan, run = self.state(heads)
+        run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "skipped"
+        self.assertTrue(self.skip_errors(plan, run))
+
+        run["integration"]["reviewed_merge_chain"] = {"head_sha": heads["head"], "links": links}
+        self.assertEqual([], self.skip_errors(plan, run))
+
+        for change in ("other_head", "missing_mission", "unreviewed_head", "overlapping_scope", "security"):
+            with self.subTest(change=change):
+                plan, run = self.state(heads)
+                run["graph_state"]["node_states"]["N-VISUAL-REVIEW"]["phase"] = "skipped"
+                chain = {"head_sha": heads["head"], "links": [dict(link) for link in links]}
+                run["integration"]["reviewed_merge_chain"] = chain
+                if change == "other_head":
+                    chain["head_sha"] = "d" * 40
+                elif change == "missing_mission":
+                    chain["links"].pop()
+                elif change == "unreviewed_head":
+                    chain["links"][0]["reviewed_sha"] = "4" * 40
+                elif change == "overlapping_scope":
+                    next(m for m in plan["missions"] if m["id"] == "M3")["write_scope"] = ["src/**"]
+                else:
+                    next(n for n in plan["graph"]["nodes"] if n["id"] == "N-VISUAL-REVIEW")["review"]["type"] = "security"
+                self.assertTrue(self.skip_errors(plan, run))
+
+    def test_a_new_integration_head_drops_the_chain(self) -> None:
+        plan, run = self.state({"M1": "1" * 40, "M3": "3" * 40, "head": "c" * 40})
+        run["integration"]["reviewed_merge_chain"] = {"head_sha": "c" * 40, "links": []}
+
+        harness_transition._invalidate_stale_current_projections(plan, run, "c" * 40, "d" * 40)
+
+        self.assertNotIn("reviewed_merge_chain", run["integration"])
 
 
 if __name__ == "__main__":

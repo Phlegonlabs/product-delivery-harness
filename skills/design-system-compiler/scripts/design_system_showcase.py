@@ -18,6 +18,8 @@ from typing import Any, Callable
 from animation_provenance import source_status
 
 SHOWCASE_SCHEMA = "ds-showcase/1"
+# ds-showcase/2 keeps every /1 rule and adds source-runtime motion (showcase_runtime).
+SHOWCASE_SCHEMAS = (SHOWCASE_SCHEMA, "ds-showcase/2")
 SPECIMEN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SELECTOR_RE = re.compile(r"^(?:[A-Za-z][\w-]*|\.[A-Za-z][\w-]*|#[A-Za-z][\w-]*)$")
 PAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.html$")
@@ -246,9 +248,10 @@ def registry_findings(registry: dict[str, Any]) -> list[str]:
     """Closed shape and complete coverage against the registry itself."""
     showcase = registry.get("showcase")
     if not isinstance(showcase, dict) or set(showcase) != {"schema", "specimens", "states", "motion"} \
-            or showcase.get("schema") != SHOWCASE_SCHEMA:
-        return ["design-system.json design-system/4 showcase must be ds-showcase/1 with exactly "
+            or showcase.get("schema") not in SHOWCASE_SCHEMAS:
+        return ["design-system.json design-system/4 showcase must be ds-showcase/1 or ds-showcase/2 with exactly "
                 "schema, specimens, states and motion"]
+    v2 = showcase["schema"] == SHOWCASE_SCHEMAS[1]
     problems: list[str] = []
     primitives = registry.get("primitives") if isinstance(registry.get("primitives"), dict) else {}
     components = registry.get("productComponents") if isinstance(registry.get("productComponents"), dict) else {}
@@ -324,16 +327,25 @@ def registry_findings(registry: dict[str, Any]) -> list[str]:
     for kind, name, state in sorted(required_states - seen_states):
         problems.append(f"showcase is missing {kind} {name} state {state}")
     variants = registry.get("motionVariants") if isinstance(registry.get("motionVariants"), list) else []
-    motion_covered = set()
+    motion_covered, intents = set(), set()
+    kinds = MOTION_KINDS + (("source-runtime",) if v2 else ())
     for row in showcase.get("motion") if isinstance(showcase.get("motion"), list) else [None]:
         trigger = row.get("trigger") if isinstance(row, dict) else None
         if not isinstance(row, dict) or set(row) != {"variant", "specimen", "trigger"} or not isinstance(trigger, dict) \
-                or trigger.get("kind") not in MOTION_KINDS:
-            problems.append("showcase motion rows must contain variant, specimen and an attribute, class or animation trigger")
+                or trigger.get("kind") not in kinds:
+            problems.append("showcase motion rows must contain variant, specimen and an attribute, class or animation trigger"
+                            + (" or a source-runtime trigger" if v2 else ""))
             continue
-        expected = {"attribute": {"kind", "name", "from", "to"}, "class": {"kind", "name"}, "animation": {"kind"}}[trigger["kind"]]
-        if set(trigger) != expected or not all(isinstance(trigger[key], str) and trigger[key] for key in expected):
-            problems.append(f"showcase motion {row['variant']} {trigger['kind']} trigger must contain exactly " + ", ".join(sorted(expected)))
+        if trigger["kind"] == "source-runtime":
+            from showcase_runtime import trigger_findings
+            problems.extend(trigger_findings(row["variant"], trigger))
+            if str(trigger.get("intent")) in intents:
+                problems.append(f"showcase motion intent {trigger['intent']} is bound by more than one source-runtime row")
+            intents.add(str(trigger.get("intent")))
+        else:
+            expected = {"attribute": {"kind", "name", "from", "to"}, "class": {"kind", "name"}, "animation": {"kind"}}[trigger["kind"]]
+            if set(trigger) != expected or not all(isinstance(trigger[key], str) and trigger[key] for key in expected):
+                problems.append(f"showcase motion {row['variant']} {trigger['kind']} trigger must contain exactly " + ", ".join(sorted(expected)))
         if row["variant"] not in variants:
             problems.append(f"showcase motion names unregistered variant {row['variant']!r}")
         if row["specimen"] not in specimens:
@@ -352,6 +364,9 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
     css = {page: analysis_css(html) for page, html in documents.items()}
     resolved: dict[str, dict[str, Any]] = {}
     showcase = registry.get("showcase", {})
+    v2 = showcase.get("schema") == SHOWCASE_SCHEMAS[1]
+    if v2:
+        from showcase_runtime import closed_open_claim, shared_pseudo_rule
     for row in showcase.get("specimens", []):
         source = row["source"]
         tree = trees.get(source["page"])
@@ -372,8 +387,18 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
         if row["mode"] == "pseudo" and bound:
             selector = bound["row"]["source"]["selector"]
             pattern = re.escape(selector) + r"(?![\w-])[^\s{},>+~]*:" + re.escape(row["state"]) + r"(?![\w-])"
-            if re.search(pattern, css[bound["row"]["source"]["page"]]) is None:
+            page_css = css[bound["row"]["source"]["page"]]
+            if re.search(pattern, page_css) is None and not (
+                    v2 and shared_pseudo_rule(page_css, bound["tree"], bound["node"], row["state"])):
                 problems.append(f"showcase pseudo state {row['state']} has no {selector}:{row['state']} rule in approved CSS")
+        if v2 and row["mode"] == "rendered" and bound and row["state"] == "open" \
+                and closed_open_claim(bound["tree"], bound["node"]):
+            problems.append(f"showcase rendered state open on {row['specimen']} is a closed <details> source node")
+    if v2:
+        for specimen_id, bound in resolved.items():
+            problem = disclosure_context(bound["tree"], bound["node"])[1]
+            if problem:
+                problems.append(f"showcase specimen {specimen_id} {problem}")
     for row in showcase.get("motion", []):
         bound = resolved.get(row["specimen"])
         if not bound:
@@ -382,6 +407,8 @@ def resolve(registry: dict[str, Any], documents: dict[str, str]) -> tuple[dict[s
         trigger = row["trigger"]
         if not reduced_motion_css(page_css).strip():
             problems.append(f"showcase motion {row['variant']} page lacks an approved prefers-reduced-motion rule")
+        if trigger["kind"] == "source-runtime":
+            continue  # joined by showcase_runtime.resolve_runtime and proven in a browser
         if trigger["kind"] == "animation":
             ok = animation_source_backed(page_css, bound["node"], bound["tree"].ancestors(bound["node"]))
         elif trigger["kind"] == "class":
@@ -421,15 +448,39 @@ def specimen_target(tree: SourceTree, node: dict[str, Any]) -> str | None:
     return canvas["map"].get("data-hifi-target")
 
 
-def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str) -> tuple[str, str, str]:
+def disclosure_context(tree: SourceTree, node: dict[str, Any]) -> tuple[dict[str, Any] | None, str | None]:
+    """ds-showcase/2 component context: the outermost native <details> around a specimen.
+
+    Every disclosure on the path must keep its one real controlling summary;
+    otherwise the plate would show browser Details chrome, so it is a finding.
+    """
+    ancestors = tree.ancestors(node)
+    path = [item for item in ancestors if item["tag"] == "details"]
+    if not path:
+        return None, None
+    for details in path:
+        summaries = [item for item in tree.nodes if item["parent"] == details["index"] and item["tag"] == "summary"]
+        if len(summaries) != 1 or details["end"] <= details["inner_end"]:
+            return None, "native <details> context needs one direct <summary> per disclosure and a source end tag"
+    if any("data-hifi-state-view" in item["map"] for item in ancestors[ancestors.index(path[0]):]):
+        return None, "native <details> context cannot contain a reviewer state view"
+    context = path[0]
+    if any(item["tag"] == "script" and context["start"] <= item["start"] < context["end"] for item in tree.nodes):
+        return None, "native <details> context contains unsupported script descendant"
+    return path[0], None
+
+
+def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str, around: dict[int, tuple[str, str]] | None = None,
+             context: dict[str, Any] | None = None) -> tuple[str, str, str]:
     """Return (html start tag, body start tag, body content) copied from source.
 
     Ancestors keep their source attributes so descendant selectors, custom
     properties and container queries apply. Only ``hidden`` on a reviewer
     state view is dropped and the canvas selects that view's target, exactly
-    as the reviewer runtime shows a state at a size.
+    as the reviewer runtime shows a state at a size. ``around`` adds ds-showcase/2 script slots first/last inside a retained ancestor.
+    ``context`` (see disclosure_context) copies that original subtree verbatim around the subject; only the subject gains the marker.
     """
-    chain = tree.ancestors(node)
+    around, chain = around or {}, tree.ancestors(context or node)
     html_node = next((item for item in chain if item["tag"] == "html"), None)
     body_node = next((item for item in chain if item["tag"] == "body"), None)
     target = specimen_target(tree, node)
@@ -439,15 +490,18 @@ def fragment(tree: SourceTree, node: dict[str, Any], *, marker: str) -> tuple[st
             continue
         drop = {"hidden"} if "data-hifi-state-view" in item["map"] else set()
         extra = {"data-hifi-target": target} if target and "data-hifi-canvas" in item["map"] else None
-        opening.append(serialize_start(item["tag"], item["attrs"], drop=drop, extra=extra))
-        closing.insert(0, f"</{item['tag']}>")
+        opening.append(serialize_start(item["tag"], item["attrs"], drop=drop, extra=extra) + around.get(item["index"], ("", ""))[0])
+        closing.insert(0, around.get(item["index"], ("", ""))[1] + f"</{item['tag']}>")
     drop = {"hidden"} if "data-hifi-state-view" in node["map"] else set()
     element = serialize_start(node["tag"], node["attrs"], drop=drop, extra={"data-ds-subject": marker})
-    if node["tag"] not in VOID and node["end"] > node["start_end"]:
+    if context is not None:
+        element = tree.html[context["start"]:node["start"]] + element + tree.html[node["start_end"]:context["end"]]
+    elif node["tag"] not in VOID and node["end"] > node["start_end"]:
         element += tree.html[node["start_end"]:node["inner_end"]] + f"</{node['tag']}>"
     html_start = serialize_start("html", html_node["attrs"]) if html_node else "<html>"
     body_start = serialize_start("body", body_node["attrs"], drop={"data-hifi-default-surface"}) if body_node else "<body>"
-    return html_start, body_start, "".join(opening) + element + "".join(closing)
+    first, last = around.get(body_node["index"], ("", "")) if body_node else ("", "")
+    return html_start, body_start, first + "".join(opening) + element + "".join(closing) + last
 
 
 def surface_node(tree: SourceTree, surface_id: str) -> dict[str, Any] | None:

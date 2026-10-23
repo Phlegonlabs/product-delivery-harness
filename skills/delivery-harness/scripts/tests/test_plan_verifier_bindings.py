@@ -13,7 +13,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_manifest import load_plan, validate_plan  # noqa: E402
-from manifest_fixtures import legacy_graph_plan, legacy_plan, valid_plan  # noqa: E402
+from manifest_fixtures import valid_plan  # noqa: E402
 
 
 class PlanVerifierNodeBindingTests(unittest.TestCase):
@@ -118,17 +118,12 @@ class PlanVerifierNodeBindingTests(unittest.TestCase):
         self.assertEqual([], plan["batch_verifiers"])
         self.assertEqual([], validate_plan(plan))
 
-    def test_old_schema_recovery_is_not_restricted(self) -> None:
-        for version in (2, 3):
+    def test_old_schema_recovery_uses_the_pinned_bundle(self) -> None:
+        for version in (2, 3, 4, 5):
             with self.subTest(version=version):
-                self.assertEqual([], validate_plan(legacy_plan(version)))
-        for version in (4, 5):
-            with self.subTest(version=version):
-                plan = legacy_graph_plan() if version == 4 else valid_plan()
+                plan = valid_plan()
                 plan["schema_version"] = version
-                for node in self.deterministic_nodes(plan):
-                    node["ref"] = "integrate-m1"
-                self.assertEqual([], validate_plan(plan))
+                self.assertIn("pinned bundle", validate_plan(plan)[0])
 
     def test_malformed_values_report_existing_errors_without_crashing(self) -> None:
         cases = (

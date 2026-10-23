@@ -264,8 +264,7 @@ def refresh_view(
 
     from harness_transition import (
         _assert_non_reparse_path,
-        _open_posix_parent_chain,
-        _open_windows_parent_chain,
+        _write_text_exclusive,
         _replace_document_text,
     )
 
@@ -292,36 +291,13 @@ def refresh_view(
     _assert_non_reparse_path(out)
     if existing is not None:
         _replace_document_text(
-            out, updated, expected_text=existing, before_commit=check_sources
+            out, updated, expected_text=existing,
+            before_commit=None if check_sources is None else lambda _pending: check_sources(),
         )
     else:
-        # Hold the ancestor chain and create exclusively. A raced user file
-        # wins; never truncate it or remove a partially written recovery file.
-        posix_handles = []
-        windows_handles = []
-        try:
-            if os.name == "nt":
-                windows_handles = _open_windows_parent_chain(out.parent)
-            else:
-                posix_handles = _open_posix_parent_chain(out.parent)
-            if check_sources is not None:
-                check_sources()
-            flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-            fd = os.open(
-                out.name if posix_handles else out,
-                flags,
-                0o600,
-                **({"dir_fd": posix_handles[-1]} if posix_handles else {}),
-            )
-            with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
-                handle.write(updated)
-                handle.flush()
-                os.fsync(handle.fileno())
-        finally:
-            for fd in reversed(posix_handles):
-                os.close(fd)
-            for kernel32, handle in reversed(windows_handles):
-                kernel32.CloseHandle(handle)
+        if check_sources is not None:
+            check_sources()
+        _write_text_exclusive(out, updated)
     if check_sources is not None:
         check_sources()
     return out

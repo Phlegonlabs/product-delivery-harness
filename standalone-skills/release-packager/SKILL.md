@@ -19,7 +19,7 @@ Freeze source SHA and relevant scoped working-tree differences before building. 
 
 Read only the applicable sections of [runtime packaging](references/runtime-packaging.md). Build with the native toolchain and existing lockfile/configuration. Review the commands and their lifecycle hooks before running them: a dry-run can still execute scripts, fetch dependencies or contact services.
 
-Use a fresh task-specific output location or an already authorized project location. Preserve old releases, user files and unrelated work. Include required runtime code, assets, metadata, license and installation information; inspect the actual payload rather than trust an allowlist. Keep secrets, dependency caches and unrelated source outputs out of the distributable.
+Use a fresh task-specific output location or an already authorized project location. Preserve old releases, user files and unrelated work. Include required runtime code, assets, metadata, license and installation information; inspect the actual payload rather than trust an allowlist. Keep secrets (see artifact checks), dependency caches and unrelated source outputs out of the distributable.
 
 Support the channels the project has selected. Do not add a registry, installer, platform or CI workflow just because another runtime uses one. Signing, notarization and platform store uploads follow the project's existing route and applicable authorization. Missing tools, runners or signing material are explicit gaps.
 
@@ -33,8 +33,8 @@ List every selected component/target/channel and its result. A successful build 
 
 ## Reconcile And Deliver
 
-Update affected README installation/download/version facts and release notes from the actual artifacts and channel state. Use `readme-studio` when available and a writing/presentation improvement is requested; plain factual synchronization does not require it. Preserve each independently versioned component and the project's language. A prepared asset must not be described as already available at a public URL.
+Reconcile README and release-note facts as described in Reconcile Documentation And Publication in [artifact checks](references/artifact-checks.md). Use `readme-studio` only for presentation work. Do not describe a prepared asset as already available at a public URL.
 
-Return version, source identity, runtime/platform, artifact location, checksum/identity, exact verification results and publication state, with remaining gaps. Preparation, public upload and deployment are separate results. Publishing uses the existing project's exact authorization and channel, followed by readback of the uploaded artifact/version; it is never inferred from building a package or selecting this skill.
+Return the Delivery Record table with remaining gaps. Publishing uses the existing project's exact authorization and channel, followed by readback of the uploaded artifact/version; it is never inferred from building a package or selecting this skill.
 
 This skill applies when an agent handles a release task. It creates no background monitor, tag hook or automatic CI pipeline by itself.

@@ -1,13 +1,11 @@
 # Design System Compiler Output Contract
 
-`sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. For `ui-design/3` it also excludes the `Package action` and `Existing design-system pair disposition` lines, so switching to `reuse` keeps an unchanged package valid while any other approval edit makes it stale. All other source bindings use raw-file SHA-256.
-
 Publish these files only when `docs/design/ui-design.md` records `Design System Need Gate: required`:
 
 - `docs/design/design-system.md`
 - `docs/design/design-system.json`
 
-The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved complete `ui-hifi/2` package. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. `ui-design/3` packages require `design-system/4` plus its derived HTML; `ui-design/2` packages require `design-system/3`; both bindings exclude wireframe. Legacy `design-system/1` remains inspection-only; `design-system/2` retains its original publication checks for legacy UI packages.
+The pair forms one reusable visual implementation handoff. `PRD.md` owns product behavior; `docs/design/ui-design.md` owns UI decisions and the approved complete `ui-hifi/2` package. The design-system pair owns tokens, closed variants, reusable components, motion, and the state matrix. Publish or revise both files together. A `design-system/4` pair also requires its derived HTML. Legacy `design-system/1` remains inspection-only; `design-system/2` retains its original publication checks for legacy UI packages.
 
 ## `design-system.md`
 
@@ -25,7 +23,7 @@ Include only:
 Keep it the sole structured authority for:
 
 - platform, stack-bound rendering model/component foundation/styling semantics, styling mechanism, enforcement mode, token sources, and primitive sources;
-- `sourceBindings` for exactly current PRD, architecture, stack, the approved UI contract (`ui-design/3` for `design-system/4`, retained `ui-design/2` for `design-system/3`), and approved complete HiFi entry bytes; neither schema has a wireframe binding;
+- `sourceBindings` for exactly current PRD, architecture, stack, the approved UI contract and approved complete HiFi entry bytes, with no wireframe binding;
 - one global responsive verification set for homogeneous products, or one set per `surfaceContracts` entry for hybrids; copy the exact approved PRD/HiFi set, with at least three ascending web `viewports` or two native/desktop `sizeClasses`, plus each surface’s release/capture identity and approved stack semantics; hybrids omit global platform, styling mechanism, viewports, and size classes;
 - only the tokens the product uses;
 - four primitive layers with closed variant sets;
@@ -55,22 +53,17 @@ Keep it the sole structured authority for:
 
 - A specimen resolves to the first product element on that manifest page matching the simple element, class or ID selector with exactly that `data-specimen-variant` and `data-specimen-state`. Each claimed axis value appears as a word of the source variant. The registry never stores styles.
 - Coverage is complete: every list-valued primitive axis value, every primitive and product component, every product-component `states` entry and, for `control` primitives, `default`, `hover`, `focus-visible`, `active` and `disabled`. Every required state has its own `showcase.states` row, even when a matching source specimen already exists. A state is `rendered` (its own source element), `pseudo` (the approved page CSS has `<selector>…:<state>`) or `not_applicable` with a concrete reason.
-- Every `motionVariants` entry has a motion row. Its trigger is `attribute` (source element carries `from`; CSS selects the attribute and transitions or animates), `class`, or `animation`. An animation needs resolved literal names on the bound specimen's winning CSS declaration plus those named source keyframes. The checker follows importance, specificity and source order for simple/compound selectors and inline styles, including shorthand/name resets. Custom properties use the computed ancestor values, local cascade and valid fallbacks; missing or cyclic values cannot supply evidence. This is a closed static subset: conditional/layered animation rules, complex selectors, quoted names, escaped CSS and unsupported value syntax are findings. Unrelated page animations and reduced-motion-only rules cannot supply provenance. The page needs an approved `prefers-reduced-motion: reduce` rule.
+- Every `motionVariants` entry has a motion row. Its trigger is `attribute` (source element carries `from`; CSS selects the attribute and transitions or animates), `class`, or `animation`. An animation needs resolved literal names on the bound specimen's winning CSS declaration plus those named source keyframes. The checker follows importance, specificity and source order for simple/compound selectors and inline styles, including shorthand/name resets. Custom properties use the computed ancestor values, local cascade and valid fallbacks; missing or cyclic values cannot supply evidence. Dependency analysis follows direct, transitive and fallback values in the winning declaration and its named keyframes. Conditional custom properties are ignored only when analysis proves they cannot reach that dependency set; a relevant conditional definition, `@property` declaration, conditional/layered animation rule, complex selector, quoted name, escaped sequence or unsupported value is a finding. Unrelated page animations and reduced-motion-only rules cannot supply provenance. The page needs an approved `prefers-reduced-motion: reduce` rule.
+- `ds-showcase/2` keeps every `/1` rule and adds a closed `source-runtime` trigger for approved script- or state-driven motion: `{"kind": "source-runtime", "mechanism": "waapi" | "css-animation", "intent": "MM-*", "surface": "UI-*", "state", "target", "scriptSha256", "activation": {"kind": "viewport" | "state-entry"}}`. The intent must be an approved motion row in the current `ui-design.md` with current normal and reduced-motion PASS evidence files. One intent binds one row. `scriptSha256` is the raw UTF-8 body hash of exactly one executable inline product script outside reviewer segments. The specimen must resolve to exactly one copy inside that manifest surface, state view and target. A missing or ambiguous copy, reviewer script, unknown key or non-literal value fails. These checks prove association, not playback.
+- In `/2` only, a pseudo state may also use one unconditional rule `<simple ancestor selector> :<state>` whose ancestor is on the specimen's source path, such as `[data-ui-surface] :focus-visible`. Other selector forms stay unresolved. A `rendered` `open` state cannot come from a closed native `<details>`.
 - The checker reads the HiFi entry from `sourceBindings.hifi` and each sibling by its manifest hash through safe non-link paths. A stale, missing or unresolved source fails the pair before any HTML is emitted.
 
 ## Approved Input Quality Check
 
-- The Design System Need Gate is `required` and records its human owner and reason.
-- The matching `ui-design/3` or retained `ui-design/2` marker is present exactly once. The UI contract records an approved immutable target, source hash, routes and states, the exact PRD/HiFi responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
-- Every HiFi entry, manifest-listed child page, inline asset, and copy-provenance item hashes and loads as the closed approved package. Each `UI-*` surface matches the PRD.
-- Each UI surface has one main purpose, one task-fit layout pattern, a real route or explicit `n/a`, and a density reason.
-- Every visible region carries the complete sourced copy: exact static strings and action labels, complete dynamic source/order/format/count/length/fallback contracts with representative examples, alternate-state copy, content priority, ordered responsibilities, actions, states, responsive behavior, and trace IDs.
-- Public surfaces have bounded SEO fields, correct heading order, and image alt-text contracts.
-- Ready, loading, empty, error, disabled, permission-denied, stale, expired, long-content, reduced-motion, and mobile-reflow states are covered or explicitly `n/a` at every responsive target.
-- Scope, routes, actions, content responsibilities, HiFi structure, responsive rearrangement, and trace IDs stay fixed across visual directions.
-- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and HiFi copy delta and requires the full HiFi copy review.
+The stage Validation list owns the checklist. Two input rules also apply:
 
-If product behavior or stack is missing, return a bounded Product Definition update. If UI direction or evidence is missing, return to `ui-design-builder`. Do not invent either in the design system.
+- The UI contract records an approved immutable target, source hash, routes and states, the exact PRD/HiFi responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
+- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and HiFi copy delta and requires the full HiFi copy review.
 
 ## Final Quality Check
 
@@ -79,9 +72,10 @@ If product behavior or stack is missing, return a bounded Product Definition upd
 For `design-system/4`, the same renderer emits a specimen book at the same `docs/design/design-system-preview.html` path:
 
 - Foundations: every token with its value applied, scale ranges, the approved responsive set and the `@container` rules found in source CSS.
-- Components: one sandboxed plate per specimen. A plate copies the approved element, its ancestor chain (so descendant selectors, custom properties and container queries apply) and the page's product CSS; only `hidden` on a reviewer state view is dropped, as the reviewer runtime does. Reviewer shell CSS and scripts are excluded. State tables show rendered, live pseudo-class and not-applicable treatments.
-- Surfaces: each manifest surface runs its approved product scripts in a plate with approved-size buttons, an intermediate-width slider, a state selector and the manifest operations. Links and form submissions stay on the plate.
-- Motion: Replay and Stop per motion row plus a Reduced motion control that applies the page's own reduced-motion rules; the system preference sets its initial state.
+- Components: one sandboxed plate per specimen. A plate copies the approved element, its ancestor chain and the page's product CSS. Reviewer shell CSS and scripts are excluded. State tables show rendered, live pseudo-class and not-applicable treatments. In `ds-showcase/2`, a specimen inside a native `<details>` keeps the outermost disclosure as context. That context earns no coverage and registers no rendered open state. A disclosure that contains a script fails resolution.
+- Surfaces: each manifest surface runs its approved product scripts in a plate with approved-size buttons, an intermediate-width slider, a state selector and the manifest operations. In `ds-showcase/2`, a Surface plate runs the page's own reviewer runtime through hidden copies of its target and state controls. Unsupported reviewer infrastructure fails rendering. The plate denies the clipboard before product code runs. That denial is not a copy success.
+- Source scripts (`ds-showcase/2` Surface and source-runtime plates): each classic inline product script runs natively, once, at its source position and in source order, after the plate bootstrap. Unsupported script shapes fail rendering.
+- Motion: Replay and Stop per motion row plus a Reduced motion control that applies the page's own reduced-motion rules; the system preference sets its initial state. A `source-runtime` row runs the full approved surface and its hash-bound scripts in a fresh frame. Its status reports only browser-observed effects on the bound subject. An `invalid` status means the plate did not prove the approved motion.
 - Traceability: every plate's source page, selector, variant, state and page hash, the frozen input hashes and coverage counts.
 
 Plates are `srcdoc` frames with `sandbox="allow-scripts"` only (no same origin, forms, popups or top navigation). The page CSP allows no network, frames or objects and pins every script by SHA-256; frames inherit it. Native platforms are labeled HTML demonstrations, not native evidence. Gallery chrome is fixed renderer styling; it never styles product specimens.
@@ -97,22 +91,13 @@ python "<design-system-compiler-skill-root>/scripts/render_design_system_preview
 python "<design-system-compiler-skill-root>/scripts/render_design_system_preview.py" --repo-root <repository-root> --markdown <design-system.md> --registry <design-system.json> --check <design-system-preview.html>
 ```
 
-The first command emits UTF-8 HTML on stdout only after filled-pair and current-source validation. Capture those exact bytes at an authorized new destination; do not redirect over an existing artifact before validation succeeds. The second command is read-only and rejects changed pair bytes, stale sources, hand-edited or missing previews. It grants no approval and does not validate visual quality. Inspect the generated view in a browser and link it with the pair in the handoff.
+The first command emits UTF-8 HTML on stdout only after filled-pair and current-source validation. Capture those exact bytes at an authorized new destination; do not redirect over an existing artifact before validation succeeds. The second command is read-only and rejects changed pair bytes, stale sources, hand-edited or missing previews. It grants no approval and does not validate visual quality. When the pair registers a motion variant or a `pseudo` state row, or the preview has Surface plates that run product scripts, inspect those plates in a browser; static checks cannot show their live treatment. For each `source-runtime` row, press Replay, Stop and the Reduced motion control once at its default target, and record the observed phases in the handoff. Return an `invalid` plate to the author. Link the view with the pair in the handoff.
 
 The Markdown/JSON pair remains the authority. The HTML is reproducible and is not a product route, a HiFi manifest page or a third hand-maintained contract. The legacy view contains no scripts, remote resources or imported product CSS; the `design-system/4` view contains only hash-pinned local scripts and copies of approved HiFi CSS inside sandboxed plates. It is retained as a review artifact, so do not hide it with a broad generated-HTML ignore rule. Existing pairs are not rewritten merely to add a preview. A historical wireframe has no Tokens view. Do not mutate historical artifacts when adding the separate formal preview.
 
 ### Pair Checks
 
-- The approved `frontend-design` direction is recorded in `ui-design.md`; the compiler owns pair generation and validation.
-- `frontend-design` and Impeccable were not rerun during normal compilation; their approved consequences are read from `ui-design.md`.
-- The Style Integration record names `frontend-design`, the selected direction, and its candidate theme rules.
-- The human owner approved one immutable UI target.
-- The selected direction records applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation; full extraction history remains outside the package.
-- The existing direction decision names a direction from the hash-bound Direction comparison table, with primary and stress cases for each platform before full HiFi or token compilation. Platform rules preserve platform-specific type, icons, controls, density, and feedback; compilation never replaces them with Web defaults.
-- Compilation carries only the selected/approved Design Brief profile, typography/density/headline, reference and motion decisions bound to that direction. Pre-selection studies, rejected alternatives, and generic defaults are not production authority and do not reopen taste during compilation.
-- Visual references influenced only confirmed `Adopt / Adapt / Avoid` principles; protected artwork, branding, exact copy, HTML or CSS, source assets, and distinctive composition were not copied.
-- Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set contains at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and HiFi exactly.
+The stage Validation list owns the checklist. Two rules also apply:
+
+- Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set has at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and HiFi exactly.
 - Every required PRD element maps to the final registry, and no unresolved page-local exception remains.
-- Pair generation, filled-pair validation, contrast checks, and type-scale checks pass.
-- Candidate directions, full reference analysis, and UI preview artifacts remain outside the pair.
-- The final report names exact paths, decision status, validation results, assumptions, and open gaps.

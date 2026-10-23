@@ -16,6 +16,7 @@ RUN's ``target_comparison`` records; this tool never edits RUN state.
 from __future__ import annotations
 
 import argparse
+from contextlib import contextmanager
 import errno
 import hashlib
 import html
@@ -27,14 +28,14 @@ import subprocess
 import sys
 import uuid
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 from harness_core import ManifestError, load_plan  # noqa: E402
-from harness_ui_evidence import _state_marker  # noqa: E402
+from harness_design_coverage import surface_capture_rows  # noqa: E402
 from harness_git import windows_machine_roots, windows_parent_user_writable  # noqa: E402
 
 DEFAULT_OUT = Path("docs/goal/evidence/parity")
@@ -374,21 +375,76 @@ def _matrix(
         route = surface.get("route")
         if only and route != only:
             continue
-        for breakpoint in surface.get("breakpoints") or []:
-            for state in surface.get("states") or []:
-                if not isinstance(state, str) or not state.strip():
-                    continue
-                if _state_marker(state)[1]:
-                    continue
-                combos.append(
-                    {
-                        "surface_id": surface.get("id"),
-                        "route": route,
-                        "breakpoint": str(breakpoint),
-                        "state": _state_marker(state)[0],
-                    }
-                )
+        rows, _projection_errors = surface_capture_rows(surface)
+        for row in rows:
+            if "design_coverage" not in surface:
+                combos.append({key: row[key] for key in ("surface_id", "route", "breakpoint", "state")})
+            else:
+                reduced = row["kind"] == "design-condition" and row["state"] == "reduced-motion"
+                combos.append({**row, "media_preference": "reduced" if reduced else "normal"})
     return combos
+
+
+def _capture_projection_errors(plan: dict[str, Any]) -> list[str]:
+    errors: list[str] = []
+    for surface in plan.get("ui_surfaces") or []:
+        if not isinstance(surface, dict):
+            continue
+        _rows, projection_errors = surface_capture_rows(surface)
+        errors.extend(projection_errors)
+    return errors
+
+
+def _condition_entry(entry: dict[str, Any], combo: dict[str, Any]) -> dict[str, Any]:
+    if combo.get("kind") != "design-condition":
+        return {}
+    conditions = entry.get("conditions")
+    value = conditions.get(combo["state"]) if isinstance(conditions, dict) else None
+    return value if isinstance(value, dict) else {}
+
+
+def _read_media_preferences(cli: list[str]) -> tuple[tuple[str, bool] | None, str | None]:
+    checked = _run_browser(cli, ["eval", "({scheme: matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', reduced: matchMedia('(prefers-reduced-motion: reduce)').matches})"], timeout=30)
+    try:
+        value = json.loads(checked.stdout)
+        if checked.returncode or not isinstance(value, dict):
+            raise ValueError("browser preference query failed")
+        if value.get("scheme") not in {"light", "dark"} or type(value.get("reduced")) is not bool:
+            raise ValueError("browser preference response is malformed")
+        return (value["scheme"], value["reduced"]), None
+    except (ValueError, TypeError):
+        return None, "browser preference query did not return a scheme and motion boolean"
+
+
+def _set_motion_preference(cli: list[str], scheme: str, reduced: bool) -> list[str]:
+    command = ["set", "media", scheme] + (["reduced-motion"] if reduced else [])
+    applied = _run_browser(cli, command, timeout=30)
+    if applied.returncode:
+        return [f"browser media command failed: {applied.stderr.strip()}"]
+    observed, problem = _read_media_preferences(cli)
+    if problem or observed != (scheme, reduced):
+        return [problem or "browser did not apply the requested motion preference"]
+    return []
+
+
+@contextmanager
+def _motion_scope(
+    cli: list[str], combo: dict[str, Any], original: tuple[str, bool] | None,
+    errors: list[str], label: str,
+) -> Iterator[bool]:
+    if "kind" not in combo:
+        yield True
+        return
+    if original is None:
+        errors.append(f"{label}: original browser preferences were not observed")
+        yield False
+        return
+    try:
+        problems = _set_motion_preference(cli, original[0], combo.get("media_preference") == "reduced")
+        errors.extend(f"{label}: {problem}" for problem in problems)
+        yield not problems
+    finally:
+        errors.extend(f"{label} restore: {problem}" for problem in _set_motion_preference(cli, *original))
 
 
 def _route_map_load(path: Path | None) -> dict[str, Any]:
@@ -439,6 +495,7 @@ def _shoot(
     screenshot: Path,
     full_page: bool,
     state_eval: str | None,
+    condition_eval: str | None = None,
 ) -> list[str]:
     """Set viewport, apply an optional state trigger, and capture the shot."""
 
@@ -452,6 +509,10 @@ def _shoot(
         triggered = _run_browser(cli, ["eval", "--stdin"], stdin=state_eval)
         if triggered.returncode != 0:
             errors.append(f"state eval failed: {triggered.stderr.strip()}")
+    if condition_eval:
+        triggered = _run_browser(cli, ["eval", "--stdin"], stdin=condition_eval)
+        if triggered.returncode != 0:
+            errors.append(f"condition eval failed: {triggered.stderr.strip()}")
     argv = ["screenshot", str(screenshot)]
     if full_page:
         argv.insert(1, "--full")
@@ -471,6 +532,7 @@ def _capture_app(
     screenshot: Path,
     full_page: bool,
     state_eval: str | None,
+    condition_eval: str | None = None,
 ) -> list[str]:
     opened = _run_browser(cli, ["open", url])
     if opened.returncode != 0:
@@ -485,6 +547,7 @@ def _capture_app(
         screenshot=screenshot,
         full_page=full_page,
         state_eval=state_eval,
+        condition_eval=condition_eval,
     )
 
 
@@ -604,6 +667,12 @@ def capture(args: argparse.Namespace) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 
+    projection_errors = _capture_projection_errors(plan)
+    if projection_errors:
+        for problem in projection_errors:
+            print(f"error: {problem}", file=sys.stderr)
+        return 1
+
     mode_errors = _capture_mode_errors(plan)
     if mode_errors:
         for problem in mode_errors:
@@ -665,6 +734,12 @@ def capture(args: argparse.Namespace) -> int:
     errors: list[str] = []
     nav_methods: dict[str, str] = {}
     routes = sorted({combo["route"] for combo in combos})
+    original_media = None
+    if any("kind" in combo for combo in combos):
+        opened = _run_browser(cli, ["open", "about:blank"])
+        original_media, media_problem = _read_media_preferences(cli)
+        if opened.returncode or media_problem:
+            errors.append(media_problem or "could not open the private browser context")
 
     for route in routes:
         entry = route_map.get(route) or {}
@@ -682,69 +757,90 @@ def capture(args: argparse.Namespace) -> int:
             actual = out_dir / f"{name}-actual.png"
             breakpoint = combo["breakpoint"]
             viewport = (breakpoint, args.height or VIEWPORT_HEIGHT)
-            state_entry = (entry.get("states") or {}).get(combo["state"]) or {}
-            if not isinstance(state_entry, dict):
-                state_entry = {}
-            reference_eval = state_entry.get("reference_eval")
-            app_eval = state_entry.get("app_eval")
-            if not app_eval and combo["state"] != "ready":
+            is_condition = combo.get("kind") == "design-condition"
+            base_state = combo["base_state"] if is_condition else combo["state"]
+            states_map = entry.get("states") or {}
+            base_entry = states_map.get(base_state) or {}
+            if not isinstance(base_entry, dict):
+                base_entry = {}
+            condition_entry = _condition_entry(entry, combo)
+            reference_eval = base_entry.get("reference_eval")
+            app_eval = base_entry.get("app_eval")
+            condition_reference_eval = (
+                condition_entry.get("reference_eval") if is_condition else None
+            )
+            condition_app_eval = condition_entry.get("app_eval") if is_condition else None
+            if not app_eval and base_state != "ready":
                 skipped.append(
                     {
                         **combo,
                         "reason": (
-                            f"no app_eval trigger for state {combo['state']!r} "
+                            f"no app_eval trigger for {'base state' if is_condition else 'state'} {base_state!r} "
                             "in the route map"
                         ),
                     }
                 )
                 continue
+            if is_condition and combo["state"] == "long-content":
+                if not all(isinstance(value, str) and value.strip() for value in (condition_reference_eval, condition_app_eval)):
+                    skipped.append(
+                        {
+                            **combo,
+                            "reason": (
+                                "long-content requires both reference_eval and "
+                                "app_eval in the route-map conditions"
+                            ),
+                        }
+                    )
+                    continue
 
-            # The reference must be re-opened and re-navigated per combo:
-            # the app-side capture leaves the tab on the app page.
-            ok, method = _navigate_reference(cli, reference_url, route, entry)
-            nav_methods[route] = method
-            if not ok:
-                skipped.append({**combo, "reason": f"reference nav: {method}"})
-                continue
-            target_errors = _shoot(
-                cli,
-                viewport=viewport,
-                screenshot=target,
-                full_page=args.full_page,
-                state_eval=reference_eval,
-            )
-            if target_errors:
-                errors.extend(
-                    f"{name} target: {problem}" for problem in target_errors
+            with _motion_scope(cli, combo, original_media, errors, name) as prepared:
+                if not prepared:
+                    continue
+                # Re-open the reference because the previous capture leaves
+                # the active tab on the application.
+                ok, method = _navigate_reference(cli, reference_url, route, entry)
+                nav_methods[route] = method
+                if not ok:
+                    skipped.append({**combo, "reason": f"reference nav: {method}"})
+                    continue
+                target_errors = _shoot(
+                    cli,
+                    viewport=viewport,
+                    screenshot=target,
+                    full_page=args.full_page,
+                    state_eval=reference_eval,
+                    condition_eval=condition_reference_eval,
                 )
-                continue
-            app_path = entry.get("app_path") or combo["route"]
-            app_errors = _capture_app(
-                cli,
-                f"{base_url}{app_path}",
-                viewport=viewport,
-                screenshot=actual,
-                full_page=args.full_page,
-                state_eval=app_eval,
-            )
-            if app_errors:
-                errors.extend(
-                    f"{name} actual: {problem}" for problem in app_errors
+                if target_errors:
+                    errors.extend(f"{name} target: {problem}" for problem in target_errors)
+                    continue
+                app_path = entry.get("app_path") or combo["route"]
+                app_errors = _capture_app(
+                    cli,
+                    f"{base_url}{app_path}",
+                    viewport=viewport,
+                    screenshot=actual,
+                    full_page=args.full_page,
+                    state_eval=app_eval,
+                    condition_eval=condition_app_eval,
                 )
-                continue
-            geometry, geometry_error = _geometry_probe(cli)
-            if geometry_error:
-                errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
-            captured.append(
-                {
-                    **combo,
-                    "target": target.as_posix(),
-                    "actual": actual.as_posix(),
-                    "geometry": geometry,
-                    "geometry_error": geometry_error,
-                }
-            )
-            print(f"captured {name}")
+                if app_errors:
+                    errors.extend(f"{name} actual: {problem}" for problem in app_errors)
+                    continue
+                geometry, geometry_error = _geometry_probe(cli)
+                if geometry_error:
+                    errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
+                captured.append(
+                    {
+                        **combo,
+                        "target": target.as_posix(),
+                        "actual": actual.as_posix(),
+                        "geometry": geometry,
+                        "geometry_error": geometry_error,
+                    }
+                )
+                print(f"captured {name}")
 
     _run_browser(cli, ["close"], timeout=30)
     if skipped:

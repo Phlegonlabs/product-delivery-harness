@@ -7,7 +7,6 @@ import argparse
 import json
 import os
 import posixpath
-import re
 import sys
 from pathlib import Path
 from typing import Any, Iterable
@@ -15,18 +14,11 @@ from typing import Any, Iterable
 from harness_core import (
     _normalized_branch,
     changed_files_digest,
-    sandbox_execution_binding_errors,
     validate_changed_path,
 )
-from harness_schema import run_required_harness_version, version_at_least
-from harness_contract import contract_adoption_check_errors
-from agent_launch_records import validate_launch_record
-from agent_result_receipts import validate_result_receipt
-from agent_role_contract import binding_is_role_bound, role_contract_enabled
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     ManifestError,
-    NESTED_SUBAGENT_ROLES,
     SHA256_RE,
     authorization_covers,
     is_current_pair,
@@ -57,10 +49,7 @@ from select_verifiers import (
 VERIFIER_PROTOCOL = "harness-verifier-execution-v2"
 
 
-SUPPORTED_VERIFIER_PROTOCOLS = {
-    "harness-verifier-execution-v1",
-    VERIFIER_PROTOCOL,
-}
+SUPPORTED_VERIFIER_PROTOCOLS = {VERIFIER_PROTOCOL}
 
 
 def _execution_key_from_document(key_document: dict[str, Any]) -> str:
@@ -69,39 +58,6 @@ def _execution_key_from_document(key_document: dict[str, Any]) -> str:
     return execution_key_from_document(key_document)
 
 
-def _host_preflight_matches(
-    key_document: dict[str, Any] | None,
-    attestation: Any,
-    observed: dict[str, Any],
-    checkout_root: Any = None,
-) -> list[str]:
-    from harness_core import host_execution_binding_errors
-
-    errors: list[str] = []
-    if not isinstance(key_document, dict):
-        return ["host execution requires a retained key document"]
-    preflight = key_document.get("host_preflight")
-    host_observation = observed.get("host_runtime", {})
-    host_entries = (
-        host_observation.get("entries", [])
-        if isinstance(host_observation, dict)
-        and isinstance(host_observation.get("entries", []), list)
-        else []
-    )
-    matches = [
-        entry
-        for entry in host_entries
-        if isinstance(entry, dict)
-        and isinstance(preflight, dict)
-        and entry.get("argv0") == preflight.get("argv0")
-        and entry.get("executable") == preflight.get("executable")
-        and entry.get("executable_sha256") == preflight.get("executable_sha256")
-    ]
-    if len(matches) != 1 or matches[0] != preflight:
-        errors.append("host preflight must equal the current PLAN-bound RUN host observation")
-    for issue in host_execution_binding_errors(preflight, attestation, key_document, checkout_root):
-        errors.append(issue)
-    return errors
 
 
 WORKER_RESULT_FIELDS = {
@@ -135,16 +91,6 @@ TASK_RESULT_FIELDS = {
     "evidence_paths",
 }
 VERIFIER_RESULT_FIELDS = {"id", "status", "evidence"}
-SUBAGENT_ACTIVITY_FIELDS = {"status", "skip_reason", "children"}
-SUBAGENT_CHILD_FIELDS = {
-    "agent_id",
-    "role",
-    "task",
-    "status",
-    "summary",
-    "evidence_paths",
-}
-SUBAGENT_REVIEW_FIELDS = {"reviewed_sha", "decision"}
 ISOLATED_WORKSPACES = {"parent_managed_worktree", "app_managed_worktree"}
 
 
@@ -302,130 +248,6 @@ def _check_exact_fields(
     return expected.issubset(actual) and actual.issubset(expected | allowed_optional)
 
 
-def _validate_subagent_activity(
-    value: Any,
-    *,
-    policy: dict[str, Any] | None,
-    expected_head_sha: str | None,
-    require_reviewer: bool,
-    errors: list[dict[str, str]],
-) -> None:
-    path = "worker_result.subagent_activity"
-    if not _check_exact_fields(value, SUBAGENT_ACTIVITY_FIELDS, path, errors):
-        return
-    status = _require_string(value.get("status"), f"{path}.status", errors)
-    if status not in {"completed", "partial", "unavailable", "not_applicable"}:
-        _issue(errors, "invalid_value", f"{path}.status", "has an unsupported value")
-    skip_reason = value.get("skip_reason")
-    if skip_reason is not None:
-        _require_string(skip_reason, f"{path}.skip_reason", errors)
-    children = value.get("children")
-    if not isinstance(children, list):
-        _issue(errors, "invalid_type", f"{path}.children", "must be an array")
-        return
-    child_statuses: list[str] = []
-    child_roles: list[str] = []
-    agent_ids: list[str] = []
-    completed_reviewer = False
-    for index, child in enumerate(children):
-        child_path = f"{path}.children[{index}]"
-        if not _check_exact_fields(
-            child,
-            SUBAGENT_CHILD_FIELDS,
-            child_path,
-            errors,
-            optional=SUBAGENT_REVIEW_FIELDS,
-        ):
-            continue
-        agent_id = _require_string(child.get("agent_id"), f"{child_path}.agent_id", errors)
-        role = _require_string(child.get("role"), f"{child_path}.role", errors)
-        _require_string(child.get("task"), f"{child_path}.task", errors)
-        child_status = _require_string(child.get("status"), f"{child_path}.status", errors)
-        _require_string(child.get("summary"), f"{child_path}.summary", errors)
-        _require_string_list(child.get("evidence_paths"), f"{child_path}.evidence_paths", errors)
-        if agent_id is not None:
-            agent_ids.append(agent_id)
-        if role is not None:
-            child_roles.append(role)
-            if role not in NESTED_SUBAGENT_ROLES:
-                _issue(errors, "invalid_value", f"{child_path}.role", "has an unsupported value")
-        if child_status is not None:
-            child_statuses.append(child_status)
-            if child_status not in {"completed", "failed", "stopped"}:
-                _issue(errors, "invalid_value", f"{child_path}.status", "has an unsupported value")
-        if role == "reviewer":
-            if require_reviewer:
-                if "reviewed_sha" not in child:
-                    _issue(errors, "missing_field", f"{child_path}.reviewed_sha", "reviewer must bind the reviewed head")
-                    reviewed_sha = None
-                else:
-                    reviewed_sha = _require_sha(child.get("reviewed_sha"), f"{child_path}.reviewed_sha", errors)
-                if reviewed_sha is not None and expected_head_sha is not None and reviewed_sha != expected_head_sha:
-                    _issue(errors, "stale_binding", f"{child_path}.reviewed_sha", "does not match worker_result.head_sha")
-                if "decision" not in child:
-                    _issue(errors, "missing_field", f"{child_path}.decision", "reviewer must report a decision")
-                    decision = None
-                else:
-                    decision = _require_string(child.get("decision"), f"{child_path}.decision", errors)
-                if decision is not None and decision not in {"PASS", "fix_required"}:
-                    _issue(errors, "invalid_value", f"{child_path}.decision", "must be PASS or fix_required")
-                if (
-                    child_status == "completed"
-                    and reviewed_sha is not None
-                    and reviewed_sha == expected_head_sha
-                    and decision == "PASS"
-                ):
-                    completed_reviewer = True
-        elif set(child) & SUBAGENT_REVIEW_FIELDS:
-            _issue(
-                errors,
-                "invalid_value",
-                child_path,
-                "reviewed_sha and decision are allowed only for reviewer children",
-            )
-    if len(agent_ids) != len(set(agent_ids)):
-        _issue(errors, "duplicate_value", f"{path}.children", "agent_id values must be unique")
-    enabled = isinstance(policy, dict) and policy.get("enabled") is True
-    if enabled:
-        if status == "not_applicable":
-            _issue(errors, "invalid_value", f"{path}.status", "cannot be not_applicable when policy is enabled")
-        limit = policy.get("max_children")
-        if isinstance(limit, int) and not isinstance(limit, bool) and len(children) > limit:
-            _issue(errors, "over_budget", f"{path}.children", "exceeds worker nested-subagent limit")
-        allowed_roles = set(policy.get("allowed_roles", []))
-        if set(child_roles) - allowed_roles:
-            _issue(errors, "invalid_value", f"{path}.children", "contains a role outside the worker policy")
-        if require_reviewer and not completed_reviewer:
-            _issue(
-                errors,
-                "missing_review",
-                f"{path}.children",
-                "enabled activity requires a completed exact-head PASS reviewer",
-            )
-    elif status in {"completed", "partial"}:
-        _issue(
-            errors,
-            "invalid_value",
-            f"{path}.status",
-            "requires an enabled worker nested-subagent policy",
-        )
-    if status == "completed":
-        if not children:
-            _issue(errors, "missing_field", f"{path}.children", "completed activity requires at least one child")
-        if any(item != "completed" for item in child_statuses):
-            _issue(errors, "invalid_value", f"{path}.children", "completed activity requires completed children")
-        if skip_reason is not None:
-            _issue(errors, "invalid_value", f"{path}.skip_reason", "must be null when completed")
-    elif status == "partial":
-        if not children or all(item == "completed" for item in child_statuses):
-            _issue(errors, "invalid_value", f"{path}.children", "partial activity requires a failed or stopped child")
-        if not isinstance(skip_reason, str) or not skip_reason:
-            _issue(errors, "missing_field", f"{path}.skip_reason", "partial activity requires an explanation")
-    elif status in {"unavailable", "not_applicable"}:
-        if children:
-            _issue(errors, "invalid_value", f"{path}.children", "must be empty for this status")
-        if not isinstance(skip_reason, str) or not skip_reason:
-            _issue(errors, "missing_field", f"{path}.skip_reason", "requires a concrete reason")
 
 
 def _require_string(
@@ -609,7 +431,6 @@ def _retained_verifier_results(
 ) -> dict[str, dict[str, Any]]:
     from verifier_runtime import (
         execution_retention_binding_errors,
-        container_reuse_origin_run_errors,
     )
 
     retained: dict[str, dict[str, Any]] = {}
@@ -687,16 +508,6 @@ def _retained_verifier_results(
         "checkout_role": "worker",
         "checkout_dirty": expected_checkout_dirty,
     }
-    strict_sandbox_binding = version_at_least(
-        run_required_harness_version(run), (0, 38, 0)
-    )
-    observed_sandbox = run.get("observed", {}).get("sandbox", {})
-    observed_sandbox_entries = (
-        observed_sandbox.get("entries", [])
-        if isinstance(observed_sandbox, dict)
-        and isinstance(observed_sandbox.get("entries", []), list)
-        else []
-    )
     for index, item in enumerate(values):
         path = f"observed.verifier_results[{index}]"
         if not isinstance(item, dict):
@@ -749,13 +560,6 @@ def _retained_verifier_results(
             _issue(errors, "retained_verifier_mismatch", f"{path}.exit_code", f"{status} requires null exit code")
         for issue in execution_retention_binding_errors(item):
             _issue(errors, "retained_verifier_mismatch", f"{path}.execution_binding", issue)
-        # New reuse must bring its origin in this parent-observed batch.
-        # RUN history is not evidence that a prior process ran in this batch.
-        # Every supplied result is validated by this loop before acceptance.
-        for issue in container_reuse_origin_run_errors(item, {
-            "verifier_executions": values,
-        }):
-            _issue(errors, "retained_verifier_mismatch", f"{path}.container_reuse_origin", issue)
         declaration_binding = declarations.get(verifier_id)
         declaration = declaration_binding[0] if declaration_binding is not None else None
         expected_layer = declaration_binding[1] if declaration_binding is not None else None
@@ -829,10 +633,6 @@ def _retained_verifier_results(
                     "checkout_dirty",
                     "cache_safe",
                 ]
-                if protocol == "harness-verifier-execution-v1":
-                    key_context_fields.extend(
-                        ["layer", "mission_id", "task_id", "attempt_id", "lease_id"]
-                    )
                 key_context = {
                     field: key_document.get(field)
                     for field in key_context_fields
@@ -854,95 +654,6 @@ def _retained_verifier_results(
                             f"{path}.key_document.execution",
                             "does not exactly encode the normalized execution policy",
                         )
-        declared_container = (
-            isinstance(declaration, dict)
-            and isinstance(declaration.get("execution"), dict)
-            and declaration["execution"].get("isolation") == "container"
-        )
-        declared_host = (
-            isinstance(declaration, dict)
-            and isinstance(declaration.get("execution"), dict)
-            and declaration["execution"].get("isolation") == "host"
-        )
-        if (
-            protocol == VERIFIER_PROTOCOL
-            and declared_host
-            and isinstance(key_document, dict)
-        ):
-            guarded = item.get("git_guard_attestation")
-            nested_host = (
-                guarded.get("host_execution_attestation")
-                if isinstance(guarded, dict)
-                else None
-            )
-            host_attestation = item.get("host_execution_attestation")
-            if nested_host is not None and nested_host != host_attestation:
-                _issue(
-                    errors,
-                    "retained_verifier_host_mismatch",
-                    f"{path}.git_guard_attestation.host_execution_attestation",
-                    "must equal the retained top-level host attestation",
-                )
-            for issue in _host_preflight_matches(
-                key_document,
-                host_attestation,
-                run.get("observed", {}),
-                guarded.get("checkout_root") if isinstance(guarded, dict) else None,
-            ):
-                _issue(
-                    errors,
-                    "retained_verifier_host_mismatch",
-                    f"{path}.host_execution_attestation",
-                    issue,
-                )
-        if (
-            strict_sandbox_binding
-            and protocol == VERIFIER_PROTOCOL
-            and declared_container
-            and isinstance(key_document, dict)
-        ):
-            declared_sandbox = declaration["execution"].get("sandbox")
-            preflight = key_document.get("sandbox_preflight")
-            sandbox_attestation = item.get("sandbox_attestation")
-            for issue in sandbox_execution_binding_errors(
-                declared_sandbox,
-                preflight,
-                sandbox_attestation,
-            ):
-                _issue(
-                    errors,
-                    "retained_verifier_sandbox_mismatch",
-                    f"{path}.sandbox_attestation",
-                    issue,
-                )
-            matches = [
-                entry
-                for entry in observed_sandbox_entries
-                if isinstance(entry, dict)
-                and isinstance(preflight, dict)
-                and entry.get("runtime") == preflight.get("runtime")
-                and entry.get("image") == preflight.get("image")
-            ]
-            if len(matches) != 1 or matches[0] != preflight:
-                _issue(
-                    errors,
-                    "retained_verifier_sandbox_mismatch",
-                    f"{path}.key_document.sandbox_preflight",
-                    "must equal the current PLAN-bound RUN sandbox observation",
-                )
-            guarded = item.get("git_guard_attestation")
-            nested_sandbox = (
-                guarded.get("sandbox_attestation")
-                if isinstance(guarded, dict)
-                else None
-            )
-            if nested_sandbox is not None and nested_sandbox != sandbox_attestation:
-                _issue(
-                    errors,
-                    "retained_verifier_sandbox_mismatch",
-                    f"{path}.git_guard_attestation.sandbox_attestation",
-                    "must equal the retained top-level sandbox attestation",
-                )
         if (
             run.get("schema_version") == 11
             and protocol == VERIFIER_PROTOCOL
@@ -971,113 +682,11 @@ def _retained_verifier_results(
                         f"{path}.git_guard_attestation.isolation_mode",
                         "current task/worker evidence must use the declared isolation mode",
                     )
-                if declared_isolation == "host":
-                    nested_host = attestation.get("host_execution_attestation")
-                    if not isinstance(nested_host, dict):
-                        _issue(
-                            errors,
-                            "retained_verifier_guard_mismatch",
-                            f"{path}.git_guard_attestation.host_execution_attestation",
-                            "must retain the machine-verifiable host attestation",
-                        )
-                    else:
-                        for issue in _host_preflight_matches(
-                            key_document,
-                            item.get("host_execution_attestation"),
-                            run.get("observed", {}),
-                            attestation.get("checkout_root"),
-                        ):
-                            _issue(
-                                errors,
-                                "retained_verifier_guard_mismatch",
-                                f"{path}.host_execution_attestation",
-                                issue,
-                            )
-                elif declared_isolation == "container" and not isinstance(
-                    attestation.get("sandbox_attestation"), dict
-                ):
-                    _issue(
-                        errors,
-                        "retained_verifier_guard_mismatch",
-                        f"{path}.git_guard_attestation.sandbox_attestation",
-                        "must retain the machine-verifiable sandbox attestation",
-                    )
-                elif declared_isolation == "container":
-                    sandbox_attestation = attestation["sandbox_attestation"]
-                    if set(sandbox_attestation) != {
-                        "runtime",
-                        "runtime_probe",
-                        "image",
-                        "image_probe",
-                        "policy",
-                        "mount",
-                        "network",
-                    }:
-                        _issue(
-                            errors,
-                            "retained_verifier_guard_mismatch",
-                            f"{path}.git_guard_attestation.sandbox_attestation",
-                            "must retain the complete container sandbox attestation",
-                        )
-                    declared_execution = (
-                        declaration.get("execution")
-                        if isinstance(declaration, dict)
-                        else None
-                    )
-                    declared_sandbox = (
-                        declared_execution.get("sandbox")
-                        if isinstance(declared_execution, dict)
-                        else None
-                    )
-                    if sandbox_attestation.get("policy") != declared_sandbox:
-                        _issue(
-                            errors,
-                            "retained_verifier_guard_mismatch",
-                            f"{path}.git_guard_attestation.sandbox_attestation.policy",
-                            "must exactly match the declared sandbox policy",
-                        )
-                    elif isinstance(declared_sandbox, dict):
-                        if sandbox_attestation.get("runtime") != declared_sandbox.get("runtime") or sandbox_attestation.get("image") != declared_sandbox.get("image"):
-                            _issue(
-                                errors,
-                                "retained_verifier_guard_mismatch",
-                                f"{path}.git_guard_attestation.sandbox_attestation",
-                                "runtime and image must match the declared sandbox policy",
-                            )
-                        for probe_key in ("runtime_probe", "image_probe"):
-                            probe_value = sandbox_attestation.get(probe_key)
-                            valid_probe = isinstance(probe_value, str) and bool(probe_value.strip())
-                            if probe_key == "runtime_probe" and isinstance(probe_value, dict):
-                                valid_probe = {"executable", "executable_sha256", "version_output_sha256", "trust"}.issubset(probe_value) and not (set(probe_value) - {"executable", "executable_sha256", "version_output_sha256", "trust"}) and isinstance(probe_value.get("trust"), dict)
-                            if not valid_probe:
-                                _issue(
-                                    errors,
-                                    "retained_verifier_guard_mismatch",
-                                    f"{path}.git_guard_attestation.sandbox_attestation.{probe_key}",
-                                    "must contain a non-empty runtime probe result",
-                                )
-                        digest = str(declared_sandbox.get("image", "")).rsplit("@", 1)[-1]
-                        if digest and re.fullmatch(
-                            r"[A-Za-z0-9][A-Za-z0-9._:/-]*@" + re.escape(digest),
-                            str(sandbox_attestation.get("image_probe", "")),
-                        ) is None:
-                            _issue(
-                                errors,
-                                "retained_verifier_guard_mismatch",
-                                f"{path}.git_guard_attestation.sandbox_attestation.image_probe",
-                                "must attest the exact pinned image digest",
-                            )
-                    if sandbox_attestation.get("mount") != {
-                        "source": "git_archive",
-                        "destination": "/workspace",
-                        "read_only": True,
-                    } or sandbox_attestation.get("network") != "none":
-                        _issue(
-                            errors,
-                            "retained_verifier_guard_mismatch",
-                            f"{path}.git_guard_attestation.sandbox_attestation",
-                            "must attest the exact read-only archive mount and disabled network",
-                        )
+                if declared_isolation != "host":
+                    _issue(errors, "retained_verifier_guard_mismatch", f"{path}.git_guard_attestation.isolation_mode", "requires host isolation")
+                host_attestation = item.get("host_execution_attestation")
+                if not isinstance(host_attestation, dict) or attestation.get("host_execution_attestation") != host_attestation:
+                    _issue(errors, "retained_verifier_guard_mismatch", f"{path}.host_execution_attestation", "must retain the same machine-verifiable host attestation")
                 if attestation.get("source_head_sha") != verifier_expected_context.get("head_sha"):
                     _issue(
                         errors,
@@ -1140,10 +749,6 @@ def _retained_verifier_results(
             != (declaration.get("read_only", False) if isinstance(declaration, dict) else False)
             or normalized.get("execution") != declared_execution
             or not isinstance(key_document, dict)
-            or (
-                protocol == "harness-verifier-execution-v1"
-                and key_document.get("verifier_id") != verifier_id
-            )
             or key_document.get("cwd") != normalized.get("cwd")
             or key_document.get("argv") != normalized.get("argv")
             or key_document.get("pass_signal") != normalized.get("pass_signal")
@@ -1193,16 +798,6 @@ def validate_worker_result_data(
         errors,
         optional={"subagent_activity", "contract_adoption_check"},
     )
-    for message in contract_adoption_check_errors(
-        run, result.get("contract_adoption_check")
-    ):
-        _issue(
-            errors,
-            "contract_adoption_check",
-            "worker_result.contract_adoption_check",
-            message,
-        )
-
     result_type = _require_string(result.get("type"), "worker_result.type", errors)
     run_id = _require_string(result.get("run_id"), "worker_result.run_id", errors)
     result_plan_id = _require_string(result.get("plan_id"), "worker_result.plan_id", errors)
@@ -1299,53 +894,6 @@ def validate_worker_result_data(
     else:
         worker = worker_matches[0]
 
-    nested_policy = (
-        worker.get("nested_subagent_policy") if isinstance(worker, dict) else None
-    )
-    if (
-        run.get("schema_version") in {10, 11}
-        and isinstance(nested_policy, dict)
-        and nested_policy.get("enabled") is True
-    ):
-        _issue(
-            errors,
-            "nested_delegation_forbidden",
-            "harness_run.workers.nested_subagent_policy.enabled",
-            "RUN-v11 workers cannot delegate to child agents",
-        )
-    if run.get("schema_version") in {10, 11} and "subagent_activity" not in result:
-        _issue(
-            errors,
-            "missing_field",
-            "worker_result.subagent_activity",
-            "RUN-v11 worker results must report flat not_applicable activity",
-        )
-    elif isinstance(nested_policy, dict) and "subagent_activity" not in result:
-        _issue(
-            errors,
-            "missing_field",
-            "worker_result.subagent_activity",
-            "is required because the worker records a nested-subagent policy",
-        )
-    if "subagent_activity" in result:
-        if (
-            run.get("schema_version") in {10, 11}
-            and isinstance(result.get("subagent_activity"), dict)
-            and result["subagent_activity"].get("status") != "not_applicable"
-        ):
-            _issue(
-                errors,
-                "nested_delegation_forbidden",
-                "worker_result.subagent_activity.status",
-                "must be not_applicable for the flat RUN-v11 topology",
-            )
-        _validate_subagent_activity(
-            result.get("subagent_activity"),
-            policy=nested_policy if isinstance(nested_policy, dict) else None,
-            expected_head_sha=head_sha,
-            require_reviewer=False,
-            errors=errors,
-        )
     worker_id = mission_state.get("worker_id")
     binding_checks = [
         (lease_id, mission_state.get("lease_id"), "lease_id", "mission state"),
@@ -1371,56 +919,10 @@ def validate_worker_result_data(
         _issue(errors, "worker_record_mismatch", "harness_run.mission_states.worker_id", "does not match worker record")
     runtime_capabilities = run.get("runtime_capabilities", {})
     runtime_binding = worker.get("runtime_binding") if isinstance(worker.get("runtime_binding"), dict) else {}
-    if role_contract_enabled(run) and binding_is_role_bound(runtime_binding):
-        for issue in validate_result_receipt(run, worker, "mission", worker.get("result_receipt"), result):
-            _issue(errors, "result_receipt_mismatch", "run.workers.result_receipt", issue)
-        for field in ("worker_runtime", "workspace_mode", "completion_channel"):
-            if worker and worker.get(field) != runtime_binding.get(field):
-                _issue(
-                    errors,
-                    "worker_record_mismatch",
-                    f"harness_run.workers.{field}",
-                    "does not match the reserved role binding",
-                )
-        attempt_matches = [
-            attempt
-            for attempt in run.get("attempt_log", [])
-            if isinstance(attempt, dict)
-            and attempt.get("lease_id") == lease_id
-            and attempt.get("kind") == "dispatch"
-        ]
-        if worker and len(attempt_matches) == 1:
-            for issue in validate_launch_record(
-                run,
-                assignment_kind="mission",
-                assignment_id=lease_id,
-                node_id=next(
-                    (
-                        node.get("id")
-                        for node in plan.get("graph", {}).get("nodes", [])
-                        if isinstance(node, dict)
-                        and node.get("kind") == "mission"
-                        and node.get("ref") == mission_id
-                    ),
-                    "",
-                ),
-                attempt_id=attempt_matches[0].get("attempt_id"),
-                worker_id=worker.get("worker_id"),
-                worker_role_expected=runtime_binding.get("worker_role"),
-                reserved=worker,
-            ):
-                _issue(errors, "launch_record_mismatch", "run.launch_records", issue)
-        elif worker:
-            _issue(errors, "launch_record_mismatch", "run.launch_records", "mission lease must map to exactly one dispatch attempt")
-    else:
-      for field in ("worker_runtime", "workspace_mode", "completion_channel"):
-        if worker and worker.get(field) != runtime_capabilities.get(field):
-            _issue(
-                errors,
-                "worker_record_mismatch",
-                f"harness_run.workers.{field}",
-                "does not match RUN runtime capabilities",
-            )
+    expected_runtime = {**runtime_capabilities, **runtime_binding}
+    for field in ("worker_runtime", "workspace_mode", "completion_channel"):
+        if worker and worker.get(field) != expected_runtime.get(field):
+            _issue(errors, "worker_record_mismatch", f"harness_run.workers.{field}", "does not match the reserved runtime binding")
 
     active_wave = run.get("active_wave", {})
     if not isinstance(active_wave, dict) or active_wave.get("status") != "active":

@@ -4,7 +4,7 @@ Use the smallest set of sources that can answer the question. A source name or a
 
 In a saved lifecycle public-release review, a source is verified evidence only when Activation marks the matching `MS-*` source verified for the same production target, source SHA, and artifact/build identity. Search Console, GA4, page crawls, demand estimates, and first-party language remain separate source roles; do not let one property or URL imply the others.
 
-Before using a provider field, report, quota, API, or console path, fetch its current official documentation. The links below are starting authorities, not remembered execution instructions.
+Before using a provider field, report, quota, API, or console path, fetch its current official documentation. The links below are starting authorities, not remembered execution instructions. Access routes, in order: an existing connector or MCP tool, the official API, the read-only console UI, or a user-provided export. Setup and configuration changes are outside this review.
 
 ## Source Roles
 
@@ -39,15 +39,11 @@ Limits matter:
 - page and property aggregation produce different totals and position calculations; and
 - the newest data may be preliminary or incomplete. Record the cutoff and use complete periods.
 
-Access routes: an existing connector or MCP tool, the official Search Console API, the read-only console UI, or a user-provided export. Do not add/remove a property, submit/delete a sitemap, or change associations in this review.
-
 ## GA4
 
 Use GA4 to judge post-click value. Relevant evidence includes organic sessions, engaged sessions or engagement rate, landing pages, key events, ecommerce outcomes when applicable, content groups, site-search events, country and device.
 
 Do not assign Google Search queries to GA4 conversions when the data does not support that join. Search Console and GA4 use different collection, canonicalization, attribution, bot and session rules. Compare their trends and use landing-page analysis where compatible; do not force clicks and sessions to reconcile to one number.
-
-Access routes: an existing connector or MCP tool, the GA4 Data API, the read-only Analytics UI, or a user-provided export. Property or stream creation, tag installation, account linking, key-event changes, data-sharing choices, retention changes, and filter activation belong to `product-activation` or implementation work.
 
 ## Google Trends
 
@@ -61,7 +57,7 @@ Use Keyword Planner to expand relevant seed terms, page URLs or a site into keyw
 
 Treat `competition` as advertiser competition, not organic SEO difficulty. Search-volume and bid data are estimates and must not outrank product fit, first-party demand, user value or the site's ability to add original value.
 
-The Google Ads API requires an appropriate Ads account, OAuth and developer-token setup. That authentication and provider client belong in an external connector or MCP server, not this skill. Browser or exported-data review remains valid when no API route exists.
+The Google Ads API requires an Ads account, OAuth and a developer token, which an external connector owns. Browser or exported-data review remains valid when no API route exists.
 
 ## Public Site And Search Evidence
 
@@ -83,22 +79,6 @@ A generic Lighthouse SEO score is a clue, not a complete technical review. URL I
 Site-search logs, support conversations, sales questions and user research can reveal valuable language and unmet needs. Use only data the user authorized, aggregate it, remove personal or sensitive terms, and distinguish it from public market demand.
 
 Third-party SEO suites may add competitor estimates, backlink indexes, keyword-difficulty models or site crawls. Record the provider and retrieval date. Their authority and difficulty scores are provider-specific diagnostics, not Google metrics and not success targets. Do not require a paid provider when official and first-party sources answer the question.
-
-## Connector And MCP Boundary
-
-The skill defines source preference, query intent, reconciliation and output. A connector or MCP server owns API authentication, authorization, pagination, quotas, retries, provider clients, structured tool schemas and service observability.
-
-An eventual read-only SEO data MCP may expose tools such as:
-
-- `search_console.query_performance`;
-- `search_console.inspect_url`;
-- `search_console.list_sitemaps`;
-- `ga4.run_report`;
-- `ga4.run_realtime_report`;
-- `keyword_planner.generate_ideas`; and
-- `keyword_planner.get_historical_metrics`.
-
-This list is an interface direction, not evidence that the tools exist. When unavailable, record `connector_gap` and continue with public evidence, Browser read-only access, or user-provided exports as the selected mode permits.
 
 ## Starting Authorities
 

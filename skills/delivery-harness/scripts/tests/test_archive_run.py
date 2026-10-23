@@ -11,10 +11,9 @@ import shutil
 import subprocess
 import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from PIL import Image
 
@@ -28,106 +27,6 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import archive_run  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
-
-
-class _DirFdOs:
-    """Real ``os`` with a chosen ``name`` and ``dir_fd`` resolved against one directory."""
-
-    def __init__(self, name: str, directory: Path) -> None:
-        self.name = name
-        self._directory = directory
-
-    def __getattr__(self, attribute: str):
-        return getattr(os, attribute)
-
-    def _resolve(self, name, dir_fd):
-        return self._directory / name if dir_fd is not None else name
-
-    def unlink(self, name, *, dir_fd=None):
-        os.unlink(self._resolve(name, dir_fd))
-
-    def rename(self, source, target, *, src_dir_fd=None, dst_dir_fd=None):
-        os.rename(self._resolve(source, src_dir_fd), self._resolve(target, dst_dir_fd))
-
-    def fsync(self, descriptor):
-        del descriptor
-
-
-def _documents_exchange_race(
-    branch: str, writes: dict[tuple[str, int], object], payload: bytes
-) -> tuple[str, bytes | None, bytes, list[str]]:
-    """Run one DOCUMENTS exchange commit with scripted concurrent writes.
-
-    ``writes`` maps ("before"|"after", primitive call number) to bytes written
-    (or a callable applied to the destination path)
-    to DOCUMENTS.md around that call. Returns the error text, the final
-    destination bytes, the bytes at the path the error reports, and the
-    docs directory listing.
-    """
-
-    with tempfile.TemporaryDirectory() as temp:
-        root = Path(temp).resolve()
-        directory = root / "docs"
-        directory.mkdir()
-        documents = directory / "DOCUMENTS.md"
-        documents.write_bytes(b"# Documents\n")
-        temporary = directory / ".DOCUMENTS.md.pending"
-        temporary.write_bytes(payload)
-        identity, original = archive_run._path_identity_and_bytes(documents)
-        calls: list[int] = []
-
-        def write(stage: str) -> None:
-            data = writes.get((stage, len(calls)))
-            if callable(data):
-                data(documents)
-            elif data is not None:
-                documents.write_bytes(data)
-
-        def exchange(_parent_fd: int, left: str, right: str) -> None:
-            calls.append(1)
-            write("before")
-            hold = directory / ".swap-hold"
-            os.replace(directory / left, hold)
-            os.replace(directory / right, directory / left)
-            os.replace(hold, directory / right)
-            write("after")
-
-        def replace(target: Path, replacement: Path, backup: Path) -> None:
-            calls.append(1)
-            write("before")
-            if backup.exists():
-                raise FileExistsError(backup)
-            os.replace(target, backup)
-            os.replace(replacement, target)
-            write("after")
-
-        primitive = (
-            ("_posix_rename_exchange", exchange)
-            if branch == "posix"
-            else ("_windows_replace_file", replace)
-        )
-        with patch.object(archive_run, "os", _DirFdOs(branch, directory)), \
-                patch.object(archive_run, primitive[0], side_effect=primitive[1]):
-            try:
-                archive_run._documents_exchange_commit(
-                    root,
-                    documents,
-                    temporary,
-                    temporary_name=temporary.name,
-                    parent_fd=7 if branch == "posix" else None,
-                    expected_identity=identity,
-                    expected_bytes=original,
-                    payload=payload,
-                )
-            except OSError as exc:
-                message = str(exc)
-            else:
-                raise AssertionError("exchange race was not detected")
-        retained = Path(message.rsplit(" at ", 1)[1]).read_bytes()
-        final = documents.read_bytes() if documents.is_file() else None
-        return message, final, retained, sorted(
-            item.name for item in directory.iterdir()
-        )
 
 
 def run_markdown(status: str = "complete", gates: object = None) -> str:
@@ -152,15 +51,8 @@ class ArchiveRunTests(unittest.TestCase):
         self.goal = self.root / "docs" / "goal"
         self.goal.mkdir(parents=True)
 
-        product = b"fixture product contract\n"
-        architecture = b"fixture architecture\n"
-        for relative, contents in (
-            ("docs/product/prd.md", product),
-            ("docs/product/architecture.md", architecture),
-        ):
-            path = self.root / relative
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes(contents)
+        self.plan = mf.valid_plan()
+        mf.materialize_plan_sources(self.root, self.plan)
 
         self.documents_original = (
             "# Documents\n\n| Path | Role | Owner |\n|---|---|---|\n"
@@ -173,17 +65,11 @@ class ArchiveRunTests(unittest.TestCase):
         mf.git(self.root, "init", "-q", "-b", "main")
         mf.git(self.root, "config", "user.email", "test@example.com")
         mf.git(self.root, "config", "user.name", "Harness Test")
+        mf.git(self.root, "config", "core.autocrlf", "false")
         mf.git(self.root, "add", "docs/product", "docs/DOCUMENTS.md")
         mf.git(self.root, "commit", "-qm", "freeze sources")
         self.expected_main = mf.git(self.root, "rev-parse", "HEAD")
 
-        self.plan = mf.valid_plan()
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            product
-        ).hexdigest()
-        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
-            architecture
-        ).hexdigest()
         self.run = mf.valid_closeout_run(self.plan)
         self.run["run_id"] = "RUN-20260911-demo"
         self.run["observed"]["git"].update(
@@ -234,7 +120,7 @@ class ArchiveRunTests(unittest.TestCase):
             argv.extend(["--expected-main", self.expected_main])
         if "--apply" in argv and "--main-ref" not in argv:
             argv.extend(["--main-ref", "refs/heads/main"])
-        return subprocess.run(argv, capture_output=True, text=True)
+        return subprocess.run(argv, capture_output=True, text=True, timeout=45)
 
     def archived_dir(self) -> Path:
         archived = self.goal / "archived"
@@ -314,7 +200,7 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertFalse((self.goal / "archived").exists())
 
     def test_drifted_frozen_source_is_refused_before_dry_run(self) -> None:
-        (self.root / "docs/product/prd.md").write_bytes(b"changed\n")
+        (self.root / "docs/product/PRD.md").write_bytes(b"changed\n")
         result = self.archive()
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("does not match immutable bytes", result.stderr)
@@ -331,51 +217,63 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertFalse((self.goal / "archived").exists())
 
     def test_invalid_required_ui_evidence_is_refused(self) -> None:
+        from test_harness_strict_authority import StrictAuthorityJoinTests
+
+        with mf.eval_exempt_product_fixture():
+            self.plan, _, _ = StrictAuthorityJoinTests._ui_fixture(self.root, required=False)
+        for trace in self.plan["traces"]:
+            trace["source_ids"] = ["SRC-PRD"]
         buffer = io.BytesIO()
         Image.new("RGB", (2, 2), "white").save(buffer, format="PNG")
         image = buffer.getvalue()
         artifact = self.goal / "evidence" / "dashboard-desktop-loaded.png"
         artifact.write_bytes(image)
-        mf.git(self.root, "add", "docs/goal/evidence")
+        mf.git(self.root, "add", "docs/product", "docs/design", "docs/goal/evidence")
         mf.git(self.root, "commit", "-qm", "accept UI evidence")
         accepted_head = mf.git(self.root, "rev-parse", "HEAD")
 
-        self.plan["ui_surfaces"] = [
-            {
-                "id": "UI-001",
-                "trace_ids": ["REQ-001"],
-                "route": "/dashboard",
-                "breakpoints": ["desktop"],
-                "states": ["loaded"],
-                "evidence_gate": "required",
-            }
-        ]
         self.plan_md = mf.manifest_markdown(
             "## Harness Plan Manifest", "harness_plan", self.plan
         )
         self.rebuild_run_at_head(accepted_head)
+        target = next(source for source in self.plan["sources"] if source["kind"] == "approved ui target")
         self.run["ui_evidence"] = [
             {
                 "surface_id": "UI-001",
-                "route": "/dashboard",
-                "breakpoint": "desktop",
-                "state": "loaded",
-                "artifact_path": "docs/goal/evidence/missing.png",
+                "route": "/home",
+                "breakpoint": breakpoint,
+                "state": state,
+                "artifact_path": artifact.relative_to(self.root).as_posix(),
                 "artifact_sha256": hashlib.sha256(image).hexdigest(),
                 "head_sha": accepted_head,
                 "status": "PASS",
+                "layout_check": "pass",
                 "target_comparison": {
-                    "baseline": "design_system",
-                    "baseline_artifact": "check_ui_contract:clean-run",
+                    "baseline": "html_target",
+                    "authority_sources": [{"path": target["location"],
+                                           "sha256": hashlib.sha256((self.root / target["location"]).read_bytes()).hexdigest()}],
+                    "baseline_artifact": artifact.relative_to(self.root).as_posix(),
+                    "baseline_artifact_sha256": hashlib.sha256(image).hexdigest(),
                     "verdict": "pass",
+                    "differences": [],
                 },
             }
+            for breakpoint in self.plan["ui_surfaces"][0]["breakpoints"]
+            for state in self.plan["ui_surfaces"][0]["states"]
         ]
         self.run_md = mf.manifest_markdown(
             "## Harness Run State", "harness_run", self.run
         )
         self.write_manifests()
 
+        accepted = self.archive()
+        self.assertEqual(0, accepted.returncode, accepted.stdout + accepted.stderr)
+        self.run["ui_evidence"][0]["artifact_path"] = "docs/goal/evidence/missing.png"
+        (self.goal / "evidence" / "missing.png").write_bytes(image)
+        self.run_md = mf.manifest_markdown(
+            "## Harness Run State", "harness_run", self.run
+        )
+        self.write_manifests()
         result = self.archive()
         self.assertEqual(1, result.returncode, result.stdout + result.stderr)
         self.assertIn("does not exist in accepted Git commit", result.stderr)
@@ -448,163 +346,11 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(b"filtered bytes\n", filtered)
         self.assertEqual(before, after)
 
-    def test_documents_exact_commit_boundary_edit_is_preserved(self) -> None:
-        documents = self.root / "docs" / "DOCUMENTS.md"
-        original = documents.read_bytes()
 
-        def inject_boundary_edit(root: Path, path: Path) -> None:
-            path.write_bytes(b"injected at replace boundary\n")
 
-        with patch.object(archive_run, "_documents_before_commit", side_effect=inject_boundary_edit):
-            with self.assertRaisesRegex(OSError, "version changed at commit boundary"):
-                archive_run._atomic_write_documents(
-                    self.root,
-                    documents,
-                    b"transaction output\n",
-                    expected_bytes=original,
-                )
-        self.assertEqual(b"injected at replace boundary\n", documents.read_bytes())
 
-    def test_documents_exchange_primitive_preserves_displaced_edit(self) -> None:
-        # Only the first primitive call races; the restore call must stay clean.
-        calls: list[int] = []
-        documents = self.root / "docs" / "DOCUMENTS.md"
-        original = documents.read_bytes()
-        concurrent = b"concurrent edit inside exchange primitive\n"
-        if os.name == "nt":
-            primitive = archive_run._windows_replace_file
 
-            def inject(destination: Path, replacement: Path, backup: Path) -> None:
-                if not calls:
-                    destination.write_bytes(concurrent)
-                calls.append(1)
-                primitive(destination, replacement, backup)
 
-            patcher = patch.object(archive_run, "_windows_replace_file", side_effect=inject)
-        else:
-            primitive = archive_run._posix_rename_exchange
-
-            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
-                if not calls:
-                    documents.write_bytes(concurrent)
-                calls.append(1)
-                primitive(parent_fd, left_name, right_name)
-
-            patcher = patch.object(archive_run, "_posix_rename_exchange", side_effect=inject)
-        with patcher:
-            with self.assertRaisesRegex(OSError, "displaced bytes changed") as caught:
-                archive_run._atomic_write_documents(
-                    self.root,
-                    documents,
-                    b"transaction output\n",
-                    expected_bytes=original,
-                )
-        self.assertNotIn("restore", str(caught.exception))
-        self.assertEqual(concurrent, documents.read_bytes())
-
-    def test_documents_double_concurrent_write_keeps_displaced_bytes(self) -> None:
-        documents = self.root / "docs" / "DOCUMENTS.md"
-        original = documents.read_bytes()
-        first = b"first concurrent edit\n"
-        second = b"second concurrent edit\n"
-        if os.name == "nt":
-            primitive = archive_run._windows_replace_file
-
-            def inject(destination: Path, replacement: Path, backup: Path) -> None:
-                destination.write_bytes(first)
-                primitive(destination, replacement, backup)
-                destination.write_bytes(second)
-
-            patcher = patch.object(archive_run, "_windows_replace_file", side_effect=inject)
-        else:
-            primitive = archive_run._posix_rename_exchange
-
-            def inject(parent_fd: int, left_name: str, right_name: str) -> None:
-                documents.write_bytes(first)
-                primitive(parent_fd, left_name, right_name)
-                documents.write_bytes(second)
-
-            patcher = patch.object(archive_run, "_posix_rename_exchange", side_effect=inject)
-        with patcher:
-            with self.assertRaisesRegex(OSError, "displaced bytes changed") as caught:
-                archive_run._atomic_write_documents(
-                    self.root,
-                    documents,
-                    b"transaction output\n",
-                    expected_bytes=original,
-                )
-        retained = Path(str(caught.exception).rsplit(" at ", 1)[1])
-        self.assertEqual(second, documents.read_bytes())
-        self.assertEqual(first, retained.read_bytes())
-
-    def test_documents_exchange_commit_races_keep_concurrent_bytes(self) -> None:
-        payload = b"transaction output\n"
-        first, second = b"first concurrent edit\n", b"second concurrent edit\n"
-        scenarios = {
-            "concurrent edit": ({("before", 1): first}, "displaced bytes changed", first, first, 1),
-            "double write": (
-                {("before", 1): first, ("after", 1): second},
-                "displaced bytes changed",
-                second,
-                first,
-                2,
-            ),
-            "restore overwritten": (
-                {("before", 1): first, ("after", 2): second},
-                "restore verification failed",
-                second,
-                payload,
-                2,
-            ),
-            "second write before restore": (
-                {("before", 1): first, ("before", 2): second},
-                "restore verification failed",
-                first,
-                second,
-                2,
-            ),
-            "destination removed after exchange": (
-                {("before", 1): first, ("after", 1): Path.unlink},
-                "displaced bytes changed",
-                None,
-                first,
-                1,
-            ),
-            "destination replaced by a directory": (
-                {("before", 1): first, ("after", 1): lambda target: (target.unlink(), target.mkdir())},
-                "displaced bytes changed",
-                None,
-                first,
-                2,
-            ),
-        }
-        for branch in ("posix", "nt"):
-            for label, (writes, message, final, kept, count) in scenarios.items():
-                with self.subTest(branch=branch, scenario=label):
-                    result, destination, retained, names = _documents_exchange_race(
-                        branch, writes, payload
-                    )
-                    self.assertIn(message, result)
-                    if message != "restore verification failed":
-                        self.assertNotIn("restore", result)
-                    self.assertEqual(final, destination)
-                    self.assertEqual(kept, retained)
-                    self.assertNotIn(".DOCUMENTS.md.pending", names)
-                    self.assertEqual(count, len(names), names)
-
-    def test_posix_rename_exchange_uses_linux_or_macos_primitive(self) -> None:
-        for symbol in ("renameat2", "renameatx_np"):
-            with self.subTest(symbol=symbol):
-                primitive = Mock(return_value=0)
-                libc = types.SimpleNamespace(**{symbol: primitive})
-                with patch("ctypes.CDLL", return_value=libc), patch.object(os, "name", "posix"):
-                    archive_run._posix_rename_exchange(7, "left", "right")
-                primitive.assert_called_once_with(7, b"left", 7, b"right", 0x2)
-
-    def test_posix_rename_exchange_fails_closed_without_exchange_primitive(self) -> None:
-        with patch("ctypes.CDLL", return_value=types.SimpleNamespace()), patch.object(os, "name", "posix"):
-            with self.assertRaisesRegex(OSError, "renameat2.*renameatx_np.*refusing"):
-                archive_run._posix_rename_exchange(7, "left", "right")
 
     def test_empty_optional_evidence_directory_is_skipped(self) -> None:
         empty = self.goal / "evidence"
@@ -654,141 +400,10 @@ class ArchiveRunTests(unittest.TestCase):
             any("destination is outside" in item for item in archive_run.validate_archive_receipt(value))
         )
 
-    def test_recover_interrupted_archive_is_idempotent_and_descriptor_bound(self) -> None:
-        target = self.goal / "archived" / "20260101-000000-recovery"
-        target.mkdir(parents=True)
-        source = self.goal / "PLAN.md"
-        run_source = self.goal / "RUN.md"
-        destination = target / "PLAN.md"
-        run_destination = target / "RUN.md"
-        source.rename(destination)
-        run_source.rename(run_destination)
-        journal = {
-            "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
-            "phase": "moving",
-            "archive_path": "docs/goal/archived/20260101-000000-recovery",
-            "moves": [
-                {"source": "docs/goal/PLAN.md", "destination": "docs/goal/archived/20260101-000000-recovery/PLAN.md"},
-                {"source": "docs/goal/RUN.md", "destination": "docs/goal/archived/20260101-000000-recovery/RUN.md"},
-            ],
-            "moved": [],
-            "documents_before_b64": None,
-            "documents_before_identity": None,
-            "archived_parent_created": False,
-            "anchor_path": None,
-        }
-        (target / archive_run.ARCHIVE_JOURNAL_NAME).write_text(
-            json.dumps(journal), encoding="utf-8"
-        )
-        self.assertEqual(0, archive_run.recover_archive(self.root, target))
-        self.assertTrue(source.exists())
-        self.assertTrue(run_source.exists())
-        self.assertFalse(target.exists())
-        # A second recovery is a no-op and cannot touch the recovered sources.
-        self.assertEqual(0, archive_run.recover_archive(self.root, target))
-        self.assertTrue(source.exists())
-        self.assertTrue(run_source.exists())
 
-    def test_recovery_rejects_malicious_journal_paths_before_mutation(self) -> None:
-        variants = (
-            (".git/hooks/pre-commit", "20260101-000000-recover-git"),
-            ("docs/goal/PLAN.md", "20260101-000000-recover-wrong-destination"),
-            ("docs/goal/PLAN.md", "20260101-000000-recover-duplicate"),
-        )
-        for source, slug in variants:
-            with self.subTest(source=source, slug=slug):
-                target = self.goal / "archived" / slug
-                target.mkdir(parents=True)
-                if "wrong-destination" in slug:
-                    rows = [
-                        {"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
-                        {"source": "docs/goal/RUN.md", "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
-                    ]
-                elif "duplicate" in slug:
-                    rows = [
-                        {"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/PLAN.md"},
-                        {"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/PLAN.md"},
-                    ]
-                else:
-                    rows = [{"source": source, "destination": f"{target.relative_to(self.root).as_posix()}/pre-commit"}]
-                journal = {
-                    "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
-                    "phase": "moving",
-                    "archive_path": target.relative_to(self.root).as_posix(),
-                    "moves": rows,
-                    "moved": [],
-                    "anchor_path": None,
-                }
-                (target / archive_run.ARCHIVE_JOURNAL_NAME).write_text(json.dumps(journal), encoding="utf-8")
-                self.assertEqual(1, archive_run.recover_archive(self.root, target))
-                self.assertTrue(target.exists())
-                self.assertTrue((target / archive_run.ARCHIVE_JOURNAL_NAME).exists())
 
-    def test_recovery_journal_must_match_closed_receipt_mapping(self) -> None:
-        result = self.archive("--apply", "--stamp", "20260101-000000")
-        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
-        target = self.archived_dir()
-        journal = {
-            "protocol": archive_run.ARCHIVE_JOURNAL_PROTOCOL,
-            "phase": "moving",
-            "archive_path": target.relative_to(self.root).as_posix(),
-            "moves": [
-                {"source": "docs/goal/PLAN.md", "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
-                {"source": "docs/goal/RUN.md", "destination": f"{target.relative_to(self.root).as_posix()}/RUN.md"},
-            ],
-            "moved": [],
-            "anchor_path": None,
-        }
-        (target / archive_run.ARCHIVE_JOURNAL_NAME).write_text(json.dumps(journal), encoding="utf-8")
-        self.assertEqual(1, archive_run.recover_archive(self.root, target))
-        self.assertTrue(target.exists())
-        self.assertTrue((target / archive_run.ARCHIVE_RECEIPT_NAME).exists())
-    def test_failed_archive_does_not_remove_a_preexisting_archived_parent(self) -> None:
-        archived = self.goal / "archived"
-        archived.mkdir()
-        sentinel = archived / "keep.txt"
-        sentinel.write_text("unrelated archive\n", encoding="utf-8")
-        guard = archive_run._ArchiveMutationGuard(
-            self.root,
-            [Path("docs/goal/PLAN.md")],
-            archived / "20260101-000000-preexisting-parent",
-        )
-        try:
-            self.assertFalse(guard.archived_created)
-            guard.remove_archived_parent()
-        finally:
-            guard.close()
-        self.assertEqual("unrelated archive\n", sentinel.read_text(encoding="utf-8"))
-        self.assertTrue(archived.exists())
 
-    def test_nested_symlink_swap_after_guard_is_rejected(self) -> None:
-        nested = self.goal / "evidence" / "deep" / "inner"
-        nested.mkdir(parents=True)
-        real_move = archive_run._ArchiveMutationGuard.move
 
-        try:
-            probe = nested / "probe"
-            probe.symlink_to(self.root / ".git", target_is_directory=True)
-            probe.unlink()
-        except (OSError, NotImplementedError) as exc:
-            self.skipTest(f"symlink unavailable: {exc}")
-
-        def swap_after_move(guard: archive_run._ArchiveMutationGuard, source: Path, destination: Path) -> None:
-            real_move(guard, source, destination)
-            if source.name == "evidence":
-                link = destination / "deep" / "inner" / "post-guard-link"
-                link.symlink_to(self.root / ".git", target_is_directory=True)
-
-        with patch.object(archive_run._ArchiveMutationGuard, "move", autospec=True, side_effect=swap_after_move):
-            code = archive_run.archive(
-                self.root,
-                slug="post-guard-swap",
-                apply=True,
-                stamp="20260101-000000",
-                expected_main=self.expected_main,
-                main_ref="refs/heads/main",
-            )
-        self.assertEqual(1, code)
 
     def test_nested_symlinks_at_multiple_depths_are_rejected_before_archive(self) -> None:
         for depth in (self.goal / "evidence" / "deep" / "one", self.goal / "evidence" / "deep" / "two"):
@@ -838,42 +453,9 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertTrue((self.goal / "RUN.md").exists())
         self.assertFalse((self.goal / "archived").exists())
 
-    def test_a_move_failure_rolls_back_every_moved_entry(self) -> None:
-        real_move = archive_run._ArchiveMutationGuard.move
 
-        def fail_on_run(guard: archive_run._ArchiveMutationGuard, source: Path, destination: Path) -> None:
-            if source.name == "RUN.md":
-                raise OSError("injected RUN.md move failure")
-            real_move(guard, source, destination)
-
-        stdout = io.StringIO()
-        stderr = io.StringIO()
-        with patch.object(archive_run._ArchiveMutationGuard, "move", autospec=True, side_effect=fail_on_run):
-            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
-                code = archive_run.archive(
-                    self.root,
-                    slug="rollback",
-                    apply=True,
-                    stamp="20260101-000000",
-                    expected_main=self.expected_main,
-                    main_ref="refs/heads/main",
-                )
-
-        self.assertEqual(1, code, stdout.getvalue() + stderr.getvalue())
-        self.assertIn("rolled back every moved entry", stderr.getvalue())
-        for relative in (
-            "docs/goal/PLAN.md",
-            "docs/goal/RUN.md",
-            "docs/goal/DECISIONS.md",
-            "docs/goal/evidence",
-            "docs/tasks.md",
-        ):
-            self.assertTrue((self.root / relative).exists(), relative)
-        self.assertFalse((self.goal / "archived").exists())
-
-    def test_a_documents_update_failure_rolls_back_moves_and_document_bytes(self) -> None:
+    def test_a_documents_update_failure_preserves_the_partial_archive(self) -> None:
         documents = self.root / "docs" / "DOCUMENTS.md"
-        original = self.documents_original
         real_update = archive_run._update_documents
 
         def fail_after_write(root: Path) -> None:
@@ -894,126 +476,17 @@ class ArchiveRunTests(unittest.TestCase):
                 )
 
         self.assertEqual(1, code, stdout.getvalue() + stderr.getvalue())
-        self.assertIn("rolled back every moved entry", stderr.getvalue())
-        self.assertEqual(original, documents.read_text(encoding="utf-8"))
-        self.assertTrue((self.goal / "RUN.md").exists())
-        self.assertFalse((self.goal / "archived").exists())
+        self.assertIn("partial archive retained", stderr.getvalue())
+        self.assertIn("docs/goal/archived/", documents.read_text(encoding="utf-8"))
+        archived = self.goal / "archived/20260101-000000-documents-rollback"
+        self.assertTrue((archived / "RUN.md").is_file())
+        self.assertTrue((archived / "PLAN.md").is_file())
+        self.assertTrue((archived / "ARCHIVE_RECEIPT.json").is_file())
 
-    def test_documents_update_failure_preserves_a_concurrent_new_documents_file(self) -> None:
-        documents = self.root / "docs" / "DOCUMENTS.md"
-        documents.unlink()
-        mf.git(self.root, "add", "docs/DOCUMENTS.md")
-        mf.git(self.root, "commit", "-qm", "remove document inventory")
-        new_head = mf.git(self.root, "rev-parse", "HEAD")
-        self.rebuild_run_at_head(new_head)
-        self.write_manifests()
-        self.assertFalse(documents.exists())
 
-        def fail_after_write(root: Path) -> None:
-            (root / "docs" / "DOCUMENTS.md").write_text(
-                "partial write\n", encoding="utf-8"
-            )
-            raise OSError("injected DOCUMENTS update failure")
 
-        with patch.object(archive_run, "_update_documents", side_effect=fail_after_write):
-            code = archive_run.archive(
-                self.root,
-                slug="new-documents-rollback",
-                apply=True,
-                stamp="20260101-000000",
-                expected_main=self.expected_main,
-                main_ref="refs/heads/main",
-            )
 
-        self.assertEqual(1, code)
-        # A newly introduced DOCUMENTS file is not transaction-owned when the
-        # write path failed before recording its identity.  Preserve it and
-        # leave the journaled archive target for explicit recovery rather than
-        # deleting a concurrent writer's data.
-        self.assertTrue(documents.exists())
-        self.assertTrue((self.goal / "RUN.md").exists())
-        self.assertTrue((self.goal / "archived").exists())
 
-    def test_documents_concurrent_edit_is_preserved_during_rollback(self) -> None:
-        documents = self.root / "docs" / "DOCUMENTS.md"
-        real_update = archive_run._update_documents
-
-        def edit_after_transaction_write(root: Path) -> None:
-            real_update(root)
-            (root / "docs" / "DOCUMENTS.md").write_text("concurrent operator edit\n", encoding="utf-8")
-            raise OSError("injected concurrent edit")
-
-        with patch.object(archive_run, "_update_documents", side_effect=edit_after_transaction_write):
-            code = archive_run.archive(
-                self.root,
-                slug="documents-concurrent-edit",
-                apply=True,
-                stamp="20260101-000000",
-                expected_main=self.expected_main,
-                main_ref="refs/heads/main",
-            )
-        self.assertEqual(1, code)
-        self.assertEqual("concurrent operator edit\n", documents.read_text(encoding="utf-8"))
-        self.assertTrue((self.goal / "RUN.md").exists())
-        self.assertTrue((self.goal / "archived").exists())
-
-    def test_archive_rereads_head_under_guard_before_first_write(self) -> None:
-        original = archive_run._live_head_problems
-        calls = {"count": 0}
-
-        def drift_after_first_snapshot(run: dict[str, object], root: Path, expected_main: str, main_ref: str, moves: list[Path], plan=None) -> list[str]:
-            calls["count"] += 1
-            problems = original(run, root, expected_main, main_ref, moves, plan)
-            if calls["count"] == 1:
-                mf.git(root, "commit", "--allow-empty", "-qm", "late HEAD drift")
-            return problems
-
-        with patch.object(archive_run, "_live_head_problems", side_effect=drift_after_first_snapshot):
-            code = archive_run.archive(
-                self.root,
-                slug="late-head-drift",
-                apply=True,
-                stamp="20260101-000000",
-                expected_main=self.expected_main,
-                main_ref="refs/heads/main",
-            )
-        self.assertEqual(1, code)
-        self.assertGreaterEqual(calls["count"], 2)
-        self.assertFalse((self.goal / "archived" / "20260101-000000-late-head-drift").exists())
-
-    def test_archive_rereads_clean_status_under_guard(self) -> None:
-        original = archive_run._live_head_problems
-        calls = {"count": 0}
-
-        def dirty_after_first_snapshot(run: dict[str, object], root: Path, expected_main: str, main_ref: str, moves: list[Path], plan=None) -> list[str]:
-            calls["count"] += 1
-            problems = original(run, root, expected_main, main_ref, moves, plan)
-            if calls["count"] == 1:
-                (root / "late-unrelated.txt").write_text("late dirty path\n", encoding="utf-8")
-            return problems
-
-        with patch.object(archive_run, "_live_head_problems", side_effect=dirty_after_first_snapshot):
-            code = archive_run.archive(
-                self.root,
-                slug="late-clean-drift",
-                apply=True,
-                stamp="20260101-000000",
-                expected_main=self.expected_main,
-                main_ref="refs/heads/main",
-            )
-        self.assertEqual(1, code)
-        self.assertGreaterEqual(calls["count"], 2)
-        self.assertTrue((self.root / "late-unrelated.txt").exists())
-
-    def test_anchor_timestamp_requires_strict_utc_rfc3339(self) -> None:
-        for value in (
-            "2026-01-01T00:00:00+00:00",
-            "2026-01-01T00:00Z",
-            "2026-01-01T00:00:00.1234567Z",
-        ):
-            with self.assertRaises(ValueError, msg=value):
-                archive_run._validate_utc_timestamp(value, "created_at")
-        archive_run._validate_utc_timestamp("2026-01-01T00:00:00.123456Z", "created_at")
 
     def test_apply_refuses_the_wrong_current_branch(self) -> None:
         mf.git(self.root, "checkout", "-q", "main")
@@ -1140,81 +613,144 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         self.assertIn("run-20260911-demo", self.archived_dir().name)
 
-    @unittest.skipUnless(os.name == "nt", "requires Windows directory sharing semantics")
-    def test_archive_parent_swap_after_preflight_cannot_escape_checkout(self) -> None:
-        external = self.root.parent / f"archive-external-{self.root.name}"
-        external.mkdir()
-        original_init = archive_run._ArchiveMutationGuard.__init__
-        attempted = {"blocked": False}
-        backup = self.goal / "archived-original"
+    def test_a_move_failure_keeps_both_remaining_sources_and_moved_entries(self) -> None:
+        real_move = archive_run._move_entry
 
-        def swap_after_guard(guard: archive_run._ArchiveMutationGuard, root: Path, moves: list[Path], target: Path, anchor_path: Path | None = None) -> None:
-            original_init(guard, root, moves, target, anchor_path)
-            archived = self.goal / "archived"
-            try:
-                archived.rename(backup)
-            except OSError:
-                attempted["blocked"] = True
-                guard.close()
-                raise
-            archived.mkdir()
-            attempted["blocked"] = True
+        def fail_on_run(source: Path, destination: Path) -> None:
+            if source.name == "RUN.md":
+                raise OSError("injected RUN.md move failure")
+            real_move(source, destination)
 
-        with patch.object(archive_run._ArchiveMutationGuard, "__init__", swap_after_guard):
-            result = archive_run.archive(
-                self.root,
-                slug="run-20260911-demo",
-                apply=True,
-                stamp="20260101-000000",
-                expected_main=self.expected_main,
-                main_ref="refs/heads/main",
-            )
-        if (self.goal / "archived").exists() and not any((self.goal / "archived").iterdir()):
-            (self.goal / "archived").rmdir()
-        if backup.exists() and not (self.goal / "archived").exists():
-            backup.rename(self.goal / "archived")
-        self.assertEqual(1, result)
-        self.assertTrue(attempted["blocked"])
-        self.assertFalse(any(external.iterdir()))
-        self.assertTrue((self.goal / "PLAN.md").exists())
-        self.assertTrue((self.goal / "RUN.md").exists())
-        self.assertFalse((self.goal / "archived" / "20260101-000000-run-20260911-demo").exists())
-
-    @unittest.skipUnless(os.name == "nt", "requires Windows directory sharing semantics")
-    def test_rollback_target_swap_is_blocked_before_handle_bound_cleanup(self) -> None:
-        original_update = archive_run._update_documents
-        original_remove = archive_run._ArchiveMutationGuard.remove_target
-        blocked = {"value": False}
-
-        def fail_documents(root: Path) -> None:
-            original_update(root)
-            raise OSError("injected rollback")
-
-        def guarded_remove(guard: archive_run._ArchiveMutationGuard) -> None:
-            backup = guard.target.with_name(guard.target.name + "-backup")
-            try:
-                guard.target.rename(backup)
-            except OSError:
-                blocked["value"] = True
-            else:
-                backup.rename(guard.target)
-                raise AssertionError("rollback target replacement was not blocked")
-            original_remove(guard)
-
-        with patch.object(archive_run, "_update_documents", side_effect=fail_documents):
-            with patch.object(archive_run._ArchiveMutationGuard, "remove_target", autospec=True, side_effect=guarded_remove):
-                result = archive_run.archive(
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+        with patch.object(archive_run, "_move_entry", side_effect=fail_on_run):
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                code = archive_run.archive(
                     self.root,
-                    slug="rollback-target",
+                    slug="rollback",
                     apply=True,
                     stamp="20260101-000000",
                     expected_main=self.expected_main,
                     main_ref="refs/heads/main",
                 )
-        self.assertEqual(1, result)
-        self.assertTrue(blocked["value"])
-        self.assertTrue((self.goal / "PLAN.md").exists())
-        self.assertFalse((self.goal / "archived" / "20260101-000000-rollback-target").exists())
+
+        self.assertEqual(1, code, stdout.getvalue() + stderr.getvalue())
+        self.assertIn("partial archive retained", stderr.getvalue())
+        self.assertTrue((self.goal / "archived/20260101-000000-rollback/PLAN.md").is_file())
+        for relative in (
+            "docs/goal/RUN.md",
+            "docs/goal/DECISIONS.md",
+            "docs/goal/evidence",
+            "docs/tasks.md",
+        ):
+            self.assertTrue((self.root / relative).exists(), relative)
+        self.assertTrue((self.goal / "archived").is_dir())
+
+    def test_a_failed_archive_keeps_a_preexisting_archived_parent(self) -> None:
+        archived = self.goal / "archived"
+        archived.mkdir()
+        sentinel = archived / "keep.txt"
+        sentinel.write_text("unrelated archive\n", encoding="utf-8")
+        (self.root / ".git/info/exclude").write_text("docs/goal/archived/keep.txt\n", encoding="utf-8")
+        with patch.object(archive_run, "_move_entry", side_effect=OSError("injected")):
+            with contextlib.redirect_stderr(io.StringIO()):
+                code = archive_run.archive(
+                    self.root,
+                    slug="keep-parent",
+                    apply=True,
+                    stamp="20260101-000000",
+                    expected_main=self.expected_main,
+                    main_ref="refs/heads/main",
+                )
+        self.assertEqual(1, code)
+        self.assertEqual("unrelated archive\n", sentinel.read_text(encoding="utf-8"))
+        self.assertEqual({"keep.txt", "20260101-000000-keep-parent"}, {item.name for item in archived.iterdir()})
+        self.assertTrue((archived / "20260101-000000-keep-parent/ARCHIVE_RECEIPT.json").is_file())
+        self.assertTrue((self.goal / "RUN.md").exists())
+
+    def test_a_link_planted_during_the_move_fails_and_preserves_entries(self) -> None:
+        nested = self.goal / "evidence" / "deep"
+        nested.mkdir(parents=True)
+        try:
+            probe = nested / "probe"
+            probe.symlink_to(self.root / ".git", target_is_directory=True)
+            probe.unlink()
+        except (OSError, NotImplementedError) as exc:
+            self.skipTest(f"symlink unavailable: {exc}")
+        real_move = archive_run._move_entry
+
+        def plant_after_move(source: Path, destination: Path) -> None:
+            real_move(source, destination)
+            if source.name == "evidence":
+                (destination / "deep" / "post-move-link").symlink_to(
+                    self.root / ".git", target_is_directory=True
+                )
+
+        with patch.object(archive_run, "_move_entry", side_effect=plant_after_move):
+            with contextlib.redirect_stderr(io.StringIO()):
+                code = archive_run.archive(
+                    self.root,
+                    slug="post-move-link",
+                    apply=True,
+                    stamp="20260101-000000",
+                    expected_main=self.expected_main,
+                    main_ref="refs/heads/main",
+                )
+        self.assertEqual(1, code)
+        partial = self.goal / "archived/20260101-000000-post-move-link"
+        self.assertTrue((partial / "RUN.md").is_file())
+        self.assertTrue((partial / "evidence").is_dir())
+
+    def test_a_concurrent_documents_edit_is_preserved_when_the_update_fails(self) -> None:
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        real_update = archive_run._update_documents
+
+        def edit_after_write(root: Path) -> None:
+            real_update(root)
+            documents.write_text("concurrent operator edit\n", encoding="utf-8")
+            raise OSError("injected concurrent edit")
+
+        stderr = io.StringIO()
+        with patch.object(archive_run, "_update_documents", side_effect=edit_after_write):
+            with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(stderr):
+                code = archive_run.archive(
+                    self.root,
+                    slug="documents-concurrent-edit",
+                    apply=True,
+                    stamp="20260101-000000",
+                    expected_main=self.expected_main,
+                    main_ref="refs/heads/main",
+                )
+        self.assertEqual(1, code)
+        self.assertIn("partial archive retained", stderr.getvalue())
+        self.assertEqual("concurrent operator edit\n", documents.read_text(encoding="utf-8"))
+        # The moves stay in the archive for manual recovery.
+        self.assertTrue((self.goal / "archived").exists())
+
+    def test_documents_write_refuses_to_overwrite_a_concurrent_edit(self) -> None:
+        documents = self.root / "docs" / "DOCUMENTS.md"
+        with self.assertRaisesRegex(OSError, "content changed before write"):
+            archive_run._write_documents(documents, b"new\n", expected=b"stale\n")
+        self.assertEqual(self.documents_original, documents.read_text(encoding="utf-8"))
+        self.assertEqual([], [item.name for item in documents.parent.iterdir() if item.name.endswith(".tmp")])
+
+    def test_receipt_carries_no_anchor_and_legacy_anchor_keys_stay_valid(self) -> None:
+        result = self.archive("--apply", "--stamp", "20260101-000000")
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        receipt = json.loads((self.archived_dir() / "ARCHIVE_RECEIPT.json").read_text(encoding="utf-8"))
+        self.assertEqual([], archive_run.validate_archive_receipt(receipt))
+        self.assertFalse(set(receipt) & archive_run.ARCHIVE_RECEIPT_LEGACY_ANCHOR_KEYS)
+        legacy = {**receipt, "anchor_path": None, "anchor_path_sha256": None, "anchor_nonce": None}
+        legacy["receipt_sha256"] = archive_run._receipt_digest(legacy)
+        self.assertEqual([], archive_run.validate_archive_receipt(legacy))
+        partial = {**receipt, "anchor_path": None}
+        partial["receipt_sha256"] = archive_run._receipt_digest(partial)
+        self.assertTrue(archive_run.validate_archive_receipt(partial))
+
+    def test_removed_anchor_and_recover_flags_are_refused(self) -> None:
+        for flag in ("--anchor-out", "--recover"):
+            result = self.archive(flag, str(self.root.parent / "x"))
+            self.assertEqual(2, result.returncode, flag)
 
 
 if __name__ == "__main__":

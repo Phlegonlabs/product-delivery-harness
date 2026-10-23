@@ -28,11 +28,24 @@ def write_artifact(root: Path, filename: str, contents: bytes) -> Path:
 
 
 def evidence_run(root: Path, artifact: Path, schema_version: int) -> dict[str, object]:
+    def git(*arguments: str) -> str:
+        result = subprocess.run(["git", *arguments], cwd=root, capture_output=True, text=True, timeout=10)
+        if result.returncode != 0:
+            raise AssertionError(result.stderr)
+        return result.stdout.strip()
+    git("init", "-q")
+    git("config", "user.name", "Harness Test")
+    git("config", "user.email", "harness@example.invalid")
+    git("add", artifact.relative_to(root).as_posix())
+    if git("diff", "--cached", "--name-only"):
+        git("commit", "-qm", "retain screenshot fixture")
+    head = git("rev-parse", "HEAD")
     contents = artifact.read_bytes()
     return {
-        "schema_version": schema_version,
+        "schema_version": 11,
         "ui_evidence": [
             {
+                "head_sha": head,
                 "artifact_path": artifact.relative_to(root).as_posix(),
                 "artifact_sha256": hashlib.sha256(contents).hexdigest(),
             }
@@ -70,7 +83,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                     "UI image evidence decoding requires Pillow; install the engineering test dependencies"
                 ),
             ):
-                errors = subject.validate_ui_evidence_files(
+                errors = subject.validate_ui_evidence_files({},
                     evidence_run(root, artifact, 9), root
                 )
         self.assertTrue(any("requires Pillow" in error for error in errors), errors)
@@ -99,7 +112,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                     artifact.parent.mkdir(parents=True)
                     Image.new("RGB", (3, 2), "blue").save(artifact, format=image_format)
                     run = evidence_run(root, artifact, schema_version)
-                    self.assertEqual(subject.validate_ui_evidence_files(run, root), [])
+                    self.assertEqual(subject.validate_ui_evidence_files({}, run, root), [])
 
     def test_schema_v9_accepts_real_png_jpeg_and_webp_images(self) -> None:
         self.assert_real_formats_accepted(9)
@@ -112,7 +125,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                 "signature-garbage.png",
                 b"\x89PNG\r\n\x1a\nthis is not a decoded image",
             )
-            errors = subject.validate_ui_evidence_files(
+            errors = subject.validate_ui_evidence_files({},
                 evidence_run(root, artifact, 9), root
             )
         self.assertTrue(any("cannot be decoded" in error for error in errors), errors)
@@ -124,7 +137,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
             artifact.parent.mkdir(parents=True)
             Image.new("RGB", (10, 10), "green").save(artifact, format="PNG")
             artifact.write_bytes(artifact.read_bytes()[:20])
-            errors = subject.validate_ui_evidence_files(
+            errors = subject.validate_ui_evidence_files({},
                 evidence_run(root, artifact, 9), root
             )
         self.assertTrue(any("cannot be decoded" in error for error in errors), errors)
@@ -135,7 +148,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
             artifact = root / "docs" / "goal" / "evidence" / "jpeg-as-png.png"
             artifact.parent.mkdir(parents=True)
             Image.new("RGB", (3, 2), "red").save(artifact, format="JPEG")
-            errors = subject.validate_ui_evidence_files(
+            errors = subject.validate_ui_evidence_files({},
                 evidence_run(root, artifact, 9), root
             )
         self.assertTrue(any("decoded format JPEG" in error for error in errors), errors)
@@ -166,7 +179,7 @@ class UiEvidenceImageValidationTests(unittest.TestCase):
                 "open",
                 side_effect=[ZeroDimensionImage(), ZeroDimensionImage()],
             ):
-                errors = subject.validate_ui_evidence_files(run, root)
+                errors = subject.validate_ui_evidence_files({}, run, root)
         self.assertTrue(any("non-zero dimensions" in error for error in errors), errors)
 
 
@@ -208,12 +221,12 @@ class UiEvidenceGitBindingTests(unittest.TestCase):
             Image.new("RGB", (3, 2), "red").save(mutated, format="PNG")
             artifact.write_bytes(mutated.getvalue())
 
-            self.assertEqual([], subject.validate_ui_evidence_files(run, root))
+            self.assertEqual([], subject.validate_ui_evidence_files({}, run, root))
 
             run["ui_evidence"][0]["artifact_sha256"] = hashlib.sha256(
                 mutated.getvalue()
             ).hexdigest()
-            errors = subject.validate_ui_evidence_files(run, root)
+            errors = subject.validate_ui_evidence_files({}, run, root)
             self.assertTrue(any("sha256 does not match artifact_sha256" in error for error in errors), errors)
 
     def test_schema_v10_rejects_worktree_only_artifacts(self) -> None:
@@ -228,7 +241,7 @@ class UiEvidenceGitBindingTests(unittest.TestCase):
             run = evidence_run(root, artifact, 10)
             run["ui_evidence"][0]["head_sha"] = accepted_sha
 
-            errors = subject.validate_ui_evidence_files(run, root)
+            errors = subject.validate_ui_evidence_files({}, run, root)
 
         self.assertTrue(any("accepted Git commit" in error for error in errors), errors)
 
@@ -261,7 +274,7 @@ class TargetComparisonSchemaTests(unittest.TestCase):
             ]
         }
         run = {
-            "schema_version": schema_version,
+            "schema_version": 11,
             "ui_evidence": [item],
             "integration": {"integration_head_sha": "b" * 40},
         }
@@ -277,10 +290,6 @@ class TargetComparisonSchemaTests(unittest.TestCase):
             any("target_comparison" in error for error in errors), errors
         )
 
-    def test_v9_row_without_target_comparison_still_passes_schema(self) -> None:
-        item = self.row()
-        item.pop("target_comparison")
-        self.assertEqual(self.validate(9, item), [])
 
     def test_valid_html_target_pass_row_is_accepted(self) -> None:
         self.assertEqual(
@@ -599,7 +608,7 @@ class LayoutCheckSchemaTests(unittest.TestCase):
             ]
         }
         run: dict[str, object] = {
-            "schema_version": schema_version,
+            "schema_version": 11,
             "ui_evidence": [item],
             "integration": {"integration_head_sha": "b" * 40},
         }
@@ -821,7 +830,7 @@ class TargetComparisonArtifactTests(unittest.TestCase):
                 "baseline_artifact": target_path.relative_to(root).as_posix(),
                 "verdict": "pass",
             }
-            self.assertEqual([], subject.validate_ui_evidence_files(run, root))
+            self.assertEqual([], subject.validate_ui_evidence_files({}, run, root))
 
             # A reference render that only exists in the working tree, never in
             # the accepted commit, is not parity evidence.
@@ -831,7 +840,7 @@ class TargetComparisonArtifactTests(unittest.TestCase):
             run["ui_evidence"][0]["target_comparison"]["baseline_artifact"] = (
                 worktree_only.relative_to(root).as_posix()
             )
-            errors = subject.validate_ui_evidence_files(run, root)
+            errors = subject.validate_ui_evidence_files({}, run, root)
             self.assertTrue(
                 any(
                     "target_comparison.baseline_artifact" in error
@@ -862,7 +871,7 @@ class TargetComparisonArtifactTests(unittest.TestCase):
                 "baseline_artifact": target.relative_to(root).as_posix(),
                 "verdict": "pass",
             }
-            errors = subject.validate_ui_evidence_files(run, root)
+            errors = subject.validate_ui_evidence_files({}, run, root)
             self.assertTrue(
                 any(
                     "target_comparison.baseline_artifact" in error

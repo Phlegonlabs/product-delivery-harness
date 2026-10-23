@@ -19,7 +19,7 @@ Ask one product-specific set covering:
 - reference images, screenshots, websites, Figma views, named products, or brand references, with the page or aspect to learn from and what to avoid; and
 - whether the owner wants one recommended direction or three comparable directions.
 
-Three comparable directions is the default for a new package. A one-direction recommendation is valid only when the owner explicitly chooses it after the product-specific options are understood; continuing uncertainty does not make that choice. Do not reuse a fixed aesthetic catalog. Derive the language and any choices from the product, audience, platform, tasks, content, market evidence, and existing brand. If the owner is unsure, offer two or three product-specific interpretations with a recommendation instead of generic labels such as `modern`, `clean`, or `premium`.
+The direction-mode rule is in `ui-design-pass.md`'s Style Intake Gate. Do not reuse a fixed aesthetic catalog. Derive the language and any choices from the product, audience, platform, tasks, content, market evidence, and existing brand. If the owner is unsure, offer two or three product-specific interpretations with a recommendation instead of generic labels such as `modern`, `clean`, or `premium`.
 
 At unresolved intake, use Ask User (the host's user-question tool when available, otherwise ordinary conversation) to ask: "Do you have any images, screenshots, websites, Figma views or products you want us to reference? Which page or aspects should we learn from, and what should we avoid?" Adapt this wording to the product and owner's language. Reuse references and answers already supplied rather than asking again.
 

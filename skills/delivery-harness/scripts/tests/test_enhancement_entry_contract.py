@@ -44,7 +44,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
                        "before completion or handoff", "commits made outside Harness",
                        "baseline gap", "observed / unverified", "working-tree", "actual verification separately",
                        "fingerprint", "no-change check", "read-only or no-write task",
-                       "not a background timer", "Keep `docs/DOCUMENTS.md` indexed"):
+                       "not a background timer", "Keep `docs/DOCUMENTS.md` indexed",
+                       "one entry check with one record"):
             self.assertIn(phrase, section)
         if (REPO / "AGENTS.md").exists():
             self.assertIn("significant edit", root.lower())
@@ -71,16 +72,23 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "delivery-harness/VERSION",
             "current`, `stale` or `unknown`", "update only stale shared instructions in place",
             "A read-only handoff reports proposed updates", "not a timer",
+            "This audit is the one exit check",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, seeded)
 
     def test_every_entry_routes_to_shared_sync_and_bounded_policy(self):
+        checklist = self.owner_section("task-and-handoff.md", "## Project Entry And Current Work")
+        for reference in ("document-sync-contract.md", "bounded-enhancement.md",
+                          "delegation-contract.md", "gen-verify-correct.md", "prd-refinement.md"):
+            with self.subTest(checklist=reference):
+                self.assertIn(reference + ")", checklist)
         for name in NAMES:
             with self.subTest(skill=name):
                 content = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
-                self.assertIn("references/document-sync-contract.md", content)
-                self.assertIn("references/bounded-enhancement.md", content)
+                self.assertIn(
+                    "references/governance/task-and-handoff.md#project-entry-and-current-work)", content
+                )
                 for reference in ("document-sync-contract.md", "bounded-enhancement.md"):
                     self.assertTrue((SKILLS / "delivery-harness/references" / reference).is_file())
 
@@ -117,14 +125,21 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "child independently reads its complete named instruction chain",
             "verifies packet source hashes",
             "Unknown loaded identity stays unknown",
-            "Reuse a semantic template audit",
-            "recorded SHA-256 values",
-            "newly applicable, missing, or changed input invalidates reuse",
-            "restart and summary compaction",
-            "Never synthesize unknown loaded identity",
         ):
             with self.subTest(reference="document-sync", phrase=phrase):
                 self.assertIn(phrase, sync)
+        for phrase in (
+            "A later invocation reuses it while HEAD and the instruction bytes match",
+            "one Change Log row with the adopted digest in the current Epic, never a new Epic",
+            "Reuse a semantic template audit",
+            "recorded SHA-256 values",
+            "newly applicable, missing, or changed input invalidates reuse",
+            "the audit survives summary compaction",
+            "as do restart",
+            "Never synthesize unknown loaded identity",
+        ):
+            with self.subTest(reference="task-and-handoff", phrase=phrase):
+                self.assertIn(phrase, owner)
         self.assertIn("semantic template audit", bounded)
         delegation = (SKILLS / "delivery-harness/references/delegation-contract.md").read_text(encoding="utf-8")
         performance = (SKILLS / "delivery-harness/references/runtime-performance.md").read_text(encoding="utf-8")

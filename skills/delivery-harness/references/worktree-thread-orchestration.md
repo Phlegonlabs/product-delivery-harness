@@ -11,24 +11,23 @@ Before reading this runtime/worktree procedure, the parent completes the read-on
 Record three independent fields for each run or worker:
 
 ```text
-worker_runtime: parent | subagent | app_task
-workspace_mode: shared_checkout | parent_managed_worktree | app_managed_worktree
-completion_channel: agent_result | thread_poll | report_file | user_relay
+worker_runtime: parent | subagent
+workspace_mode: shared_checkout | parent_managed_worktree
+completion_channel: agent_result | report_file
 ```
 
 These fields are orthogonal. Do not infer workspace isolation, completion notification, or cleanup behavior from the word "worker" or from a product name.
 
 - `subagent` is a parent-managed child. It can return an `agent_result`, but still shares the checkout unless an isolated workspace was deliberately provided.
-- `app_task` is an independent, user-owned app task with its own conversation in the left sidebar. A generic skill cannot promise an automatic callback to the parent task; use polling, a report file, or user relay unless an App Server integration supplies events.
 - `parent` is the sequential route when delegation is unavailable; its plan-backed mission still requires a parent-managed worktree.
 
 If an optional combination is unsupported, use sequential parent execution only when the accepted route permits it and record the reason. An explicitly requested user-owned task or isolation boundary blocks until supported or changed by the owner. Never silently simulate parallel isolation in a shared checkout.
 
 ## Runtime Adapter Routing
 
-Use the one general contract in `runtime-adapters.md`. Observe the current host's native tools, effective instructions, permission boundary, completion channel and isolation. Record a lowercase provider identity (or `generic` when unknown), ordered `available_drivers`, and `detection_source`. Drivers are `app_threads`, `subagents`, and `sequential_parent`; provider names never choose a driver.
+Use the one general contract in `runtime-adapters.md`. Observe the current host's native tools, effective instructions, permission boundary, completion channel and isolation. Record a lowercase provider identity (or `generic` when unknown), ordered `available_drivers`, and `detection_source`. Current drivers are `subagents` and `sequential_parent`; provider names never choose a driver.
 
-Every advertised delegated driver needs evidenced capability facts before ready/running dispatch. Record only relevant capabilities; no launch grant is implied. Models and effort remain null unless explicitly selected and supported. Requested independent user-owned tasks cannot be replaced by direct subagents or a parent fallback.
+Observe each advertised driver before ready/running dispatch; provider names do not prove capability. Record only relevant capabilities; no launch grant is implied. Models and effort remain null unless explicitly selected and supported. Requested independent user-owned tasks cannot be replaced by direct subagents or a parent fallback.
 
 The node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host. Never probe or launch another runtime as a bridge. Driver bindings must match the recorded workspace and completion axes.
 
@@ -72,7 +71,7 @@ Reserve `shared_checkout` for genuinely small direct work (see the Project Size 
 
 ### Parent-managed worktree
 
-Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. A no-agent `sequential_parent` route requires this same isolated worktree contract while the parent itself writes the mission and serializes the budget at one; if it cannot be created or authorized, the route blocks. Create each worktree from the recorded `batch_base_sha` on the resolved integration branch. Resolve that exact non-default run branch from repository governance or the user's instruction; if neither source names it, ask before branch creation and never synthesize a fixed prefix or name. Per `branch-promotion-contract.md`, use PLAN `branch_policy` to cut initial-delivery and enhancement run branches from the frozen remote `main` head for both ordinary work and hotfixes. The first wave uses that recorded base; later waves re-anchor to the current integration head. The primary integration checkout is a merge target, never a direct implementation surface: each mission worktree receives an exact-head read-only review before it may merge there.
+Default every plan-backed mission write to `parent_managed_worktree`, whether one mission is worked at a time or several run concurrently — `create_local_worktrees` authorization covers this even for a single sequential mission. A no-agent `sequential_parent` route requires this same isolated worktree contract while the parent itself writes the mission and serializes the budget at one; if it cannot be created or authorized, the route blocks. Create each worktree from the recorded `batch_base_sha` on the resolved integration branch. Resolve that exact non-default run branch from repository governance or the user's instruction; if neither source names it, ask before branch creation and never synthesize a fixed prefix or name. Per `branch-promotion-contract.md`, use PLAN `branch_policy` to cut initial-delivery and enhancement run branches from the frozen remote `main` head for both ordinary work and hotfixes. The first wave uses that recorded base; later waves re-anchor to the current integration head. The primary integration checkout is a merge target, never a direct implementation surface; a mission merges there after the gates `verification-gates.md#review-topology` requires for its `review_policy`.
 
 - The parent creates every worktree from the same recorded `batch_base_sha`; portable write handoff also requires `create_local_branches` and `create_local_commits`, because the parent integrates a durable committed head rather than an uncommitted patch.
 - The parent records the exact path, branch/ref, lease, ports, databases, fixtures, and external resource claims.
@@ -81,25 +80,9 @@ Default every plan-backed mission write to `parent_managed_worktree`, whether on
 
 ### App-managed worktree
 
-Use `app_managed_worktree` only when the runtime exposes it and `create_app_managed_worktrees` is explicitly authorized. The other required actions depend on who owns the worker:
-
-- A user-owned host app task requires `create_user_owned_tasks` and uses `app_task` + `thread_poll` or another declared task channel.
-
-For user-owned host app tasks:
-
-- Record the returned task/thread identity and completion channel, then pass the real ID to `lease-worker --task-thread-id` for an `app_task`. Never invent an identity from the mission ID or pass a task ID to another worker runtime.
-- Include run, PLAN revision/digest, wave, and mission identity in the task packet. If task creation returns no usable identity, inspect existing app tasks/worktrees and bind only one exact packet/base match; otherwise block. Never create a duplicate automatically or delete the uncertain task.
-- Use one top-level task/thread with one app-managed worktree per selected Harness mission. It appears as an independent conversation in the host task list. Direct subagents of the coordinator do not satisfy this boundary.
-- Managed worktrees may begin detached. If durable commits or handoff are required, create an authorized branch or durable ref early; do not leave unique work reachable only from a detached checkout.
-- Do not launch app-managed write fan-out unless branch and commit creation are authorized. Otherwise use sequential parent execution; this protocol does not depend on extracting an uncommitted patch from a managed worktree.
-- Use the repository's supported ignored-file inclusion mechanism, such as `.worktreeinclude`, only for necessary local files and never to copy tracked files or secrets without permission.
-- Treat the app task itself as the sole writer in its managed worktree. Any explorer or reviewer is a separately parent-dispatched read-only sibling; a second writer requires a separately planned mission and isolated worktree.
-- Preflight the selected permission mode before task creation. A linked worktree's `.git` file points to metadata in the original repository's Git common directory, which may sit outside the app worktree sandbox; branch creation and commits can therefore prompt even when source edits are inside the worktree. Package caches, system temp, local dev ports, private-network bindings, and Unix sockets are separate surfaces that must also fit the selected boundary.
-- Record the effective permission boundary in RUN. Subagents inherit the app task's active mode, and app tasks inherit the parent mode chosen before launch. `Approve for me` changes eligible prompt review but does not widen the sandbox. A later config/composer change does not retroactively update already-running tasks.
-
-The platform controls managed-worktree retention. `remove_worktrees: false` prevents Harness-initiated removal; it cannot override platform lifecycle or automatic retention cleanup. Preserve failed or cancelled worktrees and commits for diagnosis. Never reset or delete them automatically.
-
-Prefer event-driven cross-task completion when the runtime exposes task/thread events, such as native status notifications, or a cursor-based wait surface. `thread_poll` remains the stable RUN channel label for both cursor waits and its repeated-read fallback. When no event/wait surface exists, use bounded repeated inspection, `report_file`, or `user_relay` and record that limitation and wait time explicitly.
+Current managed dispatch does not support user-owned app tasks or app-managed writer allocation.
+An explicit request for them blocks; never replace it silently with subagents or parent execution.
+Historical task/worktree identities and retention evidence remain unchanged under their [exact pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 
 ## Flat Parent-Owned Agent Topology
 
@@ -109,7 +92,8 @@ Use one coordination level:
 Harness parent -> read-only explorers | mission writers | read-only reviewers
 ```
 
-Workers and reviewers never spawn or delegate further. RUN-v11 therefore accepts only an omitted or disabled `nested_subagent_policy`. If an app task would benefit from another independent view, it reports that need and waits; the parent may dispatch a bounded read-only sibling under its own authorization and budget.
+Workers and reviewers never spawn or delegate further.
+They report a need for another independent view to the parent, which owns any authorized sibling assignment.
 
 Every write mission has one worker, one explicit `write_scope` ownership boundary, and one clean exact-base worktree. Before launch, the parent verifies repository identity, branch/ref, HEAD equal to `batch_base_sha`, and empty `git status --porcelain`. Shared API, schema, and type edits are a prerequisite mission: freeze, review, and integrate them before cutting dependent worktrees.
 
@@ -157,7 +141,7 @@ deferred_nodes with reason codes
 conflict_edges with reason codes
 ```
 
-The selector does not emit a batch base, an effective budget, or a bundled wave. The parent binds the committed `batch_base_sha` (the observed parent head), confirms the budget it applied, and records the accepted wave in `RUN.md`. Parent-managed routes then allocate their authorized worktree/branch before `lease-worker`; an app-task route creates the task/worktree first and immediately leases the returned exact identities. The scripted write path uses `harness_transition.py record-observation` (live-Git snapshot), `accept-wave` (reruns selection and accepts the current mission frontier), `lease-worker` (derives and records the complete worker binding and exact identities), `reserve-node-attempt` (reserves approval, external-wait, lifecycle, or deterministic batch/final-verifier work), `record-node-result` (records the matching outcome/evidence and traverses routes), `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-coordination-head` (binds a committed coordination-only checkpoint), and `close-wave`. A selected `worker_passed` mission may close under a surviving `run_complete` grant and integrate afterward; a `wave_closed` grant must first resolve every selected mission. Hand-editing the RUN JSON for these steps is forbidden. Selector and validator scripts do not mutate Git, PLAN, or RUN; `harness_transition.py` is the sole scripted RUN writer. Lifecycle actions execute outside the transition lock and lifecycle targets must already be exact.
+The selector does not emit a batch base, an effective budget, or a bundled wave. The parent binds the committed `batch_base_sha` (the observed parent head), confirms the budget it applied, and records the accepted wave in `RUN.md`. The parent allocates the authorized worktree and branch before `lease-worker`, then binds the actual returned worker identity. The scripted write path uses `harness_transition.py record-observation` (live-Git snapshot), `accept-wave` (reruns selection and accepts the current mission frontier), `lease-worker` (derives and records the complete worker binding and exact identities), `reserve-node-attempt` (reserves approval, external-wait, lifecycle, or deterministic batch/final-verifier work), `record-node-result` (records the matching outcome/evidence and traverses routes), `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-coordination-head` (binds a committed coordination-only checkpoint), and `close-wave`. A selected `worker_passed` mission may close under a surviving `run_complete` grant and integrate afterward; a `wave_closed` grant must first resolve every selected mission. Hand-editing the RUN JSON for these steps is forbidden. Selector and validator scripts do not mutate Git, PLAN, or RUN; `harness_transition.py` is the sole scripted RUN writer. Lifecycle actions execute outside the transition lock and lifecycle targets must already be exact.
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
@@ -165,7 +149,7 @@ When no safe set exists, run the next dependency-ready mission sequentially. Par
 
 `runtime-adapters.md` owns the observed native launch mapping. The parent accepts the frontier, rechecks exact grants, supplies bounded fresh-context packets, binds real worker identities and assigned checkouts, and validates terminal results. It never substitutes a guessed tool name, model, script or task ID.
 
-User-owned app tasks each receive one clean exact-base app-managed worktree. Direct workers use parent-managed isolation for writes. Resolve ambiguous task creation against existing identities before retrying; never create a duplicate automatically. Every explorer, writer and reviewer remains a parent-dispatched sibling.
+Delegated writers use clean exact-base parent-managed worktrees. Resolve ambiguous launch outcomes against actual sessions before retrying; never create a duplicate automatically. Every explorer, writer and reviewer remains a parent-dispatched sibling.
 
 Launch all selected siblings before waiting. Prefer terminal events or cursor-based waits, then bounded polling. A result starts validation; it does not prove a PASS. Native resume must first reconcile canonical PLAN/RUN, authorizations, live Git and retained evidence.
 
@@ -180,9 +164,8 @@ batch base SHA and assigned branch/ref
 worker_runtime, workspace_mode, completion_channel
 runtime provider and selected driver
 selector-derived model and reasoning effort, plus worker runtime/workspace/completion axes
-real app task/thread identity when `worker_runtime: app_task`
 required_skills (the mission's skill list, verbatim, or "none")
-omitted or explicitly disabled nested-subagent policy; RUN-v11 never enables it
+flat parent-owned topology; workers never delegate
 allowed and denied paths
 declared serialized/runtime resources
 task order and verifier argv/cwd
@@ -190,44 +173,49 @@ forbidden parent-owned artifacts
 result/refinement schema and stop conditions
 ```
 
-A mission that authors or repairs Wireframes, directions or connected HiFi carries both `ui-design-builder` and the exact owner-bound `frontend-design` in `required_skills`. Before launch, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The packet tells the actual writer to load the full pinned skills in its own context; a parent read, snapshot or design-role label is no substitute and cannot be backfilled as evidence. Never replace the owner binding silently. A missing or conflicting dependency defers only that authoring node and preserves prior approvals and closed records. Same-context loading grants no spawn action. On an explicitly pre-0.58 pinned RUN, `sequential_parent` retains its historical permission to author UI directly; on a 0.58+ role-bound RUN, UI authoring must resolve the configured `frontend_worker` binding and the parent cannot substitute. Assembler and reviewer helpers build the shell or validate; they do not make product-design decisions.
+A mission that authors or repairs Wireframes, directions or connected HiFi carries both `ui-design-builder` and the exact owner-bound `frontend-design` in `required_skills`. Before launch, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The packet tells the actual writer to load the full pinned skills in its own context; a parent read, snapshot or design-role label is no substitute and cannot be backfilled as evidence. Never replace the owner binding silently. A missing or conflicting dependency defers only that authoring node and preserves prior approvals and closed records. Same-context loading grants no spawn action. Host policy selects the actual frontend author; the parent never substitutes another executor silently. Assembler and reviewer helpers build the shell or validate; they do not make product-design decisions.
 
 The launch packet carries the delegation contract's maximum-creativity brief, and every direction/HiFi authoring or repair prompt restates it: pursue the most distinctive, high-craft visual concept the frozen PRD allows, not a generic template. A bare task list is not a valid frontend dispatch.
 
-On a 0.58.0+ role-bound RUN, resolve the logical `frontend_worker` and `reviewer` bindings before workspace allocation. Mixed native and bridge attempts use their own reserved worker, workspace and completion axes, never the RUN's first driver. Every writer remains the sole owner of one checkout. A configured availability fallback is a new authorized attempt after confirmed predecessor termination and partial-work reconciliation; it keeps the original logical role, records the configured `resolved_role`, and rechecks isolation, tools, capabilities and exact grants.
+Resolve the configured frontend author and reviewer before allocating their workspaces.
+Record actual model, effort, session and result origin in attempt evidence.
+A configured availability fallback needs the explicit host failure, confirmed predecessor stop and inspected partial work.
+Recheck tools, isolation and exact grants; a fallback grants no retry or extra review budget.
 
 Prefer structured result data returned directly to the parent. Use temporary `docs/goal/evidence/<mission>/REPORT.md` only when the completion channel or durable handoff requires it; the file contains the exact `## Worker Result Manifest` heading and fenced JSON from the worker template. Record that one path as worker-owned handoff scope; every other PLAN/RUN/evidence state path remains parent-owned. The parent validates claims against observed workspace and Git facts before integration.
 
 ## Batch Integration
 
-Integrate selected missions serially, one at a time. A mission integrates as soon as its exact-head review PASSes; it does not wait for the rest of the wave. `merge_rank` and mission-ID order break ties between missions that become ready at the same moment — it is not a queue a finished mission waits in behind a slower one.
+Integrate selected missions serially, one at a time. A mission integrates as soon as the gates `verification-gates.md#review-topology` requires for its `review_policy` pass; it does not wait for the rest of the wave. `merge_rank` and mission-ID order break ties between missions that become ready at the same moment.
 
 1. Receive the worker result through the declared completion channel.
 2. Run `record-worker-result` with the node result, worker result, and retained verifier results. It reads the bound worktree and verifies its branch, head, dirty state, ancestry, changed files, denied and parent-owned paths, resource claims, commits, and verifier evidence before one atomic RUN update.
 3. If the candidate itself is stale or cannot be trusted enough to enter that validation path, record the current attempt with guarded `reject-worker-result`; never rewrite RUN by hand.
 4. Transition `worker_passed -> integrating` only after `record-worker-result` succeeds.
 5. Integrate onto the current integration head when `integrate_locally` is authorized. Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule — reviewed mission heads only; coordination updates use a separate bookkeeping commit, never an unrelated fix.
-6. Rerun the mission integration verifier on the new head.
-7. Record `integrated_sha` and `integration_gate: PASS`, then transition to `integrated`; otherwise record `integration_failed` and stop dependent work.
+6. Run every declared mission integration verifier on the new head. Retain actual protocol-v2 output in checkout-external JSON files.
+7. Run `record-integration --mission-id <id> --integrated-sha <sha> --verifier-result <json>` with one result flag per new verifier. The transition admits fresh output and records integration atomically. Complete declared PASS coverage may combine new results with valid retained evidence. Without new files, omit the flags. A failed check stops dependent work.
 8. After the wave closes and every selected mission has integrated, run the PLAN-level batch verifiers; stop the next wave if any fail.
 9. Reobserve the integration head and recompute the ready frontier/conflict graph before launching another wave.
 
 Never treat a completed task/thread, a worker `PASS`, or a commit on a mission branch as dependency satisfaction. Only the integrated state described in `verification-gates.md` unblocks downstream missions.
 
+Keep RUN and its declared generated tasks view unchanged between verifier execution and result ingestion. Host execution requires the complete live Git guard. The transition rechecks source bytes, branch, candidate, tracked snapshots, and protected file hashes and identities before writing. It rejects reused output, duplicate inputs, retained-PASS replay, and evidence from worker, task, batch, or final routes. These result flags grant no execution or merge authority.
+
 ## Push And Lifecycle
 
 Push, task archival, worktree removal, and branch deletion are independent authorization actions. Passing verification does not authorize any of them.
 
-- Integrate only exact-head review-passing worker results serially into the exact resolved integration branch. Worker branches and worktrees do not push.
-- Review the final diff locally and rerun final gates before pushing. Use an observed read-only review surface for uncommitted changes or a branch diff.
-- Harness 0.38+ RUNs complete `local_only` at C and cannot reserve or execute a RUN push. Archival writes a receipt-bound immutable anchor outside the checkout. After committing A, prepare its publication handoff only through `push_archived_candidate.py` with that same anchor, a new authorization, and external request/attempt/receipt/evidence. The request binds the exact canonical URL plus observed trust-policy and absolute verifier hashes; a trusted host independently revalidates and signs the exact no-force execution, local tooling never invokes `git push`, and recovery verifies the evidence before reading back A. Pre-0.38 RUNs retain the old path only for recovery.
-- `integration.branch` names the exact non-protected run branch cut from PLAN `branch_policy`'s frozen base. The archive-candidate protocol derives that branch and C from the archived RUN, verifies a clean direct C-to-A archive commit, refuses `main` and `development`, checks the configured remote pre-state, emits a no-force trusted-host argv, and reads back exact A only through recovery.
+- Integrate worker results serially into the exact resolved integration branch, only after their required gates pass. Worker branches and worktrees do not push.
+- Review the final diff locally before pushing, using an observed read-only review surface for uncommitted changes or a branch diff. Final gates rerun only on a changed head.
+- Harness 0.38+ RUNs complete `local_only` at C and cannot reserve or execute a RUN push. Archive, publication and promotion follow `branch-promotion-contract.md#managed-run-archive-before-promotion`; local tooling never invokes `git push`.
+- `integration.branch` names the exact non-protected run branch cut from PLAN `branch_policy`'s frozen base.
 - Start later PRD, UI, and feature enhancements from a fresh run branch cut from a newly frozen remote base: remote `main` for ordinary work and hotfixes. Never implement directly on or recreate a protected branch. Existing `development` is protected; cleanup may not delete it.
-- Under `main-preview/1`, verify the exact candidate in its isolated Preview before separately authorized main promotion. The authorization names the remote branch and exact SHA. Neither the archived RUN nor the run-branch receipt authorizes a protected action. Historical dual-branch RUNs retain development landing and hotfix forward integration under their pinned contract. Never force-push or continue after remote drift, failed ancestry, non-fast-forward state, or candidate-test failure.
+- Under `main-preview/1`, neither the archived RUN nor the run-branch receipt authorizes a protected action; promotion follows `branch-promotion-contract.md`. Never force-push or continue after remote drift, failed ancestry, non-fast-forward state, or candidate-test failure.
 - Preserve user-owned dirty work and unrelated branches/worktrees.
 - For manual worktrees, remove only the exact recorded path after integration and only when `remove_worktrees` is true; never force-remove unmerged work.
 - Delete only the exact recorded, fully integrated local worker branch when `delete_branches` is true, unless historical `run.integration.retention == "persistent"` requires preserving it. Never delete `main`, existing `development`, the observed default branch, or the run branch the user still has to read. Retention is not permission to reuse a persistent integration branch for new work.
 - Archive only worker tasks explicitly covered by `archive_worker_tasks`.
-- Record manual cleanup as complete, deferred, or not authorized. Record app-managed lifecycle separately because platform retention remains outside the harness's control.
+- Record manual cleanup as complete, deferred, or not authorized. Retain historical platform-owned lifecycle evidence; a Harness grant never overrides platform retention.
 
 For parent execution, follow the Sequential Parent Route in `execution-state-model.md`; it performs one mission at a time and cannot supply independent review.

@@ -1,7 +1,5 @@
 # Design System Guide
 
-`sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. For `ui-design/3` it also excludes the `Package action` and `Existing design-system pair disposition` lines, so switching to `reuse` keeps an unchanged package valid while any other approval edit makes it stale. All other source bindings use raw-file SHA-256.
-
 Use this guide to publish the small frontend implementation contract in `docs/design/design-system.md` and `docs/design/design-system.json`.
 
 The design system exists so frontend implementation can follow one set of tokens, primitives, component variants, states, responsive rules, and accessibility rules. It is not a design-research archive, component showcase, page recipe, or governance manual.
@@ -21,7 +19,7 @@ Generate the separate derived HTML view through `render_design_system_preview.py
 
 ## Contract Boundary
 
-`design-system.json` is the sole structured authority. `ui-design/3` packages use `design-system/4` (the `design-system/3` fields plus `showcase`); `ui-design/2` packages use `design-system/3`. Their `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
+`design-system.json` is the sole structured authority. Its `sourceBindings` resolve the current PRD, architecture, stack, `ui-design.md`, and approved HiFi target under `--repo-root` and match their current SHA-256 values. It contains only what implementation and validation need:
 
 Use the closed enums `platform: web | ios | android | flutter | react-native | macos | windows | desktop`, `stylingMechanism: utility CSS | Tailwind CSS | CSS-in-JS | CSS modules | plain CSS | platform theme`, and `enforcement: blocking | advisory`. `stackSemantics` binds the exact approved rendering model (or client strategy), component foundation (or framework), styling approach, and platform. `stackSemantics.stylingMechanism` stays the verbatim Stack styling approach; the global `stylingMechanism` is the closed value that names it, such as `plain CSS` for `modern vanilla CSS`, `Tailwind CSS` for `Tailwind CSS v4`, or `platform theme` for native or component-library-managed styles. A hybrid pair uses `surfaceContracts` instead of global `platform`, `stylingMechanism`, `viewports`, and `sizeClasses`, plus a `stackSemantics` map keyed by every UI-* surface. Platform and styling choices remain grounded in the approved `stack-decisions.md` source binding rather than being invented by the compiler. Shared tokens, primitives, product components, motion variants, and state matrix remain global.
 
@@ -157,12 +155,7 @@ Resolve conflicts in this order:
 
 ## Publish Check
 
-Before publication:
+The stage Validation list owns the pre-publication checklist. Two steps need detail:
 
-1. Confirm one selected Visual Direction plus UI preview evidence.
-2. Confirm every token, primitive, component, state, and responsive entry is used or required.
-3. Confirm every required PRD UI element maps to a registered primitive or product component.
-4. Confirm no page-local value or control is required.
-5. Generate the Markdown contract block with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The write serializes compliant writers with a shared destination lock/version token, rejects symlink/reparse components, and re-compares the destination bytes immediately before replacing. POSIX then exchanges a fsynced same-directory temporary file with the destination under the held parent dirfd (Linux `renameat2` RENAME_EXCHANGE, macOS `renameatx_np` RENAME_SWAP; other hosts fail closed); Windows holds non-delete-sharing parent handles and uses ReplaceFileW with a backup. Both check the displaced bytes and restore or keep a concurrent edit.
-6. Validate it with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check resolves every complete `DS-*` token named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON registry, rejects malformed lookalikes, and enforces one global ID namespace across all three registries.
-7. Run the contrast and type-scale checks.
+1. Generate the Markdown contract block with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The write compares the destination bytes first and refuses to replace a file that changed.
+2. Validate it with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check resolves every complete `DS-*` token named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON registry, rejects malformed lookalikes, and enforces one global ID namespace across all three registries.

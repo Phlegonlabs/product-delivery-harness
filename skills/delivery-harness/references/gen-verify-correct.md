@@ -12,10 +12,10 @@ new retry budget.
 | Product requirements and architecture | Product author | Product checker, focused review, and explicit owner approvals |
 | UI direction and HiFi | Bound `frontend-design` author | Completeness, Impeccable, browser/grading, and Visual Approval owners |
 | Design-system compilation | Compiler author | Pair, contrast, type-scale, package, and preview checks |
-| Task and mission | Assigned writer | Focused verifier and exact-head reviewer |
+| Task and mission | Assigned writer | Focused verifier; exact-head reviewer under `per_mission` |
 | Feature acceptance | Owning mission writer | Declared `PRD-*` acceptance gates at the current candidate |
 | Platform handoff | Owning platform writer | Frozen platform order, dependencies, and completion verifier |
-| Integrated candidate | Owning code mission | Fresh integration review, security review, and final matrix |
+| Integrated candidate | Owning code mission | One combined review (code, security, visual) and final matrix |
 
 The generating owner repairs accepted-scope defects. A contract defect returns to
 `product-definition-builder`; a design-source defect returns to
@@ -38,13 +38,20 @@ findings to the owning flow above.
    evidence; then stop. Success does not require a minimum iteration count.
 6. On failure, record expected result, actual result, exit or observation,
    artifact or trace, and input identity. Do not hide the concrete difference.
-7. Consolidate one root-cause family and send it to the owning corrector.
+7. Wait for every required verifier and review result on the same candidate.
+   Group the findings by root-cause family and send them to the owning
+   corrector as one repair. Non-blocking suggestions go to the backlog.
 8. Repair only accepted scope. Rerun the affected verifier and every downstream
-   check invalidated by the new candidate.
+   check invalidated by the new candidate. A re-review checks the original
+   findings, the changed code and its direct consumers, not the whole scope again.
+   This is the only repair budget; a second repair round needs an explicit owner
+   decision.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, exhausted budget, missing required capability, or a contract
-    gap. Preserve history, candidate identity, and unresolved work.
+    gap. A failed re-review stops at `blocked` and returns to the owner; it never
+    starts another round on its own. Preserve history, candidate identity, and
+    unresolved work.
 
 Keep the record in the existing task report, Epic, PLAN acceptance row, or RUN
 gate. Direct work does not create PLAN/RUN state to host this loop. Managed work

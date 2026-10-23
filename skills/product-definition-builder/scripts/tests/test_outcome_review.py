@@ -1,15 +1,11 @@
 from __future__ import annotations
 
-import contextlib
 import hashlib
-import json
-import io
 import importlib.util
 import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 
 
@@ -18,28 +14,12 @@ SKILLS_ROOT = SCRIPTS_DIR.parents[1]
 ACTIVATION_TEST_PATH = (
     SKILLS_ROOT / "product-activation" / "scripts" / "tests" / "test_check_activation.py"
 )
-DELIVERY_TEST_PATH = (
-    SKILLS_ROOT / "delivery-harness" / "scripts" / "tests" / "test_deployment_record.py"
-)
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_outcome_review  # noqa: E402
 
 
-def _load_fixture_module(name: str, path: Path):
-    spec = importlib.util.spec_from_file_location(name, path)
-    if spec is None or spec.loader is None:
-        raise ImportError(f"cannot load fixture module {path}")
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-deployment_fixtures = _load_fixture_module(
-    "_outcome_review_delivery_fixtures",
-    DELIVERY_TEST_PATH,
-)
 spec = importlib.util.spec_from_file_location("activation_fixtures", ACTIVATION_TEST_PATH)
 activation_fixtures = importlib.util.module_from_spec(spec)
 assert spec.loader is not None
@@ -55,107 +35,7 @@ ARTIFACT = activation_fixtures.ARTIFACT
 ACTIVATION_SHA256 = hashlib.sha256(ACTIVATION.encode("utf-8")).hexdigest()
 
 
-def retained_evidence(root: Path, ref: str, target: str, artifact: str) -> str:
-    output = json.dumps(
-        {
-            "repository": "example/fixture",
-            "ref": "refs/heads/run/lifecycle" if target == "web-dev" else ref,
-            "sha": SHA,
-            "artifact": artifact,
-        },
-        separators=(",", ":"),
-    )
-    value = {
-        "schema": "deployment-source-observation/1",
-        "target": target,
-        "repository": "example/fixture",
-        "source_ref": ref,
-        "resolved_ref": "refs/heads/run/lifecycle" if target == "web-dev" else ref,
-        "source_sha": SHA,
-        "artifact": artifact,
-        "observed_at": "2026-09-07T18:00:00Z",
-        "readback": {
-            "kind": "command",
-            "request": "git rev-parse HEAD",
-            "status": 0,
-            "output": output,
-        },
-    }
-    relative = f"docs/deployment-evidence/{target}.json"
-    path = root / relative
-    path.parent.mkdir(parents=True, exist_ok=True)
-    content = (json.dumps(value, separators=(",", ":")) + "\n").encode("utf-8")
-    path.write_bytes(content)
-    digest = hashlib.sha256(content).hexdigest()
-    return (
-        "repo=example/fixture; "
-        f"ref={ref}; sha={SHA}; observed=2026-09-07T18:00:00Z; "
-        f"readback=file:{relative}@sha256:{digest}"
-    )
-
-
-def strict_deployment(root: Path) -> str:
-    """A deployment/2 fixture with observed source proof for both targets."""
-
-    record = deployment_fixtures.GOOD_DEPLOYMENT.replace(
-        "| web-app | web | example-web | example-web-dev | Cloudflare;production route | Cloudflare;development route |",
-        "| web-app | web | fixture-web | fixture-web-dev | Cloudflare;fixture-production-route | Cloudflare;fixture-development-route |",
-    ).replace(
-        "# Deployment\n",
-        "# Deployment\n\n- Record schema: deployment/2\n",
-        1,
-    )
-    return record + f"""
-
-## Release Target Status
-
-| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| web-dev | web-app | development | Cloudflare;fixture-development-route | https://dev.example.com | {SHA} | {SHA} | web-build-dev | development route answered the smoke check | 2026-09-07T18:00:00Z | PASS |
-| web-prod | web-app | production | Cloudflare;fixture-production-route | https://example.com | {SHA} | {SHA} | {ARTIFACT} | production route answered the smoke check | 2026-09-07T18:04:00Z | PASS |
-
-## Release Source Provenance
-
-| Release target | Source ref | Source SHA | Authority evidence |
-| --- | --- | --- | --- |
-| web-dev | run.integration.branch | {SHA} | {retained_evidence(root, "run.integration.branch", "web-dev", "web-build-dev")} |
-| web-prod | refs/heads/main | {SHA} | {retained_evidence(root, "refs/heads/main", "web-prod", ARTIFACT)} |
-"""
-
-
-def strict_cli_inputs(root: Path) -> tuple[str, str, str, str, str, str]:
-    activation = activation_fixtures.valid_record_v2()
-    outcome = valid_outcome().replace(ACTIVATION, activation, 1)
-    activation_digest = hashlib.sha256(activation.encode("utf-8")).hexdigest()
-    outcome = outcome.replace(
-        f"- Activation sha256: {ACTIVATION_SHA256}",
-        f"- Activation sha256: {activation_digest}",
-        1,
-    )
-    outcome = outcome.replace(
-        "| Activation rate | none recorded | 70% in 14 days |",
-        "| Activation rate | 0% | 70% |",
-        1,
-    )
-    outcome = outcome.replace(
-        "| Activation rate | 0% | 70% | 2026-09-07 | 2026-09-09 | 72% | MS-001 |",
-        "| Activation rate | 0% | 70% | 2026-09-07 | 2026-09-21 | 72% | MS-001 |",
-        1,
-    )
-    outcome = outcome.replace(
-        "- Reviewed on: 2026-09-10", "- Reviewed on: 2026-09-22", 1
-    )
-    return (
-        outcome,
-        activation_fixtures.APPROVED_PRD,
-        ARCHITECTURE,
-        strict_deployment(root),
-        activation,
-        "# Stack Decisions: Example\n",
-    )
-
-
-def valid_outcome(*, verdict: str = "no_change") -> str:
+def valid_outcome(*, verdict: str = "no_change", schema: str = "outcome-review/1") -> str:
     incident = """| Incident | Containment | Human owner | PRD risk routing | PRD open question routing | Evidence |
 | --- | --- | --- | --- | --- | --- |
 | none | n/a | n/a | n/a | n/a | n/a |"""
@@ -166,7 +46,7 @@ def valid_outcome(*, verdict: str = "no_change") -> str:
     return f"""# Outcome Review
 
 ## Record
-- Schema: outcome-review/1
+- Schema: {schema}
 - Product: Example
 - Outcome owner: Product owner
 - Production release target: web-prod
@@ -209,123 +89,27 @@ Verdict: {verdict} — measured outcomes met the reviewed target
 """
 
 
-def schema2_outcome(*, verdict: str = "no_change") -> str:
-    """Return a schema-2 record with the typed empty prior-verdict history marker."""
-
-    outcome = valid_outcome(verdict=verdict).replace("outcome-review/1", "outcome-review/2", 1)
-    history = """\n## Verdict History
-| Prior outcome sha256 | Verdict | Verdict section sha256 | Verdict reason |
-| --- | --- | --- | --- |
-| none | none | none | none |
-"""
-    return outcome.replace("\n## Activation Sources", history + "\n## Activation Sources", 1)
-
-
-def append_schema2_history(prior: str, *, current: str | None = None) -> str:
-    """Append the exact typed row derived from one prior authoritative record."""
-
-    current_text = current or schema2_outcome()
-    prior_digest = hashlib.sha256(prior.encode("utf-8")).hexdigest()
-    details = check_outcome_review._authoritative_verdict(prior)
-    assert details is not None
-    verdict, reason, section_digest = details
-    row = f"| {prior_digest} | {verdict} | {section_digest} | {reason} |"
-    current_text = current_text.replace(
-        "- Verdict: no_change\n",
-        f"- Verdict: no_change\n- Prior outcome sha256: {prior_digest}\n",
-        1,
-    )
-    return current_text.replace(
-        "| none | none | none | none |", row, 1
-    )
-
-
-def replace_in_section(text: str, heading: str, old: str, new: str) -> str:
-    start = text.index(heading)
-    end = text.find("\n## ", start + len(heading))
-    if end == -1:
-        end = len(text)
-    section = text[start:end]
-    assert old in section
-    return text[:start] + section.replace(old, new, 1) + text[end:]
-
-
 class OutcomeReviewTests(unittest.TestCase):
     def check(self, outcome: str) -> list[str]:
-        # Outcome tests isolate the Outcome contract; the activation gate is
-        # covered by the dedicated Product Activation suite.
-        with patch("check_outcome_review.check_activation_text", return_value=[]), patch(
-            "check_product_package.validate_texts", return_value=[]
-        ), patch("check_deployment.check_deployment_text", return_value=[]):
-            return check_outcome_review.check_outcome_review_text(
-                outcome,
-                prd_text=PRD,
-                architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
-                activation_text=ACTIVATION,
-                stack_text="# Stack Decisions: Example",
-                repo_root=Path.cwd(),
-            )
+        return check_outcome_review.check_outcome_review_text(
+            outcome,
+            prd_text=PRD,
+            architecture_text=ARCHITECTURE,
+            deployment_text=DEPLOYMENT,
+            activation_text=ACTIVATION,
+        )
 
     def test_valid_outcome_is_bound_to_verified_release(self) -> None:
         self.assertEqual([], self.check(valid_outcome()))
+        self.assertEqual([], self.check(valid_outcome(schema="outcome-review/2")))
 
-    def test_schema2_direct_review_is_accepted(self) -> None:
-        self.assertEqual([], self.check(schema2_outcome()))
-
-    def test_schema2_review_can_run_with_approved_stack_and_deployment_gate(self) -> None:
-        with patch("check_outcome_review.check_activation_text", return_value=[]) as activation_check, patch(
-            "check_product_package.validate_texts", return_value=[]
-        ), patch(
-            "check_deployment.check_deployment_text", return_value=[]
-        ) as deployment_check:
-            findings = check_outcome_review.check_outcome_review_text(
-                schema2_outcome(),
-                prd_text=PRD,
-                architecture_text=ARCHITECTURE,
-                deployment_text=DEPLOYMENT,
-                activation_text=ACTIVATION,
-                stack_text="# Stack Decisions: Example",
-                repo_root=Path.cwd(),
-            )
-        self.assertEqual([], findings)
-        self.assertTrue(
-            deployment_check.call_args.kwargs["require_source_provenance"]
-        )
-        self.assertEqual(
-            ("web-prod",),
-            deployment_check.call_args.kwargs["strict_target_subset"],
-        )
-        self.assertEqual("# Stack Decisions: Example", activation_check.call_args.kwargs["stack_text"])
-        self.assertEqual(Path.cwd(), activation_check.call_args.kwargs["repo_root"])
-        self.assertTrue(activation_check.call_args.kwargs["package_validated"])
-
-    def test_multi_target_prefix_and_first_target_projection_are_exact(self) -> None:
+    def test_multi_target_record_is_rejected(self) -> None:
         multi = valid_outcome().replace(
             "- Production release target: web-prod",
-            "- Production release target: web-prod\n- Production release targets: web-prod, other-prod",
+            "- Production release target: web-prod\n- Production release targets: target-set: web-prod, other-prod",
             1,
         )
-        # The checker must fail closed even before it can inspect target rows.
-        findings = "\n".join(self.check(multi))
-        self.assertIn("exact `target-set:` prefix", findings)
-
-    def test_single_target_mode_rejects_active_multi_target_tables_and_placeholders(self) -> None:
-        target_reviews = (
-            "\n## Target Reviews\n"
-            "| Release target | Release SHA | Artifact / build identity | Deployment identity | Deployment checked | Deployment status | Activation sources | Verdict |\n"
-            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-            "| [target] | [sha] | [artifact] | [deployment] | [time] | [status] | [sources] | [verdict] |\n"
-        )
-        target_measurements = (
-            "\n## Target Measurements\n"
-            "| Signal | Release target | Baseline | Target | Window start | Window end | Actual | Source ID |\n"
-            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
-            "| [signal] | [target] | [baseline] | [target] | [start] | [end] | [actual] | [source] |\n"
-        )
-        findings = "\n".join(self.check(valid_outcome() + target_reviews + target_measurements))
-        self.assertIn("single-target reviews cannot carry active Target Reviews", findings)
-        self.assertIn("single-target reviews cannot carry active Target Measurements", findings)
+        self.assertIn("one record per target", "\n".join(self.check(multi)))
 
     def test_duplicate_record_field_is_rejected(self) -> None:
         duplicate = valid_outcome().replace(
@@ -340,12 +124,19 @@ class OutcomeReviewTests(unittest.TestCase):
         findings = "\n".join(self.check(enhancement))
         self.assertIn("enhancement verdict requires an enhancement request", findings)
 
-    def test_same_day_measurement_window_is_rejected(self) -> None:
+    def test_window_must_elapse_after_deployment(self) -> None:
         same_day = valid_outcome().replace(
             "2026-09-07 | 2026-09-09",
             "2026-09-07 | 2026-09-07",
         )
         self.assertIn("window must elapse after deployment", "\n".join(self.check(same_day)))
+        before_deployment = valid_outcome().replace(
+            "2026-09-07 | 2026-09-09",
+            "2026-09-01 | 2026-09-05",
+        )
+        self.assertIn(
+            "window must elapse after deployment", "\n".join(self.check(before_deployment))
+        )
 
     def test_stale_activation_hash_is_rejected(self) -> None:
         outcome = valid_outcome().replace(ACTIVATION_SHA256, "b" * 64)
@@ -419,274 +210,63 @@ class OutcomeReviewTests(unittest.TestCase):
             "\n".join(self.check(duplicate_signal)),
         )
 
-    def test_cli_requires_exact_inputs(self) -> None:
+    def run_cli(self, root: Path, outcome_path: Path, *extra: str) -> subprocess.CompletedProcess:
+        for name, content in {
+            "PRD.md": PRD,
+            "architecture.md": ARCHITECTURE,
+            "DEPLOYMENT.md": DEPLOYMENT,
+            "ACTIVATION.md": ACTIVATION,
+        }.items():
+            (root / name).write_text(content, encoding="utf-8")
+        return subprocess.run(
+            [
+                sys.executable,
+                str(SCRIPTS_DIR / "check_outcome_review.py"),
+                "--outcome", str(outcome_path),
+                "--prd", str(root / "PRD.md"),
+                "--architecture", str(root / "architecture.md"),
+                "--deployment", str(root / "DEPLOYMENT.md"),
+                "--activation", str(root / "ACTIVATION.md"),
+                *extra,
+            ],
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            check=False,
+        )
+
+    def test_cli_accepts_a_bound_record_and_rejects_a_stale_hash(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
-            paths = {
-                "outcome.md": valid_outcome(),
-                "PRD.md": PRD,
-                "architecture.md": ARCHITECTURE,
-                "DEPLOYMENT.md": DEPLOYMENT,
-                "ACTIVATION.md": ACTIVATION,
-                "stack-decisions.md": "# Stack Decisions: Example\n",
-            }
-            for name, content in paths.items():
-                (root / name).write_text(content, encoding="utf-8")
-            result = subprocess.run(
-                [
-                    sys.executable,
-                    str(SCRIPTS_DIR / "check_outcome_review.py"),
-                    "--outcome",
-                    str(root / "outcome.md"),
-                    "--prd",
-                    str(root / "PRD.md"),
-                    "--architecture",
-                    str(root / "architecture.md"),
-                    "--deployment",
-                    str(root / "DEPLOYMENT.md"),
-                    "--activation",
-                    str(root / "ACTIVATION.md"),
-                    "--stack-decisions",
-                    str(root / "stack-decisions.md"),
-                ],
-                text=True,
-                encoding="utf-8",
-                capture_output=True,
-                check=False,
+            outcome = root / "outcome.md"
+            outcome.write_text(valid_outcome(), encoding="utf-8")
+            accepted = self.run_cli(root, outcome)
+            self.assertEqual(0, accepted.returncode, accepted.stdout + accepted.stderr)
+            outcome.write_text(
+                valid_outcome().replace(ACTIVATION_SHA256, "b" * 64), encoding="utf-8"
             )
-            self.assertEqual(1, result.returncode, result.stdout + result.stderr)
-            self.assertIn("stack", result.stdout + result.stderr)
+            rejected = self.run_cli(root, outcome)
+            self.assertEqual(1, rejected.returncode)
+            self.assertIn("Activation sha256 does not match", rejected.stdout)
 
-    def test_lifecycle_cli_requires_schema2_and_stack_decisions(self) -> None:
+    def test_lifecycle_cli_requires_dated_path_and_schema2(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             review_path = root / "docs" / "product" / "outcomes" / "2026-09-10-example.md"
             review_path.parent.mkdir(parents=True)
             review_path.write_text(valid_outcome(), encoding="utf-8")
-            paths = {
-                "PRD.md": PRD,
-                "architecture.md": ARCHITECTURE,
-                "DEPLOYMENT.md": DEPLOYMENT,
-                "ACTIVATION.md": ACTIVATION,
-            }
-            for name, content in paths.items():
-                (root / name).write_text(content, encoding="utf-8")
-            command = [
-                sys.executable,
-                str(SCRIPTS_DIR / "check_outcome_review.py"),
-                "--outcome", str(review_path),
-                "--prd", str(root / "PRD.md"),
-                "--architecture", str(root / "architecture.md"),
-                "--deployment", str(root / "DEPLOYMENT.md"),
-                "--activation", str(root / "ACTIVATION.md"),
-                "--repo-root", str(root),
-                "--require-lifecycle",
-            ]
-            stack_path = root / "stack-decisions.md"
-            stack_path.write_text("# Stack Decisions: Example\n", encoding="utf-8")
-            schema_failure = subprocess.run(
-                command + ["--stack-decisions", str(stack_path)],
-                capture_output=True,
-                text=True,
-                check=False,
-            )
+            command = ("--repo-root", str(root), "--require-lifecycle")
+            schema_failure = self.run_cli(root, review_path, *command)
             self.assertEqual(1, schema_failure.returncode)
             self.assertIn("requires Schema: outcome-review/2", schema_failure.stderr)
-            review_path.write_text(schema2_outcome(), encoding="utf-8")
-            stack_failure = subprocess.run(command, capture_output=True, text=True, check=False)
-            self.assertEqual(2, stack_failure.returncode)
-            self.assertIn("required: --stack-decisions", stack_failure.stderr)
-
-    def test_cli_package_validation_flag_reaches_final_checker(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            outcome, prd, architecture, deployment, activation, stack = strict_cli_inputs(root)
-            with patch("check_product_package.validate_texts", return_value=[]):
-                paths = {
-                    "outcome.md": outcome,
-                    "PRD.md": prd,
-                    "architecture.md": architecture,
-                    "DEPLOYMENT.md": deployment,
-                    "ACTIVATION.md": activation,
-                    "stack-decisions.md": stack,
-                }
-                for name, content in paths.items():
-                    (root / name).write_text(content, encoding="utf-8")
-                arguments = [
-                    "--outcome", str(root / "outcome.md"),
-                    "--prd", str(root / "PRD.md"),
-                    "--architecture", str(root / "architecture.md"),
-                    "--deployment", str(root / "DEPLOYMENT.md"),
-                    "--activation", str(root / "ACTIVATION.md"),
-                    "--stack-decisions", str(root / "stack-decisions.md"),
-                    "--repo-root", str(root),
-                    "--expected-repository", "example/fixture",
-                    "--candidate-ref", "refs/heads/run/lifecycle",
-                ]
-                with contextlib.redirect_stdout(io.StringIO()) as output:
-                    result = check_outcome_review.main(arguments)
-        self.assertEqual(0, result, output.getvalue())
-
-    def test_prior_outcome_digest_binds_immutable_history(self) -> None:
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            current = root / "current.md"
-            prior = root / "prior.md"
-            prior_text = schema2_outcome()
-            for path, content in ((current, schema2_outcome()), (prior, prior_text)):
-                path.write_text(content, encoding="utf-8")
-            command = [
-                sys.executable,
-                str(SCRIPTS_DIR / "check_outcome_review.py"),
-                "--outcome", str(current),
-                "--prd", str(root / "PRD.md"),
-                "--architecture", str(root / "architecture.md"),
-                "--deployment", str(root / "DEPLOYMENT.md"),
-                "--activation", str(root / "ACTIVATION.md"),
-                "--stack-decisions", str(root / "stack-decisions.md"),
-                "--prior-outcome", str(prior),
-            ]
-            for name, content in {
-                "PRD.md": PRD,
-                "architecture.md": ARCHITECTURE,
-                "DEPLOYMENT.md": DEPLOYMENT,
-                "ACTIVATION.md": ACTIVATION,
-                "stack-decisions.md": "# Stack Decisions: Example\n",
-            }.items():
-                (root / name).write_text(content, encoding="utf-8")
-            rejected = subprocess.run(command, capture_output=True, text=True, check=False)
-            self.assertEqual(1, rejected.returncode)
-            self.assertIn("Prior outcome sha256", rejected.stderr)
-            current.write_text(append_schema2_history(prior_text), encoding="utf-8")
-            prior.write_text(prior.read_text(encoding="utf-8") + "\nrewritten history\n", encoding="utf-8")
-            rewritten = subprocess.run(command, capture_output=True, text=True, check=False)
-            self.assertEqual(1, rewritten.returncode)
-            self.assertIn("Prior outcome sha256", rewritten.stderr)
-
-    def test_prior_outcome_digest_uses_raw_file_bytes(self) -> None:
-        prior_text = schema2_outcome()
-        crlf_bytes = prior_text.replace("\n", "\r\n").encode("utf-8")
-        raw_digest = hashlib.sha256(crlf_bytes).hexdigest()
-        text_digest = hashlib.sha256(prior_text.encode("utf-8")).hexdigest()
-        self.assertNotEqual(raw_digest, text_digest)
-        with tempfile.TemporaryDirectory() as temp:
-            root = Path(temp)
-            current = root / "current.md"
-            prior = root / "prior.md"
-            prior.write_bytes(crlf_bytes)
-            for name, content in {
-                "PRD.md": PRD,
-                "architecture.md": ARCHITECTURE,
-                "DEPLOYMENT.md": DEPLOYMENT,
-                "ACTIVATION.md": ACTIVATION,
-            "stack-decisions.md": "# Stack Decisions: Example\n",
-            }.items():
-                (root / name).write_text(content, encoding="utf-8")
-            command = [
-                sys.executable,
-                str(SCRIPTS_DIR / "check_outcome_review.py"),
-                "--outcome", str(current),
-                "--prd", str(root / "PRD.md"),
-                "--architecture", str(root / "architecture.md"),
-                "--deployment", str(root / "DEPLOYMENT.md"),
-                "--activation", str(root / "ACTIVATION.md"),
-                "--stack-decisions", str(root / "stack-decisions.md"),
-                "--prior-outcome", str(prior),
-            ]
-            appended = append_schema2_history(prior_text)
-            current.write_bytes(appended.replace(text_digest, raw_digest).encode("utf-8"))
-            accepted = subprocess.run(command, capture_output=True, text=True, check=False)
-            self.assertNotIn("prior", (accepted.stdout + accepted.stderr).casefold())
-            current.write_bytes(appended.encode("utf-8"))
-            rejected = subprocess.run(command, capture_output=True, text=True, check=False)
-            self.assertEqual(1, rejected.returncode)
-            self.assertIn("Prior outcome sha256", rejected.stderr)
-
-    def test_schema2_prior_append_requires_typed_derived_row(self) -> None:
-        prior = schema2_outcome()
-        appended = append_schema2_history(prior)
-        self.assertEqual([], check_outcome_review.prior_append_findings(prior, appended))
-        # The old vulnerable shape copied a prose Verdict line into another
-        # section.  A typed history row is required, so relocation fails.
-        relocated = appended.replace(
-            next(line for line in appended.splitlines() if line.startswith("| ") and hashlib.sha256(prior.encode("utf-8")).hexdigest() in line),
-            "| none | none | none | none |",
-            1,
-        )
-        relocated = relocated.replace(
-            "| none | none |\n",
-            "| Verdict: no_change — measured outcomes met the reviewed target | none |\n",
-            1,
-        )
-        findings = "\n".join(check_outcome_review.prior_append_findings(prior, relocated))
-        self.assertIn("Prior outcome: Verdict History", findings)
-
-    def test_schema2_history_shape_rejects_placeholders_and_duplicates(self) -> None:
-        broken = schema2_outcome().replace(
-            "| none | none | none | none |",
-            "| none | none | none | none |\n| none | none | none | none |",
-            1,
-        )
-        findings = "\n".join(self.check(broken))
-        self.assertIn("duplicate none placeholder rows", findings)
-
-    def test_schema2_prior_append_checks_every_immutable_history_family(self) -> None:
-        families = {
-            "## Activation Sources": "| MS-001 | web-prod@" + SHA + "#" + ARTIFACT + " | analytics owner | 2026-09-07T18:02:00Z | EVID-004 bounded verified query |",
-            "## Measurements": "| Activation rate | none recorded | 70% in 14 days | 2026-09-07 | 2026-09-09 | 72% | MS-001 |",
-            "## Feedback": "| Setup completion exceeded target | MS-001 | 72% |",
-            "## Incident Response": "| none | n/a | n/a | n/a | n/a | n/a |",
-            "## Open Follow-ups": "| none | none |",
-        }
-        for heading, row in families.items():
-            for mutation in ("delete", "rewrite", "reorder"):
-                with self.subTest(heading=heading, mutation=mutation):
-                    prior = schema2_outcome()
-                    current_source = prior
-                    if mutation == "reorder":
-                        extra = row.replace("| ", "| appended ", 1)
-                        prior = replace_in_section(prior, heading, row, row + "\n" + extra)
-                        current_source = prior
-                        current = append_schema2_history(prior, current=current_source)
-                        current = replace_in_section(current, heading, row + "\n" + extra, extra + "\n" + row)
-                    else:
-                        current = append_schema2_history(prior, current=current_source)
-                        if mutation == "delete":
-                            current = replace_in_section(current, heading, row + "\n", "")
-                        else:
-                            current = replace_in_section(
-                                current, heading, row, row.replace("| ", "| rewritten ", 1)
-                            )
-                    findings = "\n".join(check_outcome_review.prior_append_findings(prior, current))
-                    self.assertIn(f"Prior outcome: {heading}", findings)
-
-    def test_prior_outcome_history_allows_only_ordered_append_rows(self) -> None:
-        prior = valid_outcome()
-        appended_row = "| Setup completion was independently sampled | MS-001 | second bounded observation |"
-        appended = prior.replace(
-            "| Setup completion exceeded target | MS-001 | 72% |",
-            "| Setup completion exceeded target | MS-001 | 72% |\n" + appended_row,
-            1,
-        )
-        self.assertEqual([], check_outcome_review.prior_append_findings(prior, appended))
-        deleted = prior.replace("| Setup completion exceeded target | MS-001 | 72% |\n", "", 1)
-        self.assertIn("deleted historical row", "\n".join(check_outcome_review.prior_append_findings(prior, deleted)))
-        rewritten = prior.replace("| Setup completion exceeded target | MS-001 | 72% |", "| Setup completion exceeded target | MS-001 | 71% |", 1)
-        self.assertIn("byte-identical and ordered", "\n".join(check_outcome_review.prior_append_findings(prior, rewritten)))
-
-    def test_prior_outcome_history_rejects_row_reorder_and_verdict_rewrite(self) -> None:
-        first = "| Setup completion exceeded target | MS-001 | 72% |"
-        second = "| Setup completion remained stable | MS-001 | bounded sample |"
-        prior = valid_outcome().replace(first, first + "\n" + second, 1)
-        reordered = prior.replace(first + "\n" + second, second + "\n" + first, 1)
-        findings = "\n".join(check_outcome_review.prior_append_findings(prior, reordered))
-        self.assertIn("byte-identical and ordered", findings)
-        verdict_rewritten = valid_outcome().replace(
-            "Verdict: no_change — measured outcomes met the reviewed target",
-            "Verdict: enhancement — changed result",
-            1,
-        )
-        self.assertIn("prior verdict history", "\n".join(check_outcome_review.prior_append_findings(valid_outcome(), verdict_rewritten)))
+            review_path.write_text(valid_outcome(schema="outcome-review/2"), encoding="utf-8")
+            accepted = self.run_cli(root, review_path, *command)
+            self.assertEqual(0, accepted.returncode, accepted.stdout + accepted.stderr)
+            misplaced = root / "outcome.md"
+            misplaced.write_text(valid_outcome(schema="outcome-review/2"), encoding="utf-8")
+            path_failure = self.run_cli(root, misplaced, *command)
+            self.assertEqual(1, path_failure.returncode)
+            self.assertIn("lifecycle outcomes must use", path_failure.stderr)
 
 
 if __name__ == "__main__":

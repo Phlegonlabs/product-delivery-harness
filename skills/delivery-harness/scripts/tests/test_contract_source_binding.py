@@ -359,11 +359,7 @@ UI scope: UI-001
             findings = join.validate_frozen_contract_joins(plan, root, run=run)
             self.assertNotIn("Harness 0.59+ new full UI delivery requires UI contract: ui-design/3",
                              findings)
-            self.assertIn(
-                "architecture: Harness 0.59+ current joins require an active "
-                "'Release source policy: dual-branch/1' marker",
-                findings,
-            )
+            self.assertEqual([], findings)
 
     def test_ui_three_maintenance_retains_history_without_fresh_preview_approval(self):
         for impact in ("none", "style"):

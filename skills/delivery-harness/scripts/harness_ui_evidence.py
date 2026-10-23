@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_design_contract import validate_design_system_registry
+from harness_design_coverage import surface_capture_rows, validate_design_coverage
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_core import (
     _add,
@@ -166,7 +167,7 @@ def _strict_ui_evidence_required(run: dict[str, Any]) -> bool:
     importing this module.
     """
 
-    return run.get("schema_version") == 11 and version_at_least(
+    return version_at_least(
         run_required_harness_version(run), UI_EVIDENCE_REQUIRED_VERSION
     )
 
@@ -265,7 +266,7 @@ def _layout_check_required(run: dict[str, Any]) -> bool:
     frozen row shape so in-flight RUN files stay valid.
     """
 
-    return run.get("schema_version") == 11 and version_at_least(
+    return version_at_least(
         run_required_harness_version(run), UI_LAYOUT_CHECK_REQUIRED_VERSION
     )
 
@@ -316,7 +317,7 @@ def _deviation_ledger_required(run: dict[str, Any]) -> bool:
     their frozen shape so in-flight RUN files stay valid.
     """
 
-    return run.get("schema_version") == 11 and version_at_least(
+    return version_at_least(
         run_required_harness_version(run), UI_DEVIATION_LEDGER_REQUIRED_VERSION
     )
 
@@ -608,11 +609,7 @@ def _validate_ui_evidence(
         path = f"run.ui_evidence[{index}]"
         # RUN-v11 adds the Final Visual Parity Loop's target_comparison record
         # to each row; older schemas keep their frozen key set.
-        optional_keys = (
-            ("target_comparison",) if run.get("schema_version") == 11 else ()
-        )
-        if strict:
-            optional_keys = tuple(key for key in optional_keys if key != "target_comparison")
+        optional_keys: tuple[str, ...] = () if strict else ("target_comparison",)
         if not layout_required:
             optional_keys = tuple(optional_keys) + ("layout_check",)
         if not _keys(errors, path, item, evidence_keys, optional_keys):
@@ -630,7 +627,13 @@ def _validate_ui_evidence(
         else:
             surface_route = surface.get("route")
             surface_breakpoints = surface.get("breakpoints")
-            surface_states = surface.get("states")
+            if "design_coverage" in surface:
+                capture_rows, projection_errors = surface_capture_rows(surface)
+                errors.extend(projection_errors)
+                declared_state_names = {row["state"] for row in capture_rows}
+            else:
+                # Keep exact legacy membership, including its n/a spelling.
+                declared_state_names = surface.get("states") or []
             if not _nonempty_string(surface_route) or item["route"] != surface_route:
                 _add(errors, f"{path}.route", "does not match the PLAN UI surface")
             if (
@@ -638,7 +641,7 @@ def _validate_ui_evidence(
                 or item["breakpoint"] not in surface_breakpoints
             ):
                 _add(errors, f"{path}.breakpoint", "is not planned for this UI surface")
-            if not isinstance(surface_states, list) or item["state"] not in surface_states:
+            if not isinstance(declared_state_names, (list, set)) or item["state"] not in declared_state_names:
                 _add(errors, f"{path}.state", "is not planned for this UI surface")
         key = (
             item["surface_id"],
@@ -660,16 +663,13 @@ def _validate_ui_evidence(
         ):
             _add(errors, f"{path}.artifact_sha256", "must be a lowercase SHA-256")
         _optional_sha(errors, f"{path}.head_sha", item["head_sha"])
-        if run.get("schema_version") in {10, 11} and item["status"] != "PASS" and not is_full_sha(
-            item["head_sha"]
-        ):
+        if item["status"] != "PASS" and not is_full_sha(item["head_sha"]):
             _add(
                 errors,
                 path,
-                "RUN-v10/v11 UI evidence requires a recorded accepted Git commit/ref in head_sha",
+                "UI evidence requires a recorded accepted Git commit/ref in head_sha",
             )
-        if run.get("schema_version") == 11:
-            _validate_target_comparison(errors, path, item, plan=plan, run=run)
+        _validate_target_comparison(errors, path, item, plan=plan, run=run)
         if strict:
             surface = _surface_for_evidence(plan, item)
             capture_mode = surface.get("capture_mode") if surface else None
@@ -714,26 +714,28 @@ def _validate_ui_evidence(
         return
     required: set[tuple[str, str, str, str]] = set()
     for surface in surfaces.values():
-        route = surface.get("route")
-        breakpoints = surface.get("breakpoints")
-        states = surface.get("states")
         if (
             surface.get("evidence_gate") != "required"
-            or not _nonempty_string(route)
-            or not isinstance(breakpoints, list)
-            or not isinstance(states, list)
+            or not _nonempty_string(surface.get("route"))
         ):
             continue
-        # A state a surface genuinely cannot have is declared as `<state>:n/a`.
-        # It still counts as considered for design coverage, but there is no
-        # screenshot to capture for it, so it is not required evidence here.
-        required.update(
-            (surface["id"], route, breakpoint, state)
-            for breakpoint in breakpoints
-            if _nonempty_string(breakpoint)
-            for state in states
-            if _nonempty_string(state) and not _state_marker(state)[1]
-        )
+        if "design_coverage" in surface:
+            capture_rows, projection_errors = surface_capture_rows(surface)
+            errors.extend(projection_errors)
+            required.update(
+                (row["surface_id"], row["route"], row["breakpoint"], row["state"])
+                for row in capture_rows
+            )
+        else:
+            if not isinstance(surface.get("breakpoints"), list) or not isinstance(surface.get("states"), list):
+                continue
+            required.update(
+                (surface["id"], surface["route"], breakpoint, state)
+                for breakpoint in surface.get("breakpoints") or []
+                if _nonempty_string(breakpoint)
+                for state in surface.get("states") or []
+                if _nonempty_string(state) and not _state_marker(state)[1]
+            )
     for key in sorted(required - passed):
         _add(
             errors,
@@ -936,20 +938,13 @@ def validate_ui_surface_design_registry(
                         else list(values) if isinstance(values, list) else []
                     )
 
-        states = surface.get("states")
-        covered_states: set[str] = set()
-        if isinstance(states, list):
-            for state in states:
-                if _nonempty_string(state):
-                    covered_states.add(_state_marker(state)[0])
-        for state in sorted(required_states - covered_states):
-            _add(
-                errors,
-                plan_path,
-                f"surface {surface_label} route {route} omits state {state} required "
-                f"by the design system's stateMatrix; list it as {state}:n/a when the "
-                f"surface cannot have it",
+        errors.extend(
+            validate_design_coverage(
+                surface,
+                required_states,
+                base_path=f"{plan_path}.design_coverage",
             )
+        )
 
         breakpoints = surface.get("breakpoints")
         covered_breakpoints = (
@@ -1002,34 +997,21 @@ def validate_ui_surface_design_registry(
 
 
 def validate_ui_evidence_files(
-    plan_or_run: dict[str, Any],
-    run_or_repo_root: dict[str, Any] | str | Path,
-    repo_root: str | Path | None = None,
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    repo_root: str | Path,
 ) -> list[str]:
-    """Verify screenshot bytes and hashes for RUN-v9/v10/v11.
+    """Verify screenshot bytes and hashes for RUN-v11.
 
-    RUN-v9 retains its historical working-tree binding. RUN-v11 reads the
-    artifact blob from each row's accepted ``head_sha`` first, then decodes and
-    hashes those immutable bytes; a working-tree-only or mutated screenshot is
-    never accepted for the current evidence contract.  The preferred v0.38
-    signature is ``(plan, run, repo_root)``.  ``(run, repo_root)`` remains
-    accepted for archive/recovery callers and retains legacy shape checks.
+    Reads the artifact blob from each row's accepted ``head_sha``, then decodes
+    and hashes those immutable bytes; a working-tree-only or mutated screenshot
+    is never accepted.
     """
 
-    if repo_root is None:
-        run = plan_or_run
-        root_arg = run_or_repo_root
-    else:
-        run = run_or_repo_root if isinstance(run_or_repo_root, dict) else {}
-        root_arg = repo_root
-
-    schema_version = run.get("schema_version")
-    if schema_version not in {9, 10, 11} or not isinstance(
-        run.get("ui_evidence"), list
-    ):
+    if not isinstance(run.get("ui_evidence"), list):
         return []
     errors: list[str] = []
-    root = Path(root_arg).resolve()
+    root = Path(repo_root).resolve()
     # File validation remains strict even for legacy callers that cannot pass
     # the PLAN (archive_run/older closeout paths).  The PLAN-aware schema join
     # separately proves that the authority list is the exact frozen source
@@ -1041,40 +1023,25 @@ def validate_ui_evidence_files(
         ):
             continue
         path = f"run.ui_evidence[{index}].artifact_path"
-        artifact_bytes: bytes | None = None
-        if schema_version in {10, 11}:
-            head_sha = item.get("head_sha")
-            if not isinstance(head_sha, str) or not is_full_sha(head_sha):
-                _add(
-                    errors,
-                    path,
-                    "RUN-v10/v11 evidence requires a recorded accepted Git commit/ref in head_sha",
-                )
-                continue
-            artifact_bytes, reason = _read_git_artifact_blob(
-                root, head_sha, item["artifact_path"]
+        head_sha = item.get("head_sha")
+        if not isinstance(head_sha, str) or not is_full_sha(head_sha):
+            _add(
+                errors,
+                path,
+                "evidence requires a recorded accepted Git commit/ref in head_sha",
             )
-            if artifact_bytes is None:
-                _add(
-                    errors,
-                    path,
-                    f"artifact does not exist in accepted Git commit/ref {head_sha!r}: "
-                    f"{reason or 'git show could not read the blob'}",
-                )
-                continue
-        else:
-            artifact = (root / item["artifact_path"]).resolve()
-            if not artifact.is_relative_to(root):
-                _add(errors, path, "resolves outside the repository root")
-                continue
-            if not artifact.is_file():
-                _add(errors, path, f"does not exist: {item['artifact_path']}")
-                continue
-            try:
-                artifact_bytes = artifact.read_bytes()
-            except OSError as exc:
-                _add(errors, path, f"cannot read artifact: {exc}")
-                continue
+            continue
+        artifact_bytes, reason = _read_git_artifact_blob(
+            root, head_sha, item["artifact_path"]
+        )
+        if artifact_bytes is None:
+            _add(
+                errors,
+                path,
+                f"artifact does not exist in accepted Git commit/ref {head_sha!r}: "
+                f"{reason or 'git show could not read the blob'}",
+            )
+            continue
 
         if not artifact_bytes:
             _add(errors, path, "must not be empty")
@@ -1097,8 +1064,7 @@ def validate_ui_evidence_files(
         # recorded accepted commit and decode those bytes, never the worktree.
         comparison = item.get("target_comparison")
         if (
-            schema_version == 11
-            and isinstance(comparison, dict)
+            isinstance(comparison, dict)
             and _valid_ui_artifact_path(comparison.get("baseline_artifact"))
             and (strict or comparison.get("baseline") == "html_target")
         ):
@@ -1235,7 +1201,7 @@ def validate_integration_head_against_git(
             _add(errors, path, f"could not be verified against live Git: {reason}")
         return sorted(set(errors))
     actual = result.stdout.strip()
-    if actual != recorded and run.get("schema_version") == 11:
+    if actual != recorded:
         ancestry = _run_git("merge-base", "--is-ancestor", recorded, actual)
         # --no-renames lists both sides, so a product file renamed onto a
         # coordination path still shows its deleted source path.

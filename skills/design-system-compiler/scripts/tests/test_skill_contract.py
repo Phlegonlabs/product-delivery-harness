@@ -80,17 +80,12 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def test_direction_reopen_routes_to_ui_design_builder(self) -> None:
         skill = self.read("SKILL.md")
         stage = self.read(STAGE)
-        route = self.read("references/visual-direction-guide.md")
-        retired = self.read("references/impeccable-concept-generation.md")
 
         self.assertIn("compilation does not reopen direction", skill)
         self.assertIn(
             "stop compilation and invoke `../ui-design-builder/SKILL.md`",
             stage,
         )
-        self.assertIn("no longer owns visual-direction exploration", route)
-        self.assertIn("frontend-design` as the single design author", retired)
-        self.assertIn("Impeccable runs afterward for critique and audit", retired)
 
     def test_motion_variants_follow_ui_design_intent(self) -> None:
         stage = self.read(STAGE)
@@ -130,6 +125,41 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn('"sourceBindings"', template_json)
         self.assertIn('"hifi"', template_json)
         self.assertIn('"requiredContentOrder"', template_json)
+
+    def test_inputs_name_the_sections_compilation_reads(self) -> None:
+        stage = self.read(STAGE)
+        inputs = stage.split("## Inputs And Ownership", 1)[1].split("\n## ", 1)[0]
+
+        self.assertNotIn("Read the current sources in full", inputs)
+        self.assertIn("read only these sections of the current sources", inputs)
+        self.assertIn("checkers still join each complete source", inputs)
+        for section in (
+            "`UI Surface Contract`",
+            "`Frontend Delivery Requirements`",
+            "`Motion And Media Intent`",
+            "`HiFi Review` result and score lines",
+            "`Design System Need Gate`",
+            "`Frontend Architecture` and `Release Targets`",
+            "`Stack Decision Checkpoint`",
+        ):
+            self.assertIn(section, inputs)
+        self.assertIn("Skip the reviewer shell and inline asset data", inputs)
+        self.assertIn("Read another section when a finding", inputs)
+
+    def test_preview_browser_inspection_is_conditional_on_live_treatments(self) -> None:
+        contract = self.read("references/output-contract.md")
+
+        self.assertNotIn("Inspect the generated view in a browser and link", contract)
+        self.assertIn(
+            "When the pair registers a motion variant or a `pseudo` state row, or the preview has Surface plates "
+            "that run product scripts, inspect those plates in a browser",
+            contract,
+        )
+        self.assertIn(
+            "For each `source-runtime` row, press Replay, Stop and the Reduced motion control once at its default target",
+            contract,
+        )
+        self.assertIn("Link the view with the pair in the handoff", contract)
 
     def test_templates_and_checker_commands_belong_to_this_skill(self) -> None:
         stage = self.read(STAGE)

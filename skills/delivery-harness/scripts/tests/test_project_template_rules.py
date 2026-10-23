@@ -36,9 +36,10 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("A structural impact (`structure` or `both`) follows affected design gates", owner)
         self.assertNotIn("Routine maintenance updates the actual product", template)
 
-        skill = read("SKILL.md")
-        self.assertIn("Routine maintenance (UI impact `none` or `style`)", skill)
-        self.assertIn("`structure`/`both` changes use the affected design gates", skill)
+        owner_route = "governance/product-contracts.md#consumer-keep-product-contracts-current)"
+        self.assertIn("references/" + owner_route, read("SKILL.md"))
+        self.assertIn(owner_route, read("references/design-input-updates.md"))
+        self.assertIn("An already frozen managed RUN keeps its pinned contract", owner)
 
         contract = read("references/ui-implementation-contract.md")
         self.assertIn("Routine maintenance is valid only with UI impact `none` or `style`", contract)
@@ -55,10 +56,7 @@ class ProjectTemplateRuleTests(unittest.TestCase):
                 self.read_owner("product-contracts.md"),
                 "## Source Keep Product Contracts Current",
             )
-            self.assertIn(
-                "Routine maintenance with UI impact `none` or `style`",
-                source_owner,
-            )
+            self.assertIn("(#consumer-keep-product-contracts-current)", source_owner)
 
     def test_managed_default_branch_must_be_main(self) -> None:
         # archive_run.py and the promotion contract bind only `main` refs, so
@@ -95,6 +93,12 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         )
         self.assertIn("never overwrite or delete prior copies or backups.", text)
         self.assertNotIn("Restore the backup if verification fails", text)
+        self.assertIn("`./install.sh` (in Git Bash on Windows)", text)
+        self.assertNotIn("install.ps1", text)
+        self.assertIn(
+            "CI on the candidate SHA is that run; a local full run happens only when CI is unavailable.",
+            text,
+        )
 
     def test_repo_instructions_cover_every_shared_template_section(self) -> None:
         # The handoff audit compares repo AGENTS.md/CLAUDE.md with the seeded

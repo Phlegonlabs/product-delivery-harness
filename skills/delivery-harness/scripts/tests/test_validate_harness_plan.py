@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 import subprocess
 import sys
 import tempfile
@@ -42,6 +41,7 @@ from test_harness_manifest import valid_plan, valid_run  # noqa: E402
 from manifest_fixtures import (  # noqa: E402
     carry_security_requirement,
     manifest_markdown,
+    materialize_plan_sources,
     wireframes_html,
 )
 from test_wireframe_contract import render_html, wireframe_data  # noqa: E402
@@ -154,64 +154,23 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
 
     def test_valid_plan_and_run_report_pass(self) -> None:
         plan = valid_plan()
-        run = valid_run(plan)
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            subprocess.run(["git", "init"], cwd=root, check=True, capture_output=True, text=True)
-            subprocess.run(
-                ["git", "config", "user.name", "Harness Test"],
-                cwd=root, check=True, capture_output=True, text=True,
-            )
-            subprocess.run(
-                ["git", "config", "user.email", "harness@example.invalid"],
-                cwd=root, check=True, capture_output=True, text=True,
-            )
-            subprocess.run(
-                ["git", "checkout", "-b", run["integration"]["branch"]],
-                cwd=root, check=True, capture_output=True, text=True,
-            )
-            (root / "README.md").write_text("base\n", encoding="utf-8")
-            subprocess.run(["git", "add", "README.md"], cwd=root, check=True, capture_output=True, text=True)
-            subprocess.run(
-                ["git", "commit", "-m", "base"],
-                cwd=root, check=True, capture_output=True, text=True,
-            )
-            head_sha = subprocess.run(
-                ["git", "rev-parse", "HEAD"],
-                cwd=root, check=True, capture_output=True, text=True,
-            ).stdout.strip()
-            run["integration"]["integration_head_sha"] = head_sha
-            for source in plan["sources"]:
-                location = source["location"]
-                contents = f"{source['id']} frozen source\n".encode()
-                source_path = root / location
-                source_path.parent.mkdir(parents=True, exist_ok=True)
-                source_path.write_bytes(contents)
-                source["content_sha256"] = hashlib.sha256(contents).hexdigest()
-            run["plan"]["digest_sha256"] = plan_digest(plan)
-
-            plan_path = root / "PLAN.md"
-            run_path = root / "RUN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            run_path.write_text(
-                manifest_markdown("## Harness Run State", "harness_run", run),
-                encoding="utf-8",
-            )
-
-            result = self.run_cli(
-                plan_path,
-                run_path,
-                prd=root / plan["sources"][0]["location"],
-            )
-
-        self.assertEqual(0, result.returncode, result.stderr)
-        payload = json.loads(result.stdout)
-        self.assertEqual("PASS", payload["status"])
-        self.assertEqual([], payload["errors"])
-        self.assertEqual(plan["plan_id"], payload["plan_id"])
+            materialize_plan_sources(root, plan)
+            run = valid_run(plan)
+            plan_path, run_path = root / "PLAN.md", root / "RUN.md"
+            plan_path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
+            run_path.write_text(manifest_markdown("## Harness Run State", "harness_run", run), encoding="utf-8")
+            subprocess.run(["git", "init", "-q", "-b", "codex/test"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "fixture@example.invalid"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=root, check=True)
+            subprocess.run(["git", "add", "docs"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "approve source fixture"], cwd=root, check=True)
+            run["integration"]["integration_head_sha"] = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            run_path.write_text(manifest_markdown("## Harness Run State", "harness_run", run), encoding="utf-8")
+            result = self.run_cli(plan_path, run_path, repo_root=root, prd=root / plan["sources"][0]["location"])
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual("PASS", json.loads(result.stdout)["status"])
 
     def test_plan_only_invocation_skips_run_validation(self) -> None:
         plan = valid_plan()
@@ -257,86 +216,27 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
 
     def test_current_source_revision_requires_and_reads_immutable_git_bytes(self) -> None:
         plan = valid_plan()
-        source = plan["sources"][1]
-        plan["sources"] = [source]
-        for trace in plan["traces"]:
-            trace["source_ids"] = ["SRC-002"]
-        source_path = Path(source["location"])
-        contents = b"# Frozen revision\n"
-        source["content_sha256"] = hashlib.sha256(contents).hexdigest()
-        source["source_revision"] = None
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            destination = root / source_path
-            destination.parent.mkdir(parents=True)
-            destination.write_bytes(contents)
+            materialize_plan_sources(root, plan)
             subprocess.run(["git", "init", "-q"], cwd=root, check=True)
-            subprocess.run(["git", "config", "user.email", "test@example.com"], cwd=root, check=True)
+            subprocess.run(["git", "config", "user.email", "fixture@example.invalid"], cwd=root, check=True)
             subprocess.run(["git", "config", "user.name", "Harness Test"], cwd=root, check=True)
-            subprocess.run(["git", "add", str(source_path)], cwd=root, check=True)
-            subprocess.run(
-                ["git", "commit", "-qm", "source"],
-                cwd=root,
-                check=True,
-                capture_output=True,
-            )
-            revision = subprocess.check_output(
-                ["git", "rev-parse", "HEAD"], cwd=root, text=True
-            ).strip()
-            source["source_revision"] = revision
-            plan_path = root / "PLAN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
+            subprocess.run(["git", "add", "docs"], cwd=root, check=True)
+            subprocess.run(["git", "commit", "-qm", "freeze approved sources"], cwd=root, check=True)
+            revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip()
+            for source in plan["sources"]:
+                source["source_revision"] = revision
+            path = root / "PLAN.md"
+            path.write_text(manifest_markdown("## Harness Plan Manifest", "harness_plan", plan), encoding="utf-8")
+            self.assertEqual(1, self.run_cli(path, None).returncode)
+            frozen = self.run_cli(path, None, repo_root=root, prd=root / plan["sources"][0]["location"])
+            self.assertEqual(0, frozen.returncode, frozen.stdout)
+            (root / plan["sources"][1]["location"]).write_text("changed", encoding="utf-8")
+            changed = self.run_cli(path, None, repo_root=root, prd=root / plan["sources"][0]["location"])
+            self.assertEqual(1, changed.returncode)
+            self.assertTrue(any("current bytes differ" in error for error in json.loads(changed.stdout)["errors"]))
 
-            standalone = self.run_cli(plan_path, None)
-            self.assertEqual(1, standalone.returncode)
-            self.assertTrue(
-                any(
-                    "current source_revision validation requires --repo-root" in error
-                    for error in json.loads(standalone.stdout)["errors"]
-                )
-            )
-
-            immutable = self.run_cli(plan_path, None, repo_root=root)
-            self.assertEqual(0, immutable.returncode, immutable.stdout)
-
-            destination.write_bytes(b"# Changed working tree\n")
-            current_only = self.run_cli(plan_path, None, repo_root=root)
-            self.assertEqual(0, current_only.returncode, current_only.stderr)
-
-            source["source_revision"] = "f" * 40
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            missing_revision = self.run_cli(plan_path, None, repo_root=root)
-            self.assertEqual(1, missing_revision.returncode)
-            self.assertTrue(
-                any(
-                    "missing at immutable source_revision" in error
-                    for error in json.loads(missing_revision.stdout)["errors"]
-                )
-            )
-
-    def test_old_schema_retains_explicit_shape_only_source_revision_compatibility(self) -> None:
-        plan = valid_plan()
-        plan["schema_version"] = 4
-        for source in plan["sources"]:
-            source.pop("staged_revision")
-        for mission in plan["missions"]:
-            for task in mission["tasks"]:
-                task["acceptance_matrix"] = [row["criterion"] for row in task["acceptance_matrix"]]
-        plan["sources"][0]["source_revision"] = "f" * 40
-        with tempfile.TemporaryDirectory() as directory:
-            plan_path = Path(directory) / "PLAN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            result = self.run_cli(plan_path, None)
-        self.assertEqual(0, result.returncode, result.stderr)
 
     def test_invalid_plan_reports_fail_with_exit_code_one(self) -> None:
         plan = valid_plan()
@@ -815,6 +715,7 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
 
     def test_approval_marker_requires_and_joins_frozen_core_package(self) -> None:
         plan = valid_plan()
+        plan["sources"] = [source for source in plan["sources"] if source["kind"] != "stack decisions"]
         carry_security_requirement(plan)
         plan["ui_surfaces"] = []
         with tempfile.TemporaryDirectory() as directory:
@@ -855,88 +756,9 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             ]
             errors = validate_frozen_contract_joins(plan, root)
             self.assertTrue(
-                any("requires exactly one frozen stack-decisions.md" in error for error in errors)
+                any("requires exactly one frozen stack" in error for error in errors)
             )
 
-    def test_current_dual_branch_join_uses_canonical_release_parser(self) -> None:
-        architecture = release_architecture().replace(
-            "## Release Targets",
-            "## Release Targets\n\nRelease source policy: dual-branch/1",
-            1,
-        )
-        architecture = re.sub(
-            r"^- Source policy: stage=development; .*$",
-            "- Source policy: stage=development; ref=refs/heads/development; "
-            "sha=promotion.verified_development_sha",
-            architecture,
-            count=1,
-            flags=re.MULTILINE,
-        )
-        approved_prd, approved_architecture, approved_stack = strictize_approved_package(
-            valid_prd(), architecture, valid_stack()
-        )
-        self.assertEqual(
-            [], full_product_package_checker_errors(
-                approved_prd.encode("utf-8"),
-                approved_architecture.encode("utf-8"),
-                approved_stack.encode("utf-8"),
-            )
-        )
-
-        plan = valid_plan()
-        carry_security_requirement(plan)
-        plan["ui_surfaces"] = []
-        next(source for source in plan["sources"] if source["kind"] == "prd")[
-            "location"
-        ] = "docs/product/PRD.md"
-        plan["branch_policy"] = {
-            "protocol": "dual-branch/1",
-            "kind": "ordinary",
-            "base_ref": "refs/remotes/origin/development",
-            "base_sha": "a" * 40,
-        }
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            self.bind_prd(plan, root, approved_prd)
-            architecture_source = next(
-                source for source in plan["sources"] if source["kind"] == "architecture"
-            )
-            architecture_path = root / architecture_source["location"]
-            architecture_path.parent.mkdir(parents=True, exist_ok=True)
-            architecture_path.write_text(approved_architecture, encoding="utf-8")
-            architecture_source["content_sha256"] = hashlib.sha256(
-                architecture_path.read_bytes()
-            ).hexdigest()
-            stack_path = root / "docs/product/stack-decisions.md"
-            stack_path.write_text(approved_stack, encoding="utf-8")
-            plan["sources"].append(
-                {
-                    "id": "SRC-STACK",
-                    "kind": "stack decisions",
-                    "location": "docs/product/stack-decisions.md",
-                    "owner": "product",
-                    "status": "frozen",
-                    "content_sha256": hashlib.sha256(stack_path.read_bytes()).hexdigest(),
-                    "source_revision": None,
-                    "staged_revision": None,
-                    "notes": "approved stack",
-                }
-            )
-            run = valid_run(plan)
-            gate = run["runtime_capabilities"]["runtime_adapter"]["version_gate"]
-            gate["required_harness_version"] = "0.59.0"
-            run["integration"]["batch_base_sha"] = None
-            run["integration"]["integration_head_sha"] = None
-            self.assertEqual(
-                [], validate_frozen_contract_joins(plan, root, run=run)
-            )
-
-            plan.pop("branch_policy")
-            errors = validate_frozen_contract_joins(plan, root, run=run)
-            self.assertTrue(
-                any("requires a branch policy object" in error for error in errors),
-                errors,
-            )
 
     @staticmethod
     def approved_prd() -> str:
@@ -1360,112 +1182,13 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
             )
 
     def test_design_system_join_accepts_the_required_markdown_json_pair(self) -> None:
-        plan = valid_plan()
-        registry = {
-            "schema": "design-system/1",
-            "product": "Fixture Product",
-            "platform": "web",
-            "stylingMechanism": "plain CSS",
-            "enforcement": "blocking",
-            "tokenSources": ["src/styles/tokens.css"],
-            "primitiveSources": [],
-            "viewports": [390, 1200],
-            "tokens": {},
-            "primitives": {},
-            "productComponents": {},
-            "signatureRules": [],
-            "motionVariants": [],
-            "stateMatrix": ["ready"],
-        }
+        from test_harness_strict_authority import StrictAuthorityJoinTests
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            prd_path = self.bind_prd(plan, root, "# Product contract\n")
-            architecture_source = next(
-                source for source in plan["sources"] if source["kind"] == "architecture"
-            )
-            architecture_path = root / architecture_source["location"]
-            architecture_path.parent.mkdir(parents=True, exist_ok=True)
-            architecture_path.write_text("# Architecture\n", encoding="utf-8")
-            architecture_source["content_sha256"] = hashlib.sha256(
-                architecture_path.read_bytes()
-            ).hexdigest()
-            markdown_path = root / "design-system.md"
-            registry_path = root / "design-system.json"
-            markdown_path.write_text(
-                "# Design system\n\n" + generated_contract_block(registry) + "\n",
-                encoding="utf-8",
-            )
-            registry_path.write_text(json.dumps(registry), encoding="utf-8")
-            for source_id, kind, path in (
-                ("SRC-DESIGN-MD", "design system", markdown_path),
-                ("SRC-DESIGN-JSON", "design system machine", registry_path),
-            ):
-                plan["sources"].append(
-                    {
-                        "id": source_id,
-                        "kind": kind,
-                        "location": path.name,
-                        "owner": "design",
-                        "status": "frozen",
-                        "content_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                        "source_revision": None,
-                        "staged_revision": None,
-                        "notes": "required pair",
-                    }
-                )
-            plan_path = root / "PLAN.md"
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-
-            result = self.run_cli(
-                plan_path,
-                None,
-                prd=prd_path,
-                design_system=registry_path,
-                design_system_markdown=markdown_path,
-                repo_root=root,
-            )
-            self.assertEqual(0, result.returncode, result.stdout)
-
-            mismatched_registry = dict(registry, product="Different Product")
-            markdown_path.write_text(
-                "# Design system\n\n"
-                + generated_contract_block(mismatched_registry)
-                + "\n",
-                encoding="utf-8",
-            )
-            markdown_source = next(
-                source
-                for source in plan["sources"]
-                if source["location"] == "design-system.md"
-            )
-            markdown_source["content_sha256"] = hashlib.sha256(
-                markdown_path.read_bytes()
-            ).hexdigest()
-            plan_path.write_text(
-                manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
-                encoding="utf-8",
-            )
-            mismatched = self.run_cli(
-                plan_path,
-                None,
-                prd=prd_path,
-                design_system=registry_path,
-                design_system_markdown=markdown_path,
-                repo_root=root,
-            )
-
-        self.assertEqual(0, result.returncode, result.stdout)
-        self.assertEqual("PASS", json.loads(result.stdout)["status"])
-        self.assertEqual(1, mismatched.returncode)
-        self.assertTrue(
-            any(
-                "generated contract.product differs" in error
-                for error in json.loads(mismatched.stdout)["errors"]
-            )
-        )
+            plan, run, _paths = StrictAuthorityJoinTests._ui_fixture(root, required=True)
+            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=run))
+            plan["sources"] = [source for source in plan["sources"] if not source.get("location", "").endswith("/design-system.md")]
+            self.assertTrue(validate_frozen_contract_joins(plan, root, run=run))
 
     def test_design_system_join_rejects_compiler_invalid_id_namespaces(self) -> None:
         plan = valid_plan()
@@ -1716,115 +1439,16 @@ Research Gate: go — assessed 2026-09-12, decided by Owner
             )
         return json.loads(result.stdout)
 
-    def test_gated_run_requires_three_viewport_design_system(self) -> None:
-        payload = self.run_gated_pair_cli([390, 1200], gate="0.35.0")
-        self.assertEqual("FAIL", payload["status"])
-        self.assertIn(
-            "design_system: web responsive set needs at least three ascending "
-            "viewports (harness 0.34.0+)",
-            " ".join(payload["errors"]),
-        )
-
-        payload = self.run_gated_pair_cli([390, 768, 1200], gate="0.35.0")
-        self.assertEqual("PASS", payload["status"])
-
-    def test_gated_run_requires_three_viewport_prd_anchors(self) -> None:
-        payload = self.run_gated_pair_cli([390, 1200], gate="0.35.0")
-        self.assertEqual("FAIL", payload["status"])
-        self.assertIn(
-            "prd: UI surface UI-001 `responsive` web responsive set needs at "
-            "least three ascending viewports (harness 0.34.0+)",
-            " ".join(payload["errors"]),
-        )
-
-        payload = self.run_gated_pair_cli([390, 768, 1200], gate="0.35.0")
-        self.assertEqual("PASS", payload["status"])
-
-    def test_ungated_run_keeps_the_two_viewport_floor(self) -> None:
-        plan = valid_plan()
-        ungated = valid_run(plan)
-        ungated["runtime_capabilities"]["runtime_adapter"].pop("version_gate")
-        gated = valid_run(plan)
-        gated["runtime_capabilities"]["runtime_adapter"]["version_gate"][
-            "required_harness_version"
-        ] = "0.35.0"
+    def test_every_web_registry_requires_three_viewports(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            registry_path = Path(directory) / "design-system.json"
-            registry_path.write_text(
-                json.dumps(self.web_floor_registry([390, 1200])),
-                encoding="utf-8",
-            )
-            self.assertEqual(
-                [],
-                _viewport_floor_errors(
-                    ungated, prd_path=None, design_system_path=str(registry_path)
-                ),
-            )
-            self.assertEqual(
-                [
-                    "design_system: web responsive set needs at least three "
-                    "ascending viewports (harness 0.34.0+)"
-                ],
-                _viewport_floor_errors(
-                    gated, prd_path=None, design_system_path=str(registry_path)
-                ),
-            )
+            path = Path(directory) / "design-system.json"
+            path.write_text(json.dumps({"platform": "web", "viewports": [390, 1200]}), encoding="utf-8")
+            self.assertTrue(_viewport_floor_errors(None, prd_path=None, design_system_path=str(path)))
+            path.write_text(json.dumps({"platform": "web", "viewports": [390, 768, 1200]}), encoding="utf-8")
+            self.assertEqual([], _viewport_floor_errors(None, prd_path=None, design_system_path=str(path)))
 
-    def test_frozen_joins_carry_the_viewport_floor_only_for_gated_runs(self) -> None:
-        plan = valid_plan()
-        registry = self.web_floor_registry([390, 1200])
-        ungated = valid_run(plan)
-        gated = valid_run(plan)
-        gated["runtime_capabilities"]["runtime_adapter"]["version_gate"][
-            "required_harness_version"
-        ] = "0.35.0"
-        with tempfile.TemporaryDirectory() as directory:
-            root = Path(directory)
-            self.bind_prd(plan, root, "# Product contract\n")
-            architecture_path = root / "docs/product/architecture.md"
-            architecture_path.write_text("# Architecture\n", encoding="utf-8")
-            next(
-                source for source in plan["sources"]
-                if source["kind"] == "architecture"
-            )["content_sha256"] = hashlib.sha256(
-                architecture_path.read_bytes()
-            ).hexdigest()
-            markdown_path = root / "design-system.md"
-            registry_path = root / "design-system.json"
-            markdown_path.write_text(
-                "# Design system\n\n" + generated_contract_block(registry) + "\n",
-                encoding="utf-8",
-            )
-            registry_path.write_text(json.dumps(registry), encoding="utf-8")
-            for source_id, kind, path in (
-                ("SRC-DESIGN-MD", "design system", markdown_path),
-                ("SRC-DESIGN-JSON", "design system machine", registry_path),
-            ):
-                plan["sources"].append(
-                    {
-                        "id": source_id,
-                        "kind": kind,
-                        "location": path.name,
-                        "owner": "design",
-                        "status": "frozen",
-                        "content_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                        "source_revision": None,
-                        "staged_revision": None,
-                        "notes": "frozen design contract",
-                    }
-                )
 
-            self.assertEqual([], validate_frozen_contract_joins(plan, root))
-            self.assertEqual([], validate_frozen_contract_joins(plan, root, run=ungated))
-            errors = validate_frozen_contract_joins(plan, root, run=gated)
 
-        self.assertEqual(
-            [
-                "design_system: web responsive set needs at least three "
-                "ascending viewports (harness 0.34.0+)"
-            ],
-            errors,
-        )
 
     def test_malformed_manifest_reports_error_with_exit_code_two(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

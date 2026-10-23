@@ -6,23 +6,23 @@ The English files alone are canonical inputs for UI design, implementation, PLAN
 
 Translate every substantive section, table, requirement, acceptance criterion, risk, assumption, open question and architecture decision in the same order. Keep trace IDs, numeric targets, units, paths, API/schema identifiers, source links and required literal product copy unchanged. Explain technical terms in Chinese while retaining their English names where useful. Do not add, weaken or omit obligations. Translate the human meaning of approval states without creating a second machine approval block or an independent approval history.
 
-Each review copy has exactly one source marker, containing the SHA-256 of the exact English file bytes:
+Each review copy has exactly one source marker, containing the SHA-256 of the English file text without the `product-definition-approval` marker block:
 
 ```markdown
 <!-- review-source: PRD.md sha256:<64 lowercase hex characters> -->
 ```
 
-Use `architecture.md` for the architecture marker. Custom filenames explicitly requested by the owner use their real source basenames and explicit review paths. Compute the hash after writing the corresponding English revision. A changed hash means the review needs reconciliation, not permission to update only its marker.
+Use `architecture.md` for the architecture marker. Custom filenames explicitly requested by the owner use their real source basenames and explicit review paths. Compute the hash after writing the corresponding English revision. A stale-hash failure prints the current value. A changed hash means the review needs reconciliation, not permission to update only its marker.
 
-Before every owner review, semantically compare each pair for complete coverage and matching meaning, then run:
+Before every owner review, semantically compare each pair for coverage and matching meaning, then run:
 
 ```text
 python "<product-definition-builder-skill-root>/scripts/check_review_translations.py" --prd <staged PRD.md> --architecture <staged architecture.md>
 ```
 
-The default companions sit beside the sources; `--prd-review` and `--architecture-review` support explicitly requested custom names. The read-only checker rejects missing copies, stale source hashes, missing or added trace IDs, missing heading-level counts, missing table shapes/rows and missing numeric literals (excluding trace IDs, URLs and source/approval digests). It compares heading levels and table structure, not translated heading text, order or meaning. These structural and literal checks do not prove translation quality, complete meaning or human approval; the parent must still compare every substantive section in the required order. Do not ask for approval with a missing, stale or materially inconsistent review copy.
+The default companions sit beside the sources; `--prd-review` and `--architecture-review` support explicitly requested custom names. The read-only checker rejects missing copies, stale source hashes, missing or added trace IDs, missing heading-level counts, missing table shapes/rows and missing numeric literals (excluding trace IDs, URLs and source/approval digests). It compares heading levels and table structure, not translated heading text, order or meaning. These structural and literal checks do not prove translation quality, complete meaning or human approval. Compare every substantive section of a new copy in the required order. For a later revision, compare only the sections that changed in either file since the last full comparison; the passing checker covers the unchanged structure. Do not ask for approval with a missing, stale or materially inconsistent review copy.
 
-Present verified links to both Chinese copies first and both English sources alongside them. The owner may comment or approve in Chinese. Accepted review feedback changes the English source first, then its Chinese copy in the same revision; unresolved meaning differences block the existing Product Definition Approval. Confirm that the decision covers the identified English package revision and record it only in the canonical approval block. This does not add a second approval gate. Refresh the copies and hashes after writing approval metadata, without inventing a new owner decision for unchanged substantive content.
+Present verified links to both Chinese copies first and both English sources alongside them. The owner may comment or approve in Chinese. Accepted review feedback changes the English source first, then its Chinese copy in the same revision; unresolved meaning differences block the existing Product Definition Approval. Confirm that the decision covers the identified English package revision and record it only in the canonical approval block. This does not add a second approval gate. Recording approval metadata needs no copy refresh.
 
 Stage, validate, publish and archive each English/review pair together under the existing exact-path publication authority. Recheck hashes immediately before publication and after the move. Index review copies as non-canonical in `docs/DOCUMENTS.md`; retain prior copies with their corresponding archived sources. Never rewrite historical approvals. Downstream work still consumes the approved English sources.
 

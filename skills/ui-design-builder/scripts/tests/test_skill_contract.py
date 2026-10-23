@@ -197,7 +197,6 @@ console.log("hybrid fallback and stale QA assertions completed");
         stage = self.read(UI_STAGE)
         wireframe = self.read("references/wireframe-guide.md")
         hifi = self.read("references/ui-design-pass.md")
-        workflow = self.read("references/review-workflow.md")
         binding = (
             'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
             "--agents-md <target-AGENTS.md> --stage ui-design"
@@ -206,25 +205,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertLess(prompt.index("$frontend-design"), prompt.index("directions"))
         self.assertIn("actual design author for directions", prompt)
         self.assertIn("Before each authoring stage", prompt)
-        for document, authoring_marker in (
-            (stage, "produce direction studies"),
-            (wireframe, "## Wireframe Validation Gate (wireframes/5)"),
-            (hifi, "## Frontend Design Style Integration"),
-            (workflow, "Product/stack and PRD preflight"),
-        ):
-            with self.subTest(authoring_marker=authoring_marker):
-                self.assertIn(binding, document)
-                self.assertLess(document.index(binding), document.index(authoring_marker))
+        self.assertIn(binding, stage)
+        self.assertLess(stage.index(binding), stage.index("produce direction studies"))
+        for document in (wireframe, hifi):
+            with self.subTest(document=document[:30]):
+                self.assertNotIn(binding, document)
+                self.assertIn("stages/ui-design.md#required-skills-and-inputs", document)
 
-        authoring_contract = "\n".join((stage, wireframe, hifi, workflow))
-        self.assertIn("actual writer", authoring_contract)
-        self.assertIn("parent read", authoring_contract.lower())
-        self.assertIn("silently replace the binding", authoring_contract)
-        self.assertIn("grants no spawn action", authoring_contract)
-        self.assertNotIn("parent may author", authoring_contract)
-        for document in (stage, wireframe, hifi, workflow):
-            self.assertIn("Agent configuration designates", document)
-        self.assertIn("shell construction and validation", authoring_contract)
+        self.assertIn("The resolved writer must load the full owner-pinned `frontend-design` skill in its own context", stage)
+        self.assertIn("parent read", stage.lower())
+        self.assertIn("silently replace the binding", stage)
+        self.assertIn("grants no spawn action", stage)
+        self.assertNotIn("parent may author", "\n".join((stage, wireframe, hifi)))
+        self.assertIn("Agent configuration designates", stage)
+        self.assertIn("Assemblers and reviewers build the shell or validate", stage)
 
     def test_motion_and_media_router_is_conditional(self):
         router = self.read("references/motion-and-media-routing.md")
@@ -283,18 +277,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("verified absolute Markdown links", stage)
         self.assertIn("every manifest-listed sibling page", stage)
         self.assertIn("affected `ui-design.md` handoff", stage)
-        self.assertIn("complete actual HiFi candidate", contract)
-        for document in (stage, contract, visual_pass):
+        self.assertIn("complete HiFi candidate", contract)
+        for document in (stage, visual_pass):
             with self.subTest(document=document[:50]):
-                self.assertIn("final logical paths in the authorized publication checkout", document)
-                self.assertTrue("source checkout" in document or "canonical source paths" in document)
+                self.assertIn("at final repository paths on the task branch", document)
+                self.assertNotIn("publication checkout", document)
                 self.assertIn("Do not collect approval on `.ui-staging` paths", document)
                 self.assertNotIn("Use staging paths for an unapproved staged draft", document)
-        self.assertIn("Wait for the owner's explicit decision", contract)
+        self.assertIn("`stages/ui-design.md#workflow` step 7", contract)
+        self.assertIn("at final repository paths on the task branch", contract)
+        self.assertIn("never `.ui-staging` paths", contract)
+        self.assertIn("Wait for the explicit human decision", stage)
         self.assertIn("a changed candidate reopens the affected decision", contract)
         self.assertIn("plain path cannot replace the links", contract)
-        self.assertIn("block readiness", contract)
-        self.assertIn("complete actual HiFi candidate", contract)
+        self.assertIn("Missing or stale pages/evidence block readiness", stage)
         self.assertIn("every manifest-listed sibling page", visual_pass)
         self.assertIn("ask explicitly for Visual Approval", visual_pass)
 
@@ -319,16 +315,96 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_repair_review_preserves_mandatory_checks_and_current_evidence(self):
         rubric = self.read("references/ui-grading-rubric.md")
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
-        self.assertIn("initial diagnostic wave covers the complete approved scope", scope)
-        self.assertIn("Run Impeccable critique and audit again", scope)
+        self.assertIn("initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis", scope)
+        self.assertIn("Run Impeccable critique and audit again on the affected pages and states", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("It never grants another repair round", scope)
+        self.assertIn("it never grants another repair round", scope)
         self.assertNotIn("and the full rubric once", rubric)
+        self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
                        "references/review-evidence.md", UI_STAGE):
             with self.subTest(source=source):
                 self.assertIn("ui-grading-rubric.md#repair-re-review-scope", self.read(source))
+
+    def test_first_wave_axes_and_scoped_re_review(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        axes = rubric.split("## First-Wave Audit Axes", 1)[1].split("\n## ", 1)[0]
+        for axis in ("320 CSS px reflow", "each theme in scope", "200%", "`clamp()`", "forced colors",
+                     "keyboard-only use", "accessible names", "placeholders", "live regions", "reduced motion"):
+            with self.subTest(axis=axis):
+                self.assertIn(axis, axes)
+        self.assertIn("A re-review adds no axis", axes)
+        scope = rubric.split("## Repair Re-review Scope", 1)[1]
+        self.assertIn("A copy or metadata repair changes only", scope)
+        self.assertIn("Every other repair is a visual repair", scope)
+        self.assertIn("goes into the ledger as a next-round advisory", scope)
+        for block in ("a PRD contradiction", "a dead control", "an inaccessible required flow",
+                      "overlaps, clips or is unreachable"):
+            self.assertIn(block, scope)
+        self.assertIn("Impeccable severity alone does not decide readiness", rubric)
+        contract = self.read("references/output-contract.md")
+        self.assertIn("may carry forward into the new receipt with its original capture", contract)
+        self.assertIn("names each carried row's source receipt and page SHA-256", contract)
+        for source in ("SKILL.md", UI_STAGE):
+            self.assertIn("ui-grading-rubric.md#first-wave-audit-axes", self.read(source))
+
+    def test_default_review_staffing_and_grader_packet(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
+                      "and one Impeccable operator who runs critique and audit", rubric)
+        self.assertIn("Neither reviews its own work", rubric)
+        self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
+        self.assertIn("A grader packet carries this rubric", rubric)
+        self.assertIn("the Impeccable operator produces the critique and audit receipts",
+                      self.read("references/review-evidence.md"))
+
+    def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        guide = self.read("references/wireframe-guide.md")
+        for marker in ("## Legacy Wireframe Grading", "### W5 Composition Criteria",
+                       "`W1 PRD conformance`", "`W5 Structural clarity and evidence`"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, guide)
+        self.assertIn("wireframe-guide.md#legacy-wireframe-grading", rubric)
+        self.assertNotIn("### W5 Composition Criteria", rubric)
+        self.assertIn("`60–79 — advisory`", rubric)
+        self.assertIn("HiFi readiness requires an overall score of at least `85` and every `H1`–`H9` dimension at least `80`.", rubric)
+
+    def test_bindings_and_frontend_design_read_are_per_session(self):
+        stage = self.read(UI_STAGE)
+        self.assertIn("Before a repair, rerun it only when a bound skill's tree hash changed in this session", stage)
+        self.assertIn("document-sync-contract.md#same-session-source-reading-reuse", stage)
+        sync = (SKILL_ROOT.parent / "delivery-harness/references/document-sync-contract.md").read_text(encoding="utf-8")
+        self.assertIn("same-session-source-reading-reuse", self.stage_headings(sync))
+        for source in ("references/ui-design-pass.md", "references/review-workflow.md"):
+            with self.subTest(source=source):
+                self.assertIn("stages/ui-design.md#required-skills-and-inputs", self.read(source))
+                self.assertNotIn("or any repair, run", self.read(source))
+
+    def test_direction_modification_is_one_revised_study(self):
+        pass_guide = self.read("references/ui-design-pass.md")
+        contract = self.read("references/output-contract.md")
+        self.assertIn("A mix or modification produces one revised study of the selected direction", pass_guide)
+        self.assertIn("A rejection starts a complete new set", pass_guide)
+        self.assertIn("adds one revised study of the selected direction to the same round folder", contract)
+        for document in (pass_guide, contract):
+            self.assertNotIn("complete revised direction set", document)
+            self.assertNotIn("renewed complete study set", document)
+
+    def test_hot_path_text_names_no_deleted_helper(self):
+        for source in ("SKILL.md", UI_STAGE, "references/ui-design-pass.md", "references/review-evidence.md",
+                       "references/ui-grading-rubric.md"):
+            text = self.read(source)
+            with self.subTest(source=source):
+                for deleted in ("check_ui_diagnostic_wave", "design-freshness", "check_ui_publication",
+                                "native_csp_diagnostic", "compiler-source"):
+                    self.assertNotIn(deleted, text)
+
+    def test_only_final_candidate_evidence_is_committed(self):
+        evidence = self.read("references/review-evidence.md")
+        self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
+        self.assertIn("Do not commit evidence of earlier attempts", evidence)
 
 
 if __name__ == "__main__":

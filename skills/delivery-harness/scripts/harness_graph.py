@@ -16,6 +16,7 @@ from harness_core import (
     is_full_sha,
     is_safe_model_token,
     scope_contains,
+    scope_overlap,
     validate_scope_claim,
 )
 from harness_schema import (
@@ -28,14 +29,16 @@ from harness_schema import (
     GRAPH_OUTCOMES,
     ID_RE,
     is_valid_provider_id,
+    REVIEW_LENS_ORDER,
     REVIEWER_TOOL_KEYS,
     RUNTIME_REASONING_EFFORTS,
     RUNTIME_REVIEW_TYPES,
     TARGET_RE,
     action_target_kind_allowed,
     action_target_kind_description,
+    review_lenses,
+    review_policy,
 )
-from agent_role_contract import is_worker_role_id
 
 
 def validate_cleanup_lifecycle_targets(errors: list[str], graph: Any) -> None:
@@ -208,6 +211,7 @@ def _validate_graph(
                         },
                         {
                             "stage",
+                            "lenses",
                             "required_tools",
                             *(set() if require_review_lineage else {"lineage_id"}),
                         },
@@ -234,6 +238,30 @@ def _validate_graph(
                             )
                         if not isinstance(review["type"], str) or review["type"] not in RUNTIME_REVIEW_TYPES:
                             _add(errors, f"{review_path}.type", "has an unsupported review type")
+                        if "lenses" in review:
+                            lenses = _strings(
+                                errors,
+                                f"{review_path}.lenses",
+                                review["lenses"],
+                                nonempty=True,
+                            )
+                            unknown_lenses = sorted(set(lenses) - RUNTIME_REVIEW_TYPES)
+                            if unknown_lenses:
+                                _add(
+                                    errors,
+                                    f"{review_path}.lenses",
+                                    f"unsupported review lenses: {', '.join(unknown_lenses)}",
+                                )
+                            elif len(lenses) != len(set(lenses)):
+                                _add(errors, f"{review_path}.lenses", "must not contain duplicates")
+                            elif lenses and review["type"] != next(
+                                lens for lens in REVIEW_LENS_ORDER if lens in lenses
+                            ):
+                                _add(
+                                    errors,
+                                    f"{review_path}.type",
+                                    "must equal the widest lens: security, visual, frontend_code, then backend_code",
+                                )
                         review_missions = _strings(
                             errors,
                             f"{review_path}.mission_ids",
@@ -403,13 +431,6 @@ def _validate_graph(
                             errors,
                             f"{runtime_path}.preferred_provider",
                             "must be null or one of allowed_providers",
-                        )
-                    worker_role = runtime.get("worker_role")
-                    if worker_role is not None and not is_worker_role_id(worker_role):
-                        _add(
-                            errors,
-                            f"{runtime_path}.worker_role",
-                            "must be a lowercase host-safe logical role id",
                         )
                     provider_options = runtime.get("provider_options", {})
                     if not isinstance(provider_options, dict):
@@ -696,7 +717,62 @@ def _validate_graph(
 
 def ui_acceptance_review(review: dict[str, Any]) -> bool:
     evidence = review.get("required_evidence")
-    return review.get("type") == "visual" and isinstance(evidence, list) and "ui_acceptance" in evidence
+    return "visual" in review_lenses(review) and isinstance(evidence, list) and "ui_acceptance" in evidence
+
+
+def unactivated_review_repairs(
+    plan: dict[str, Any], review_node: dict[str, Any], run: dict[str, Any]
+) -> set[str]:
+    """Identify an untouched one-shot repair behind this final review's failure."""
+    review = review_node.get("review")
+    if (
+        review_policy(plan) != "final_candidate"
+        or not isinstance(review, dict)
+        or review.get("stage") != "integration"
+    ):
+        return set()
+    graph = plan.get("graph", {})
+    nodes = {node["id"]: node for node in graph.get("nodes", [])
+             if isinstance(node, dict) and isinstance(node.get("id"), str)}
+    edges = graph.get("edges", [])
+    node_states = run.get("graph_state", {}).get("node_states", {})
+    edge_states = run.get("graph_state", {}).get("edge_states", {})
+    result: set[str] = set()
+    for edge in edges:
+        if (
+            edge.get("kind") != "route"
+            or edge.get("from") != review_node.get("id")
+            or edge.get("on_outcomes") != ["fix_required"]
+            or edge.get("max_traversals") != 1
+        ):
+            continue
+        repair = nodes.get(edge.get("to"), {})
+        mission_id = repair.get("ref")
+        state = node_states.get(repair.get("id"), {})
+        route_state = edge_states.get(edge.get("id"), {})
+        incoming = [item for item in edges if item.get("to") == repair.get("id")]
+        if (
+            repair.get("kind") == "mission"
+            and repair.get("max_attempts") == 1
+            and mission_id in review.get("mission_ids", [])
+            and incoming == [edge]
+            and state.get("phase") == "dormant"
+            and state.get("attempts") == 0
+            and not state.get("blockers")
+            and run.get("mission_states", {}).get(mission_id, {}).get("phase") == "queued"
+            and route_state.get("status") == "dormant"
+            and route_state.get("traversals") == 0
+            and any(
+                item.get("kind") == "route"
+                and item.get("from") == repair.get("id")
+                and item.get("to") == review_node.get("id")
+                and item.get("on_outcomes") == ["pass"]
+                and item.get("max_traversals") == 1
+                for item in edges
+            )
+        ):
+            result.add(mission_id)
+    return result
 
 
 def ui_acceptance_evidence_present(evidence: list[str]) -> bool:
@@ -740,24 +816,119 @@ def review_covers_ui_acceptance(
     )
 
 
+MERGE_CHAIN_SKIP_TYPES = frozenset({"frontend_code", "backend_code"})
+
+
+def merge_chain_skip_allowed(plan: dict[str, Any], review: dict[str, Any]) -> bool:
+    """Only per_mission code reviews may skip; visual and security never do."""
+    lenses = review_lenses(review)
+    return (
+        review_policy(plan) == "per_mission"
+        and bool(lenses)
+        and lenses <= MERGE_CHAIN_SKIP_TYPES
+    )
+
+
+def reviewed_merge_chain_covers(
+    plan: dict[str, Any],
+    node: dict[str, Any],
+    run: dict[str, Any],
+    graph_nodes: dict[str, Any],
+) -> bool:
+    """Check the recorded merge chain against RUN review state and PLAN scopes.
+
+    ``skip-integration-review`` proves the Git facts from live Git and records
+    them as ``integration.reviewed_merge_chain``: every link is a clean automatic
+    merge of an exact reviewed mission head. This check binds that record to the
+    current head, requires every planned single-mission review of each linked
+    mission to PASS that exact head, requires every covered mission to be
+    linked, and rejects overlapping write scopes. A visual review judges the
+    rendered whole head, so it never uses this skip.
+    """
+
+    if not merge_chain_skip_allowed(plan, node["review"]):
+        return False
+    integration = run.get("integration")
+    chain = integration.get("reviewed_merge_chain") if isinstance(integration, dict) else None
+    if not isinstance(chain, dict) or not is_full_sha(chain.get("head_sha")):
+        return False
+    if chain["head_sha"] != integration.get("integration_head_sha"):
+        return False
+    node_states = (run.get("graph_state") or {}).get("node_states") or {}
+    review_mission: dict[Any, Any] = {}
+    for node_id, item in graph_nodes.items():
+        review = item.get("review") if isinstance(item, dict) else None
+        if (
+            isinstance(review, dict)
+            and review.get("stage", "preintegration") == "preintegration"
+            and isinstance(review.get("mission_ids"), list)
+            and len(review["mission_ids"]) == 1
+            and (node_states.get(node_id) or {}).get("phase") != "superseded"
+        ):
+            review_mission[node_id] = review["mission_ids"][0]
+    passed: dict[tuple[Any, Any], set[Any]] = {}
+    workers = run.get("review_workers")
+    for worker in workers if isinstance(workers, list) else []:
+        if (
+            isinstance(worker, dict)
+            and worker.get("phase") == "worker_passed"
+            and worker.get("outcome") == "pass"
+            and worker.get("node_id") in review_mission
+        ):
+            key = (review_mission[worker["node_id"]], worker.get("reviewed_sha"))
+            passed.setdefault(key, set()).add(worker["node_id"])
+    links = chain.get("links")
+    if not isinstance(links, list) or not links:
+        return False
+    linked: set[Any] = set()
+    for link in links:
+        if not isinstance(link, dict) or link.get("mission_id") in linked:
+            return False
+        mission_id = link["mission_id"]
+        planned = {node_id for node_id, owner in review_mission.items() if owner == mission_id}
+        if not planned or planned - passed.get((mission_id, link.get("reviewed_sha")), set()):
+            return False
+        linked.add(mission_id)
+    covered = node["review"].get("mission_ids")
+    if not isinstance(covered, list) or not covered or not set(covered) <= linked:
+        return False
+    scopes = {
+        mission.get("id"): mission.get("write_scope", [])
+        for mission in plan.get("missions", [])
+        if isinstance(mission, dict)
+    }
+    if any(not isinstance(scopes.get(mission_id), list) for mission_id in linked):
+        return False
+    chained = sorted(linked)
+    return not any(
+        scope_overlap(left_scope, right_scope, casefold=True)
+        for index, left in enumerate(chained)
+        for right in chained[index + 1:]
+        for left_scope in scopes[left]
+        for right_scope in scopes[right]
+    )
+
+
 def _add_integration_review_skip_errors(
     errors: list[str],
     state_path: str,
     node: dict[str, Any],
     run: dict[str, Any],
     graph_nodes: dict[str, Any],
+    plan: dict[str, Any],
 ) -> None:
-    """An integration-stage review may be skipped only on a byte-identical tree.
+    """An integration-stage review may skip only when no new combination exists.
 
     Re-dispatching a reviewer against a commit that a pre-integration review
     already passed reads a byte-identical tree and reaches the same verdict, and
     a reviewer dispatch is one of the most expensive steps in a run. Skipping it
-    is safe in exactly two cases: the integration head IS that reviewed commit,
-    or it is a merge commit whose recorded ``integration_tree_sha`` equals the
-    reviewed commit's recorded ``tree_sha`` — same bytes, same verdict. In both
-    cases the PASS must be the same review type. Any other integration head has
-    a tree no earlier PASS covers, so the "did the combination break" question
-    is real and the review must run.
+    is safe when the integration head IS that reviewed commit, or it is a merge
+    commit whose recorded ``integration_tree_sha`` equals the reviewed commit's
+    recorded ``tree_sha`` — same bytes, same verdict. In both cases the PASS
+    must cover every lens of the skipped review. A code review may also skip on a recorded
+    merge chain of reviewed heads with disjoint write scopes; see
+    ``reviewed_merge_chain_covers``. Any other integration head has a
+    combination no earlier PASS covers, so the review must run.
 
     Without this check ``skipped`` carried no justification at all, so this both
     enables the short-circuit and closes that hole.
@@ -786,7 +957,7 @@ def _add_integration_review_skip_errors(
     )
     tree_bound = is_full_sha(integration_tree)
 
-    review_type = node["review"].get("type")
+    lenses = review_lenses(node["review"])
     review_workers = run.get("review_workers")
     for worker in review_workers if isinstance(review_workers, list) else []:
         if not isinstance(worker, dict):
@@ -798,7 +969,7 @@ def _add_integration_review_skip_errors(
             continue
         if source["review"].get("stage", "preintegration") != "preintegration":
             continue
-        if source["review"].get("type") != review_type:
+        if not lenses or not lenses <= review_lenses(source["review"]):
             continue
         if not review_covers_ui_acceptance(source["review"], node["review"], worker, run):
             continue
@@ -810,12 +981,15 @@ def _add_integration_review_skip_errors(
             and worker["tree_sha"] == integration_tree
         ):
             return
+    if reviewed_merge_chain_covers(plan, node, run, graph_nodes):
+        return
 
     _add(
         errors,
         state_path,
         "skipped integration review requires a pre-integration PASS of the same"
-        " review type on the exact integration head or a byte-identical tree",
+        " review type on the exact integration head or a byte-identical tree,"
+        " or a recorded merge chain of reviewed heads",
     )
 
 
@@ -934,7 +1108,7 @@ def _validate_graph_state(
                 and phase == "skipped"
             ):
                 _add_integration_review_skip_errors(
-                    errors, state_path, node, run, graph_nodes
+                    errors, state_path, node, run, graph_nodes, plan
                 )
 
             if phase == "succeeded" and isinstance(node.get("review"), dict) and ui_acceptance_review(node["review"]):
@@ -967,11 +1141,13 @@ def _validate_graph_state(
                 and node["review"].get("stage") == "integration"
                 and phase in {"ready", "running"}
             ):
+                pending_repairs = unactivated_review_repairs(plan, node, run)
                 incomplete_missions = sorted(
                     mission_id
                     for mission_id in node["review"].get("mission_ids", [])
-                    if not isinstance(mission_states.get(mission_id), dict)
-                    or mission_states[mission_id].get("phase") != "integrated"
+                    if mission_id not in pending_repairs
+                    and (not isinstance(mission_states.get(mission_id), dict)
+                         or mission_states[mission_id].get("phase") != "integrated")
                 )
                 if incomplete_missions:
                     _add(

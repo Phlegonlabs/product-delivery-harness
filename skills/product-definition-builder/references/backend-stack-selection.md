@@ -89,7 +89,7 @@ Verify these rules against current official documentation on the date the PRD is
 ### Any Category or Strategy
 
 - Use isolated development and production credentials, connection strings, and data for every store and auth provider. Never let development access production customer data or live sessions.
-- Isolation does not mean development stays empty: for content-shaped entities (articles, images, catalog items), seed development with representative mock/sample data as part of its setup or migration step, so development has realistic-looking data without ever reading real production records. Only source seed data from a real production copy when the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process.
+- Isolation does not mean development stays empty: seed development with representative mock/sample data in its setup or migration step. Use a production copy only when the user explicitly authorizes and scopes a separate sync/anonymization process.
 - Record migration order, rollback path, and deployed-environment verification for every schema or data change.
 - Vendor and managed-service support changes quickly. Do not copy limits, pricing, or capability claims from memory; record the verification date and direct official sources in `stack-decisions.md`.
 

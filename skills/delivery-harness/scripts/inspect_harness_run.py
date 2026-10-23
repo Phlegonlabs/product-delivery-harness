@@ -4,7 +4,6 @@
 from __future__ import annotations
 
 import argparse
-import copy
 import json
 import sys
 from pathlib import Path
@@ -12,7 +11,6 @@ from typing import Any
 
 from harness_core import ManifestError, _nonempty_string, is_full_sha, load_run
 from harness_git import GitMetadataError, reject_object_substitution, run_git
-from harness_ui_evidence import _layout_check_required
 from render_tasks_view import GENERATED_MARKER
 
 
@@ -341,41 +339,6 @@ def _parent_git_summary(
     }, warnings
 
 
-def _attestation_summary(run: dict[str, Any]) -> dict[str, Any]:
-    """Count parent-attested UI records and name failing or missing entries."""
-
-    def row_key(row: dict[str, Any]) -> str:
-        return "/".join(
-            str(row.get(part)) for part in ("surface_id", "route", "breakpoint", "state")
-        )
-
-    def rows(key: str) -> list[dict[str, Any]]:
-        return [row for row in run.get(key) or [] if isinstance(row, dict)]
-
-    evidence = rows("ui_evidence")
-    layout_required = _layout_check_required(run)
-    ledger = rows("deviation_ledger")
-    impacts = rows("ui_impact_summary")
-    return {
-        "ui_evidence_rows": len(evidence),
-        "layout_check_failing_or_missing": [
-            row_key(row)
-            for row in evidence
-            if str(row.get("layout_check") or "").startswith("fail")
-            or (layout_required and not _nonempty_string(row.get("layout_check")))
-        ],
-        "deviation_ledger_rows": len(ledger),
-        "ledger_rows_missing_citation": [
-            row_key(row) for row in ledger if not _nonempty_string(row.get("citation"))
-        ],
-        "ui_impact_summary_rows": len(impacts),
-        "impact_rows_missing_doc_delta": [
-            row.get("mission_id")
-            for row in impacts
-            if row.get("impact") in {"structure", "both"}
-            and not _nonempty_string(row.get("doc_delta"))
-        ],
-    }
 
 
 def _failure_snapshot(attempt: dict[str, Any]) -> dict[str, Any]:
@@ -457,50 +420,8 @@ def _next_recovery_steps(summary: dict[str, Any]) -> list[str]:
     ]
 
 
-def _runtime_metrics_summary(run: dict[str, Any]) -> dict[str, Any]:
-    """Keep measured phase sums separate from unknown full-run intervals."""
-    raw = run.get("runtime_metrics")
-    metrics = raw if isinstance(raw, dict) else {}
-    raw_events = metrics.get("events")
-    events = raw_events if isinstance(raw_events, list) else []
-    phases: dict[str, dict[str, Any]] = {}
-    malformed = 0
-    for event in events:
-        phase = event.get("phase") if isinstance(event, dict) else None
-        if not isinstance(phase, str) or not phase:
-            malformed += 1
-            continue
-        row = phases.setdefault(phase, {
-            "phase": phase, "event_count": 0,
-            "measured_duration_ms": None, "unknown_duration_count": 0,
-        })
-        row["event_count"] += 1
-        duration = event.get("duration_ms")
-        if type(duration) is int and duration >= 0:
-            row["measured_duration_ms"] = (row["measured_duration_ms"] or 0) + duration
-        else:
-            row["unknown_duration_count"] += 1
-    return {
-        "present": raw is not None,
-        "event_count": len(events),
-        "malformed_events": malformed,
-        "phase_events": [phases[phase] for phase in sorted(phases)],
-        **{key: metrics.get(key) if type(metrics.get(key)) is int and metrics[key] >= 0 else None
-           for key in ("baseline_wall_time_ms", "run_wall_time_ms", "critical_path_ms")},
-        "meaning": "Phase duration sums are partial observations, not run wall time or critical path.",
-    }
 
 
-def _verifier_timings_summary(run: dict[str, Any]) -> list[dict[str, Any]]:
-    """Expose each execution's observations without adding overlapping intervals."""
-    executions = run.get("verifier_executions")
-    return [
-        {"verifier_id": execution.get("verifier_id"),
-         "execution_key": execution.get("execution_key"),
-         "timings": copy.deepcopy(execution["timings"])}
-        for execution in executions if isinstance(execution, dict)
-        and isinstance(execution.get("timings"), dict)
-    ] if isinstance(executions, list) else []
 
 
 def summarize_run(
@@ -632,11 +553,8 @@ def summarize_run(
         "runtime_process_state": "not inspected",
         "runtime_process_liveness": "unknown",
         "runtime_version_gate": version_gate if isinstance(version_gate, dict) else None,
-        "runtime_metrics": _runtime_metrics_summary(run),
-        "verifier_timings": _verifier_timings_summary(run),
         "missions": missions,
         "attempt_recovery": recovery,
-        "attestations": _attestation_summary(run),
         "warnings": warnings,
         "next_recovery_steps": _next_recovery_steps(
             {"warnings": warnings, "attempt_recovery": recovery}
@@ -690,27 +608,6 @@ def render_text(summary: dict[str, Any]) -> str:
         f"integration_head={parent_git.get('integration_head_sha') or '-'} | "
         f"integration_object={integration_object}"
     )
-    metrics = summary.get("runtime_metrics") or {}
-    def milliseconds(value: Any) -> str:
-        return "unknown" if value is None else f"{value}ms"
-
-    lines.append(
-        "Runtime metrics: "
-        f"run_wall={milliseconds(metrics.get('run_wall_time_ms'))} | "
-        f"critical_path={milliseconds(metrics.get('critical_path_ms'))} | "
-        f"baseline={milliseconds(metrics.get('baseline_wall_time_ms'))}"
-    )
-    for phase in metrics.get("phase_events", []):
-        lines.append(
-            f"Phase {phase['phase']}: events={phase['event_count']} | "
-            f"measured_sum={milliseconds(phase['measured_duration_ms'])} | "
-            f"unknown_durations={phase['unknown_duration_count']}"
-        )
-    for execution in summary.get("verifier_timings", []):
-        lines.append(
-            f"Verifier timings {execution['verifier_id']} ({execution['execution_key']}): "
-            + json.dumps(execution["timings"], sort_keys=True)
-        )
     for mission in summary["missions"]:
         marker = "RECONCILE" if mission["needs_reconciliation"] else "aligned"
         dirty = (
@@ -749,23 +646,6 @@ def render_text(summary: dict[str, Any]) -> str:
     if summary.get("next_recovery_steps"):
         lines.append("Recovery next steps:")
         lines.extend(f"- {step}" for step in summary["next_recovery_steps"])
-    attestations = summary.get("attestations") or {}
-    lines.append(
-        "UI attestations: "
-        f"evidence={attestations.get('ui_evidence_rows', 0)} | "
-        f"ledger={attestations.get('deviation_ledger_rows', 0)} | "
-        f"impact={attestations.get('ui_impact_summary_rows', 0)}"
-    )
-    for label, entries in (
-        (
-            "layout_check failing/missing",
-            attestations.get("layout_check_failing_or_missing"),
-        ),
-        ("ledger rows missing citation", attestations.get("ledger_rows_missing_citation")),
-        ("impact rows missing doc_delta", attestations.get("impact_rows_missing_doc_delta")),
-    ):
-        if entries:
-            lines.append(f"- {label}: {', '.join(str(entry) for entry in entries)}")
     return "\n".join(lines)
 
 

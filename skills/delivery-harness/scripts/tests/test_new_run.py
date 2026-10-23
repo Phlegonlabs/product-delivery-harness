@@ -188,14 +188,14 @@ class NewRunTests(unittest.TestCase):
             "dormant", run["graph_state"]["edge_states"]["E-ACCEPTANCE-CLOSEOUT"]["status"]
         )
 
-    def test_security_review_lineage_is_generated_from_the_plan(self) -> None:
+    def test_new_run_omits_retired_protocol_inventory(self) -> None:
         run = load_run(self.generate())
-
-        security = run["review_lineages"]["REVIEW-SECURITY"]
-
-        self.assertEqual("security", security["review_type"])
-        self.assertEqual(["M1"], security["mission_ids"])
-        self.assertEqual(0, security["consumed_attempts"])
+        for key in ("review_lineages", "runtime_metrics", "launch_records", "role_binding_updates"):
+            self.assertNotIn(key, run)
+        for key in ("permission_boundary", "reviewer_tools", "nested_subagents"):
+            self.assertNotIn(key, run["runtime_capabilities"])
+        self.assertNotIn("role_bindings", run["runtime_capabilities"]["runtime_adapter"])
+        self.assertNotIn("sandbox", run["observed"])
 
     def test_new_run_requires_an_explicit_security_policy(self) -> None:
         plan = copy.deepcopy(self.plan)

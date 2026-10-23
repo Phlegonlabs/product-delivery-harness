@@ -6,7 +6,7 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include 
 
 Size each `AskUserQuestion` call to the question tool's actual per-call question and option limits. Batch each phase into the minimum number of calls the tool permits, never repeat an answered decision to reshape a call, and use the tool's built-in Other when its option limit cannot show the full candidate list; record that full list in `PRD.md`. There is no host-specific or cross-phase total-call cap. Start the closed-set phase only after the segmented free-text sequence is complete, in this order:
 
-1. The decisions that depend on no other answer: product archetype and validation depth.
+1. The decisions that depend on no other answer: product archetype and validation depth. When the research assessment recommends `go`, its Research Gate decision leads this call.
 2. The decisions that depend on the archetype call's answer: deployment platform, mobile or desktop target platforms, client implementation strategy, browser-extension targets, monetization model, partner channel, database category, auth strategy, and stack decision mode.
 
 This table is the canonical closed-decision inventory and phase order. Each applicable ID is asked exactly once by the matching `(AskUserQuestion)` bullet below. Batch only within one phase; a host with a smaller per-call capacity splits that phase without dropping or moving decisions.

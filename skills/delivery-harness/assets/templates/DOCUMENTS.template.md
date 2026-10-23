@@ -36,13 +36,7 @@ The manifest of every document this delivery flow produces or governs. Keep it a
 
 Notes:
 
-- Every skill invocation checks live document and skill drift through `delivery-harness/references/document-sync-contract.md`. Keep the current PRD as the baseline, retain links to historical revisions as references, and never rewrite archived approval or execution evidence. A sync snapshot records reviewed bytes, not approval or capability.
-- Before handoff, use `AGENTS.md`'s Handoff Documentation Audit to reconcile this index, affected live documents, Epic Change Logs and the task/RUN state. Check whether the shared `AGENTS.md` rules still match the observed installed project template in meaning; preserve local instructions when refreshing stale rules. Report read-only or unresolved gaps for the next owner.
-- Delivery acceptance uses the frozen requirement/scenario/platform matrix and evidence register from `delivery-harness/references/delivery-acceptance-contract.md`. Link its actual paths here when applicable; do not duplicate evidence rows. The direct route needs no PLAN/RUN.
-
 - The PRD family lives under `docs/product/` with its own artifact lifecycle (staging, publish, archive); run state and evidence live under `docs/goal/`; deployment, activation, this manifest, and the rendered `tasks.md` view live under `docs/`. The repository root carries only what runtimes auto-discover — `AGENTS.md` and `CLAUDE.md` — so every discoverable-by-convention file stays where tools look for it and everything else is a flow contract.
 - `PLAN.md` and `RUN.md` exist only for the managed route; small direct work creates none of the run documents.
 - `tasks.md` is a rendered view: never edit it to change state — change RUN and re-render; its Update Log section is the one hand-maintained part, preserved verbatim by the renderer.
 - The PRD family and the run family never mix: a run references its PRD only through the frozen content hash in PLAN's sources, nothing under `docs/product/` ever enters `docs/goal/archived/`, and the PRD stays published as the living reference for later enhancement runs.
-- Harness 0.38+ archival also creates one immutable `ARCHIVE_ANCHOR` at the exact absolute path supplied outside the checkout. It is not a repository document; `ARCHIVE_RECEIPT.json` records its identity, and archive-candidate publication requires the same file.
-- Evidence artifacts bind to exact SHAs with lowercase SHA-256 records; they are the only accepted proof for UI and verification gates.

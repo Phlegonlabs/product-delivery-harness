@@ -45,14 +45,22 @@ TARGET_SCOPE = activation_fixtures.TARGET
 ACTIVATION_SHA256 = hashlib.sha256(ACTIVATION.encode("utf-8")).hexdigest()
 
 
-def valid_review() -> str:
+def valid_review_v2(*, mode: str = "baseline") -> str:
     return f"""# SEO Growth Review
 
 ## Record
-- Schema: seo-review/1
-- Mode: baseline
+- Schema: seo-review/2
+- Mode: {mode}
 - Review type: lifecycle_public_release
 - Review owner: Growth owner
+- Product: Example
+- Target market: United States
+- Language: en-US
+- Business outcome: setup activation
+- Timezone: UTC
+- Comparison window: 2026-08-01/2026-08-31 vs 2026-07-01/2026-07-31
+- Segmentation: query, page, country, device
+- Global data coverage through: 2026-09-07T18:02:00Z
 - Production release target: web-prod
 - Release SHA: {SHA}
 - Artifact / build identity: {ARTIFACT}
@@ -65,9 +73,9 @@ def valid_review() -> str:
 - Review date: 2026-09-10
 
 ## Verified Sources
-| MS ID | Scope | Release binding | Source role | Data cutoff | Evidence |
-| --- | --- | --- | --- | --- | --- |
-| MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT} | ga4 | 2026-09-07T18:02:00Z | EVID-004 verified property read-back |
+| MS ID | Scope | Release binding | Source role | Verified at | Coverage through | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT} | ga4 | 2026-09-07T18:02:00Z | 2026-09-07T18:02:00Z | EVID-004 verified property read-back |
 
 ## Measurement Integrity
 | Check | Result | Evidence |
@@ -94,30 +102,6 @@ def valid_review() -> str:
 
 No query-level seasonality conclusion is possible until the next complete month is available.
 """
-
-
-def valid_review_v2(*, mode: str = "baseline") -> str:
-    text = valid_review().replace("seo-review/1", "seo-review/2", 1)
-    text = text.replace(
-        "- Mode: baseline",
-        f"- Mode: {mode}",
-        1,
-    )
-    text = text.replace(
-        "- Review owner: Growth owner",
-        "- Review owner: Growth owner\n- Product: Example\n- Target market: United States\n- Language: en-US\n- Business outcome: setup activation\n- Timezone: UTC\n- Comparison window: 2026-08-01/2026-08-31 vs 2026-07-01/2026-07-31\n- Segmentation: query, page, country, device\n- Global data coverage through: 2026-09-07T18:02:00Z",
-        1,
-    )
-    text = text.replace(
-        "| MS ID | Scope | Release binding | Source role | Data cutoff | Evidence |\n"
-        "| --- | --- | --- | --- | --- | --- |\n"
-        f"| MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT} | ga4 | 2026-09-07T18:02:00Z | EVID-004 verified property read-back |",
-        "| MS ID | Scope | Release binding | Source role | Verified at | Coverage through | Evidence |\n"
-        "| --- | --- | --- | --- | --- | --- | --- |\n"
-        f"| MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT} | ga4 | 2026-09-07T18:02:00Z | 2026-09-07T18:02:00Z | EVID-004 verified property read-back |",
-        1,
-    )
-    return text
 
 
 IOS_TARGETS = """
@@ -252,7 +236,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
                 repo_root=Path(__file__).resolve().parents[4],
             )
         self.assertEqual(1, package_check.call_count)
-        self.assertEqual(3, deployment_check.call_count)
+        self.assertEqual(2, deployment_check.call_count)
         self.assertEqual(1, findings.count("Product package: bad stack"))
         self.assertEqual(1, findings.count("Deployment: bad deploy"))
         self.assertFalse(any(item.startswith("Activation: Product package") for item in findings))
@@ -260,8 +244,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
     def test_activation_still_validates_package_unless_told_otherwise(self) -> None:
         check_activation = sys.modules["check_activation"]
         for validated, expected_package_calls, expected_deployment_calls in (
-            (False, 1, 2),
-            (True, 0, 2),
+            (False, 1, 1),
+            (True, 0, 1),
         ):
             with self.subTest(package_validated=validated), patch(
                 "check_product_package.validate_texts", return_value=[]
@@ -327,9 +311,6 @@ class SeoLifecycleReviewTests(unittest.TestCase):
             run(web_pending),
         )
 
-    def test_valid_lifecycle_review_passes_exact_bindings(self) -> None:
-        self.assertEqual([], self.check(valid_review()))
-
     def test_schema2_lifecycle_review_preserves_product_and_mode_fields(self) -> None:
         with patch("check_seo_review.check_activation_text", return_value=[]), patch(
             "check_product_package.validate_texts", return_value=[]
@@ -345,28 +326,9 @@ class SeoLifecycleReviewTests(unittest.TestCase):
             )
         self.assertEqual([], findings)
 
-    def test_schema2_mode_specific_windows_and_segmentation_are_required(self) -> None:
-        for mode in ("growth_review", "traffic_drop"):
-            missing_window = valid_review_v2(mode=mode).replace(
-                "- Comparison window: 2026-08-01/2026-08-31 vs 2026-07-01/2026-07-31",
-                "- Comparison window: one period",
-                1,
-            )
-            expected = (
-                "requires equal comparison windows"
-                if mode == "traffic_drop"
-                else "requires a comparison window"
-            )
-            self.assertIn(expected, "\n".join(self.check(missing_window)))
-        missing_segments = valid_review_v2(mode="traffic_drop").replace(
-            "- Segmentation: query, page, country, device",
-            "- Segmentation: query only",
-            1,
-        )
-        self.assertIn(
-            "Segmentation must include query, page, country, and device",
-            "\n".join(self.check(missing_segments)),
-        )
+    def test_only_schema2_is_accepted(self) -> None:
+        old = valid_review_v2().replace("seo-review/2", "seo-review/1", 1)
+        self.assertIn("Record: Schema must be seo-review/2", "\n".join(self.check(old)))
 
     def test_schema2_requires_market_language_outcome_timezone_and_cutoff(self) -> None:
         for field, marker in (
@@ -377,8 +339,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
             ("Global data coverage through", "- Global data coverage through: 2026-09-07T18:02:00Z"),
         ):
             with self.subTest(field=field):
-                missing = valid_review_v2().replace(marker, f"- {field}: ", 1)
-                self.assertIn(f"Record: {field} must be substantive", "\n".join(self.check(missing)))
+                missing = valid_review_v2().replace(marker + "\n", "", 1)
+                self.assertIn(f"Record: missing field {field}", "\n".join(self.check(missing)))
 
     def test_schema2_duplicate_record_fields_and_source_times_are_rejected(self) -> None:
         duplicate = valid_review_v2().replace(
@@ -431,8 +393,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         )
 
     def test_release_domain_or_artifact_mismatch_is_rejected(self) -> None:
-        domain = valid_review().replace("- Production domain: example.com", "- Production domain: https://example.com/path")
-        artifact = valid_review().replace(
+        domain = valid_review_v2().replace("- Production domain: example.com", "- Production domain: https://example.com/path")
+        artifact = valid_review_v2().replace(
             f"- Artifact / build identity: {ARTIFACT}",
             "- Artifact / build identity: other-build",
         )
@@ -440,7 +402,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         self.assertIn("Deployment: reviewed target artifact", "\n".join(self.check(artifact)))
 
     def test_lifecycle_review_requires_public_web_target_and_deployment_hostname(self) -> None:
-        wrong_domain = valid_review().replace(
+        wrong_domain = valid_review_v2().replace(
             "- Production domain: example.com", "- Production domain: other.example.com"
         )
         self.assertIn(
@@ -450,7 +412,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         api_architecture = ARCHITECTURE.replace(
             "Surface class: hosted_web", "Surface class: hosted_api"
         ).replace("Public discoverability: yes", "Public discoverability: no")
-        api_review = valid_review()
+        api_review = valid_review_v2()
         findings = check_seo_review.check_seo_review_text(
             api_review,
             prd_text=PRD,
@@ -464,8 +426,8 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         )
 
     def test_activation_hash_and_source_binding_mismatches_are_rejected(self) -> None:
-        stale_hash = valid_review().replace(ACTIVATION_SHA256, "b" * 64)
-        stale_source = valid_review().replace(
+        stale_hash = valid_review_v2().replace(ACTIVATION_SHA256, "b" * 64)
+        stale_source = valid_review_v2().replace(
             f"MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#{ARTIFACT}",
             f"MS-001 | {TARGET_SCOPE} | web-prod@{SHA}#other-build",
         )
@@ -473,7 +435,7 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         self.assertIn("mismatched release binding", "\n".join(self.check(stale_source)))
 
     def test_duplicate_required_sections_are_rejected(self) -> None:
-        duplicate = valid_review() + "\n## Verified Sources\n| duplicate | section |\n"
+        duplicate = valid_review_v2() + "\n## Verified Sources\n| duplicate | section |\n"
         self.assertIn(
             "duplicate required section ## Verified Sources",
             "\n".join(self.check(duplicate)),
@@ -483,7 +445,9 @@ class SeoLifecycleReviewTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             review = root / "review.md"
-            review.write_text(valid_review(), encoding="utf-8")
+            review.write_text(
+                valid_review_v2().replace("seo-review/2", "seo-review/1", 1), encoding="utf-8"
+            )
             (root / "PRD.md").write_text(PRD, encoding="utf-8")
             (root / "architecture.md").write_text(ARCHITECTURE, encoding="utf-8")
             (root / "DEPLOYMENT.md").write_text(DEPLOYMENT, encoding="utf-8")

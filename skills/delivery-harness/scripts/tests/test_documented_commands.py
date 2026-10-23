@@ -18,6 +18,30 @@ import harness_transition  # noqa: E402
 
 
 class DocumentedCommandTests(unittest.TestCase):
+    def test_ui_research_uses_current_parent_owned_assignment_contract(self):
+        skills = SCRIPTS.parents[1]
+        stage_path = skills / "ui-design-builder/references/stages/ui-design.md"
+        source = stage_path.read_text(encoding="utf-8")
+        research = source.split("2. **Resolve UI research", 1)[1].split("\n3. ", 1)[0]
+        target = "../../../delivery-harness/references/delegation-contract.md"
+        self.assertIn(f"]({target})", research)
+        self.assertTrue((stage_path.parent / target).resolve().is_file())
+        for obligation in ("frozen assignment packets", "parent launches", "result reconciliation",
+                           "input identities", "separate launch records", "joined sourced findings",
+                           "Agent policy", "required research independence"):
+            self.assertIn(obligation, research)
+        self.assertNotIn("readonly_assignments.cjs", source)
+
+    def test_stack_option_map_retains_authorship_and_checker_without_generator(self):
+        source = (SCRIPTS.parents[1] / "product-definition-builder/references/output-contract.md").read_text(encoding="utf-8")
+        section = source.split("## `stack-decisions.md`", 1)[1].split("### Coherent Options Presented", 1)[0]
+        for obligation in ("Product Definition author derives", "owner's accepted checkpoint",
+                           "canonical digest binding", "Approved option map: None",
+                           "complete option evidence and exact map", "product-package checker",
+                           "repository authority"):
+            self.assertIn(obligation, section)
+        self.assertNotIn("render_stack_option_map.py", source)
+
     def commands(self, reference, script):
         text = (SCRIPTS.parent / "references" / reference).read_text(encoding="utf-8")
         examples = [shlex.split(value) for value in re.findall(r"`(python [^`]+)`", text)
@@ -34,6 +58,24 @@ class DocumentedCommandTests(unittest.TestCase):
         self.assertEqual(Path("<root>"), parsed.repo_root)
         self.assertEqual(Path("<PLAN.md>"), parsed.plan)
         self.assertEqual(Path("<RUN.md>"), parsed.run)
+
+    def test_documented_conditional_repair_routes_validate_and_stay_bounded(self):
+        from harness_manifest import validate_plan
+        from manifest_fixtures import conditional_final_candidate_plan
+
+        text = (SCRIPTS.parent / "references/graph-orchestration.md").read_text(encoding="utf-8")
+        section = text.split("### Optional Repair-Only Mission", 1)[1].split("## Root-Cause", 1)[0]
+        routes = json.loads(re.search(r"```json\n(.*?)\n```", section, re.S).group(1))
+        for route in routes:
+            for key in ("from", "to"):
+                if route[key] == "N-REPAIR":
+                    route[key] = "N-M4"
+        plan = conditional_final_candidate_plan()
+        route_ids = {route["id"] for route in routes}
+        plan["graph"]["edges"] = [edge for edge in plan["graph"]["edges"] if edge["id"] not in route_ids] + routes
+        self.assertEqual([], validate_plan(plan))
+        routes[0]["max_traversals"] = 2
+        self.assertTrue(any("one bounded repair" in error for error in validate_plan(plan)))
 
     def test_documented_ui_scans_check_real_source_and_reject_raw_values(self):
         for reference in ("ui-implementation-contract.md", "verification-gates.md"):

@@ -193,3 +193,20 @@ FRAME_RUNTIME = """(() => {
   window.addEventListener("load", report);
   report();
 })();"""
+
+_FRAME_REPORT = """  const report = () => parent.postMessage({type: "ds-frame-size", id: config.id,
+    height: Math.ceil(measured().getBoundingClientRect().bottom + window.scrollY)}, "*");
+"""
+# ds-showcase/2 component plates inside a native <details> only. An open disclosure
+# may paint outside the canvas box (an absolute menu), so the plate also measures
+# its visible extent and reports again on every native toggle. Boxes exclude paint such
+# as a box-shadow or focus outline, so an open disclosure adds a fixed renderer gutter
+# below its lowest box; it is chrome clearance, not a CSS paint model. FRAME_RUNTIME is unchanged.
+DISCLOSURE_PAINT_GUTTER = 16
+FRAME_RUNTIME_DISCLOSURE = FRAME_RUNTIME.replace(_FRAME_REPORT, """  const bottom = () => Array.from(document.querySelectorAll("details[open] *"), item => item.getBoundingClientRect().bottom + %d)
+    .reduce((most, value) => Math.max(most, value), measured().getBoundingClientRect().bottom);""" % DISCLOSURE_PAINT_GUTTER + """
+  const report = () => parent.postMessage({type: "ds-frame-size", id: config.id, height: Math.ceil(bottom() + window.scrollY)}, "*");
+  document.addEventListener("toggle", () => requestAnimationFrame(report), true);
+""")
+if FRAME_RUNTIME_DISCLOSURE == FRAME_RUNTIME:
+    raise RuntimeError("FRAME_RUNTIME report changed; update FRAME_RUNTIME_DISCLOSURE")

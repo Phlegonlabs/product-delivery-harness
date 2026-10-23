@@ -7,27 +7,19 @@ description: Review a fixed code candidate for security vulnerabilities after im
 
 ## Installed Commands
 
-Resolve `<code-security-review-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<code-security-review-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md` read-only; report drift without migrating reviewed files. Check E2E fixture provisioning, role/tenant isolation, secret handling, owned-resource cleanup, and production exclusion of mock authentication where applicable. `../delivery-harness/references/bounded-enhancement.md` permits an honest incomplete handoff, never a partial security PASS or review-side remediation.
+Apply the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work) read-only; report drift without migrating reviewed files. Check E2E fixture provisioning, role/tenant isolation, secret handling, owned-resource cleanup, and production exclusion of mock authentication where applicable. An honest incomplete handoff is allowed, never a partial security PASS.
 
 Review the completed code candidate, not the implementation process. Bind every conclusion to one exact candidate SHA and declared scope. A passing review means no validated blocking vulnerability was found in that SHA and scope, with no exclusions in the result; it is not a security certification.
 
 This skill owns repository code-security review. It does not own product requirements, implementation, deployment controls, operational hardening in external consoles, vulnerability remediation, or issue tracking.
 
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) only to review routing. Return validated findings to the implementation owner; the reviewer never remediates the candidate.
+## Placement
 
-## When To Run
-
-Run after all implementation missions are integrated and the candidate SHA is fixed, before delivery closeout. If a security finding changes code, the new SHA invalidates the earlier result and requires a fresh review.
-
-Dispatch once per fixed candidate with the full declared scope and existing focused-test evidence. Resource-safe final regression may run alongside the read-only review while the candidate stays unchanged and declared graph dependencies permit it. Managed selector and verifier prerequisites still govern; this guidance never bypasses them. Retain a complete exact-SHA verdict instead of launching duplicate reviews for repeated handoffs. Task-level negative tests support this review; they do not replace it. Any repair needs a fresh candidate review, and no cache substitutes for required tools, current source inspection or live deployment evidence.
-
-For a Delivery Harness managed run, the parent dispatches this skill as a fresh sibling reviewer on an integration-stage security node. The reviewer never delegates. For direct work, an independent reviewer is preferred when available; inline review is allowed only when independence was not required.
-
-Read references/review-contract.md before reviewing a Delivery Harness candidate or returning a machine-consumed result.
+Run on one fixed candidate SHA after all implementation is integrated and before delivery closeout, with the full declared scope and existing focused-test evidence. In a Delivery Harness managed run this skill is the `security` lens of the one final review node whose `review.lenses` include `security` (`review_policy: final_candidate`): the parent dispatches a fresh sibling reviewer, which returns the security result beside its other-lens findings. Use a dedicated security node only when the PLAN records a risk reason or the owner asks. A PLAN without `review_policy` keeps its integration-stage security node. Direct work uses one reviewer carrying the code, security and visual lenses; inline review is allowed only when independence was not required. The reviewer never delegates. Retain a complete exact-SHA verdict instead of repeating it for an unchanged SHA. Task-level negative tests support this review but do not replace it, and no cache substitutes for required tools, current source inspection or live deployment evidence.
 
 ## Stage Routing
 

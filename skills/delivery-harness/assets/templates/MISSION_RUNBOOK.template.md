@@ -2,15 +2,15 @@
 
 Use this template as `docs/goal/RUN.md` only after the parent-only, read-only `System Review And Route` classifies the work as large and routes it into the managed graph. Small direct work does not instantiate this file. Keep mutable authorization, observed runtime facts, mission/task phases, worker state, verification, blockers, and closeout here; keep static definitions in `PLAN.md`. A large managed route executes one mission at a time when it is sequential; this template is not a new authoring route for legacy compact state.
 
-All new managed work uses PLAN schema v6 plus RUN schema v11 (RUN-v11). Older RUN schemas remain readable through the compatibility path. Legacy compact RUN-only files remain readable and validatable through the compatibility path, but cannot authorize new managed execution or enter the current graph. A large no-agent route is still PLAN/RUN-backed: it follows `references/execution-state-model.md`'s Sequential Parent Route, keeping the PLAN mission as `executor: runtime_worker` with RUN's parent-owned binding recorded solely for lease/state validation.
+All new managed work uses PLAN schema v6 plus RUN schema v11 (RUN-v11). Historical schemas and compact RUN-only records use their exact pinned bundle; current tools require PLAN v6 with RUN v11. A large no-agent route is still PLAN/RUN-backed: it follows `references/execution-state-model.md`'s Sequential Parent Route, keeping the PLAN mission as `executor: runtime_worker` with RUN's parent-owned binding recorded solely for lease/state validation.
 
 The System Review And Route stage completes before this file exists. It is parent-only and read-only: no task-specific skill, adapter/model selection, worker preflight, PLAN/RUN creation, external runtime, or worker launch occurs during that stage.
 
 Every non-mission graph node uses a durable reserve/execute/record sequence. Reserve an `approval`, `external_wait`, `lifecycle`, or deterministic batch/final verifier node with `reserve-node-attempt` under the RUN lock, perform the check, wait, or lifecycle side effect after that lock is released, then record the matching outcome and evidence with `record-node-result`. A local verifier persists its exact request and attempt nonce in RUN, publishes `--request-out` outside the checkout, and runs it through `verifier_runtime.py`; Git guards run before and after the command, and result recording rejects replay or retargeting. An interrupted verifier records `blocked` with a blocker and no fabricated result. Lifecycle transitions record evidence only; they never invoke Git, a process, or a remote action, and they retry only through an explicit bounded route.
 
-Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. Record `runtime_adapter.capability_probe` facts for every advertised delegated driver; unrelated capabilities need no inventory. For every PLAN review `required_tools` entry, replace the generic `reviewer_tools` placeholder with a fresh reviewer-session probe from the exact selected provider and driver. Never mark a parent-only probe available. Never run parallel writers in `shared_checkout`.
+Before the first selection, fill `observed.captured_at` and the null observations from live `git status` / `git rev-parse` on the resolved integration branch. The validator does not require the snapshot, but the selector will defer every state-mutating mission or lifecycle node under `parent_state_unreconciled` or `batch_base_missing` until it is filled. It returns `dispatchable_nodes` and `deferred_nodes`; these are dispatch-time reasons, not a readiness shortcut. Set capacity from observed facts, even when the derived `execution_route` is `managed_sequential`. Observe the actual driver, reviewer browser access and required permissions before dispatch. Never run parallel writers in `shared_checkout`.
 
-A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony but keeps the isolated writer, scope/head, review, and final gates. Two or more safe writers produce `parallel_graph`; this selector output is not persisted. Harness 0.38+ RUNs start and finish `local_only`. `integration_push` remains legacy recovery state only; archive candidate A is published after RUN close through the separate external request/attempt/receipt protocol.
+A managed-sequential route is selected when fewer than two safe write missions are actually selected. It avoids fan-out-only ceremony but keeps the isolated writer, scope/head, review, and final gates. Two or more safe writers produce `parallel_graph`; this selector output is not persisted. Harness 0.38+ RUNs start and finish `local_only`. `integration_push` remains legacy recovery state only; archive candidate A follows the separately authorized parent publication procedure in `references/branch-promotion-contract.md`.
 
 The resolved integration branch is always the exact non-protected run branch from the paired PLAN. `PLAN.branch_policy` freezes the original remote base and its full SHA; later waves re-anchor to the current integration head and never advance that frozen base. `main` is protected, existing `development` stays protected from cleanup, and neither is a run-branch target. Protected-branch landing and promotion remain separate post-RUN authorizations.
 
@@ -24,7 +24,7 @@ The resolved integration branch is always the exact non-protected run branch fro
     "plan": {
       "id": "PLAN-<stable-id>",
       "revision": 1,
-      "digest_sha256": "d0551cc92b2d9e352bf75d18b7dc7811f28a17eba65c556a5b1556b84a965aa1"
+      "digest_sha256": "7ee87f5a4cd54207c5e82390e83ba4442c8b0163080e5b1743ab432c825a7c8f"
     },
     "status": "draft",
     "intent": "plan-only",
@@ -61,39 +61,17 @@ The resolved integration branch is always the exact non-protected run branch fro
         "provider": "generic",
         "available_drivers": ["sequential_parent"],
         "detection_source": "fallback",
-        "role_bindings": {},
         "version_gate": {
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.65.3",
+          "required_harness_version": "0.66.0",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
           "status": "unobserved",
           "evidence": "Runtime and Harness versions have not been observed yet"
         }
-      },
-      "reviewer_tools": {
-        "chrome_devtools": {
-          "status": "unobserved",
-          "provider": "generic",
-          "driver": "sequential_parent",
-          "surface": "none",
-          "probe_scope": "unobserved",
-          "session_id": null,
-          "evidence": "No fresh reviewer session has probed Chrome DevTools yet"
-        }
-      },
-      "permission_boundary": {
-        "selected_mode": "unknown",
-        "profile_name": null,
-        "approval_policy": "unknown",
-        "filesystem_scope": "unknown",
-        "network_scope": "unknown",
-        "local_binding": "unknown",
-        "worker_inheritance": "unknown",
-        "status": "unknown"
       }
     },
     "observed": {
@@ -110,15 +88,6 @@ The resolved integration branch is always the exact non-protected run branch fro
         "available_worker_slots": 1,
         "isolation_capacity": 1,
         "completion_channel_available": true
-      },
-      "sandbox": {
-        "status": "unobserved",
-        "plan_revision": null,
-        "plan_digest_sha256": null,
-        "captured_at": null,
-        "host": null,
-        "entries": [],
-        "errors": []
       }
     },
     "integration": {
@@ -153,7 +122,6 @@ The resolved integration branch is always the exact non-protected run branch fro
       "graph_revision": 1,
       "node_states": {
         "N-M1": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
-        "N-M1-REVIEW": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
         "N-SECURITY-REVIEW": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
         "N-FINAL-GATE": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
         "N-ACCEPTANCE-GATE": {"phase": "dormant", "attempts": 0, "last_attempt_id": null, "last_outcome": null, "bound_worker_id": null, "blockers": []},
@@ -161,7 +129,6 @@ The resolved integration branch is always the exact non-protected run branch fro
       },
       "edge_states": {
         "E-M1-REVIEW": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
-        "E-M1-REVIEW-SECURITY": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-SECURITY-FINAL": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-FINAL-ACCEPTANCE": {"status": "dormant", "traversals": 0, "source_attempt_id": null},
         "E-ACCEPTANCE-CLOSEOUT": {"status": "dormant", "traversals": 0, "source_attempt_id": null}
@@ -206,28 +173,7 @@ The resolved integration branch is always the exact non-protected run branch fro
     "closed_waves": [],
     "workers": [],
     "review_workers": [],
-    "review_lineages": {
-      "REVIEW-M1": {
-        "review_type": "backend_code",
-        "mission_ids": ["M1"],
-        "base_allowance": 2,
-        "additional_allowance": 0,
-        "consumed_attempts": 0,
-        "failure_families": [],
-        "owner_decisions": []
-      },
-      "REVIEW-SECURITY": {
-        "review_type": "security",
-        "mission_ids": ["M1"],
-        "base_allowance": 2,
-        "additional_allowance": 0,
-        "consumed_attempts": 0,
-        "failure_families": [],
-        "owner_decisions": []
-      }
-    },
     "verifier_executions": [],
-    "runtime_metrics": null,
     "attempt_log": []
   }
 }
@@ -235,15 +181,18 @@ The resolved integration branch is always the exact non-protected run branch fro
 
 The exact fenced JSON block is canonical; Markdown tables are non-canonical. Update JSON first. `tasks.md` is an optional on-demand human view derived from `RUN.md`, never a second source of truth. The selector's top-level `execution_route` is output-only and must not be copied into PLAN or RUN. New RUN generation and validation require that PLAN explicitly marks `security_review.status` as `required` or `not_applicable` with a reason.
 
-Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `record-observation`, `accept-wave`, `lease-worker`, `reserve-node-attempt`, `record-node-result`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch` (with `--packet-out` to render the reviewer packet in the same command), `record-review-attempt`, `grant-review-attempts`, `skip-integration-review`, `acquire-run-lock`, `release-run-lock`, `heartbeat-run-lock`, and `watchdog`. `lease-worker` derives the selector's complete runtime binding and portable axes, validates compatibility flags, accepts `--task-thread-id` only for an app task, accepts existing exact identities, and materializes new exact identities only from an active wildcard authorization without granting authority. `record-review-attempt` requires `--security-result <json>` for a security node and validates that structured result against the reserved SHA, base, scope, tools, coverage, decision, and current integration head. Under an adopted runtime contract on a 0.55.1+ RUN, a `pass` or `fix_required` review also needs `--contract-adoption-check <json file>` with the reviewer's own check. Every non-pass review, including `retryable_failure` and `contract_gap`, records its reason with `--finding`. `record-worker-result` reads the bound worktree's live branch, head, dirty state, diff, and ancestry, then revalidates the payload and retained verifier results before one atomic RUN update. Use `reject-worker-result` to retain a parent-rejected current candidate as `retryable_failure` or `blocked`; never hand-edit that outcome. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically; lifecycle actions remain outside the transition lock and are represented by evidence in `record-node-result`.
+Use `scripts/harness_transition.py` for `pause`, `resume`, `cancel`, `record-observation`, `accept-wave`, `lease-worker`, `reserve-node-attempt`, `record-node-result`, `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-interrupted`, `reconcile-interrupted-reviews`, `reserve-review-dispatch` (with `--packet-out` to render the reviewer packet in the same command), `record-review-attempt`, `skip-integration-review`, `acquire-run-lock`, `release-run-lock`, `heartbeat-run-lock`, and `watchdog`. `lease-worker` derives the selector's complete runtime binding and portable axes, validates compatibility flags, accepts existing exact identities, and materializes new exact identities only from an active wildcard authorization without granting authority. `record-review-attempt` requires `--security-result <json>` for a node with the `security` lens and validates that structured result against the reserved SHA, base, scope, tools, coverage, decision, and current integration head. Every non-pass review, including `retryable_failure` and `contract_gap`, records its reason with `--finding`. `record-worker-result` reads the bound worktree's live branch, head, dirty state, diff, and ancestry, then revalidates the payload and retained verifier results before one atomic RUN update. Use `reject-worker-result` to retain a parent-rejected current candidate as `retryable_failure` or `blocked`; never hand-edit that outcome. Reserve every managed review after selection and before launch; accept only the matching reserved result. These transitions validate the full pair and replace RUN atomically; lifecycle actions remain outside the transition lock and are represented by evidence in `record-node-result`.
 
-RUN schema v11 keeps all 12 action entries. For Harness 0.38+, `push` stays false, `landing.mode` stays `local_only`, `pushed_head_sha` stays null, and PLAN has no push lifecycle node. After RUN close, archive-only A may be published only through `push_archived_candidate.py` with a separate explicit remote instruction and checkout-external immutable artifacts; `main` promotion is another action. Explicitly pinned pre-0.38 RUNs retain their historical push shape for recovery. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes, and the fresh security review never uses a tree-identity skip.
+RUN schema v11 keeps all 12 action entries. For Harness 0.38+, `push` stays false, `landing.mode` stays `local_only`, `pushed_head_sha` stays null, and PLAN has no push lifecycle node. After RUN close, archive-only A may be published only through `push_archived_candidate.py` under the separate exact SHA/branch instruction and remote readback procedure; `main` promotion is another action. Explicitly pinned pre-0.38 RUNs retain their historical push shape for recovery. RUN-v11 workers never delegate; all reviews are parent-dispatched graph nodes, and the fresh security review never uses a tree-identity skip.
 
-The archive apply writes a required immutable anchor outside the checkout; archive-candidate publication requires that same anchor and external request/attempt/receipt. It never mutates the archived RUN. The general adapter maps observed native tools to the selected driver; explicit model and effort options pass only when their support is observed.
+Archive errors preserve partial moves for parent-led recovery.
+Publication requires the owner's exact instruction naming A and its branch, an explicit no-force push, and remote readback.
+It never mutates the archived RUN.
+The general adapter maps observed native tools to the selected driver; unsupported explicit model options block.
 
 When the selected driver is `sequential_parent`, follow `references/execution-state-model.md`'s Sequential Parent Route: the PLAN mission keeps `executor: runtime_worker`, and the route blocks rather than writing in `shared_checkout` when its worktree is unavailable or unauthorized.
 
-For a managed-sequential route, prove the chosen driver and exact host axes, allocate one isolated writer, bind the lease to PLAN revision/digest and batch base, validate changed files against write/deny scope, retain commits and observed head, and run the direct singleton pre-integration review before integration. The absence of a cross-mission batch gate does not remove any of those checks. If the selector returns `parallel_graph`, follow `references/parallel-mission-selection.md` and record only real cross-mission checks that apply. A read-only task or worker container verifier may use `session_exact` only with `cache.deterministic_local: true`, clean matching inputs, and a deterministic `exit 0` PASS from the current runner batch. Keep repository-external artifacts; there is no disk verifier cache. Recheck each consumer's Git guard and runtime/image identity. Host, integration, broad/final, browser, migration, mutable and network checks always run fresh; broad regression runs after exact-SHA code review and repair loops converge. Record evidence against the exact head with lowercase SHA-256 values under `docs/goal/evidence/`; for RUN-v11 UI proof, read and safely decode each artifact from its recorded accepted Git commit/ref before comparing `artifact_sha256`, while RUN-v9 remains working-tree compatible. UI proof uses breakpoint-by-state artifacts when applicable.
+For a managed-sequential route, prove the chosen driver and exact host axes, allocate one isolated writer, bind the lease to PLAN revision/digest and batch base, validate changed files against write/deny scope, retain commits and observed head, and pass the Worker Result Gate before integration. A `per_mission` PLAN also runs the direct singleton pre-integration review first. The absence of a cross-mission batch gate does not remove any of those checks. If the selector returns `parallel_graph`, follow `references/parallel-mission-selection.md` and record only real cross-mission checks that apply. Host verifiers run fresh and serially per runner; retain exact command, candidate, context, logs and source/Git guard evidence. Keep request/result artifacts outside the checkout. Broad regression runs after exact-SHA review and repairs converge. UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the integration head. Read and decode their accepted Git blobs before comparing hashes. UI proof covers every required breakpoint-by-state artifact.
 
 ## Goal And Checkpoint
 

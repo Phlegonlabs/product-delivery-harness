@@ -1,6 +1,6 @@
 ---
 name: design-system-compiler
-description: "Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair plus its derived `design-system-preview.html`. A ui-design/3 package compiles design-system/4, whose HTML specimen book shows every token and registered component, state, responsive size and motion copied from the approved HiFi; a ui-design/2 package keeps design-system/3. Both run after Product Definition, Stack Decision, approved complete ui-hifi/2, Style Integration, Impeccable HiFi review, PRD-bound scoring, Visual Approval and Design System Need Gate: required. It freezes tokens, primitives, product components, motion variants, responsive rules, and states; it does not choose product, stack, layout, or visual direction."
+description: "Compile an owner-approved UI design into the frozen `docs/design/design-system.md` and `docs/design/design-system.json` pair plus its derived `design-system-preview.html`. Run it after Visual Approval and Design System Need Gate: required. It freezes tokens, primitives, components, motion, responsive rules, and states; it does not choose product, stack, layout, or visual direction."
 ---
 
 `sourceBindings.uiDesign.sha256` uses the canonical UI approval digest, not the raw file hash. Run `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`; it excludes active derived pair/replacement linkage lines so linking the compiled pair does not invalidate its own input. For `ui-design/3` it also excludes the `Package action` and `Existing design-system pair disposition` lines, so switching to `reuse` keeps an unchanged package valid while any other approval edit makes it stale. All other source bindings use raw-file SHA-256.
@@ -9,20 +9,18 @@ description: "Compile an owner-approved UI design into the frozen `docs/design/d
 
 ## Installed Commands
 
-Resolve `<design-system-compiler-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<design-system-compiler-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. Follow `../delivery-harness/references/bounded-enhancement.md` for accepted enhancement work. Compile the approved persona-dependent component states without creating accounts or changing requirements. Rechecking or rebuilding the same approved direction is technical verification, not a reason to repeat its approval; changed direction remains an upstream gap.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work). Compile the approved persona-dependent component states without creating accounts or changing requirements. Rechecking or rebuilding the same approved direction is technical verification, not a reason to repeat its approval; changed direction remains an upstream gap.
 
 Turn an approved UI direction into two binding reusable UI sources:
 
 - `design-system.md` for the selected visual direction and short human-facing rules; and
 - `design-system.json` for machine-readable tokens, primitives, closed variants, product components, motion, responsive rules, source paths, and the state matrix.
 
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) at compilation checkpoints. The compiler repairs the pair within the approved consequences and reruns focused checks; direction or product gaps return upstream.
-
-Invoke it only when Product Definition Approval and the Stack Decision Checkpoint are approved and `docs/design/ui-design.md` records the approved complete HiFi decision plus `Design System Need Gate: required`. A `ui-design/3` package always requires it and names `Package action: compile|update|reuse`; it compiles `design-system/4` with a source-bound `showcase` and its HTML specimen book. A `ui-design/2` package compiles `design-system/3` only when its gate requires it. Both consume complete approved `ui-hifi/2`. The compiler respects the approved component foundation and styling approach; it never changes stack by implication. `PRD.md` owns product behavior, while `ui-design-builder` owns `ui-design.md` and the HiFi target; a historical wireframe remains legacy evidence only. Do not duplicate or change those contracts, implement production UI, or create Harness PLAN/RUN state.
+Invoke it only when Product Definition Approval and the Stack Decision Checkpoint are approved and `docs/design/ui-design.md` records the approved complete HiFi decision plus `Design System Need Gate: required`. A `ui-design/3` package always requires it and names `Package action: compile|update|reuse`. The compiler respects the approved component foundation and styling approach; it never changes stack by implication. `PRD.md` owns product behavior, while `ui-design-builder` owns `ui-design.md` and the HiFi target; a historical wireframe remains legacy evidence only. Do not duplicate or change those contracts, implement production UI, or create Harness PLAN/RUN state.
 
 ## Stage Routing
 
@@ -40,3 +38,4 @@ Read the owning section before its matching action. Domain and direction guidanc
 - `PRD.md` owns product behavior; `ui-design-builder` owns `ui-design.md` and the approved HiFi target. The compiler owns the design-system pair and its derived HTML.
 - `frontend-design` is required without a fallback; compilation does not reopen direction. Product or stack changes return upstream.
 - Compilation derives approved consequences only. Validation includes mutating `--write` commands and does not auto-authorize publication.
+- Script- or state-driven motion uses `ds-showcase/2` source-runtime rows.

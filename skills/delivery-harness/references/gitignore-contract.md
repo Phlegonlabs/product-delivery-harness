@@ -31,6 +31,12 @@ Keep these tracked unless repository governance explicitly says otherwise:
 
 If a generated-looking file is consumed as a required source or compared in CI, treat it as tracked until the owner or repository contract says otherwise.
 
+## Document Recovery Files
+
+Document writers retain `.pdh-conflict-*` entries when native replacement or recovery finds concurrent edits.
+These local recovery files can contain owner bytes. Ignore this exact class in projects using these writers; never delete it automatically.
+Inspect the reported entries before an authorized manual recovery or cleanup. Successful writes remove only their unchanged displaced snapshot.
+
 ## Environment Files
 
 Select patterns for the framework and platform actually present. The normal dotenv shape ignores value-bearing variants while explicitly keeping examples visible:

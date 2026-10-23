@@ -7,28 +7,26 @@ description: Create or refine owner-approved Product Definition packages from us
 
 ## Installed Commands
 
-Resolve `<product-definition-builder-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<product-definition-builder-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 ## Overview
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. For accepted enhancement delivery, use `../delivery-harness/references/bounded-enhancement.md`: preserve the current PRD and IDs, reuse decisions already made, and avoid repeated approval for same-scope implementation repairs. A genuinely changed product decision is a next-round contract gap, not permission to forge approval.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work).
 
-For a UI enhancement, hand off the added/changed UI IDs and necessary entry or return paths, with all other surfaces explicitly preserved. Follow `../ui-design-builder/references/enhancement-recommendations.md`'s Incremental UI Scope for the downstream boundary; do not request a fresh all-screen design package or reset unaffected approvals. Select the Epic or small-fix record before implementation using the shared bounded-enhancement rule.
+For a UI enhancement, hand off the added/changed UI IDs and necessary entry or return paths, with all other surfaces explicitly preserved. Follow `../ui-design-builder/references/enhancement-recommendations.md`'s Incremental UI Scope for the downstream boundary; do not request a fresh all-screen design package or reset unaffected approvals.
 
 Before approval, define test personas (role, tenant, account/data state), applicable Web/native/agent journeys, observable success and denial/no-side-effect assertions, and mock versus real-sandbox obligations in the existing TEST rows and architecture testing section. Record non-applicability rather than inventing login for a headless or unauthenticated product. The downstream Harness freezes the executable matrix and owns fixtures and evidence through `../delivery-harness/references/delivery-acceptance-contract.md`; this skill creates no accounts or evidence register.
 
 Use this skill to turn a product idea into a decision-ready package, not an agent-selected implementation guess. Define product scope, journeys, UI surface responsibilities, routes, actions, states, data, trust, and security boundaries, acceptance signals, implementation architecture, release targets, and technology constraints. Draft and reconcile `PRD.md`, `architecture.md`, and `stack-decisions.md`; present coherent frontend, backend/data/auth, mobile/desktop, AI, deployment, and commercial technology options; then obtain an explicit Stack Decision Checkpoint and Product Definition Approval. Stop there. A later explicit UI request invokes `ui-design-builder`; a later implementation request invokes `delivery-harness` against approved inputs.
 
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) at Product checkpoints. The author repairs accepted-scope defects and reruns the focused check; the owner supplies human approvals and contract changes.
-
 ## Stage Routing
 
 Read the owning section before its matching action. Domain guides stay conditional.
 
-- Before a definition or enhancement starts, read [Workflow](references/stages/product-definition.md#workflow), [Interview Rules](references/stages/product-definition.md#interview-rules), and [Output Standards](references/stages/product-definition.md#output-standards). Enhancement mode first uses its scoped delta branch and does not force an initial interview.
+- Before a definition or enhancement starts, read [Workflow](references/stages/product-definition.md#workflow) and [Interview Rules](references/stages/product-definition.md#interview-rules). Enhancement mode first uses its scoped delta branch and does not force an initial interview.
 - Before Product Definition Approval is requested, read [Self-Review Before Product Definition Approval](references/stages/product-definition.md#self-review-before-product-definition-approval).
 - Before a UI handoff is prepared, read [Current UI Preflight](references/stages/product-definition.md#current-ui-preflight).
-- Before applicable domain decisions are resolved, read [Reference Routing](references/stages/product-definition.md#reference-routing).
+- Before applicable domain decisions are resolved, read the guides that Workflow step 9 names.
 - Actual initial drafting follows the complete required procedure in [Workflow](references/stages/product-definition.md#workflow).
 
 ## Entry Boundary
@@ -37,4 +35,4 @@ Read the owning section before its matching action. Domain guides stay condition
 - Product Definition Approval and the Stack Decision Checkpoint are explicit owner gates.
 - Enhancement preserves the same current PRD and stable IDs.
 - No UI design, implementation, PLAN/RUN, or E2E evidence register starts here.
-- A completed package does not launch downstream work automatically. The full ownership boundary is in [Output Standards](references/stages/product-definition.md#output-standards).
+- A completed package does not launch downstream work automatically. The package creates no wireframe, design system, production component, or Harness mission map.

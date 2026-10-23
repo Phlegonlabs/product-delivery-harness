@@ -1,23 +1,6 @@
 # SEO Review Method
 
-Use this method after reading `source-catalog.md`. Keep the review useful without turning it into a standing project board or a list of generic SEO checks.
-
-## Establish The Review
-
-Record:
-
-- mode: `baseline`, `growth_review`, or `traffic_drop`;
-- production domain and included route or content scope;
-- target country or region, language and audience;
-- business outcome and relevant PRD metric or key event when available;
-- current and comparison periods, complete-data cutoff and timezone;
-- target market, language, business outcome, and (for `growth_review` or
-  `traffic_drop`) equal comparison windows;
-- each source's `verified at` time separately from its coverage-through cutoff;
-- release target, deployed SHA or artifact identity when verifiable; and
-- source inventory with exact property/account scope, freshness, route and limitation.
-
-If Search Console, GA4, the production host and the recorded release describe different scopes, report the mismatch before interpreting performance.
+Read the sections for the chosen mode. Keep the review useful without turning it into a standing project board or a list of generic SEO checks.
 
 ## Measurement Integrity
 
@@ -31,7 +14,7 @@ Check only what current evidence supports:
 6. Search Console and GA4 dates use complete data and comparable time zones or disclose the mismatch.
 7. Any `MS-*` source used from `docs/ACTIVATION.md` is verified and matches the release target and identity under review.
 
-Never treat installation alone as measurement verification. If a read-only check cannot prove the exact configuration, record an activation gap instead of guessing.
+If Search Console, GA4, the production host and the recorded release describe different scopes, report the mismatch before interpreting performance. Never treat installation alone as measurement verification. If a read-only check cannot prove the exact configuration, record an activation gap instead of guessing.
 
 ## Technical Review
 
@@ -169,6 +152,5 @@ A complete review:
 - distinguishes observed facts, estimates and hypotheses;
 - records source scope, freshness and limitations;
 - does not force unlike metrics to match;
-- assigns every follow-up one owner route and metric;
-- avoids ranking promises and search-policy violations; and
-- ends without waiting for delayed provider or indexing data.
+- assigns every follow-up one owner route and metric; and
+- avoids ranking promises and search-policy violations.

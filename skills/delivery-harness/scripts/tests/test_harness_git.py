@@ -23,11 +23,26 @@ from harness_git import (  # noqa: E402
     git_environment,
     reject_object_substitution,
     run_git,
+    _path_has_reparse_or_link,
 )
 from harness_core import read_git_blob  # noqa: E402
 
 
 class HarnessGitTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == "nt", "Windows junction regression")
+    def test_shared_path_check_rejects_junctions_to_regular_targets(self):
+        import _winapi
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / "target"
+            target.mkdir()
+            (target / "evidence.json").write_text("{}", encoding="utf-8")
+            junction = root / "junction"
+            _winapi.CreateJunction(str(target), str(junction))
+            self.assertTrue(_path_has_reparse_or_link(junction / "evidence.json"))
+            self.assertFalse(_path_has_reparse_or_link(target / "evidence.json"))
+
     def test_git_environment_strips_repository_overrides_case_insensitively(self):
         environment = git_environment(
             {
@@ -533,7 +548,6 @@ class WindowsLauncherACLTests(unittest.TestCase):
     def test_file_acl_is_checked_independently_of_protected_parent(self) -> None:
         import harness_git
         import parity_capture
-        import verifier_runtime
 
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory).resolve()
@@ -543,9 +557,6 @@ class WindowsLauncherACLTests(unittest.TestCase):
                 (harness_git, "_machine_git_roots", "_windows_parent_user_writable",
                  lambda: harness_git._trusted_executable(executable, "Git executable"),
                  harness_git.GitMetadataError),
-                (verifier_runtime, "windows_machine_roots", "windows_parent_user_writable",
-                 lambda: verifier_runtime._runtime_trust(executable, "docker"),
-                 verifier_runtime.VerifierRuntimeError),
                 (parity_capture, "windows_machine_roots", "windows_parent_user_writable",
                  lambda: parity_capture._trusted_launcher_path(executable, "browser launcher"),
                  RuntimeError),

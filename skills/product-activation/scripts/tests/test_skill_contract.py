@@ -134,6 +134,39 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         self.assertIn("check_product_package.py", stage)
         self.assertIn("Target / guardrail", contract)
         self.assertIn("historical three-column", contract)
+        self.assertIn("`Signal | Release targets | Source ID | Status`", contract)
+        self.assertIn("a coverage row points at them and does not copy them", contract)
+
+    def test_workflow_reads_are_scoped_and_checkers_run_once(self) -> None:
+        stage = self.read(STAGE)
+        workflow = stage.split("## Workflow", 1)[1].split("\n## ", 1)[0]
+
+        self.assertNotIn("completely", workflow)
+        self.assertIn("profile-catalog.md` Core, the surface sections that the architecture surface classes map to", workflow)
+        self.assertIn("full `check_activation.py` command in step 15", workflow)
+        self.assertIn("do not run them separately", workflow)
+        self.assertIn("once before closeout", workflow)
+        routing = stage.split("## Reference Routing", 1)[1].split("\n## ", 1)[0]
+        self.assertEqual(3, len([line for line in routing.splitlines() if line.startswith("- ")]))
+
+    def test_required_inputs_name_the_sections_activation_reads(self) -> None:
+        stage = self.read(STAGE)
+        inputs = stage.split("## Required Inputs", 1)[1].split("\n## ", 1)[0]
+
+        self.assertNotIn("Read the applicable files", inputs)
+        self.assertIn("read only these sections", inputs)
+        self.assertIn("Workflow checkers still join each complete file", inputs)
+        for section in (
+            "`Metrics`, and `Test Obligations`",
+            "`Data and Trust`",
+            "`Release Targets`",
+            "approved Stack Decision Checkpoint and each applicable `Recorded or Approved Stack`",
+            "`Required Secrets and Variables`",
+            "`Product Activation Handoff`",
+        ):
+            self.assertIn(section, inputs)
+        self.assertIn("Read another section when a selected profile or action needs it", inputs)
+        self.assertIn("Read an existing `docs/ACTIVATION.md` in full", inputs)
 
     def test_release_authority_and_digest_contract_are_strict(self) -> None:
         stage = self.read(STAGE)

@@ -22,7 +22,8 @@ class ProjectCITemplateContractTests(unittest.TestCase):
         triggers = self.template.split("permissions:", 1)[0]
         self.assertIn("pull_request:", triggers)
         self.assertIn("merge_group:", triggers)
-        self.assertIn("- main", triggers)
+        self.assertNotIn("push:", triggers)
+        self.assertNotIn("- main", triggers)
         self.assertNotIn("- development", triggers)
         self.assertIn("workflow_dispatch:", triggers)
         self.assertNotIn("- '**'", triggers)
@@ -57,7 +58,8 @@ class ProjectCITemplateContractTests(unittest.TestCase):
         )
         self.assertIn("require_commit() {", self.template)
         self.assertIn("git merge-base \"$event_base\" \"$actual_sha\"", self.template)
-        self.assertIn("git mktree </dev/null", self.template)
+        self.assertNotIn("github.event.before", self.template)
+        self.assertNotIn("git mktree", self.template)
         self.assertIn('git diff --check "$diff_base" "$actual_sha"', self.template)
         self.assertNotIn("ci_diff_base.py", self.template)
         self.assertNotIn("python skills/", self.template)
@@ -195,9 +197,9 @@ class ProjectCITemplateContractTests(unittest.TestCase):
             self.assertIn("dirty.txt", manual_check.stdout + manual_check.stderr)
             self.assertNotIn("base_only.txt", manual_check.stdout + manual_check.stderr)
 
-            initial_push = self.run_diff_script(root, "push", candidate, "0" * 40)
-            self.assertNotEqual(0, initial_push.returncode)
-            self.assertIn("dirty.txt", initial_push.stdout + initial_push.stderr)
+            push = self.run_diff_script(root, "push", candidate, base)
+            self.assertNotEqual(0, push.returncode)
+            self.assertIn("unsupported event", push.stderr)
 
             missing_manual = self.run_diff_script(
                 root, "workflow_dispatch", candidate, ""

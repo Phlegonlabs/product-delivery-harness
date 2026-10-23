@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 import sys
@@ -62,18 +61,17 @@ def save_run_block(path: Path, run: dict) -> None:
     path.write_text(text[: start + len("```json\n")] + body + text[end:], encoding="utf-8")
 
 
-class CloseWaveCliTests(unittest.TestCase):
-    """Drive the real CLI main() across the full write path, then close."""
+class CliFixture:
+    """Drive the real CLI main() against a Git checkout and PLAN/RUN files."""
+
+    def plan_fixture(self) -> dict:
+        return mf.valid_plan()
 
     def setUp(self) -> None:
         self._temp = tempfile.TemporaryDirectory()
         self.root = Path(self._temp.name)
         self.gitroot = self.root / "git"
-        (self.gitroot / "docs" / "product").mkdir(parents=True)
-        prd = self.gitroot / "docs" / "product" / "prd.md"
-        arch = self.gitroot / "docs" / "product" / "architecture.md"
-        prd.write_text("product contract\n", encoding="utf-8")
-        arch.write_text("technical contract\n", encoding="utf-8")
+        self.gitroot.mkdir()
         self.base = mf.init_repo(self.gitroot, "file.txt")
         mf.git(self.gitroot, "checkout", "-qb", "integration")
         (self.gitroot / "file.txt").write_text("work\n", encoding="utf-8")
@@ -82,13 +80,11 @@ class CloseWaveCliTests(unittest.TestCase):
         self.head = mf.git(self.gitroot, "rev-parse", "HEAD")
         self.wt1 = (self.root / "wt-m1").as_posix()
 
-        self.plan = mf.valid_plan()
-        self.plan["sources"][0]["content_sha256"] = hashlib.sha256(
-            prd.read_bytes()
-        ).hexdigest()
-        self.plan["sources"][1]["content_sha256"] = hashlib.sha256(
-            arch.read_bytes()
-        ).hexdigest()
+        self.plan = self.plan_fixture()
+        mf.materialize_plan_sources(self.gitroot, self.plan)
+        mf.git(self.gitroot, "add", "docs/product")
+        mf.git(self.gitroot, "commit", "-qm", "freeze contracts")
+        self.head = mf.git(self.gitroot, "rev-parse", "HEAD")
         run = mf.valid_run(self.plan)
         mf.authorize_execution(run, ["M1", "M2"])
         mf.authorize_action(
@@ -189,7 +185,7 @@ class CloseWaveCliTests(unittest.TestCase):
         self.assertEqual(0, result.returncode, result.stderr)
         self._seed_sandbox_observation()
 
-    def _integrate_m1(self) -> None:
+    def _pass_m1_worker(self, *, retain_integration: bool = True) -> None:
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "accept-wave", "--wave-id", "W-1", "--mission-id", "M1",
@@ -233,15 +229,43 @@ class CloseWaveCliTests(unittest.TestCase):
                 attempt_id="A-M1-RESULT", lease_id="L-M1", head_sha=self.head,
                 checkout_role="worker",
             ),
-            mf.retained_gate_execution(
+        ]
+        if retain_integration:
+            live["verifier_executions"].append(mf.retained_gate_execution(
                 self.plan, live, self.plan["missions"][0]["integration_verifiers"][0],
                 layer="mission_integration", execution_id="EXEC-I-M1",
                 mission_id="M1", attempt_id=None, lease_id=None,
                 head_sha=self.head,
-            ),
-        ]
+            ))
         save_run_block(self.run_path, live)
 
+
+class FinalCandidateIntegrationCliTests(CliFixture, unittest.TestCase):
+    """A final_candidate mission integrates without a pre-integration review."""
+
+    def plan_fixture(self) -> dict:
+        return mf.final_candidate_plan()
+
+    def test_mission_integrates_on_worker_passed(self) -> None:
+        self._pass_m1_worker()
+
+        result = self.cli(
+            "--repo-root", str(self.gitroot),
+            "record-integration", "--mission-id", "M1",
+            "--integrated-sha", self.head,
+        )
+
+        self.assertEqual(0, result.returncode, result.stderr)
+        live = load_run_block(self.run_path)
+        self.assertEqual("integrated", live["mission_states"]["M1"]["phase"])
+        self.assertEqual([], live["review_workers"])
+
+
+class CloseWaveCliTests(CliFixture, unittest.TestCase):
+    """Drive the real CLI main() across the full write path, then close."""
+
+    def _integrate_m1(self, *, record: bool = True, retain_integration: bool = True) -> None:
+        self._pass_m1_worker(retain_integration=retain_integration)
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "reserve-review-dispatch", "--node-id", "N-REVIEW-M1",
@@ -254,6 +278,8 @@ class CloseWaveCliTests(unittest.TestCase):
             "--mission-id", "M1", "--result", "pass", "--evidence", "reviewed",
         )
         self.assertEqual(0, result.returncode, result.stderr)
+        if not record:
+            return
         result = self.cli(
             "--repo-root", str(self.gitroot),
             "record-integration", "--mission-id", "M1",
@@ -543,14 +569,7 @@ class AcceptWaveGuardTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temp, self.root, _, self.head = make_repo()
         self.plan = mf.valid_plan()
-        for source, contents in zip(
-            self.plan["sources"],
-            (b"product contract\n", b"technical contract\n"),
-        ):
-            source_path = self.root / source["location"]
-            source_path.parent.mkdir(parents=True, exist_ok=True)
-            source_path.write_bytes(contents)
-            source["content_sha256"] = hashlib.sha256(contents).hexdigest()
+        mf.materialize_plan_sources(self.root, self.plan)
         mf.git(self.root, "add", "docs/product")
         mf.git(self.root, "commit", "-qm", "frozen contracts")
         self.head = mf.git(self.root, "rev-parse", "HEAD")
@@ -671,6 +690,9 @@ class LeaseWorkerGuardTests(unittest.TestCase):
             "create_local_commits",
         ):
             mf.authorize_action(self.run, action, ["M1", "M2"], ["*"])
+        self.run["runtime_capabilities"]["worker_runtime"] = "subagent"
+        self.run["runtime_capabilities"]["runtime_adapter"].update(
+            available_drivers=["subagents", "sequential_parent"], detection_source="observed")
         self.run["active_wave"].update(
             {
                 "wave_id": "W-1",

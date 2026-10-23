@@ -7,11 +7,11 @@ description: Turn an approved Product Definition into an owner-approved UI desig
 
 ## Installed Commands
 
-Resolve `<ui-design-builder-skill-root>` to the absolute directory containing this installed SKILL.md. Resolve sibling skill roots from the same installation (normally `~/.agents/skills/`). Quote script paths, keep the working directory and `--repo-root` at the target project, and never assume that project contains `skills/`. In references, `skills/<name>/scripts/`, `<name>/scripts/`, and bare `scripts/` are logical installed-skill paths: expand them to the observed absolute skill root before execution. Repository maintenance and CI commands still run from this source repository.
+Resolve `<ui-design-builder-skill-root>` and logical script paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states.
 
 ## Purpose
 
-At every invocation, apply `../delivery-harness/references/document-sync-contract.md`. During accepted delivery, use `../delivery-harness/references/bounded-enhancement.md` for same-scope corrections and next-round gaps; do not repeat initial design choices for a repair that restores the frozen design. Model the PRD's synthetic personas and loading, empty, permission, expired-session, failure, and recovery states. A mockup or HTML native projection is not real-login or native E2E evidence; that belongs to Harness.
+At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work). A repair that restores the frozen design does not repeat initial design choices. Model the PRD's synthetic personas and loading, empty, permission, expired-session, failure, and recovery states. A mockup or HTML native projection is not real-login or native E2E evidence; that belongs to Harness.
 
 Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
 
@@ -25,10 +25,6 @@ For every UI-bearing product, this skill owns:
 Existing wireframes and old design-system pairs remain inspection and validation evidence. They are not inputs to a new `ui-design/3` package and never acquire new approval authority.
 
 It does not change product scope, routes, actions, states, responsive targets, copy responsibilities, architecture, or stack by implication. Return those changes to `product-definition-builder` and resume only from a newly approved Product Definition revision.
-
-At direction review and HiFi review, apply `../product-definition-builder/references/prd-refinement.md` to newly discovered journey, state, content and recovery gaps. Link evidence and affected PRD/UI/TEST IDs in the existing change record; distinguish a design defect from a missing product decision. Keep frozen product inputs intact until their owning flow resolves a contract gap. Continue unaffected design work.
-
-Apply [Generate, Verify And Correct](../delivery-harness/references/gen-verify-correct.md) at direction and HiFi checkpoints. The bound frontend author repairs accepted-scope design defects and reruns the focused check; owners retain human selections and approvals.
 
 ## Stage Routing
 
@@ -57,14 +53,10 @@ Before author dispatch, apply [Frontend Visual Inputs](../delivery-harness/refer
 - Author directions and HiFi from the PRD contract, not from an implied page skeleton. The design author may choose hierarchy, grouping, section rhythm, typography, density and visual treatment; it may not add a page, route, control, state, responsive target, operation, copy obligation or integration.
 - Keep selected direction and approved HiFi identities traceable. A changed candidate needs applicable fresh evidence. The compiler writes a separate formal-pair preview; it never changes historical approvals.
 
-- `frontend-design` is the single design author for directions and HiFi. It owns visual-direction and frontend-authoring judgment, not contract compilation or implementation conformance. Impeccable is a separately authorized, required quality review; its critique and audit PASS gate Visual Approval.
-- Impeccable's full critique follows its own capability and subagent-authorization contract. Missing authorization is not capability failure and never grants delegation.
+- `frontend-design` is the single design author for directions and HiFi. It owns visual-direction and frontend-authoring judgment, not contract compilation or implementation conformance. Impeccable critique/audit is a required review that gates Visual Approval; its authorization follows [Impeccable Quality Review](references/ui-design-pass.md#impeccable-quality-review-and-prd-bound-grading).
 - New machine observations use `ui-evidence/3` without a human owner or attestation. `ui-evidence/2` retains its historical human-attested semantics and is never fabricated or relabeled. Only the actual owner supplies direction and Visual Approval.
 - Keep copy source/completeness and PRD responsibilities valid. A changed product decision returns upstream; composition repairs inside accepted scope reuse authorization. Copy is reviewed with the full HiFi.
-- HiFi checks use one complete diagnostic wave, one consolidated repair batch, and one re-review after the cheap completeness gate. Another failure stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
-- Browser checks, Impeccable critique/audit and H1-H9 belong to that same wave and candidate. The lead reconciles their evidence once; do not launch another grading wave to restate completed checks.
-- Repair re-review follows `references/ui-grading-rubric.md#repair-re-review-scope`: original defects and affected consumers, with mandatory Impeccable checks and complete current evidence.
+- After the cheap completeness gate, each candidate gets one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9, one consolidated repair batch and one re-review; another failure stops at `blocked`. The rubric owns staffing, the [first-wave axes](references/ui-grading-rubric.md#first-wave-audit-axes) and the [re-review scope](references/ui-grading-rubric.md#repair-re-review-scope).
 - Numeric scores summarize quality; they never override a PRD contradiction, broken browser matrix, inaccessible required flow, dead control, or missing human approval.
 - HiFi readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80. Keep actual-score consistency and required Impeccable verdicts.
-- The `ui-design/3` completeness CLI reports advisory compiler-source limitations before approval; registry-dependent coverage remains the compiler's responsibility.
 - A generated image or motion asset is optional unless the approved Motion and Media Intent record makes it required. Provider failure never authorizes a substitute treatment.
