@@ -1,9 +1,13 @@
 ---
 name: gtm-content
-description: Turn a project's positioning and channel choices into reviewable campaign content, including X posts and threads, Threads posts, Facebook Page posts, asset briefs and a proposed calendar. Use for launch or ongoing content preparation; do not publish, schedule or send messages.
+description: Use only when the user explicitly requests gtm-content or a requested skill workflow requires it. Turn a project's positioning and channel choices into reviewable campaign content, including X posts and threads, Threads posts, Facebook Page posts, asset briefs and a proposed calendar. Use for launch or ongoing content preparation; do not publish, schedule or send messages.
 ---
 
 # GTM Content
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 Write content that sounds like this project and helps its intended audience.
 Adapt the idea, proof and next action to each channel instead of pasting one caption everywhere.

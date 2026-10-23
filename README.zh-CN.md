@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.66.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -53,7 +53,7 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 外部设置或 release readiness | `product-activation` | 逐 target 的授权动作、回读与 readiness |
 | Production 公开网站 | `seo-growth-review` | 只读搜索与测量 review，以及已路由后续工作 |
 
-每个内置 skill 都可在必要输入齐备时独立运行，不必跑完整 pipeline。
+七个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
 
 相关选择尚未解决，或现有决定需要参考背景时，使用[参考选择规则](skills/delivery-harness/references/reference-selection.md)与[可选目录](skills/delivery-harness/references/option-library/README.md)。两者都不是前置条件，也不授予执行权限；现有决定与批准仍有效。
 
@@ -121,6 +121,8 @@ flowchart LR
 初次 UI 交付须先完成设计与所有适用自查，才能进入 Harness 执行。按[作者自查](skills/delivery-harness/references/pre-delivery-self-review.md)，在下表的 Product、方向与 HiFi 既有出口完成检查。
 
 ## 运行规则
+
+以下流程规则只适用于你明确调用的 skill 工作。
 
 Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。
 
@@ -207,6 +209,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.67.0** — 七个核心与四个独立 skills 都改为明确调用才启动。Harness 分流、文档同步与 Epic 记录只适用于已调用的工作。保留必要检查与依赖，不自动启动下一个顶层阶段。
+
 - **0.66.0** — 从 PRD、UI 到交付减少重复 review 轮次，保留 85／80、Impeccable、Visual Approval 与精确 SHA 安全审查。Mission 以功能批次规划，每个只派一位合并维度的 reviewer；只有证明干净的 merge chain 才跳过代码整合审查。候选的所有 review 回来后一次修复，复查只看修复范围。HiFi 复查限于修复清单并沿用未变记录，修改方向只新增一份研究，PRD 检查提前拦下无法到达的页面和没有出口的状态。每个 RUN 与设计轮固定一个 Harness 合约，未观察身份每个 session 只记一次，改加载简短入口清单。修正 retention 假缺陷与整合记录的 commit 边界竞态，并发布 AgentKiosk 的 compiler、状态覆盖、role-policy 与 ingestion 改动。
 
 - **0.65.3** — 设计端采用同轮审核与定向复查，实现端合并 UI 验收，保留 85／80 与必要证据。向作者提供完整画面、字体、素材及视觉特征，worker 选择交由 agent 配置。保留已有 RUN 契约，修正诊断覆盖、验收复用及 Activation 暂存动作摘要。
@@ -214,7 +218,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.65.2** — 发布四语完整交付流程图，标明 PRD 自查、基础设置时点、MultiAgent 分工、既有 review 次数与 GTM 并行接入。记录当前 owner 同时推广 Instagram 与 Threads，Facebook Pages 待评估，X 可选。保留 85／80 门槛与既有审查额度。
 
 - **0.65.1** — 明确规定 PRD 完稿后由原作者整体自查整套文件，批准前重查受影响部分。在现有工程任务安排核心流程验证，以及适用的负载、成本、迁移与恢复证据。为可选 GTM skills 补上 X 渠道选择、内容指引和草稿到测量的衔接。四语 README 整理分工、基础设置时点与 review 上限。沿用现有记录及修复预算，不新增 schema 或 review wave。
-
-- **0.65.0** — HiFi 总分至少 85，H1–H9 每项至少 80；保留必跑 Impeccable 与有界修复复查。把 build access、Repo 保护读回、AEO／搜索、部署、分析、反馈、错误与告警放进现有启动阶段。明确定义由主协调代理负责的 MultiAgent 分工，加入受控 runtime 观测、编译来源提示及可选 GTM 策略／内容交接。当前 HiFi 验收门槛改变，历史批准与证据保留原意。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

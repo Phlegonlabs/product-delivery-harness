@@ -1,9 +1,13 @@
 ---
 name: readme-studio
-description: Create or improve a GitHub project README with distinctive brand visuals, product storytelling, useful examples and accurate installation guidance. Use for README writing or presentation work, including release-related README updates.
+description: Use only when the user explicitly requests readme-studio or a requested skill workflow requires it. Create or improve a GitHub project README with distinctive brand visuals, product storytelling, useful examples and accurate installation guidance. Use for README writing or presentation work, including release-related README updates.
 ---
 
 # README Studio
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 Make the project understandable and memorable from its README. Lead with its brand and the experience it offers, then give the reader a working path to try it. A polished result may be intricate; use the simplest GitHub-supported presentation that achieves it.
 

@@ -2,3 +2,5 @@ interface:
   display_name: "GTM Content"
   short_description: "Channel-specific campaign drafts and review calendars"
   default_prompt: "Use $gtm-content to draft this project's channel-specific posts, asset briefs and proposed calendar for review before publication."
+policy:
+  allow_implicit_invocation: false

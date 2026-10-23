@@ -2,3 +2,5 @@ interface:
   display_name: "README Studio"
   short_description: "Brand-first GitHub README writing and presentation"
   default_prompt: "Use $readme-studio to improve this project's README with a distinctive visual opening and a verified quickstart."
+policy:
+  allow_implicit_invocation: false

@@ -1,9 +1,13 @@
 ---
 name: product-definition-builder
-description: Create or refine owner-approved Product Definition packages from user needs, including discovery, measurable requirements, UI surface behavior, data/trust and AI gates, implementation-ready backend and frontend architecture, coherent owner-approved technology and commercial stack decisions, release targets, tests, and sourced market reconciliation. Use for PRDs, product specs, architecture, backend/data/auth/deployment choices, frontend stack choices, and product research. It stops at Product Definition Approval and hands UI-bearing products to ui-design-builder; it does not create wireframes or visual design.
+description: Use only when the user explicitly requests product-definition-builder or a requested skill workflow requires it. Create or refine owner-approved Product Definition packages from user needs, including discovery, measurable requirements, UI surface behavior, data/trust and AI gates, implementation-ready backend and frontend architecture, coherent owner-approved technology and commercial stack decisions, release targets, tests, and sourced market reconciliation. Use for PRDs, product specs, architecture, backend/data/auth/deployment choices, frontend stack choices, and product research. It stops at Product Definition Approval and hands UI-bearing products to ui-design-builder; it does not create wireframes or visual design.
 ---
 
 # Product Definition Builder
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 ## Installed Commands
 
@@ -17,7 +21,7 @@ For a UI enhancement, hand off the added/changed UI IDs and necessary entry or r
 
 Before approval, define test personas (role, tenant, account/data state), applicable Web/native/agent journeys, observable success and denial/no-side-effect assertions, and mock versus real-sandbox obligations in the existing TEST rows and architecture testing section. Record non-applicability rather than inventing login for a headless or unauthenticated product. The downstream Harness freezes the executable matrix and owns fixtures and evidence through `../delivery-harness/references/delivery-acceptance-contract.md`; this skill creates no accounts or evidence register.
 
-Use this skill to turn a product idea into a decision-ready package, not an agent-selected implementation guess. Define product scope, journeys, UI surface responsibilities, routes, actions, states, data, trust, and security boundaries, acceptance signals, implementation architecture, release targets, and technology constraints. Draft and reconcile `PRD.md`, `architecture.md`, and `stack-decisions.md`; present coherent frontend, backend/data/auth, mobile/desktop, AI, deployment, and commercial technology options; then obtain an explicit Stack Decision Checkpoint and Product Definition Approval. Stop there. A later explicit UI request invokes `ui-design-builder`; a later implementation request invokes `delivery-harness` against approved inputs.
+Use this skill to turn a product idea into a decision-ready package, not an agent-selected implementation guess. Define product scope, journeys, UI surface responsibilities, routes, actions, states, data, trust, and security boundaries, acceptance signals, implementation architecture, release targets, and technology constraints. Draft and reconcile `PRD.md`, `architecture.md`, and `stack-decisions.md`; present coherent frontend, backend/data/auth, mobile/desktop, AI, deployment, and commercial technology options; then obtain an explicit Stack Decision Checkpoint and Product Definition Approval. Stop there. A later explicit UI request invokes `ui-design-builder`; a later explicit `delivery-harness` request implements approved inputs.
 
 ## Stage Routing
 

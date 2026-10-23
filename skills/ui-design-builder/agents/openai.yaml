@@ -2,3 +2,5 @@ interface:
   display_name: "UI Design Builder"
   short_description: "Create approved direction and HiFi UI"
   default_prompt: "Use $ui-design-builder with the full owner-pinned $frontend-design skill as the actual design author for directions, connected HiFi, and repairs after Product Definition Approval. Read the PRD UI Surface Contract directly; a new ui-design/3 package has no wireframe stage, three rendered directions and a required design-system package. Before each authoring stage, verify the ui-design bindings and load both skills in the writer's context. Use assemblers and reviewers only for shell construction and validation. Then run HiFi completeness checks, review with $impeccable, and decide whether $design-system-compiler is required."
+policy:
+  allow_implicit_invocation: false

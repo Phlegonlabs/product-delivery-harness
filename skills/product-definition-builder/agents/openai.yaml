@@ -13,3 +13,5 @@ interface:
     --require-approved. Never choose a stack or approve for the owner, and
     write only the paths the owner approved. Stop after approval. UI design
     belongs to $ui-design-builder and implementation to $delivery-harness.
+policy:
+  allow_implicit_invocation: false

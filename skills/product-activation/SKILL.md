@@ -1,9 +1,13 @@
 ---
 name: product-activation
-description: Prepare authorized external setup from a fixed initial build and verify post-delivery activation for websites, web apps, APIs/backend services, iOS apps, Android apps, browser extensions, macOS apps, and Windows apps. Use before dependent features need analytics, domain or other external services, then reconcile the actual release. Keep one surface-specific activation record, probe connector/API/CLI/Browser/Computer Use routes, execute exact authorized actions and read back results. Final readiness and verified measurement sources remain release-bound. Do not implement product code, manage PLAN/RUN, deploy without explicit authority or wait for an adoption window.
+description: Use only when the user explicitly requests product-activation or a requested skill workflow requires it. Prepare authorized external setup from a fixed initial build and verify post-delivery activation for websites, web apps, APIs/backend services, iOS apps, Android apps, browser extensions, macOS apps, and Windows apps. Use before dependent features need analytics, domain or other external services, then reconcile the actual release. Keep one surface-specific activation record, probe connector/API/CLI/Browser/Computer Use routes, execute exact authorized actions and read back results. Final readiness and verified measurement sources remain release-bound. Do not implement product code, manage PLAN/RUN, deploy without explicit authority or wait for an adoption window.
 ---
 
 # Product Activation
+
+Run only on the user's explicit request, continuation, or a required dependency of that requested skill workflow.
+A matching task, installation, discussion, source edit or existing project artifact does not activate it.
+Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
 ## Installed Commands
 

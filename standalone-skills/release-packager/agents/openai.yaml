@@ -2,3 +2,5 @@ interface:
   display_name: "Release Packager"
   short_description: "Prepare and verify packages for the project's runtime"
   default_prompt: "Use $release-packager to prepare and verify this release's applicable artifacts with the project's existing native toolchain."
+policy:
+  allow_implicit_invocation: false
