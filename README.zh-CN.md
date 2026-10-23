@@ -219,6 +219,4 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 - **0.65.1** — 明确规定 PRD 完稿后由原作者整体自查整套文件，批准前重查受影响部分。在现有工程任务安排核心流程验证，以及适用的负载、成本、迁移与恢复证据。为可选 GTM skills 补上 X 渠道选择、内容指引和草稿到测量的衔接。四语 README 整理分工、基础设置时点与 review 上限。沿用现有记录及修复预算，不新增 schema 或 review wave。
 
-- **0.65.0** — HiFi 总分至少 85，H1–H9 每项至少 80；保留必跑 Impeccable 与有界修复复查。把 build access、Repo 保护读回、AEO／搜索、部署、分析、反馈、错误与告警放进现有启动阶段。明确定义由主协调代理负责的 MultiAgent 分工，加入受控 runtime 观测、编译来源提示及可选 GTM 策略／内容交接。当前 HiFi 验收门槛改变，历史批准与证据保留原意。
-
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
