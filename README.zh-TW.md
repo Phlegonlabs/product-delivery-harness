@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.66.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 [MIT](LICENSE)。重用第三方程式與素材時保留授權與署名。
 
 ## 版本紀錄
+
+- **0.67.0** — 七個核心與四個獨立 skills 都改為明確呼叫才啟動。Harness 分流、文件同步與 Epic 紀錄只適用於已呼叫的工作。保留必要檢查與依賴，不自動啟動下一個頂層階段。
 
 - **0.66.0** — 從 PRD、UI 到交付減少重複 review 輪次，保留 85／80、Impeccable、Visual Approval 與精確 SHA 安全審查。Mission 以功能批次規劃，每個只派一位合併面向的 reviewer；只有證明乾淨的 merge chain 才略過程式整合審查。候選的所有 review 回來後一次修復，複查只看修復範圍。HiFi 複查限於修復清單並沿用未變紀錄，修改方向只新增一份研究，PRD 檢查提早擋下無法到達的畫面和沒有出口的狀態。每個 RUN 與設計輪固定一個 Harness 合約，未觀察身分每個 session 只記一次，改載入簡短入口清單。修正 retention 假缺陷與整合紀錄的 commit 邊界競態，並發布 AgentKiosk 的 compiler、狀態覆蓋、role-policy 與 ingestion 改動。
 
