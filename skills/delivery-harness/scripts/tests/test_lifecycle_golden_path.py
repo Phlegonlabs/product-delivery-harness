@@ -234,28 +234,15 @@ def activation_record(
     text = text.replace("a" * 40, sha)
     text = re.sub(r"(?<!fixture-)web-build-1", artifact, text)
 
-    details, detail_errors = check_activation._prd_signal_details(prd)
-    if detail_errors:
-        raise AssertionError("fixture PRD outcome rows are invalid: " + "; ".join(detail_errors))
+    signals, signal_errors = check_activation._prd_signals(prd)
+    if signal_errors:
+        raise AssertionError("fixture PRD outcome rows are invalid: " + "; ".join(signal_errors))
     rows = [
-        "| Signal | Definition / obligation | Baseline | Target / guardrail | Measurement window | Expected signal | Release targets | Source / method | Owner | Source ID | Status |",
-        "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+        "| Signal | Release targets | Source ID | Status |",
+        "| --- | --- | --- | --- |",
     ]
-    for signal, detail in sorted(details.items()):
-        cells = [
-            signal,
-            detail["definition"],
-            detail["baseline"],
-            detail["target"],
-            detail["window"],
-            detail["expected"],
-            production.target_id,
-            detail["source_method"],
-            detail["owner"],
-            "MS-001",
-            "verified",
-        ]
-        rows.append("| " + " | ".join(cells) + " |")
+    for signal in sorted(signals):
+        rows.append(f"| {signal} | {production.target_id} | MS-001 | verified |")
     start = text.index("## Outcome Coverage")
     end = text.index("## Measurement Sources", start)
     prefix = text[:start]
