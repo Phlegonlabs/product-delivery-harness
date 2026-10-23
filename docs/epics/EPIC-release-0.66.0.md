@@ -126,3 +126,11 @@ The remaining failures share three cutover tails. Commits `a5cc952f`, `d960b5f2`
 All 116 focused tail tests passed without skips. Spec, pyflakes, document weight, 100 local links and preservation checks passed. All 14 captured process roots exited. The [tail handoff](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/repair-docs-sol2/handoff-final.json) retains exact inputs and logs. Earlier review and CI evidence remain unchanged.
 
 Fresh exact-candidate review and required CI remain pending. The linked release receipt records later main, tag, official installation and consumer outcomes. No consumer document has changed at this checkpoint.
+
+### Lifecycle Fixture Cutover
+
+Candidate `92e57c34` received a complete security PASS. All three earlier CI tails passed. Run `39872670880` finished with 12 successful jobs. Its sole execution failure was a stale lifecycle fixture call; the aggregate failed. Windows completed all 17 native files, including the previously unreached write-path and compiler checks. Browser and macOS checks passed.
+
+Commit `24719683` updates that fixture to the current PRD signal set and short Activation coverage table. It preserves the real Harness–Activation–SEO CLI journey and all 18 existing assertions. No production validator changed. The local lifecycle, two Activation coverage checks and nine previously unexecuted shard-tail modules passed: 183 tests, no skips. Spec, pyflakes and diff checks passed; all 17 captured process roots exited.
+
+The [lifecycle handoff](C:/Users/mps19/.codex/visualizations/2026/10/22/01a164d4-5532-74c0-9a52-6683f6198131/work/repair-lifecycle-sol1/handoff-final.json) retains inputs, preservation and command evidence. These are local Windows results. Exact-candidate review, hosted CI and release actions remain pending in the linked release receipt. Earlier results retain their original SHA and limits.
