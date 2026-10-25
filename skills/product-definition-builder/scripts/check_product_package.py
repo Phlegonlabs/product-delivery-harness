@@ -864,7 +864,7 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
     if range_section is None:
         _add(problems, "prd", "missing Ambition subsection '### Range'")
     else:
-        if not re.search(r"(?m)^\s*Verbs:\s*\S", range_section):
+        if not re.search(r"(?m)^\s*Verbs:[ 	]*\S", range_section):
             _add(problems, "prd", "Range must record a non-empty 'Verbs:' line")
         range_rows = _find_table(range_section, AMBITION_RANGE_HEADER)
         if range_rows is None:

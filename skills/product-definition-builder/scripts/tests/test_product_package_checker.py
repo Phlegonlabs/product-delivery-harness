@@ -2930,6 +2930,13 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
             findings,
         )
 
+    def test_ambition_rejects_verbs_content_borrowed_from_the_next_line(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace("Verbs: validate, reject, gate", "Verbs:", 1)
+        )
+        findings = self.validate(package)
+        self.assertTrue(any("non-empty 'Verbs:' line" in finding for finding in findings), findings)
+
     def test_ambition_rejects_bad_range_used_as(self) -> None:
         package = self.finalize(
             delta_mode_prd(latest_line=None).replace("| Roadmap reviews | review lens |", "| Roadmap reviews | marketing |", 1)
