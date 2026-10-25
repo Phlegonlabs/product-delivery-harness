@@ -5647,6 +5647,9 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     or _is_reconciled_interrupted_review(
                         worker, node, run.get("attempt_log")
                     )
+                    or _is_environment_blocked_review(
+                        worker, node, run.get("attempt_log")
+                    )
                 )
                 and len(retained_attempts) == 1
                 and retained_attempts[0].get("kind") == "review"
@@ -6123,10 +6126,17 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 worker.get("phase") in {"leased", "worker_running"}
                 or (
                     worker.get("phase") == "blocked"
-                    and not _is_reconciled_interrupted_review(
-                        worker,
-                        closeout_review_nodes.get(worker.get("node_id")),
-                        run.get("attempt_log"),
+                    and not (
+                        _is_reconciled_interrupted_review(
+                            worker,
+                            closeout_review_nodes.get(worker.get("node_id")),
+                            run.get("attempt_log"),
+                        )
+                        or _is_environment_blocked_review(
+                            worker,
+                            closeout_review_nodes.get(worker.get("node_id")),
+                            run.get("attempt_log"),
+                        )
                     )
                 )
             )

@@ -10,6 +10,7 @@ mints a fresh attempt.
 from __future__ import annotations
 
 import contextlib
+import copy
 import io
 import json
 import subprocess
@@ -739,6 +740,94 @@ class EnvironmentRefundJourneyTests(unittest.TestCase):
             ),
         )
 
+    def record_security_pass(self, index: int) -> dict:
+        """Complete the reserved security review with a structured PASS."""
+        node = next(
+            item
+            for item in self.plan["graph"]["nodes"]
+            if item["id"] == "N-FINAL-REVIEW"
+        )
+        head = self.run["integration"]["integration_head_sha"]
+        base = self.run["integration"]["batch_base_sha"]
+        security_result = {
+            "review_type": "security",
+            "decision": "pass",
+            "reviewed_sha": head,
+            "base_sha": base,
+            "scope": node["review"]["scope"],
+            "exclusions": [],
+            "trust_boundaries": ["request to privileged delivery state"],
+            "tools": [
+                {
+                    "name": "manual source review",
+                    "status": "passed",
+                    "evidence": "reviewed source-to-sink paths",
+                }
+            ],
+            "coverage": {
+                "status": "complete",
+                "reviewed": ["full declared scope"],
+                "gaps": [],
+            },
+            "findings": [],
+            "evidence": [f"reviewed exact SHA {head}"],
+        }
+        result_path = self.container / f"security-pass-{index}.json"
+        result_path.write_text(json.dumps(security_result), encoding="utf-8")
+        return harness_transition._record_review_attempt(
+            self.plan,
+            self.run,
+            Namespace(
+                lineage="REVIEW-FINAL",
+                attempt_id="RA-ENV-" + str(index),
+                worker_id="RW-ENV-" + str(index),
+                result="pass",
+                blocker_class="review",
+                security_result=str(result_path),
+                finding=[],
+                evidence=[f"reviewed the exact reserved head ({index})"],
+                repo_root=self.root,
+                mission_id=None,
+                note=[],
+                tree_sha=None,
+            ),
+        )
+
+    def test_environment_block_does_not_block_closeout(self) -> None:
+        for mission in ("M1", "M3", "M2"):
+            self.integrate(mission)
+        pristine = copy.deepcopy(self.run)
+
+        self.reserve_review(1)
+        self.assertTrue(self.record_environment_block(1)["refunded"])
+        self.reserve_review(2)
+        receipt = self.record_security_pass(2)
+        self.assertEqual("pass", receipt["result"])
+        self.assertIs(False, receipt["refunded"])
+        self.assertEqual([], validate_run(self.plan, self.run))
+
+        completed = copy.deepcopy(self.run)
+        completed["status"] = "complete"
+        self.assertNotIn(
+            "run.review_workers: complete run cannot retain active or "
+            "blocked review workers",
+            validate_run(self.plan, completed),
+        )
+
+        # The exemption keys on the environment blocker class: the same
+        # retained worker recorded as an ordinary block still fails closeout.
+        self.run = pristine
+        self.reserve_review(1)
+        self.assertTrue(self.record_environment_block(1)["refunded"])
+        self.run["attempt_log"][-1]["blocker_class"] = "review"
+        completed = copy.deepcopy(self.run)
+        completed["status"] = "complete"
+        self.assertIn(
+            "run.review_workers: complete run cannot retain active or "
+            "blocked review workers",
+            validate_run(self.plan, completed),
+        )
+
     @property
     def review_state(self) -> dict:
         return self.run["graph_state"]["node_states"]["N-FINAL-REVIEW"]
@@ -845,6 +934,177 @@ class EnvironmentRefundJourneyTests(unittest.TestCase):
             item["node_id"]: item["reason_codes"] for item in selection["deferred_nodes"]
         }
         self.assertIn("node_phase_not_ready", deferred.get("N-FINAL-REVIEW", []))
+
+
+class EnvironmentBlockedRepairHeadTests(unittest.TestCase):
+    """A detached environment-blocked reviewer survives a repair head move."""
+
+    def fixture(self) -> tuple[dict, dict]:
+        plan = mf.valid_plan()
+        node_id = "N-ENV-REVIEW"
+        node = copy.deepcopy(plan["graph"]["nodes"][1])
+        node["id"] = node_id
+        node["allowed_outcomes"] = [
+            "pass",
+            "fix_required",
+            "retryable_failure",
+            "contract_gap",
+            "blocked",
+        ]
+        node["review"].update(stage="integration", lineage_id="RL-ENV-INTEGRATION")
+        plan["graph"]["nodes"].append(node)
+        plan["graph"]["edges"].extend(
+            [
+                {
+                    "id": "E-ENV-READY",
+                    "kind": "dependency",
+                    "from": "N-M2",
+                    "to": node_id,
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+                {
+                    "id": "E-ENV-PASS",
+                    "kind": "route",
+                    "from": node_id,
+                    "to": "N-FINAL",
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+            ]
+        )
+        run = mf.valid_closeout_run(plan)
+        mf.mark_complete(plan, run)
+        run["status"] = "running"
+        run["runtime_capabilities"]["runtime_adapter"]["detection_source"] = "observed"
+        run["runtime_capabilities"]["runtime_adapter"]["capability_probe"] = (
+            mf.native_capability_probe(subagents=True)
+        )
+
+        # Environment block at head H refunded the node attempt and detached
+        # its worker. The refunded retry then returned fix_required at the
+        # same head and is still the bound current reviewer.
+        head = run["integration"]["integration_head_sha"]
+        blocked = next(
+            worker for worker in run["review_workers"] if worker["node_id"] == node_id
+        )
+        blocked.update(
+            worker_id="RW-ENV",
+            attempt_id="ATT-ENV",
+            reviewed_sha=head,
+            review_path="C:/repo",
+            phase="blocked",
+            outcome="blocked",
+            findings=["reviewer sandbox denied git status before inspection"],
+        )
+        retry = copy.deepcopy(blocked)
+        retry.update(
+            worker_id="RW-RETRY",
+            attempt_id="ATT-RETRY",
+            phase="worker_failed",
+            outcome="fix_required",
+            findings=["missing authorization check on the export route"],
+        )
+        run["review_workers"].append(retry)
+        run["attempt_log"].extend(
+            [
+                {
+                    "attempt_id": "ATT-ENV",
+                    "mission_id": None,
+                    "task_id": None,
+                    "lease_id": None,
+                    "kind": "review",
+                    "result": "blocked",
+                    "blocker_class": "environment",
+                    "evidence": ["reviewer runtime never inspected the candidate"],
+                    "review_lineage_id": "RL-ENV-INTEGRATION",
+                    "notes": [],
+                },
+                {
+                    "attempt_id": "ATT-RETRY",
+                    "mission_id": None,
+                    "task_id": None,
+                    "lease_id": None,
+                    "kind": "review",
+                    "result": "fix_required",
+                    "evidence": ["reviewed the exact reserved head"],
+                    "review_lineage_id": "RL-ENV-INTEGRATION",
+                    "notes": [],
+                },
+            ]
+        )
+        state = run["graph_state"]["node_states"][node_id]
+        state.update(
+            phase="failed",
+            attempts=1,
+            last_attempt_id="ATT-RETRY",
+            last_outcome="fix_required",
+            bound_worker_id="RW-RETRY",
+            blockers=[],
+        )
+        run["review_lineages"]["RL-ENV-INTEGRATION"]["consumed_attempts"] = 2
+        run["graph_state"]["edge_states"]["E-ENV-PASS"].update(
+            status="dormant", traversals=0, source_attempt_id=None
+        )
+        nodes = {item["id"]: item for item in plan["graph"]["nodes"]}
+        retained = {attempt["attempt_id"] for attempt in run["attempt_log"]}
+        for identity_node, identity_state in run["graph_state"]["node_states"].items():
+            identity = identity_state.get("last_attempt_id")
+            if (
+                identity
+                and identity not in retained
+                and nodes[identity_node]["executor"]
+                in {"local_command", "harness_parent"}
+            ):
+                run["attempt_log"].append(
+                    {
+                        "attempt_id": identity,
+                        "mission_id": None,
+                        "task_id": None,
+                        "lease_id": None,
+                        "kind": "historical_graph_attempt",
+                        "result": "pass",
+                        "evidence": ["retained fixture graph attempt"],
+                    }
+                )
+                retained.add(identity)
+        return plan, run
+
+    def move_candidate_head(self, plan: dict, run: dict) -> None:
+        """Mirror reconcile-candidate-head's RUN mutation for a repair."""
+        previous = run["integration"]["integration_head_sha"]
+        candidate = "e" * 40
+        run["integration"].setdefault("prior_head_shas", []).append(previous)
+        harness_transition._invalidate_stale_current_projections(
+            plan, run, previous, candidate
+        )
+        run["integration"]["integration_head_sha"] = candidate
+        run["landing"]["continuity"]["head_sha"] = candidate
+
+    def head_errors(self, plan: dict, run: dict) -> list[str]:
+        return [
+            error
+            for error in validate_run(plan, run)
+            if "review_workers" in error and "reviewed_sha" in error
+        ]
+
+    def test_environment_block_survives_repair_head_reconciliation(self) -> None:
+        plan, run = self.fixture()
+        self.assertEqual([], validate_run(plan, run))
+
+        self.move_candidate_head(plan, run)
+        self.assertEqual([], self.head_errors(plan, run))
+
+        # The negative: an ordinary blocker_class review worker at the old
+        # head still fails the historical predicate after the move.
+        plan, run = self.fixture()
+        attempt = next(
+            item for item in run["attempt_log"] if item["attempt_id"] == "ATT-ENV"
+        )
+        attempt["blocker_class"] = "review"
+        self.assertEqual([], validate_run(plan, run))
+        self.move_candidate_head(plan, run)
+        self.assertTrue(self.head_errors(plan, run))
 
 
 if __name__ == "__main__":
