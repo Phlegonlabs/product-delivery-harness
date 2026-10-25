@@ -89,7 +89,7 @@ Use this structure:
 [One paragraph describing the product, user, and outcome.]
 
 ## Enhancement Impact Record
-Include this section only in enhancement mode.
+Include this section only in enhancement mode for a package without `docs/product/deltas/`; with deltas, this record lives in the PRD delta, not in `PRD.md`.
 
 | Area | Impact | Affected IDs / decisions | Required refresh |
 | --- | --- | --- | --- |
@@ -309,7 +309,7 @@ Product Definition does not decide density, layout preference, visual style, mot
 
 ## Product Definition Decisions
 
-This section is present for every product, including headless APIs and automations. It separates content decisions from the later filesystem publication authorization.
+This section is present for every product, including headless APIs and automations. It separates content decisions from the later filesystem publication authorization. Once the package has `docs/product/deltas/`, this section carries one line `Latest delta: docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` naming the current round's delta.
 
 ### Research Gate
 
@@ -459,6 +459,51 @@ Rules:
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
 - An incident requires typed containment, a human owner, and explicit routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
+
+## `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`
+
+An enhancement round that changes the approved package records itself in a PRD delta with schema `prd-delta/1`. `<EPIC-ID>` is the Epic file's id token: `EPIC-041` for `docs/epics/EPIC-041-<slug>.md`. One delta per round, aligned one-to-one with that round's Epic. `PRD.md` keeps only the approved state; the delta holds the round's why, impact, before/after, and approval. Create it from `assets/templates/PRD_DELTA.template.md` at the start of the round with the baseline hash, and publish the delta, the PRD, and their review copies together.
+
+Use this structure:
+
+```markdown
+# PRD Delta <EPIC-ID>: <outcome in one line>
+
+| | |
+| --- | --- |
+| Epic | docs/epics/EPIC-<id>-<slug>.md |
+| Baseline PRD | sha256:<64 lowercase hex of PRD.md before this delta> |
+| Result PRD | sha256:<64 lowercase hex after publication> or pending |
+| Status | draft / approved |
+| Ambition rung | 1 / 2 / 3 — <one line naming the rung from the PRD Ambition ladder> |
+
+## Why
+[Owner request, date and source; the goal beyond the goal this round serves.]
+
+## Enhancement Impact Record
+[The table from `## PRD.md`, unchanged columns.]
+
+## Changed Requirements
+| ID | Change | Before | After | TEST IDs |
+| --- | --- | --- | --- | --- |
+| PRD-0xx | new / revised / retired | [summary or n/a] | [summary] | TEST-0xx |
+
+## Decisions
+- decision:<slug> — [one line]
+
+## Approval
+[Product Definition Approval for this delta: owner, date, result PRD hash, using the same `product-definition-approval` marker block convention as PRD.md.]
+```
+
+A `Baseline PRD` or `Result PRD` hash is the SHA-256 of `PRD.md`'s file text without the `product-definition-approval` marker block, exactly as `bilingual-review.md` defines the review-source hash. The delta's own hash excludes its marker block. Each published delta receives a complete `PRD-DELTA-<EPIC-ID>.zh-TW.md` review copy; `bilingual-review.md` owns the pairing.
+
+Once a package has `docs/product/deltas/`:
+
+- A `PRD.md` heading containing a `YYYY-MM-DD` date is forbidden. Dated round history lives in the deltas.
+- `## Enhancement Impact Record` lives in the delta, not in `PRD.md`.
+- `## Product Definition Decisions` carries one line `Latest delta: docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` naming the current round's delta.
+
+A new round adds a new delta and updates that line. Whole-package replacement keeps the archive steps in `artifact-lifecycle.md`. A bounded enhancement needs no whole-package archive: the delta's before/after rows plus Git are the history.
 
 ## `architecture.md`
 
