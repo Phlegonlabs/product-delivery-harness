@@ -697,12 +697,14 @@ def _explicit_absence_reason(value: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def _latest_delta_reference(prd_text: str) -> str | None:
+def _latest_delta_reference(prd_text: str, *, problems: list[str]) -> str | None:
     decisions = _section(prd_text, "## Product Definition Decisions")
     if decisions is None:
         return None
-    match = DELTA_LATEST_LINE_RE.search(decisions)
-    return match.group(1).strip() if match else None
+    matches = list(DELTA_LATEST_LINE_RE.finditer(decisions))
+    if len(matches) > 1:
+        _add(problems, "prd", "'Latest delta:' must be declared exactly once")
+    return matches[0].group(1).strip() if matches else None
 
 
 def _validate_enhancement_impact_record(
@@ -1177,7 +1179,7 @@ def _validate_deltas(
             "prd",
             "delta mode records the Enhancement Impact Record in PRD deltas, not PRD.md",
         )
-    latest_reference = _latest_delta_reference(prd_text)
+    latest_reference = _latest_delta_reference(prd_text, problems=problems)
     latest_name: str | None = None
     if latest_reference is None:
         _add(
@@ -2030,7 +2032,7 @@ def validate_texts(
     problems: list[str] = validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
     )
-    delta_mode = (_latest_delta_reference(prd_text) is not None) or (
+    delta_mode = (_latest_delta_reference(prd_text, problems=problems) is not None) or (
         deltas_dir is not None and deltas_dir.is_dir()
     )
     ambition_required = delta_mode or _has_heading(prd_text, "## Ambition")

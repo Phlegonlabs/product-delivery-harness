@@ -2955,6 +2955,19 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
             findings,
         )
 
+    def test_delta_mode_rejects_duplicate_latest_delta_lines(self) -> None:
+        package = self.finalize(
+            delta_mode_prd().replace(
+                "## Product Definition Decisions" + chr(10),
+                "## Product Definition Decisions" + chr(10)
+                + "Latest delta: docs/product/deltas/PRD-DELTA-EPIC-041.md" + chr(10),
+                1,
+            )
+        )
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}")
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(any("exactly once" in finding for finding in findings), findings)
+
     def test_delta_mode_requires_the_latest_delta_file(self) -> None:
         package = self.finalize(delta_mode_prd())
         findings = self.validate(
