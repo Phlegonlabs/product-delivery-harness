@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.68.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 [MIT](LICENSE). Retain third-party licenses and attribution for reused source and assets.
 
 ## Version history
+
+- **0.68.0** — Triage review findings into blocking defects and non-blocking notes: only blocking findings force repair, and the re-check verifies prior findings over the repair range with security at full scope. Environment-blocked review attempts no longer spend the attempt budget, repairs reach the reviewer only with the author's verifier PASS, and non-executable diffs record `security: not_applicable` instead of `UNVALIDATED`. A scope-disjoint carried PASS keeps its origin SHA, and review points beyond one combined review plus one re-check need a recorded reason.
 
 - **0.67.0** — Require an explicit request for all seven core skills and four standalone skills. Scope Harness routing, document sync and Epic records to requested workflows. Preserve required checks and dependencies without starting another top-level stage.
 

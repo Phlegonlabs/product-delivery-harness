@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.68.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 [MIT](LICENSE). Conserva licencias y atribución de código y assets de terceros.
 
 ## Historial de versiones
+
+- **0.68.0** — Triar hallazgos de revisión en defectos blocking y notas no blocking: solo los hallazgos blocking fuerzan reparación, y el recheck verifica los hallazgos previos sobre el rango de reparación con seguridad a alcance completo. Los intentos de revisión bloqueados por entorno ya no gastan el presupuesto de intentos, las reparaciones llegan al reviewer solo con el PASS del verifier del autor, y los diffs no ejecutables registran `security: not_applicable` en lugar de `UNVALIDATED`. Un PASS arrastrado con alcance disjunto conserva su SHA de origen, y los puntos de revisión fuera de una revisión combinada más un recheck requieren un motivo registrado.
 
 - **0.67.0** — Exigir una petición explícita para los siete skills centrales y los cuatro independientes. Limitar las rutas Harness, la sincronización documental y los registros Epic al flujo solicitado. Conservar controles y dependencias sin iniciar otra etapa principal.
 

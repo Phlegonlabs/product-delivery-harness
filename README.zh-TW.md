@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.68.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 [MIT](LICENSE)。重用第三方程式與素材時保留授權與署名。
 
 ## 版本紀錄
+
+- **0.68.0** — review findings 分為 blocking 缺陷與非 blocking notes：只有 blocking findings 觸發修復，複查只在修復範圍內驗證原 findings，安全維度保持完整範圍。環境受阻的 review attempt 不再佔用 attempt 預算，修復須附作者的 verifier PASS 才會進複查，非可執行差異改記 `security: not_applicable` 而非 `UNVALIDATED`。範圍不相交而沿用的 PASS 保留原始 SHA，超出一次合併 review 加一次複查的 review 點須記錄理由。
 
 - **0.67.0** — 七個核心與四個獨立 skills 都改為明確呼叫才啟動。Harness 分流、文件同步與 Epic 紀錄只適用於已呼叫的工作。保留必要檢查與依賴，不自動啟動下一個頂層階段。
 
