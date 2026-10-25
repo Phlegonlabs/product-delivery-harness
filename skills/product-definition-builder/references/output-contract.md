@@ -54,7 +54,7 @@ The research-to-approval order is research-first evidence → complete candidate
 Two rules keep the package readable:
 
 - **Meaning before bookkeeping.** Each file opens with what a human needs to understand the product and ends with the ID matrices and decision records that machines, auditors, and downstream skills need. Never open a file with a trace table.
-- **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns is a sign the content wants to be a list instead; the Metrics table's `Stretch` column is the one exception.
+- **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns is a sign the content wants to be a list instead; the Metrics table's `Stretch` column and the environment contract in `architecture.md` are the exceptions.
 
 Length budget. These are targets, not caps — say less when the product is simple, and go over only when the product is genuinely more complex, not when a section drifted:
 
@@ -128,6 +128,8 @@ Verbs: [the work restated as verbs, e.g. "getting busy people to believe a story
 | Field | What they actually do here | Method or tool | Used as |
 | --- | --- | --- | --- |
 | [journalist] | [...] | [...] | design input / review lens / go-to-market |
+
+When no other field helps, keep one row `| none | <reason> | n/a | n/a |`.
 
 ### Access
 | Need | Present or missing | Unlocks |
