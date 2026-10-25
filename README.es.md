@@ -219,6 +219,4 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 - **0.65.2** — Publicar el diagrama completo de entrega en cuatro idiomas. Indicar autorrevisión del PRD, preparación inicial, roles MultiAgent, revisiones existentes y entradas paralelas de GTM. Instagram y Threads describen el contexto actual; Facebook Pages queda por evaluar y X es opcional. Conservar 85/80 y los presupuestos de revisión.
 
-- **0.65.1** — Aclara una autorrevisión completa del paquete PRD y comprobaciones del alcance afectado antes de aprobar. Ordena la prueba del recorrido principal y evidencia aplicable de carga, coste, migración y recuperación dentro de las tareas existentes. Añade selección de X, contenido y enlaces entre borradores y medición a los skills GTM opcionales. Explica roles, preparación y límites de revisión en los cuatro READMEs. Reutiliza registros y presupuestos; no añade schema ni ronda de revisión.
-
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).

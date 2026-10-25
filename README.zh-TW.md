@@ -219,6 +219,4 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 - **0.65.2** — 發布四語完整交付流程圖，標明 PRD 自查、基礎設定時點、MultiAgent 分工、既有 review 次數與 GTM 並行接入。記錄目前 owner 同時推動 Instagram 與 Threads，Facebook Pages 待評估，X 可選。保留 85／80 門檻與既有審查額度。
 
-- **0.65.1** — 明確規定 PRD 完稿後由原作者整體自查全套文件，批准前重查受影響部分。在既有工程任務安排核心流程驗證，以及適用的負載、成本、遷移與恢復證據。為選用 GTM skills 補上 X 渠道選擇、內容指引和草稿到量測的銜接。四語 README 整理分工、基礎設定時點與 review 上限。沿用既有紀錄及修復預算，不新增 schema 或 review wave。
-
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
