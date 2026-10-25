@@ -42,6 +42,8 @@ Pre-review repair gate. Before a re-check is reserved, or on the direct route di
 
 Environment-blocked attempts. An attempt the reviewer could not perform — checkout or branch mismatch, sandbox permission denial, unavailable runtime, interrupted before inspection — is recorded `blocked` with `blocker_class: environment` and evidence. It does not consume the node's attempt or the repair budget; the transition refunds the node attempt, at most two per node per RUN, and keeps the attempt log and worker entry. It is not a review verdict and never a PASS.
 
+Scope-disjoint carry-forward. A review PASS bound to SHA X stays valid for a descendant commit Y when every path changed between X and Y is outside the review scope and non-executable: docs, Epic, evidence, PLAN/RUN bookkeeping, README. Record the origin PASS SHA, the X..Y path list, and the reason; never relabel it as a fresh review. A security PASS follows the same rule only for that bookkeeping class; any code, config, dependency, migration, or toolchain change is a new candidate. Managed runs keep `reconcile-coordination-head` for RUN/PLAN bookkeeping.
+
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
 
 ## Gate Levels
