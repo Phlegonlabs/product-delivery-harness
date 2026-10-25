@@ -18,7 +18,7 @@ Owner requests in chat on 2026-10-25: "review 重審的問題如何可以解決"
 
 - Finding triage: a reviewer returns blocking findings (defect against accepted scope, TEST obligations, security, correctness) and non-blocking notes (style, decorative, suggestions). Only blocking findings produce `fix_required`; `record-review-attempt --note` records notes with a PASS and routes them to the backlog or Epic.
 - Scoped re-check: the re-check packet carries the prior reviewed head, the prior blocking findings, prior notes and the repair range `<prior>..<head>` with its diff. The reviewer gives a verdict per prior finding (resolved / unresolved / superseded), inspects the repair range and direct consumers, keeps the security lens at full scope, and reports anything else as a note.
-- Environment-blocked attempts: `record-review-attempt --result blocked --blocker-class environment` (checkout or branch mismatch, permission denial, unavailable runtime, interrupted before inspection) keeps the attempt log and worker entry and refunds the node attempt, at most two refunds per node per RUN. It is never a verdict or a PASS.
+- Environment-blocked attempts: `record-review-attempt --result blocked --blocker-class environment` (checkout or branch mismatch, permission denial, unavailable runtime, interrupted before inspection) keeps the attempt log and worker entry and refunds the node attempt, at most two refunds per review lineage per RUN. It is never a verdict or a PASS.
 - Pre-review repair gate: a repair reaches the reviewer only with the author's focused verifier PASS at the new head and, for a failure family, the family's acceptance matrix. Otherwise it returns to the author and costs no review attempt.
 - One reviewer per candidate carries every lens. Parallel reviewers need an explicit owner request and still return one consolidated finding set.
 - The direct-route security lens applies to executable diffs: code, configuration, dependencies, CI, infrastructure, secrets, data access. A docs, copy, Epic, evidence or bookkeeping-only diff records `security: not_applicable (<reason>)` with the path list instead of `UNVALIDATED`.
@@ -33,8 +33,8 @@ Kept unchanged: owner decisions, exact-SHA security freshness for code changes, 
 | --- | --- | --- |
 | RRC-1 | Triage splits blocking findings from notes; only blocking findings set `fix_required`; notes record with a PASS | `test_review_triage.py` |
 | RRC-2 | The re-check packet carries the prior head, prior blocking findings, notes and the repair range with its diff | `test_review_recheck_packet.py` |
-| RRC-3 | Environment-blocked attempts refund the node attempt within two refunds per node per RUN and never count as a verdict | `test_review_triage.py` |
-| RRC-4 | The repair gate requires the author verifier PASS at the new head and a failure-family acceptance matrix before dispatch | `test_review_triage.py` |
+| RRC-3 | Environment-blocked attempts refund the node attempt within two refunds per review lineage per RUN and never count as a verdict | `test_review_triage.py` |
+| RRC-4 | The repair gate requires the author verifier PASS at the new head and a failure-family acceptance matrix before dispatch | `test_skill_contract.py` (rule text; dispatch refusal is a parent duty, not a transition) |
 | RRC-5 | One reviewer carries every lens; parallel review needs an owner request and returns one finding set | `test_skill_contract.py` |
 | RRC-6 | The security lens covers executable diffs; non-executable diffs record `security: not_applicable (<reason>)` with paths | `test_skill_contract.py` |
 | RRC-7 | Scope-disjoint carry-forward records origin SHA and paths and never relabels a PASS fresh | `test_skill_contract.py` |

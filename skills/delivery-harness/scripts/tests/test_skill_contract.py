@@ -407,7 +407,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # An environment-blocked attempt refunds the attempt instead of
         # consuming the review budget.
         self.assertIn("blocker_class: environment", gates)
-        self.assertIn("at most two per node per RUN", gates)
+        self.assertIn("at most two per review lineage per RUN", gates)
         self.assertIn("not a review verdict and never a PASS", gates)
         self.assertIn("--blocker-class environment|review", state)
         self.assertIn("environment-blocked review attempt is", gen_verify)
