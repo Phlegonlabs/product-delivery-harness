@@ -139,11 +139,11 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 | Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。 |
 | 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
 | HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。 |
-| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review；UI 使用真实浏览器。最多一批集中修复与一次针对原 findings、改动代码及直接消费者的复查，安全维度重新绑定完整范围。复查失败停在 `blocked`。 |
+| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes。一批集中修复获得一次 scoped 复查，检查原 findings 与修复范围，安全维度保持完整范围。环境受阻的 attempt 不占用预算；复查失败停在 `blocked`。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
 | Activation | 逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |
 
-缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。额外 review attempt 须有已记录的明确 owner 决定。代码交付必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。 HiFi 初审涵盖每个 audit 轴；复查只在受影响页面与状态重跑 critique 和 audit，仍保留完整证据矩阵。
+缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。额外 review attempt 须有已记录的明确 owner 决定。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审涵盖每个 audit 轴；复查只在受影响页面与状态重跑 critique 和 audit，仍保留完整证据矩阵。
 
 HiFi 仍须使用 Impeccable，但它不是默认的只读实现 reviewer。其 workflow 的 subagent、浏览器／server、snapshot 写入与可选下载须另有授权。产品、stack、方向与 Visual Approval 决定仍属原 owner。
 
