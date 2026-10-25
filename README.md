@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.68.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.69.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -89,7 +89,7 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 | Skill | Owns |
 | --- | --- |
-| `product-definition-builder` | `PRD.md`, `architecture.md`, `stack-decisions.md`, research and Product Definition Approval |
+| `product-definition-builder` | `PRD.md` with `## Ambition`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
 | `delivery-harness` | Scope routing, authorization, tasks, integration, verification and PLAN/RUN when needed |
@@ -109,7 +109,7 @@ These four complete skill directories require separate host registration; `insta
 
 ```mermaid
 flowchart LR
-  Product["Product Definition + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
+  Product["Product Definition + Ambition + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
   Product -->|"headless or scoped enhancement or maintenance"| Harness["Direct or managed delivery"]
   Design --> Harness
   Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
@@ -136,7 +136,7 @@ Before every handoff, check source hashes, the Epic record and document consiste
 
 | Stage | Default review and stop condition |
 | --- | --- |
-| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. |
+| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. Discovery asks an Ambition segment, `PRD.md` holds `## Ambition`, and each PRD round publishes a delta aligned with its Epic. |
 | Directions | The same author checks and repairs rendered studies before owner selection. Three studies; the owner chooses. A modification adds one revised selected study and decision; rejection starts a new set. |
 | HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. |
 | Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA (real browser for UI), triaged into blocking findings and notes. One repair gets one scoped re-check of prior findings and the repair range; security stays at full scope. Environment-blocked attempts do not spend the budget; a failed re-check stops at `blocked`. |
@@ -209,6 +209,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.69.0** — Discovery asks a fourth Ambition segment, `PRD.md` gains `## Ambition` with a Metrics `Stretch` column, and PRD rounds stop stacking into one cumulative file: each round publishes a delta aligned with its Epic. The Epic records its delta and ambition rung, the PLAN freezes a `prd-delta` source, and a scope checker binds mission traces to the bound delta's requirement IDs.
+
 - **0.68.0** — Triage review findings into blocking defects and non-blocking notes: only blocking findings force repair, and the re-check verifies prior findings over the repair range with security at full scope. Environment-blocked review attempts no longer spend the attempt budget, repairs reach the reviewer only with the author's verifier PASS, and non-executable diffs record `security: not_applicable` instead of `UNVALIDATED`. A scope-disjoint carried PASS keeps its origin SHA, and review points beyond one combined review plus one re-check need a recorded reason.
 
 - **0.67.0** — Require an explicit request for all seven core skills and four standalone skills. Scope Harness routing, document sync and Epic records to requested workflows. Preserve required checks and dependencies without starting another top-level stage.
@@ -216,7 +218,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.66.0** — Cut repeated review rounds across PRD, UI and delivery while keeping 85/80, Impeccable, Visual Approval and exact-SHA security review. Plan missions as feature batches with one combined-lens reviewer each and skip a code integration review only on a proven clean merge chain. Repair once after all reviews of a candidate return and re-review only the repair. Scope HiFi re-review to the ledger with carried rows, revise a modified direction as one study, and catch unreachable surfaces and dead-end states in the PRD check. Keep one Harness contract per RUN and per design round, record unobserved identity once per session, and load a short entry checklist instead of the long contracts. Fix retention false defects, a commit-boundary race in integration recording, and release the AgentKiosk compiler, state-coverage, role-policy and ingestion work.
 
 - **0.65.3** — Use one design review wave and one implementation UI acceptance while retaining 85/80 and required evidence. Deliver complete visual inputs to authors and let agent configuration choose workers. Preserve frozen runs and repair diagnostic coverage, acceptance reuse, and staged Activation digests.
-
-- **0.65.2** — Publish the complete four-language delivery flowchart. Mark PRD self-review, foundation timing, MultiAgent handoffs, existing review counts and parallel GTM inputs. Record Instagram and Threads as the current owner context, evaluate Facebook Pages and keep X optional. Preserve 85/80 and existing review budgets.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
