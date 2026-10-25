@@ -40,6 +40,8 @@ Re-check scope. The re-check packet carries the prior reviewed head, the prior b
 
 Pre-review repair gate. Before a re-check is reserved, or on the direct route dispatched, the author presents the focused verifier PASS at the new head and, for a failure family, the family's acceptance matrix with each equivalence class exercised. A repair without that evidence is not dispatched for review; it returns to the author. This is author evidence, not a review attempt.
 
+Environment-blocked attempts. An attempt the reviewer could not perform — checkout or branch mismatch, sandbox permission denial, unavailable runtime, interrupted before inspection — is recorded `blocked` with `blocker_class: environment` and evidence. It does not consume the node's attempt or the repair budget; the transition refunds the node attempt, at most two per node per RUN, and keeps the attempt log and worker entry. It is not a review verdict and never a PASS.
+
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
 
 ## Gate Levels

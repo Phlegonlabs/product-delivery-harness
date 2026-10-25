@@ -54,8 +54,8 @@ findings to the owning flow above.
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, exhausted budget, missing required capability, or a contract
     gap. A failed re-review stops at `blocked` and returns to the owner; it never
-    starts another round on its own. Preserve history, candidate identity, and
-    unresolved work.
+    starts another round on its own. An environment-blocked review attempt is
+    not a round. Preserve history, candidate identity, and unresolved work.
 
 Keep the record in the existing task report, Epic, PLAN acceptance row, or RUN
 gate. Direct work does not create PLAN/RUN state to host this loop. Managed work
