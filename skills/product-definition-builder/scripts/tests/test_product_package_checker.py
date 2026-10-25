@@ -2611,5 +2611,325 @@ Security scope: executable
         self.assertIn("owner-approved", result.stdout)
 
 
+AMBITION_SECTION = """## Ambition
+### Goal Beyond The Goal
+| Rung | Outcome | Outside judge |
+| --- | --- | --- |
+| 1 | Ship the fixture gate reliably | The delivery owner signs each run log |
+| 2 | The fixture gate becomes the team default | Peer teams adopt the checker |
+| 3 | Contract gates are cited outside the team | External teams reference the checker |
+
+### Depth
+| Best practitioners | Their instruments | Rawest material | Stretch target | Outside judge |
+| --- | --- | --- | --- | --- |
+| Contract tooling maintainers | Schema checkers and CI gates | Rejected package reports | Zero false approvals across seasons | The delivery owner audits findings |
+
+### Range
+Verbs: validate, reject, gate
+| Field | What they actually do here | Method or tool | Used as |
+| --- | --- | --- | --- |
+| Package review | Review rejected findings weekly | Unit test suites | design input |
+| Release planning | Weigh gate findings against launch dates | Roadmap reviews | review lens |
+
+### Access
+| Need | Present or missing | Unlocks |
+| --- | --- | --- |
+| Run logs from peer teams | missing | Adoption evidence for rung 2 |
+"""
+
+DELTA_EIR = """## Enhancement Impact Record
+| Area | Impact | Affected IDs / decisions | Required refresh |
+| --- | --- | --- | --- |
+| Product scope / behavior | changed | PRD-001 | PRD.md and Product Definition Approval |
+| UI structure / style | none | none | none |
+| Data / integrations | unchanged | none | none |
+| Architecture / stack | unchanged | none | none |
+| Data trust / AI | unchanged | none | none |
+| Security | unchanged | none | none |
+| Monetization / partner | unchanged | none | none |
+| Release / operations | unchanged | none | none |
+"""
+
+
+def delta_mode_prd(
+    *,
+    ambition: bool = True,
+    stretch_metrics: bool = True,
+    latest_line: str = "docs/product/deltas/PRD-DELTA-EPIC-041.md",
+) -> str:
+    prd = valid_prd()
+    if ambition:
+        prd = prd.replace(
+            "- Reject incomplete authority before implementation starts.\n## Non-Goals",
+            "- Reject incomplete authority before implementation starts.\n"
+            + AMBITION_SECTION
+            + "## Non-Goals",
+            1,
+        )
+    if stretch_metrics:
+        prd = prd.replace(
+            "| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |\n"
+            "| --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Completion | Completed runs | 0 | 90% | 30 days | Event count | Owner |",
+            "| Metric | Definition | Baseline | Target / guardrail | Stretch | Measurement window | Source / method | Owner |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Completion | Completed runs | 0 | 90% | 99% | 30 days | Event count | Owner |",
+            1,
+        )
+    if latest_line is not None:
+        prd = prd.replace(
+            "## Product Definition Decisions\n### Research Gate",
+            "## Product Definition Decisions\n"
+            f"Latest delta: {latest_line}\n### Research Gate",
+            1,
+        )
+    return prd
+
+
+def delta_document(
+    *,
+    epic_id: str = "EPIC-041",
+    status: str = "approved",
+    result: str = "pending",
+    changed_rows: str = "| PRD-001 | revised | Complete the fixture | Harden completion evidence with a signed run log | TEST-001 |",
+    impact: str = DELTA_EIR,
+) -> str:
+    return f"""# PRD Delta {epic_id}: Harden the fixture gate
+
+| | |
+| --- | --- |
+| Epic | docs/epics/{epic_id}-fixture-gate.md |
+| Baseline PRD | sha256:{"a" * 64} |
+| Result PRD | {result} |
+| Status | {status} |
+| Ambition rung | 2 — The fixture gate becomes the team default |
+
+## Why
+Peer teams reject the fixture gate as unproven; one hardened revision answers the adoption blocker.
+
+{impact}
+## Changed Requirements
+| ID | Change | Before | After | TEST IDs |
+| --- | --- | --- | --- | --- |
+{changed_rows}
+
+## Decisions
+The owner approved hardening completion evidence before wider adoption.
+
+## Approval
+<!-- product-definition-approval:start -->
+### Delta Approval
+- Decision: {status if status in {"approved", "revision_requested", "blocked"} else "draft"}
+- Decision owner: Owner
+- Decided on: 2026-09-12
+- Blocking items: none
+<!-- product-definition-approval:end -->
+"""
+
+
+class DeltaAmbitionPackageTests(unittest.TestCase):
+    def setUp(self) -> None:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.root = Path(temp.name)
+
+    def finalize(self, prd: str) -> tuple[str, str, str]:
+        return strictize_approved_package(prd, valid_architecture(), valid_stack())
+
+    def result_digest(self, package: tuple[str, str, str]) -> str:
+        return contract_utils.sha256_text(
+            contract_utils._without_machine_block(
+                package[0],
+                check_product_package.PRODUCT_APPROVAL_START,
+                check_product_package.PRODUCT_APPROVAL_END,
+            )
+        )
+
+    def write_deltas(self, deltas: dict[str, str]) -> Path:
+        deltas_dir = self.root / "deltas"
+        deltas_dir.mkdir()
+        for name, text in deltas.items():
+            (deltas_dir / name).write_text(text, encoding="utf-8")
+        return deltas_dir
+
+    def write_epic(self, name: str = "EPIC-041-fixture-gate.md") -> Path:
+        repo_root = self.root / "repo"
+        epics = repo_root / "docs" / "epics"
+        epics.mkdir(parents=True, exist_ok=True)
+        (epics / name).write_text("# Epic: fixture gate\n", encoding="utf-8")
+        return repo_root
+
+    def validate(
+        self,
+        package: tuple[str, str, str],
+        *,
+        deltas: dict[str, str] | None = None,
+        repo_root: Path | None = None,
+        require_approved: bool = True,
+        notes: list[str] | None = None,
+    ) -> list[str]:
+        deltas_dir = self.write_deltas(deltas) if deltas is not None else None
+        return check_product_package.validate_texts(
+            *package,
+            require_filled=True,
+            require_approved=require_approved,
+            repo_root=repo_root,
+            deltas_dir=deltas_dir,
+            notes=notes,
+        )
+
+    def test_legacy_package_reports_one_informational_line(self) -> None:
+        notes: list[str] = []
+        self.assertEqual([], self.validate(self.finalize(valid_prd()), notes=notes))
+        self.assertEqual(1, len(notes))
+        self.assertIn("legacy", notes[0])
+
+    def test_delta_mode_package_passes(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}")
+        repo_root = self.write_epic()
+        notes: list[str] = []
+        self.assertEqual(
+            [], self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, repo_root=repo_root, notes=notes)
+        )
+        self.assertEqual([], notes)
+
+    def test_delta_mode_rejects_dated_prd_heading(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "## Problem Statement\n", "## Problem Statement\n### Reassessed 2026-10-01\n", 1
+            )
+        )
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}")
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(any("dated heading" in finding for finding in findings), findings)
+
+    def test_delta_mode_rejects_enhancement_impact_record_in_prd(self) -> None:
+        package = self.finalize(delta_mode_prd() + "\n" + DELTA_EIR)
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}")
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(
+            any("Enhancement Impact Record in PRD deltas, not PRD.md" in finding for finding in findings),
+            findings,
+        )
+
+    def test_delta_mode_rejects_result_prd_hash_mismatch(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(result=f"sha256:{"b" * 64}")
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(any("Result PRD hash does not match" in finding for finding in findings), findings)
+
+    def test_delta_mode_rejects_missing_revised_id(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            changed_rows="| PRD-099 | revised | old | new obligations and wording | none |",
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(any("PRD-099 is absent from PRD.md" in finding for finding in findings), findings)
+
+    def test_delta_mode_rejects_retired_id_still_present(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            changed_rows="| PRD-001 | retired | Complete the fixture | none | none |",
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(
+            any("retired ID PRD-001 is still present in PRD.md" in finding for finding in findings),
+            findings,
+        )
+
+    def test_delta_mode_rejects_missing_test_id(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            changed_rows="| PRD-001 | revised | Complete the fixture | Harden completion evidence | TEST-999 |",
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(any("unknown TEST-999" in finding for finding in findings), findings)
+
+    def test_delta_mode_require_approved_rejects_draft_status(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(status="draft", result=f"sha256:{self.result_digest(package)}")
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
+        self.assertTrue(any("Status must be approved" in finding for finding in findings), findings)
+
+    def test_ambition_package_without_deltas_passes(self) -> None:
+        package = self.finalize(delta_mode_prd(latest_line=None))
+        notes: list[str] = []
+        self.assertEqual([], self.validate(package, notes=notes))
+        self.assertEqual([], notes)
+
+    def test_ambition_rejects_missing_rung(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "| 3 | Contract gates are cited outside the team | External teams reference the checker |\n",
+                "",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(any("missing rung(s) 3" in finding for finding in findings), findings)
+
+    def test_ambition_rejects_empty_judge_cell(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "| 1 | Ship the fixture gate reliably | The delivery owner signs each run log |",
+                "| 1 | Ship the fixture gate reliably |  |",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(
+            any("Goal Beyond The Goal row contains an empty value" in finding for finding in findings),
+            findings,
+        )
+
+    def test_ambition_rejects_bad_range_used_as(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace("| Roadmap reviews | review lens |", "| Roadmap reviews | marketing |", 1)
+        )
+        findings = self.validate(package)
+        self.assertTrue(
+            any("Used as must be design input, review lens or go-to-market" in finding for finding in findings),
+            findings,
+        )
+
+    def test_ambition_rejects_missing_stretch_metrics_column(self) -> None:
+        package = self.finalize(delta_mode_prd(latest_line=None, stretch_metrics=False))
+        findings = self.validate(package)
+        self.assertTrue(
+            any("Metrics must add the Stretch column" in finding for finding in findings),
+            findings,
+        )
+
+    def test_delta_mode_requires_the_latest_delta_file(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        findings = self.validate(
+            package,
+            deltas={"PRD-DELTA-EPIC-042.md": delta_document(epic_id="EPIC-042")},
+        )
+        self.assertTrue(any("Latest delta file" in finding for finding in findings), findings)
+
+    def test_ambition_must_immediately_follow_goals(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "- Reject incomplete authority before implementation starts.\n" + AMBITION_SECTION,
+                "- Reject incomplete authority before implementation starts.\n",
+                1,
+            ).replace(
+                "## Risks\n",
+                AMBITION_SECTION + "## Risks\n",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(
+            any("'## Ambition' must immediately follow '## Goals'" in finding for finding in findings),
+            findings,
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
