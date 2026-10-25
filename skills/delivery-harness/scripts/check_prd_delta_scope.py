@@ -16,6 +16,7 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from check_document_sync import safe_path
 from harness_core import ManifestError, load_plan
 
 
@@ -130,7 +131,15 @@ def main(argv: list[str] | None = None) -> int:
         violations.append("prd-delta source requires a location path")
         print("\n".join(violations))
         return 1
-    delta_path = Path(args.repo_root) / location
+    root = Path(args.repo_root).resolve()
+    try:
+        delta_path = safe_path(root, location)
+    except ValueError:
+        violations.append(
+            f"prd-delta source location must be a relative path inside the repository root: {location}"
+        )
+        print("\n".join(violations))
+        return 1
     try:
         delta_bytes = delta_path.read_bytes()
     except OSError as exc:

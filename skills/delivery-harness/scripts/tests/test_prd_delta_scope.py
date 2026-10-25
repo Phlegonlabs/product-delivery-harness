@@ -101,6 +101,19 @@ class PrdDeltaScopeTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def write_outside_delta(self) -> Path:
+        outside = self.root.parent / "prd-delta-escape.md"
+        outside.write_bytes(self.delta_bytes)
+        self.addCleanup(lambda: outside.unlink(missing_ok=True))
+        return outside
+
+    def plan_with_location(self, location: str) -> dict[str, object]:
+        plan = self.bound_plan()
+        source = delta_source(self.delta_sha)
+        source["location"] = location
+        plan["sources"] = [source]
+        return plan
+
     def run_checker(self) -> tuple[int, str]:
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
@@ -177,6 +190,20 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.assertEqual(1, code, output)
         self.assertIn("PRD-101", output)
         self.assertIn("has no task", output)
+
+    def test_delta_location_parent_traversal_fails(self) -> None:
+        self.write_outside_delta()
+        self.write_plan(self.plan_with_location("../prd-delta-escape.md"))
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("inside the repository root", output)
+
+    def test_delta_location_absolute_path_fails(self) -> None:
+        outside = self.write_outside_delta()
+        self.write_plan(self.plan_with_location(str(outside)))
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("inside the repository root", output)
 
     def test_content_sha256_mismatch_fails(self) -> None:
         self.write_plan(self.bound_plan(content_sha256="a" * 64))
