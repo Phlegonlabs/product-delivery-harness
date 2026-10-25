@@ -77,8 +77,7 @@ Ask the unresolved parts of these short prompts:
 
 - After this works, what should happen next? Which decision or recurring ritual does it feed, and what would make it unnecessary?
 - Who does this best today, what instruments and raw material do they work from, and can we get the same access (data, tools, a machine the model can install software on)?
-- Beyond the acceptable target, what is the unreasonable target?
-- Other than you and us, what would prove it worked?
+- Beyond the acceptable target, what is the unreasonable target, and what other than you and us would prove it worked?
 - Said as verbs, what is this work, and which other fields should be on the crew?
 
 Capture internally: the three rungs with their outside judges, best practitioners, their instruments, rawest material, stretch targets, the work restated as verbs, other fields on the crew with their roles, and access gaps. Record them in the PRD's `## Ambition` section per `output-contract.md`.

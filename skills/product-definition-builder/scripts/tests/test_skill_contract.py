@@ -278,26 +278,28 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertNotIn("immediately after the free-text interview message", interview)
 
-    def test_open_ended_interview_has_three_adaptive_segments(self) -> None:
+    def test_open_ended_interview_has_four_adaptive_segments(self) -> None:
         skill = self.read(STAGE)
         interview = self.read("references/interview-guide.md")
         headings = (
             "### Segment 1 — Product and users",
             "### Segment 2 — Workflows, data, and rules",
             "### Segment 3 — Delivery, success, and risk",
+            "### Segment 4 — Ambition",
         )
 
-        self.assertIn("three bounded free-text turns", skill)
-        self.assertIn("exactly three planned free-text turns", interview)
-        self.assertEqual(3, sum(interview.count(heading) for heading in headings))
+        self.assertIn("four bounded free-text turns", skill)
+        self.assertIn("exactly four planned free-text turns", interview)
+        self.assertEqual(4, sum(interview.count(heading) for heading in headings))
         self.assertLess(interview.index(headings[0]), interview.index(headings[1]))
         self.assertLess(interview.index(headings[1]), interview.index(headings[2]))
+        self.assertLess(interview.index(headings[2]), interview.index(headings[3]))
         user_facing = interview.split("## Segmented Free-Text Sequence", 1)[1].split(
             "## Question Routing Reference", 1
         )[0]
         self.assertNotIn("(AskUserQuestion)", user_facing)
         segments = user_facing.split("### Segment ")[1:]
-        self.assertEqual(3, len(segments))
+        self.assertEqual(4, len(segments))
         for segment in segments:
             prompts = [
                 line
@@ -733,7 +735,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         # The assessment is its own workflow step, ordered between the
         # free-text interview and the first AskUserQuestion batch.
         self.assertIn("4. Run the research-first assessment", skill)
-        interview_at = skill.index("Conduct exactly three bounded free-text turns")
+        interview_at = skill.index("Conduct exactly four bounded free-text turns")
         assessment_at = skill.index("4. Run the research-first assessment")
         first_batch_at = skill.index("5. After all applicable free-text segments")
         self.assertLess(interview_at, assessment_at)
@@ -1225,7 +1227,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         for marker in (
             "Data and Trust Gate:",
             "AI and Automation Gate:",
-            "| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |",
+            "| Metric | Definition | Baseline | Target / guardrail | Stretch | Measurement window | Source / method | Owner |",
             "| Question | Why it matters | Owner | Decision deadline | Blocks approval | Status / resolution |",
             "## Data and Trust Architecture",
             "## AI and Automation Architecture",
