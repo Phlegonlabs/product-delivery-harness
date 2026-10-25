@@ -14,6 +14,8 @@ Each review copy has exactly one source marker, containing the SHA-256 of the En
 
 Use `architecture.md` for the architecture marker. Custom filenames explicitly requested by the owner use their real source basenames and explicit review paths. Compute the hash after writing the corresponding English revision. A stale-hash failure prints the current value. A changed hash means the review needs reconciliation, not permission to update only its marker.
 
+A published PRD delta keeps the same pairing. Translate each `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` in full into `PRD-DELTA-<EPIC-ID>.zh-TW.md` beside it. Its copy uses the same marker rule with the delta's own hash: `<!-- review-source: PRD-DELTA-<EPIC-ID>.md sha256:<64 lowercase hex characters> -->`, computed without the `product-definition-approval` marker block. Publish each delta pair together with the PRD pair. The current PRD copy keeps refreshing only the sections the round changed.
+
 Before every owner review, semantically compare each pair for coverage and matching meaning, then run:
 
 ```text

@@ -33,7 +33,7 @@ Apply `../../delivery-harness/references/pre-delivery-self-review.md#prd-self-re
 | Acceptance and release readiness | Negative, boundary and recovery scenarios; setup, migration, availability and operational obligations |
 | Activation and requested outcome review | Verified measurement sources, actual outcomes and operational gaps, preserving original targets and measurement windows |
 
-For each material finding, record the source/build or document revision, affected IDs, observed gap, proposed requirement or acceptance wording, owner, disposition and dependent work. Use the existing Epic/task evidence or refinement backlog; use the candidate PRD's existing Open Questions fields when a product decision is unresolved. Do not duplicate closed findings or create a separate ledger. Reuse known answers and group only unresolved business decisions for the existing owner checkpoint.
+For each material finding, record the source/build or document revision, affected IDs, observed gap, proposed requirement or acceptance wording, owner, disposition and dependent work. Use the existing Epic/task evidence or refinement backlog; use the candidate PRD's existing Open Questions fields when a product decision is unresolved. Do not duplicate closed findings or create a separate ledger. Reuse known answers and group only unresolved business decisions for the existing owner checkpoint. A finding may propose a higher ambition rung or a stretch target; it never changes an accepted TEST or metric target without an owner decision.
 
 ## Improve Wording Without Changing Authority
 
