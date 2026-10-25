@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.68.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -139,11 +139,11 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 | Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更。 |
 | 方向 | 原作者先檢查並修復已渲染的研究，再交 owner 選擇。三個研究；修改只新增一個所選方向的修訂研究與一次決定，拒絕才重做整組。 |
 | HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。一次診斷 wave、一批集中修復與一次受影響範圍複查。保留必要瀏覽器覆蓋、Impeccable `critique` **與** `audit`、四捨五入的 H1–H9 總平均 **至少 85** 及每項 **至少 80**，再取得 Visual Approval。未變證據連同身分沿用。 |
-| 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review；UI 使用真實瀏覽器。最多一批集中修復與一次針對原 findings、改動程式及直接使用者的複查，安全維度重新綁定完整範圍。複查失敗停在 `blocked`。 |
+| 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），findings 分為 blocking 與 notes。一批集中修復獲一次 scoped 複查，檢視原 findings 與修復範圍，安全維度保持完整範圍。環境受阻的 attempt 不佔用預算；複查失敗停在 `blocked`。 |
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
 | Activation | 逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。 |
 
-缺少 `review_policy` 時保留舊版 `per_mission` 行為。保留凍結 PLAN/RUN pin 與歷史批准，不可改 node 名稱重設已用 attempts。額外 review attempt 須有已記錄的明確 owner 決定。程式交付必須有安全審查，缺少時報 `UNVALIDATED`，不能報 PASS。 HiFi 初審涵蓋每個 audit 軸；複查只在受影響頁面與狀態重跑 critique 和 audit，仍保留完整證據矩陣。
+缺少 `review_policy` 時保留舊版 `per_mission` 行為。保留凍結 PLAN/RUN pin 與歷史批准，不可改 node 名稱重設已用 attempts。額外 review attempt 須有已記錄的明確 owner 決定。可執行差異必須有安全審查，缺少時報 `UNVALIDATED`，不能報 PASS。僅含 docs、copy、Epic、證據或簿記的差異改記 `security: not_applicable (<reason>)` 並列出路徑。範圍不相交而沿用的 PASS 保留原始 SHA，不得改稱全新。 HiFi 初審涵蓋每個 audit 軸；複查只在受影響頁面與狀態重跑 critique 和 audit，仍保留完整證據矩陣。
 
 HiFi 仍須使用 Impeccable，但它不是預設的唯讀實作 reviewer。其 workflow 的 subagent、瀏覽器／server、snapshot 寫入與可選下載須另有授權。產品、stack、方向與 Visual Approval 決定仍屬原 owner。
 
@@ -209,6 +209,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.68.0** — review findings 分為 blocking 缺陷與非 blocking notes：只有 blocking findings 觸發修復，複查只在修復範圍內驗證原 findings，安全維度保持完整範圍。環境受阻的 review attempt 不再佔用 attempt 預算，修復須附作者的 verifier PASS 才會進複查，非可執行差異改記 `security: not_applicable` 而非 `UNVALIDATED`。範圍不相交而沿用的 PASS 保留原始 SHA，超出一次合併 review 加一次複查的 review 點須記錄理由。
+
 - **0.67.0** — 七個核心與四個獨立 skills 都改為明確呼叫才啟動。Harness 分流、文件同步與 Epic 紀錄只適用於已呼叫的工作。保留必要檢查與依賴，不自動啟動下一個頂層階段。
 
 - **0.66.0** — 從 PRD、UI 到交付減少重複 review 輪次，保留 85／80、Impeccable、Visual Approval 與精確 SHA 安全審查。Mission 以功能批次規劃，每個只派一位合併面向的 reviewer；只有證明乾淨的 merge chain 才略過程式整合審查。候選的所有 review 回來後一次修復，複查只看修復範圍。HiFi 複查限於修復清單並沿用未變紀錄，修改方向只新增一份研究，PRD 檢查提早擋下無法到達的畫面和沒有出口的狀態。每個 RUN 與設計輪固定一個 Harness 合約，未觀察身分每個 session 只記一次，改載入簡短入口清單。修正 retention 假缺陷與整合紀錄的 commit 邊界競態，並發布 AgentKiosk 的 compiler、狀態覆蓋、role-policy 與 ingestion 改動。
@@ -216,7 +218,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.65.3** — 設計端採用同輪審核與定向複查，實作端合併 UI 驗收，保留 85／80 與必要證據。向作者提供完整畫面、字體、素材及視覺特徵，worker 選擇交由 agent 設定。保留既有 RUN 契約，修正診斷覆蓋、驗收重用及 Activation 暫存動作摘要。
 
 - **0.65.2** — 發布四語完整交付流程圖，標明 PRD 自查、基礎設定時點、MultiAgent 分工、既有 review 次數與 GTM 並行接入。記錄目前 owner 同時推動 Instagram 與 Threads，Facebook Pages 待評估，X 可選。保留 85／80 門檻與既有審查額度。
-
-- **0.65.1** — 明確規定 PRD 完稿後由原作者整體自查全套文件，批准前重查受影響部分。在既有工程任務安排核心流程驗證，以及適用的負載、成本、遷移與恢復證據。為選用 GTM skills 補上 X 渠道選擇、內容指引和草稿到量測的銜接。四語 README 整理分工、基礎設定時點與 review 上限。沿用既有紀錄及修復預算，不新增 schema 或 review wave。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
