@@ -157,6 +157,13 @@ def main() -> int:
     parser.add_argument("--architecture", type=Path)
     parser.add_argument("--prd-review", type=Path)
     parser.add_argument("--architecture-review", type=Path)
+    parser.add_argument(
+        "--delta",
+        action="append",
+        type=Path,
+        default=[],
+        help="PRD delta source to validate like a PRD pair; repeatable",
+    )
     options = parser.parse_args()
     if options.architecture_review and not options.architecture:
         parser.error("--architecture-review requires --architecture")
@@ -167,6 +174,8 @@ def main() -> int:
             continue
         review = review or source.with_name(f"{source.stem}.zh-TW.md")
         errors.extend(validate_pair(source, review))
+    for delta in options.delta:
+        errors.extend(validate_pair(delta, delta.with_name(f"{delta.stem}.zh-TW.md")))
     for error in errors:
         print(f"FAIL: {error}")
     if not errors:
