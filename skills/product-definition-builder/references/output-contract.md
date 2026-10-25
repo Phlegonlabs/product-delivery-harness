@@ -54,7 +54,7 @@ The research-to-approval order is research-first evidence → complete candidate
 Two rules keep the package readable:
 
 - **Meaning before bookkeeping.** Each file opens with what a human needs to understand the product and ends with the ID matrices and decision records that machines, auditors, and downstream skills need. Never open a file with a trace table.
-- **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns is a sign the content wants to be a list instead.
+- **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns is a sign the content wants to be a list instead; the Metrics table's `Stretch` column is the one exception.
 
 Length budget. These are targets, not caps — say less when the product is simple, and go over only when the product is genuinely more complex, not when a section drifted:
 
@@ -133,7 +133,7 @@ Verbs: [the work restated as verbs, e.g. "getting busy people to believe a story
 | Need | Present or missing | Unlocks |
 | --- | --- | --- |
 
-Rungs are better, not bigger. The outside judge is never the model or the owner's impression. A stretch target is recorded as reasonable, but acceptance still uses the TEST and metric target. Crew rows marked `review lens` become optional domain lenses for the delivery review; Harness owns that rule in [Review Topology](../../delivery-harness/references/verification-gates.md#review-topology). Do what the field does: each crew row names what that field actually does here, not a role-play. `## Ambition` is required for packages created or enhanced under this contract version; a package without `docs/product/deltas/` and without `## Ambition` is legacy and stays valid.
+Rungs are better, not bigger. The outside judge is never the model or the owner's impression. The stretch target is the unreasonable target the team treats as reasonable; acceptance still uses the TEST and metric target. Crew rows marked `review lens` become optional domain lenses for the delivery review; Harness owns that rule in [Review Topology](../../delivery-harness/references/verification-gates.md#review-topology). Do what the field does: each crew row names what that field actually does here, not a role-play. `## Ambition` is required for packages created or enhanced under this contract version; a package without `docs/product/deltas/` and without `## Ambition` is legacy and stays valid.
 
 ## Non-Goals
 - [Explicitly out of scope]
@@ -292,7 +292,7 @@ Use `monetization-and-partner-channel-guide.md` to select providers only after t
 | Metric | Definition | Baseline | Target / guardrail | Stretch | Measurement window | Source / method | Owner |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
-`Stretch` records the unreasonable target from `## Ambition` Depth; acceptance still uses `Target / guardrail`.
+`Stretch` repeats the stretch target from `## Ambition` Depth.
 Define the GA4/Firebase or approved alternative destination, canonical events and collection controls before dependent feature work.
 Trace initial event delivery, duplicate prevention and test-traffic isolation through TEST obligations; actual production measurement remains release-bound.
 
