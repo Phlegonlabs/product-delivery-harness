@@ -89,7 +89,7 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 | Skill | Owns |
 | --- | --- |
-| `product-definition-builder` | `PRD.md`, `architecture.md`, `stack-decisions.md`, research and Product Definition Approval |
+| `product-definition-builder` | `PRD.md` with `## Ambition`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
 | `delivery-harness` | Scope routing, authorization, tasks, integration, verification and PLAN/RUN when needed |
@@ -109,7 +109,7 @@ These four complete skill directories require separate host registration; `insta
 
 ```mermaid
 flowchart LR
-  Product["Product Definition + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
+  Product["Product Definition + Ambition + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
   Product -->|"headless or scoped enhancement or maintenance"| Harness["Direct or managed delivery"]
   Design --> Harness
   Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
@@ -136,7 +136,7 @@ Before every handoff, check source hashes, the Epic record and document consiste
 
 | Stage | Default review and stop condition |
 | --- | --- |
-| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. |
+| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. Discovery asks an Ambition segment, `PRD.md` holds `## Ambition`, and each PRD round publishes a delta aligned with its Epic. |
 | Directions | The same author checks and repairs rendered studies before owner selection. Three studies; the owner chooses. A modification adds one revised selected study and decision; rejection starts a new set. |
 | HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. |
 | Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA (real browser for UI), triaged into blocking findings and notes. One repair gets one scoped re-check of prior findings and the repair range; security stays at full scope. Environment-blocked attempts do not spend the budget; a failed re-check stops at `blocked`. |

@@ -89,7 +89,7 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 | Skill | 负责范围 |
 | --- | --- |
-| `product-definition-builder` | `PRD.md`、`architecture.md`、`stack-decisions.md`、研究与 Product Definition Approval |
+| `product-definition-builder` | 含 `## Ambition` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包 |
 | `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html` |
 | `delivery-harness` | 范围路由、授权、任务、集成、验证，以及需要时的 PLAN/RUN |
@@ -109,7 +109,7 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 ```mermaid
 flowchart LR
-  Product["Product Definition 与 owner 批准"] --> UI["UI 方向与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
+  Product["Product Definition 与 Ambition、owner 批准"] --> UI["UI 方向与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
   Product -->|"无 UI，或限域增强或维护"| Harness["Direct 或 managed 交付"]
   Design --> Harness
   Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation"] --> C["固定候选 C"]
@@ -136,7 +136,7 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
-| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。 |
+| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。 |
 | 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
 | HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。 |
 | 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes。一批集中修复获得一次 scoped 复查，检查原 findings 与修复范围，安全维度保持完整范围。环境受阻的 attempt 不占用预算；复查失败停在 `blocked`。 |

@@ -89,7 +89,7 @@ Usa $seo-growth-review para auditar este sitio en producción, reconciliar la vi
 
 | Skill | Responsabilidad |
 | --- | --- |
-| `product-definition-builder` | `PRD.md`, `architecture.md`, `stack-decisions.md`, investigación y Product Definition Approval |
+| `product-definition-builder` | `PRD.md` con `## Ambition`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
 | `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación y PLAN/RUN cuando hace falta |
@@ -109,7 +109,7 @@ Estos cuatro directorios completos requieren registro separado en el host; `inst
 
 ```mermaid
 flowchart LR
-  Product["Product Definition y aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
+  Product["Product Definition y Ambition con aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
   Product -->|"sin UI o mejora o mantenimiento acotado"| Harness["Entrega Direct o gestionada"]
   Design --> Harness
   Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia"] --> C["Candidato fijo C"]
@@ -136,7 +136,7 @@ Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la 
 
 | Etapa | Revisión predeterminada y condición de parada |
 | --- | --- |
-| Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. |
+| Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. Discovery pregunta un segmento Ambition, `PRD.md` lleva `## Ambition`, y cada ronda del PRD publica un delta alineado con su Epic. |
 | Direcciones | El mismo autor comprueba y repara los estudios renderizados antes de la selección del owner. Tres estudios; modificar añade un estudio revisado de la dirección elegida y una decisión; rechazar inicia otro conjunto. |
 | HiFi | Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente. Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. |
 | Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo (navegador real para UI), con hallazgos triados en blocking y notes. Una reparación recibe un recheck acotado de los hallazgos previos y del rango de reparación; seguridad mantiene el alcance completo. Los intentos bloqueados por entorno no gastan presupuesto; un recheck fallido termina en `blocked`. |
