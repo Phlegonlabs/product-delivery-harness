@@ -6,14 +6,23 @@ Status: proposed | accepted | in_progress | blocked | complete
 
 Describe the observed problem, current behavior and desired measurable outcome.
 Reference the current PRD path, requirement IDs and baseline revision/SHA.
-Keep one current PRD; do not copy it here or create a PRD per Epic.
+Keep one current PRD; do not copy it here or create a PRD per Epic. This Epic's
+PRD change lives in its round delta `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`;
+reference that delta path and its Baseline/Result hashes here.
 
 ## Accepted Scope
 
 Record the owner's accepted outcome, included work, exclusions and decision source.
 Reference valid action grants in the existing task or RUN; this file grants none.
 
+Ambition rung: <1|2|3> — <outcome>
+Outside judge: <what proves it, other than us>
+
 ## Acceptance And Dependencies
+
+Derive this table's rows from the bound delta's Changed Requirements table and
+its TEST IDs; an Epic without a delta keeps its requirement/TEST references from
+the current PRD and stays valid.
 
 | Requirement / TEST ID | Expected outcome | Verification / environment | Dependency |
 | --- | --- | --- | --- |
