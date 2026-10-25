@@ -104,6 +104,17 @@ METRICS_HEADER = (
     "owner",
 )
 
+METRICS_AMBITION_HEADER = (
+    "metric",
+    "definition",
+    "baseline",
+    "target / guardrail",
+    "stretch",
+    "measurement window",
+    "source / method",
+    "owner",
+)
+
 ASSUMPTIONS_HEADER = (
     "assumption",
     "impact if wrong",
@@ -157,6 +168,17 @@ CHANGED_REQUIREMENTS_HEADER = ("id", "change", "before", "after", "test ids")
 VALID_DELTA_CHANGES = {"new", "revised", "retired"}
 VALID_DELTA_STATUSES = {"draft", "approved"}
 VALID_DELTA_TRACE_ID_RE = r"(?:PRD|UX|UI|ARCH)-[A-Z0-9-]+"
+AMBITION_GOAL_HEADER = ("rung", "outcome", "outside judge")
+AMBITION_DEPTH_HEADER = (
+    "best practitioners",
+    "their instruments",
+    "rawest material",
+    "stretch target",
+    "outside judge",
+)
+AMBITION_RANGE_HEADER = ("field", "what they actually do here", "method or tool", "used as")
+AMBITION_ACCESS_HEADER = ("need", "present or missing", "unlocks")
+VALID_AMBITION_RANGE_USES = {"design input", "review lens", "go-to-market"}
 HEADING_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 STACK_OPTIONS_HEADER = (
@@ -771,6 +793,125 @@ def _validate_enhancement_impact_record(
             path,
             "Enhancement Impact Record is missing areas: " + ", ".join(missing),
         )
+
+
+def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[str]) -> None:
+    section = _section(prd_text, "## Ambition")
+    if section is None:
+        _add(problems, "prd", "missing required heading '## Ambition'")
+        return
+    level2 = [
+        match.group(1).strip()
+        for match in re.finditer(r"(?m)^##\s+(.+?)\s*$", active_text(prd_text))
+    ]
+    if "Goals" not in level2 or level2.index("Ambition") != level2.index("Goals") + 1:
+        _add(problems, "prd", "'## Ambition' must immediately follow '## Goals'")
+
+    goal_rows = _find_table(
+        _subsection(section, "### Goal Beyond The Goal") or "", AMBITION_GOAL_HEADER
+    )
+    if goal_rows is None:
+        _add(
+            problems,
+            "prd",
+            "Goal Beyond The Goal must use the Rung | Outcome | Outside judge table",
+        )
+    else:
+        _validate_table_rows(
+            goal_rows,
+            len(AMBITION_GOAL_HEADER),
+            label="Goal Beyond The Goal",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        seen_rungs: set[str] = set()
+        for row in goal_rows:
+            if len(row) != len(AMBITION_GOAL_HEADER):
+                continue
+            if row[0].strip() not in {"1", "2", "3"}:
+                _add(
+                    problems,
+                    "prd",
+                    f"Goal Beyond The Goal rung must be 1, 2 or 3, not {row[0]!r}",
+                )
+            elif row[0].strip() in seen_rungs:
+                _add(problems, "prd", f"Goal Beyond The Goal repeats rung {row[0].strip()}")
+            seen_rungs.add(row[0].strip())
+        missing = sorted({"1", "2", "3"} - seen_rungs)
+        if missing:
+            _add(problems, "prd", "Goal Beyond The Goal is missing rung(s) " + ", ".join(missing))
+
+    depth_rows = _find_table(_subsection(section, "### Depth") or "", AMBITION_DEPTH_HEADER)
+    if depth_rows is None:
+        _add(
+            problems,
+            "prd",
+            "Depth must use the Best practitioners | Their instruments | "
+            "Rawest material | Stretch target | Outside judge table",
+        )
+    else:
+        _validate_table_rows(
+            depth_rows,
+            len(AMBITION_DEPTH_HEADER),
+            label="Depth",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        if not depth_rows:
+            _add(problems, "prd", "Depth must contain at least one row")
+
+    range_section = _subsection(section, "### Range")
+    if range_section is None:
+        _add(problems, "prd", "missing Ambition subsection '### Range'")
+    else:
+        if not re.search(r"(?m)^\s*Verbs:\s*\S", range_section):
+            _add(problems, "prd", "Range must record a non-empty 'Verbs:' line")
+        range_rows = _find_table(range_section, AMBITION_RANGE_HEADER)
+        if range_rows is None:
+            _add(
+                problems,
+                "prd",
+                "Range must use the Field | What they actually do here | "
+                "Method or tool | Used as table",
+            )
+        else:
+            _validate_table_rows(
+                range_rows,
+                len(AMBITION_RANGE_HEADER),
+                label="Range",
+                require_filled=require_filled,
+                problems=problems,
+            )
+            if any(len(row) == len(AMBITION_RANGE_HEADER) and row[0].casefold() == "none" for row in range_rows):
+                if len(range_rows) != 1:
+                    _add(problems, "prd", "Range 'none' row must be the table's only row")
+                elif not any(cell.strip() for cell in range_rows[0][1:]):
+                    _add(problems, "prd", "Range 'none' row must record a concrete reason")
+            else:
+                for row in range_rows:
+                    if len(row) != len(AMBITION_RANGE_HEADER):
+                        continue
+                    if row[3].casefold() not in VALID_AMBITION_RANGE_USES:
+                        _add(
+                            problems,
+                            "prd",
+                            f"Range row {row[0]!r} Used as must be design input, "
+                            "review lens or go-to-market",
+                        )
+
+    access_rows = _find_table(_subsection(section, "### Access") or "", AMBITION_ACCESS_HEADER)
+    if access_rows is None:
+        _add(problems, "prd", "Access must use the Need | Present or missing | Unlocks table")
+    else:
+        _validate_table_rows(
+            access_rows,
+            len(AMBITION_ACCESS_HEADER),
+            label="Access",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        if not access_rows:
+            _add(problems, "prd", "Access must contain at least one row")
 
 
 def _validate_delta_file(
@@ -1862,6 +2003,7 @@ def validate_texts(
     delta_mode = (_latest_delta_reference(prd_text) is not None) or (
         deltas_dir is not None and deltas_dir.is_dir()
     )
+    ambition_required = delta_mode or _has_heading(prd_text, "## Ambition")
 
     prd_required_headings = (
         REQUIRED_PRD_HEADINGS
@@ -2264,41 +2406,50 @@ def validate_texts(
 
     metrics = _section(prd_text, "## Metrics")
     if metrics is not None:
-        metric_rows = _find_table(metrics, METRICS_HEADER)
+        metrics_header = METRICS_AMBITION_HEADER if ambition_required else METRICS_HEADER
+        metric_rows = _find_table(metrics, metrics_header)
         if metric_rows is None:
-            _add(problems, "prd", "Metrics must use the measurable seven-column contract")
+            if ambition_required:
+                _add(
+                    problems,
+                    "prd",
+                    "Metrics must add the Stretch column immediately after Target / guardrail",
+                )
+            else:
+                _add(problems, "prd", "Metrics must use the measurable seven-column contract")
         elif require_filled and not metric_rows:
             _add(problems, "prd", "Metrics must contain at least one measurable row")
         else:
             _validate_table_rows(
                 metric_rows,
-                len(METRICS_HEADER),
+                len(metrics_header),
                 label="Metrics",
                 require_filled=require_filled,
                 problems=problems,
             )
+            offset = 1 if ambition_required else 0
             seen_metrics: set[str] = set()
             for row in metric_rows:
-                if len(row) != len(METRICS_HEADER):
+                if len(row) != len(metrics_header):
                     continue
                 metric = row[0].casefold()
                 if metric in seen_metrics:
                     _add(problems, "prd", f"duplicate metric {row[0]!r}")
                 seen_metrics.add(metric)
-                if _invalid_human_owner(row[6]):
+                if _invalid_human_owner(row[6 + offset]):
                     _add(problems, "prd", f"metric {row[0]!r} must name a human owner")
                 if not _valid_measurement_value(row[2]):
                     _add(problems, "prd", f"metric {row[0]!r} baseline must be concrete")
                 if not _valid_measurement_value(row[3]):
                     _add(problems, "prd", f"metric {row[0]!r} target / guardrail must be concrete")
-                if _duration_days(row[4]) is None:
+                if _duration_days(row[4 + offset]) is None:
                     _add(
                         problems,
                         "prd",
                         f"metric {row[0]!r} measurement window must use a positive day/week duration",
                     )
                 if not _meaningful(row[1], minimum=8) or not _meaningful(
-                    row[5], minimum=4
+                    row[5 + offset], minimum=4
                 ):
                     _add(
                         problems,
@@ -3264,6 +3415,8 @@ def validate_texts(
                     problems=problems,
                 )
 
+    if ambition_required:
+        _validate_ambition(prd_text, require_filled=require_filled, problems=problems)
     if delta_mode:
         _validate_deltas(
             prd_text,
@@ -3279,9 +3432,10 @@ def validate_texts(
             impact_known_ids=impact_known_ids,
             problems=problems,
         )
-    elif notes is not None:
+    elif not ambition_required and notes is not None:
         notes.append(
-            "legacy package: no docs/product/deltas directory; delta checks skipped"
+            "legacy package: no docs/product/deltas directory and no Ambition "
+            "section; delta and ambition checks skipped"
         )
 
     stack_block = _extract_machine_block(

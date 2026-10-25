@@ -2785,7 +2785,7 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         self.assertIn("legacy", notes[0])
 
     def test_delta_mode_package_passes(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         delta = delta_document(result=f"sha256:{self.result_digest(package)}")
         repo_root = self.write_epic()
         notes: list[str] = []
@@ -2814,13 +2814,13 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         )
 
     def test_delta_mode_rejects_result_prd_hash_mismatch(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         delta = delta_document(result=f"sha256:{"b" * 64}")
         findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
         self.assertTrue(any("Result PRD hash does not match" in finding for finding in findings), findings)
 
     def test_delta_mode_rejects_missing_revised_id(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         delta = delta_document(
             result=f"sha256:{self.result_digest(package)}",
             changed_rows="| PRD-099 | revised | old | new obligations and wording | none |",
@@ -2829,7 +2829,7 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         self.assertTrue(any("PRD-099 is absent from PRD.md" in finding for finding in findings), findings)
 
     def test_delta_mode_rejects_retired_id_still_present(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         delta = delta_document(
             result=f"sha256:{self.result_digest(package)}",
             changed_rows="| PRD-001 | retired | Complete the fixture | none | none |",
@@ -2841,7 +2841,7 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         )
 
     def test_delta_mode_rejects_missing_test_id(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         delta = delta_document(
             result=f"sha256:{self.result_digest(package)}",
             changed_rows="| PRD-001 | revised | Complete the fixture | Harden completion evidence | TEST-999 |",
@@ -2850,18 +2850,85 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         self.assertTrue(any("unknown TEST-999" in finding for finding in findings), findings)
 
     def test_delta_mode_require_approved_rejects_draft_status(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         delta = delta_document(status="draft", result=f"sha256:{self.result_digest(package)}")
         findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
         self.assertTrue(any("Status must be approved" in finding for finding in findings), findings)
 
+    def test_ambition_package_without_deltas_passes(self) -> None:
+        package = self.finalize(delta_mode_prd(latest_line=None))
+        notes: list[str] = []
+        self.assertEqual([], self.validate(package, notes=notes))
+        self.assertEqual([], notes)
+
+    def test_ambition_rejects_missing_rung(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "| 3 | Contract gates are cited outside the team | External teams reference the checker |\n",
+                "",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(any("missing rung(s) 3" in finding for finding in findings), findings)
+
+    def test_ambition_rejects_empty_judge_cell(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "| 1 | Ship the fixture gate reliably | The delivery owner signs each run log |",
+                "| 1 | Ship the fixture gate reliably |  |",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(
+            any("Goal Beyond The Goal row contains an empty value" in finding for finding in findings),
+            findings,
+        )
+
+    def test_ambition_rejects_bad_range_used_as(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace("| Roadmap reviews | review lens |", "| Roadmap reviews | marketing |", 1)
+        )
+        findings = self.validate(package)
+        self.assertTrue(
+            any("Used as must be design input, review lens or go-to-market" in finding for finding in findings),
+            findings,
+        )
+
+    def test_ambition_rejects_missing_stretch_metrics_column(self) -> None:
+        package = self.finalize(delta_mode_prd(latest_line=None, stretch_metrics=False))
+        findings = self.validate(package)
+        self.assertTrue(
+            any("Metrics must add the Stretch column" in finding for finding in findings),
+            findings,
+        )
+
     def test_delta_mode_requires_the_latest_delta_file(self) -> None:
-        package = self.finalize(delta_mode_prd(stretch_metrics=False))
+        package = self.finalize(delta_mode_prd())
         findings = self.validate(
             package,
             deltas={"PRD-DELTA-EPIC-042.md": delta_document(epic_id="EPIC-042")},
         )
         self.assertTrue(any("Latest delta file" in finding for finding in findings), findings)
+
+    def test_ambition_must_immediately_follow_goals(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "- Reject incomplete authority before implementation starts.\n" + AMBITION_SECTION,
+                "- Reject incomplete authority before implementation starts.\n",
+                1,
+            ).replace(
+                "## Risks\n",
+                AMBITION_SECTION + "## Risks\n",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(
+            any("'## Ambition' must immediately follow '## Goals'" in finding for finding in findings),
+            findings,
+        )
 
 
 if __name__ == "__main__":
