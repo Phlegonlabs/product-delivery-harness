@@ -1,6 +1,6 @@
 # Review Recheck Convergence
 
-Status: in_progress
+Status: candidate verified; publication pending
 Design workflow: enhancement
 UI impact: none (review contracts, attempt scripts and documentation; no product UI changes).
 
@@ -50,8 +50,24 @@ README consistency across the four languages is covered by the `test_skill_contr
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
-| pending | pending | pending | pending |
+| P3b READMEs, CHANGELOG, Epic, version 0.68.0 | GLM-5.3 Flash worker, worktree `t3-6e139aef` | `9a4187b0`..`e1303c49`, integrated `8f9cee93` | `test_skill_contract.py` 63 OK, `check_skill_spec.py`, `git diff --check` |
+| P3a rules: triage, re-check scope, repair gate, environment blocks, carry-forward, security applicability, review points | GLM-5.3 Flash worker, worktree `t3-2977e2f9` | `d6746d99`..`45f57ac4`, integrated `00de4171` | `test_skill_contract.py` 64 OK, `docs_weight.py` +756 words |
+| P2 re-check packet section and `recheck` contract | GLM-5.3 Flash worker, worktree `t3-9f87ac5e` | `bfe70eba`, `66f09e6c`, integrated `6271c09c` | `test_review_recheck_packet.py` 7 OK, packet suites 40 OK |
+| P1 `--note` and `--blocker-class environment` with validator support | GLM-5.3 Flash worker, worktree `t3-61a0fe4d`; the worker hit its 100-turn limit before committing, the parent verified the clean work and committed it | `60e1f4f9`, integrated `3fa44429` | `test_review_triage.py` 5 OK, review suites 38 OK, `test_harness_v11.py`, `test_graph_closeout.py` 8, `test_close_wave.py` 41 |
+| Review round 1 at `3fa44429` | Protected GPT-6.1 Sol xhigh read-only reviewer; T3 Opus route refused by the profile hook. Two first attempts were environment-blocked (git unusable in the read-only sandbox: WinError 1920, "cannot come back to cwd"); refunded under the new rule, then re-run with a git-free identity protocol (parent-supplied diff, commit log and tracked-file SHA-256 manifest in `review-input/`) | runs `20261025-150037-5b92a1f5` (scripts, security PASS) and `20261025-150041-1fe75ddb` (rules) | `fix_required`: R1-B1 closeout kept rejecting an environment-blocked worker; R1-B2 the historical-review predicate rejected it after a repair head; R2-B1 the security carry-forward contradicted managed gate freshness; R2-B2 cap said per node, code counts per lineage. Notes: packet bullet prefix, UTF-8 truncation, RRC-4 mapping |
+| Consolidated repair | Parent: carry-forward limited to the direct route, cap wording per lineage, packet bullet, RRC-4; GLM-5.3 Flash worker (`t3-f59f4906`): both manifest predicates admit environment-blocked workers, two new tests | `baf034a1`, `bbe65e49`, `b1bcc90a`, `572ab4bb`, `353b4c5d`, integrated `d5e7a930` | focused suites per commit; `test_review_triage.py` 7 OK, review suites 47 OK, `test_historical_integration_review.py` 9 OK |
+| Targeted re-check at `d5e7a930` | Same protected reviewer with the four prior findings, prior notes and repair range `3fa44429..d5e7a930`; security lens full scope | run `20261025-153751-5a215491` | PASS; F1-F4 resolved; security PASS; notes: N2 UTF-8 truncation unchanged (backlog), N4 two prose lags |
+| Prose alignment after the re-check | Docs-only: historical-review paragraph names environment-blocked entries; Epic carry-forward summary gains the direct-route qualification | `9f2b420f` | Carried forward from the `d5e7a930` PASS under the direct-route rule; paths: `references/execution-state-model.md`, this Epic |
 
 ## Verification
 
-pending
+Full Required Verification matrix on an immutable detached checkout of `d5e7a930` (log `matrix-d5e7a930.log` in the task directory `%LOCALAPPDATA%/Temp/pdh-review-convergence-20261025/`): `check_skill_spec.py`, pyflakes across all six script trees and `docs_weight.py` exit 0; delivery-harness 1554 tests OK (19 skipped); golden path 1 OK; product-definition-builder 200 OK; ui-design-builder 349 OK (2 skipped); design-system-compiler 214 OK (2 skipped); product-activation 68 OK; seo-growth-review 21 OK; `git diff --check` exit 0. An earlier matrix at `3fa44429` ran in the parent's working checkout and reported one failure caused by the parent editing a reference mid-run; it is superseded, not evidence.
+
+Independent review: `3fa44429` `fix_required` (two reviewers, scripts and rules), repaired once, `d5e7a930` PASS with security PASS. Two environment-blocked attempts were refunded and did not count. Opus 5.5 was requested for review but the profile hook refuses T3 review roles without an enforced read-only transport; GPT-6.1 Sol xhigh through the protected reviewer was used instead, per the owner's fallback instruction.
+
+## Remaining Work
+
+- Publication: PR from `fix/review-recheck-convergence` to `main`, CI on the exact candidate, tag `v0.68.0`, and consumer syncs. No push, PR or installation is authorized by this record.
+- Backlog notes: repair-diff truncation can split a UTF-8 character (`render_review_packet.py`); the refund-cap test has no successor-node shared-lineage case; the closeout test removes the diagnostic but does not drive a full closeout.
+- The git-free reviewer identity protocol (`review-input/` diff, log and SHA-256 manifest) worked where the read-only sandbox cannot run git; consider adopting it in the reviewer packet so environment blocks stop recurring.
+- Task-owned checkouts under the task directory and the four T3 worktrees are retained; removal is a separate action.
