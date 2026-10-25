@@ -25,10 +25,14 @@ SHA256 = re.compile(r"[0-9a-f]{64}\Z")
 SEPARATOR_CELL = re.compile(r"-{3,}\Z")
 CHANGES = ("new", "revised", "retired")
 REQUIRED_YES = "(Required: Yes)"
+TEST_ID = re.compile(r"TEST-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
 HEADING = "## Changed Requirements"
+TEST_OBLIGATIONS_HEADING = "## Test Obligations"
+PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
+DEFAULT_PRD_LOCATION = "docs/product/PRD.md"
 
 
-def parse_changed_requirements(text: str) -> dict[str, set[str]]:
+def parse_changed_requirements(text: str) -> dict[str, Any]:
     """Parse the delta's Changed Requirements table into ID sets."""
     lines = text.splitlines()
     starts = [index for index, line in enumerate(lines) if line.strip() == HEADING]
@@ -48,8 +52,9 @@ def parse_changed_requirements(text: str) -> dict[str, set[str]]:
         raise ValueError("Changed Requirements table must start with | ID | Change | columns")
     if len(rows[0]) < 5:
         raise ValueError("Changed Requirements table must have the | ID | Change | Before | After | TEST IDs | columns")
-    parsed: dict[str, set[str]] = {change: set() for change in CHANGES}
+    parsed: dict[str, Any] = {change: set() for change in CHANGES}
     parsed["required_yes"] = set()
+    parsed["test_ids"] = {}
     for cells in rows[1:]:
         if cells and SEPARATOR_CELL.fullmatch(cells[0]):
             continue
@@ -59,9 +64,63 @@ def parse_changed_requirements(text: str) -> dict[str, set[str]]:
         if change not in CHANGES:
             raise ValueError(f"Changed Requirements Change value must be new, revised or retired: {cells[1]!r}")
         parsed[change].add(requirement)
-        if change in {"new", "revised"} and REQUIRED_YES in cells[4]:
-            parsed["required_yes"].add(requirement)
+        if change in {"new", "revised"}:
+            parsed["test_ids"][requirement] = sorted(set(TEST_ID.findall(cells[4])))
+            if REQUIRED_YES in cells[4]:
+                parsed["required_yes"].add(requirement)
     return parsed
+
+
+def parse_test_obligations(text: str) -> dict[str, bool]:
+    """Parse the canonical PRD's Test Obligations table into required flags."""
+    lines = text.splitlines()
+    starts = [
+        index for index, line in enumerate(lines)
+        if line.strip() == TEST_OBLIGATIONS_HEADING
+    ]
+    if len(starts) != 1:
+        raise ValueError("canonical PRD must contain exactly one '## Test Obligations' heading")
+    rows = []
+    for line in lines[starts[0] + 1:]:
+        stripped = line.strip()
+        if stripped.startswith("## "):
+            break
+        if not stripped.startswith("|"):
+            if rows:
+                break
+            continue
+        rows.append([cell.strip() for cell in stripped.strip("|").split("|")])
+    if (
+        not rows
+        or len(rows[0]) < 4
+        or rows[0][0].lower() != "test id"
+        or rows[0][3].lower() != "required"
+    ):
+        raise ValueError(
+            "Test Obligations table must start with | TEST ID | Obligation | Test type | Required | columns"
+        )
+    obligations: dict[str, bool] = {}
+    for cells in rows[1:]:
+        if cells and SEPARATOR_CELL.fullmatch(cells[0]):
+            continue
+        if len(cells) < 4 or not cells[0]:
+            raise ValueError("Test Obligations rows need TEST ID and Required cells")
+        obligations[cells[0]] = cells[3].lower() == "yes"
+    return obligations
+
+
+def canonical_prd_location(plan: dict[str, Any]) -> str:
+    """Return the frozen PRD location declared by the PLAN or the default path."""
+    for source in plan.get("sources") or []:
+        if not isinstance(source, dict):
+            continue
+        kind = re.sub(r"[-_]+", " ", str(source.get("kind", ""))).strip().lower()
+        if kind not in PRD_SOURCE_KINDS:
+            continue
+        location = source.get("location")
+        if isinstance(location, str) and location.strip() and "://" not in location:
+            return location.strip()
+    return DEFAULT_PRD_LOCATION
 
 
 def trace_entries(plan: dict[str, Any]) -> list[tuple[str, str]]:
@@ -158,6 +217,24 @@ def main(argv: list[str] | None = None) -> int:
         except (ValueError, UnicodeDecodeError) as exc:
             print(f"invalid prd-delta {location}: {exc}")
             return 2
+        obligations: dict[str, bool] = {}
+        if any(requirements["test_ids"].values()):
+            prd_location = canonical_prd_location(plan)
+            try:
+                prd_path = safe_path(root, prd_location)
+            except ValueError as exc:
+                print(f"cannot read canonical PRD {prd_location} under --repo-root: {exc}")
+                return 2
+            try:
+                prd_text = prd_path.read_text(encoding="utf-8-sig")
+            except (OSError, UnicodeDecodeError) as exc:
+                print(f"cannot read canonical PRD {prd_location} under --repo-root: {exc}")
+                return 2
+            try:
+                obligations = parse_test_obligations(prd_text)
+            except ValueError as exc:
+                print(f"invalid canonical PRD {prd_location}: {exc}")
+                return 2
         foundation = plan.get("foundation_trace_ids")
         foundation_ids: set[str] = set()
         if foundation is not None:
@@ -176,11 +253,21 @@ def main(argv: list[str] | None = None) -> int:
                     f"{owner}: trace {trace_id} is not a new/revised ID of the bound PRD delta "
                     "and is not listed in foundation_trace_ids"
                 )
+        required_yes = set(requirements["required_yes"])
+        for requirement in sorted(requirements["new"] | requirements["revised"]):
+            for test_id in requirements["test_ids"].get(requirement, []):
+                if test_id not in obligations:
+                    violations.append(
+                        f"delta requirement {requirement} lists TEST {test_id} "
+                        "with no row in the canonical PRD Test Obligations"
+                    )
+                elif obligations[test_id]:
+                    required_yes.add(requirement)
         carrying = task_carried_ids(plan)
-        for requirement in sorted(requirements["required_yes"]):
+        for requirement in sorted(required_yes):
             if requirement not in carrying:
                 violations.append(
-                    f"delta requirement {requirement} carries a {REQUIRED_YES} TEST but has no task"
+                    f"delta requirement {requirement} carries a Required-Yes TEST but has no task"
                 )
         if not violations:
             counts = ", ".join(

@@ -50,6 +50,34 @@ Range rows marked `review lens` feed the combined review.
 """
 
 
+PRD_LOCATION = "docs/product/PRD.md"
+
+PRD_TEXT = """# Product Requirements Document
+
+## Test Obligations
+
+| TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
+| --- | --- | --- | --- | --- | --- |
+| TEST-201 | Round outcome is observable | E2E | Yes | PRD-101 | outcome observed |
+| TEST-202 | Revised copy renders | integration | No | PRD-102 | copy present |
+"""
+
+
+TEMPLATE_DELTA_TEXT = """# PRD-DELTA-EPIC-7
+
+| Field | Value |
+| --- | --- |
+| Baseline PRD | sha256:%s |
+
+## Changed Requirements
+
+| ID | Change | Before | After | TEST IDs |
+| --- | --- | --- | --- | --- |
+| PRD-101 | new | - | Round outcome | TEST-201 |
+| PRD-102 | revised | Old copy | New copy | TEST-202 |
+"""
+
+
 def delta_source(content_sha256: str | None) -> dict[str, object]:
     return {
         "id": "SRC-DELTA",
@@ -93,6 +121,8 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.delta_bytes = (DELTA_TEXT % ("f" * 64)).encode("utf-8")
         self.delta_sha = hashlib.sha256(self.delta_bytes).hexdigest()
         self.delta_path.write_bytes(self.delta_bytes)
+        self.prd_path = self.root / PRD_LOCATION
+        self.prd_path.write_text(PRD_TEXT, encoding="utf-8")
 
     def write_plan(self, plan: dict[str, object]) -> None:
         self.plan_path = self.root / "PLAN.md"
@@ -121,6 +151,11 @@ class PrdDeltaScopeTests(unittest.TestCase):
                 ["--plan", str(self.plan_path), "--repo-root", str(self.root)]
             )
         return code, buffer.getvalue()
+
+    def write_template_delta(self) -> str:
+        delta_bytes = (TEMPLATE_DELTA_TEXT % ("f" * 64)).encode("utf-8")
+        self.delta_path.write_bytes(delta_bytes)
+        return hashlib.sha256(delta_bytes).hexdigest()
 
     def bound_plan(
         self,
@@ -210,6 +245,101 @@ class PrdDeltaScopeTests(unittest.TestCase):
         code, output = self.run_checker()
         self.assertEqual(1, code, output)
         self.assertIn("content_sha256", output)
+
+    def test_template_delta_required_yes_resolved_from_prd_fails(self) -> None:
+        sha = self.write_template_delta()
+        self.write_plan(
+            self.bound_plan(
+                mission_trace_ids=["PRD-101"],
+                task_trace_ids=[["PRD-102"]],
+                content_sha256=sha,
+            )
+        )
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("PRD-101", output)
+        self.assertIn("has no task", output)
+
+    def test_template_delta_required_no_needs_no_task(self) -> None:
+        sha = self.write_template_delta()
+        self.prd_path.write_text(
+            PRD_TEXT.replace(
+                "| TEST-201 | Round outcome is observable | E2E | Yes | PRD-101 | outcome observed |",
+                "| TEST-201 | Round outcome is observable | E2E | No | PRD-101 | outcome observed |",
+            ),
+            encoding="utf-8",
+        )
+        self.write_plan(
+            self.bound_plan(
+                mission_trace_ids=["PRD-101"],
+                task_trace_ids=[["PRD-101"]],
+                content_sha256=sha,
+            )
+        )
+        code, output = self.run_checker()
+        self.assertEqual(0, code, output)
+
+    def test_template_delta_missing_prd_test_row_fails(self) -> None:
+        sha = self.write_template_delta()
+        self.prd_path.write_text(
+            "\n".join(
+                line for line in PRD_TEXT.splitlines() if not line.startswith("| TEST-202")
+            ) + "\n",
+            encoding="utf-8",
+        )
+        self.write_plan(
+            self.bound_plan(
+                mission_trace_ids=["PRD-101", "PRD-102"],
+                task_trace_ids=[["PRD-101"], ["PRD-102"]],
+                content_sha256=sha,
+            )
+        )
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("TEST-202", output)
+
+    def test_missing_canonical_prd_fails(self) -> None:
+        sha = self.write_template_delta()
+        self.prd_path.unlink()
+        self.write_plan(
+            self.bound_plan(
+                mission_trace_ids=["PRD-101"],
+                task_trace_ids=[["PRD-101"], ["PRD-102"]],
+                content_sha256=sha,
+            )
+        )
+        code, output = self.run_checker()
+        self.assertEqual(2, code, output)
+        self.assertIn("canonical PRD", output)
+
+    def test_prd_source_location_used_for_requiredness(self) -> None:
+        sha = self.write_template_delta()
+        self.prd_path.unlink()
+        frozen = self.root / "docs/product/frozen/PRD-frozen.md"
+        frozen.parent.mkdir(parents=True)
+        frozen.write_text(PRD_TEXT, encoding="utf-8")
+        plan = self.bound_plan(
+            mission_trace_ids=["PRD-101"],
+            task_trace_ids=[["PRD-102"]],
+            content_sha256=sha,
+        )
+        plan["sources"].append(
+            {
+                "id": "SRC-PRD",
+                "kind": "prd",
+                "location": "docs/product/frozen/PRD-frozen.md",
+                "owner": "human",
+                "status": "frozen",
+                "content_sha256": None,
+                "source_revision": None,
+                "staged_revision": None,
+                "notes": "canonical PRD",
+            }
+        )
+        self.write_plan(plan)
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("has no task", output)
 
     def test_legacy_plan_without_delta_source_passes(self) -> None:
         plan = self.bound_plan()
