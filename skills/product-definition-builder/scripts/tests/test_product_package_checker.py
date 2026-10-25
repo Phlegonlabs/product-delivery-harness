@@ -2693,7 +2693,14 @@ def delta_document(
     result: str = "pending",
     changed_rows: str = "| PRD-001 | revised | Complete the fixture | Harden completion evidence with a signed run log | TEST-001 |",
     impact: str = DELTA_EIR,
+    decision: str | None = None,
+    blocking_items: str = "none",
 ) -> str:
+    decision_value = (
+        decision
+        if decision is not None
+        else (status if status in {"approved", "revision_requested", "blocked"} else "draft")
+    )
     return f"""# PRD Delta {epic_id}: Harden the fixture gate
 
 | | |
@@ -2719,10 +2726,10 @@ The owner approved hardening completion evidence before wider adoption.
 ## Approval
 <!-- product-definition-approval:start -->
 ### Delta Approval
-- Decision: {status if status in {"approved", "revision_requested", "blocked"} else "draft"}
+- Decision: {decision_value}
 - Decision owner: Owner
 - Decided on: 2026-09-12
-- Blocking items: none
+- Blocking items: {blocking_items}
 <!-- product-definition-approval:end -->
 """
 
@@ -2855,6 +2862,43 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
         self.assertTrue(any("Status must be approved" in finding for finding in findings), findings)
 
+    def test_delta_mode_rejects_blocked_delta_approval(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            decision="blocked",
+            blocking_items="unresolved",
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
+        self.assertTrue(any("Decision must be approved" in finding for finding in findings), findings)
+        self.assertTrue(any("Blocking items must be none" in finding for finding in findings), findings)
+
+    def test_delta_mode_rejects_incomplete_delta_approval(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}").replace(
+            "- Decision owner: Owner" + chr(10),
+            "",
+            1,
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
+        self.assertTrue(
+            any("missing required field 'Decision owner'" in finding for finding in findings),
+            findings,
+        )
+
+    def test_delta_mode_accepts_retired_ids_in_the_impact_record(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            changed_rows="| PRD-099 | retired | Previous requirement | none | none |",
+            impact=DELTA_EIR.replace(
+                "| Product scope / behavior | changed | PRD-001 |",
+                "| Product scope / behavior | changed | PRD-099 |",
+                1,
+            ),
+        )
+        self.assertEqual([], self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}))
+
     def test_ambition_package_without_deltas_passes(self) -> None:
         package = self.finalize(delta_mode_prd(latest_line=None))
         notes: list[str] = []
@@ -2886,6 +2930,27 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
             findings,
         )
 
+    def test_ambition_rejects_verbs_content_borrowed_from_the_next_line(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace("Verbs: validate, reject, gate", "Verbs:", 1)
+        )
+        findings = self.validate(package)
+        self.assertTrue(any("non-empty 'Verbs:' line" in finding for finding in findings), findings)
+
+    def test_ambition_rejects_an_empty_range_crew_table(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "| Package review | Review rejected findings weekly | Unit test suites | design input |"
+                + chr(10)
+                + "| Release planning | Weigh gate findings against launch dates | Roadmap reviews | review lens |"
+                + chr(10),
+                "",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(any("Range crew table" in finding for finding in findings), findings)
+
     def test_ambition_rejects_bad_range_used_as(self) -> None:
         package = self.finalize(
             delta_mode_prd(latest_line=None).replace("| Roadmap reviews | review lens |", "| Roadmap reviews | marketing |", 1)
@@ -2903,6 +2968,19 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
             any("Metrics must add the Stretch column" in finding for finding in findings),
             findings,
         )
+
+    def test_delta_mode_rejects_duplicate_latest_delta_lines(self) -> None:
+        package = self.finalize(
+            delta_mode_prd().replace(
+                "## Product Definition Decisions" + chr(10),
+                "## Product Definition Decisions" + chr(10)
+                + "Latest delta: docs/product/deltas/PRD-DELTA-EPIC-041.md" + chr(10),
+                1,
+            )
+        )
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}")
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta})
+        self.assertTrue(any("exactly once" in finding for finding in findings), findings)
 
     def test_delta_mode_requires_the_latest_delta_file(self) -> None:
         package = self.finalize(delta_mode_prd())

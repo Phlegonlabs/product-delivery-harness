@@ -697,12 +697,14 @@ def _explicit_absence_reason(value: str) -> str | None:
     return match.group(1).strip() if match else None
 
 
-def _latest_delta_reference(prd_text: str) -> str | None:
+def _latest_delta_reference(prd_text: str, *, problems: list[str]) -> str | None:
     decisions = _section(prd_text, "## Product Definition Decisions")
     if decisions is None:
         return None
-    match = DELTA_LATEST_LINE_RE.search(decisions)
-    return match.group(1).strip() if match else None
+    matches = list(DELTA_LATEST_LINE_RE.finditer(decisions))
+    if len(matches) > 1:
+        _add(problems, "prd", "'Latest delta:' must be declared exactly once")
+    return matches[0].group(1).strip() if matches else None
 
 
 def _validate_enhancement_impact_record(
@@ -864,7 +866,7 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
     if range_section is None:
         _add(problems, "prd", "missing Ambition subsection '### Range'")
     else:
-        if not re.search(r"(?m)^\s*Verbs:\s*\S", range_section):
+        if not re.search(r"(?m)^\s*Verbs:[ 	]*\S", range_section):
             _add(problems, "prd", "Range must record a non-empty 'Verbs:' line")
         range_rows = _find_table(range_section, AMBITION_RANGE_HEADER)
         if range_rows is None:
@@ -882,6 +884,12 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
                 require_filled=require_filled,
                 problems=problems,
             )
+            if not range_rows:
+                _add(
+                    problems,
+                    "prd",
+                    "Range crew table must contain at least one row or the explicit 'none' row",
+                )
             if any(len(row) == len(AMBITION_RANGE_HEADER) and row[0].casefold() == "none" for row in range_rows):
                 if len(range_rows) != 1:
                     _add(problems, "prd", "Range 'none' row must be the table's only row")
@@ -950,7 +958,7 @@ def _validate_delta_file(
         _add(problems, label, "delta title outcome contains an unfilled placeholder")
 
     _validate_heading_sequence(delta_text, DELTA_HEADINGS, path=label, problems=problems)
-    _extract_machine_block(
+    approval_block = _extract_machine_block(
         delta_text,
         PRODUCT_APPROVAL_START,
         PRODUCT_APPROVAL_END,
@@ -958,6 +966,33 @@ def _validate_delta_file(
         label="product-definition approval",
         problems=problems,
     )
+    if approval_block is not None:
+        for duplicate in _duplicate_bullet_fields(approval_block):
+            _add(problems, label, f"duplicate field {duplicate!r}")
+        approval_fields = _bullet_fields(approval_block)
+        _require_fields(
+            approval_fields,
+            ("Decision", "Decision owner", "Decided on", "Blocking items"),
+            path=label,
+            problems=problems,
+            require_filled=require_filled,
+        )
+        decision = approval_fields.get("decision", "").casefold()
+        if decision and decision not in VALID_DECISIONS:
+            _add(problems, label, f"invalid decision {decision!r}")
+        if require_approved and decision != "approved":
+            _add(problems, label, "Decision must be approved")
+        owner = approval_fields.get("decision owner", "")
+        if require_filled and _invalid_human_owner(owner):
+            _add(problems, label, "Decision owner must name a human owner")
+        decided_on = approval_fields.get("decided on", "")
+        if decided_on and not _real_date(decided_on):
+            _add(problems, label, "Decided on must be a real YYYY-MM-DD date")
+        elif decided_on and not _not_future_date(decided_on):
+            _add(problems, label, "Decided on cannot be in the future")
+        blockers = approval_fields.get("blocking items", "").casefold()
+        if require_approved and blockers not in {"none", "n/a"}:
+            _add(problems, label, "Blocking items must be none")
 
     meta_rows = _find_table(delta_text, DELTA_METADATA_HEADER)
     meta: dict[str, str] = {}
@@ -1038,6 +1073,7 @@ def _validate_delta_file(
         elif require_filled and _placeholder_cell(rung_match.group(2)):
             _add(problems, label, "delta metadata Ambition rung contains an unfilled placeholder")
 
+    retired_ids: set[str] = set()
     changed_rows = _find_table(delta_text, CHANGED_REQUIREMENTS_HEADER)
     if changed_rows is None:
         _add(
@@ -1073,6 +1109,8 @@ def _validate_delta_file(
                 )
                 continue
             trace_id = row[0].strip().upper()
+            if change == "retired":
+                retired_ids.add(trace_id)
             test_ids = _ids(row[4], "TEST")
             if not test_ids and row[4].strip().casefold() not in {"none", "n/a"}:
                 _add(
@@ -1119,7 +1157,7 @@ def _validate_delta_file(
     if latest:
         _validate_enhancement_impact_record(
             delta_text,
-            known_ids=impact_known_ids,
+            known_ids=impact_known_ids | retired_ids,
             require_filled=require_filled,
             problems=problems,
             path=label,
@@ -1147,7 +1185,7 @@ def _validate_deltas(
             "prd",
             "delta mode records the Enhancement Impact Record in PRD deltas, not PRD.md",
         )
-    latest_reference = _latest_delta_reference(prd_text)
+    latest_reference = _latest_delta_reference(prd_text, problems=problems)
     latest_name: str | None = None
     if latest_reference is None:
         _add(
@@ -2000,7 +2038,7 @@ def validate_texts(
     problems: list[str] = validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
     )
-    delta_mode = (_latest_delta_reference(prd_text) is not None) or (
+    delta_mode = (_latest_delta_reference(prd_text, problems=problems) is not None) or (
         deltas_dir is not None and deltas_dir.is_dir()
     )
     ambition_required = delta_mode or _has_heading(prd_text, "## Ambition")
