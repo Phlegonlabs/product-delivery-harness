@@ -107,7 +107,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 3. Run the focused checks selected from changed files, including security tests.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set. Without the security lens, report `UNVALIDATED`, not PASS.
+6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. Without the security lens on an executable diff, report `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then one targeted re-check of the original findings, changed code and direct consumers (`references/gen-verify-correct.md`). A failed re-check stops for the owner.
 8. Perform only remaining authorized Git actions.
 

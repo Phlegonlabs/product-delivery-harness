@@ -30,6 +30,10 @@ For RUN-v11 screenshot evidence, the order is immutable Git blob read, safe byte
 
 Default `review_policy: final_candidate`. One review node on the unified candidate carries every lens its diff needs, listed in `review.lenses`: `frontend_code` or `backend_code` for changed code, `visual` with `required_tools: ["chrome_devtools"]` when the PLAN has `ui_surfaces`, and `security` always. Its `review.type` is the widest lens (security, visual, frontend_code, backend_code). It binds the exact `integration_head_sha`, loads `code-security-review` for the security lens, and returns one consolidated finding set. A mission integrates after `worker_passed` and the Worker Result Gate; no mission review precedes it.
 
+One reviewer per candidate. Parallel reviewers on one candidate or surface group need an explicit owner request and return one consolidated finding set through the parent; they never each start a repair loop.
+
+Finding triage. A reviewer separates blocking findings from non-blocking notes. A blocking finding is a defect against accepted scope, a TEST obligation, security, or correctness. A non-blocking note is style, decorative wording, a suggestion, or backlog. Only blocking findings produce `fix_required`; a PASS records notes through `record-review-attempt --note`, and the notes go to the backlog or the Epic. Security findings of severity critical/high are always blocking.
+
 Make one consolidated repair, then one targeted re-check on the new SHA: original findings, changed code, direct consumers. The security lens re-binds to the new SHA with full scope. A failed re-check stops at `blocked`.
 
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.

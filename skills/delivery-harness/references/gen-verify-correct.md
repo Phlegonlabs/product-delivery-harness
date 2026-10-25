@@ -39,8 +39,10 @@ findings to the owning flow above.
 6. On failure, record expected result, actual result, exit or observation,
    artifact or trace, and input identity. Do not hide the concrete difference.
 7. Wait for every required verifier and review result on the same candidate.
-   Group the findings by root-cause family and send them to the owning
-   corrector as one repair. Non-blocking suggestions go to the backlog.
+   Triage each review into blocking findings and non-blocking notes; only
+   blocking findings repair. Group the blocking findings by root-cause family
+   and send them to the owning corrector as one repair. Non-blocking
+   suggestions go to the backlog.
 8. Repair only accepted scope. Rerun the affected verifier and every downstream
    check invalidated by the new candidate. A re-review checks the original
    findings, the changed code and its direct consumers, not the whole scope again.
