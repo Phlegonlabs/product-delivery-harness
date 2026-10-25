@@ -1,6 +1,6 @@
 # PRD Deltas And Ambition
 
-Status: in_progress; worker packages pending integration
+Status: candidate verified; publication pending
 Design workflow: enhancement
 UI impact: none (discovery interview, PRD contract, Harness rules and documentation; no product UI changes).
 
@@ -43,12 +43,26 @@ Packages Q1-Q2: `skills/product-definition-builder/**` (interview, PRD template,
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
-| pending | | | |
+| Q4 READMEs, CHANGELOG, Epic, version 0.69.0 | GLM-5.3 Flash worker, worktree `t3-2ca25a9e` | `ddc3b911`..`6828d9a0`, integrated `9d4f239e` | `test_skill_contract.py` 64 OK, `test_readme_structure.py` 3 OK |
+| Q1 PDB contract: Ambition segment, `## Ambition`, Stretch metrics, `prd-delta/1`, delta template, delta translation pairs | GLM-5.3 Flash worker, worktree `t3-8375d98b` | `f1d3bb88`..`08a6dac3`, integrated `8ad88880` | `docs_weight.py` +1249 words; five PDB contract assertions updated by the parent in `8a251aca`, Segment 4 prompts folded and shortened to the segment limits in `8a251aca` and `849dfec7` |
+| Q3 Harness: Epic template binds the delta, `prd-delta` PLAN source and `foundation_trace_ids`, `check_prd_delta_scope.py`, `domain:<field>` lenses, delta inventory in document sync | GLM-5.3 Flash worker, worktree `t3-90b724db`; the worker hit its 100-turn limit, the parent verified the clean work and committed it | `b24801b0`, `644a491e`, `653a21cc`, integrated `38e55960` | `test_prd_delta_scope.py` 8 OK, `test_skill_contract.py` 65 OK, `test_validate_harness_plan*.py` 28 OK, `test_document_sync*.py` 28 OK |
+| Q2 PDB checker: delta mode, Ambition validation, `--delta` translation check | GLM-5.3 Flash worker, worktree `t3-5954a9d0`; same 100-turn stop, parent-committed | `b3d68dea`, `aa6ce5b8`, `e1f36013`, integrated `26ea070c` | PDB suite 219 OK on the worker base |
+| Review round 1 at `849dfec7` | Protected GPT-6.1 Sol xhigh, git-free identity protocol. Two half-candidate scopes timed out at the 540 s cap (environment blocks, refunded); four narrow scopes completed | runs `20261025-171101-8eba5a13` (PDB scripts), `-1cd09f15` (Harness scripts), `-b3eb2a91` (PDB rules), `-586d01bd` (Harness docs, PASS) | `fix_required`: delta approval block ignored; retired IDs rejected in the delta impact record; `Verbs:` regex crossed the newline; delta location could escape `--repo-root` (CWE-22); Required-Yes read only from a literal annotation; translation command lacked `--delta`. The full matrix at `849dfec7` also flagged the new script missing from the CLI UTF-8 inventory (`9e8e8f38`) and one load-induced motion-test flake that passed alone |
+| Consolidated repair | GLM-5.3 Flash workers `t3-0629f594` (PDB checker, five commits) and `t3-b951b44c` (scope checker, three commits); parent prose `e92c461b` | `f143715a`..`b6e66e2a`, `26abf900`..`d6723c02`, integrated `bcb0a9e6` and `3c642b28` | PDB suite 225 OK; `test_prd_delta_scope.py` 18 OK |
+| Targeted re-check at `3c642b28` | Three narrow scopes with the prior findings and repair range | runs `20261025-173252-d5c198a5` (PDB scripts PASS), `-8352adef` (Harness scripts `fix_required`), `-0d11fa95` (docs PASS) | All six prior findings resolved; one new finding inside the repair: the escape fixture wrote a fixed filename into the shared temp directory (CWE-377) |
+| Owner-authorized third round | Owner answer in chat 2026-10-25 to the explicit extra-round request; fixture moved inside the test-owned directory, Range `none` row and both wide-table exceptions documented | `9dfb1eac`, `ee685e85`; re-check run `20261025-174123-dae157a0` | PASS, no notes |
 
 ## Verification
 
-Pending. Focused suites run per package before integration; the full Required Verification matrix runs once on the fixed integration candidate.
+Full Required Verification matrix on an immutable detached checkout of `3c642b28` (log `matrix-3c642b28.log` under `%LOCALAPPDATA%/Temp/pdh-prd-deltas-20261025/`): `check_skill_spec.py`, pyflakes across the six script trees and `docs_weight.py` exit 0; delivery-harness 1574 OK (19 skipped); golden path 1 OK; product-definition-builder 225 OK; ui-design-builder 349 OK (2 skipped); design-system-compiler 214 OK (2 skipped); product-activation 68 OK; seo-growth-review 21 OK; `git diff --check` exit 0.
+
+The final head `ee685e85` changes one test module and one reference after that run. Affected suites on an immutable checkout of `ee685e85` (`affected-ee685e85.log`): `test_prd_delta_scope.py` 18 OK, delivery `test_skill_contract.py` 65 OK, `test_cli_utf8_output.py` 3 OK, product-definition-builder 225 OK, `docs_weight.py`, `check_skill_spec.py` and `git diff --check` exit 0.
+
+Independent review: `849dfec7` `fix_required` (four scopes), one consolidated repair, `3c642b28` re-check found one new defect in the repair, one owner-authorized extra round, `ee685e85` PASS. Security lenses passed on the scripts at `3c642b28` and on the test fixture at `ee685e85`. Two timed-out and no git-capable attempts were environment blocks under the 0.68.0 rule and did not count.
 
 ## Remaining Work
 
 - Retrofit Jolvex, agentic-commons and AgentKiosk into a current `PRD.md` plus per-round deltas, one follow-up per project after this release.
+- Publication: PR from `feat/prd-deltas-and-ambition` to `main` after the 0.68.0 candidate lands, CI on the exact candidate, tag `v0.69.0`, consumer syncs. Nothing here authorizes a push, PR or installation.
+- Backlog notes from review: `domain:<field>` labels accept control characters; a domain-only lens list leaves `review.type` unchecked; no successor-node shared-lineage refund-cap test; a PRD source location that is blank or a URL falls back to `docs/product/PRD.md` silently.
+- Task-owned checkouts under the task directory and the T3 worker worktrees are retained; removal is a separate action.
