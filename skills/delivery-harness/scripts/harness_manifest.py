@@ -2048,6 +2048,7 @@ def validate_plan(
     ):
         _add(errors, "plan.review_policy", "must be per_mission or final_candidate")
     if "foundation_trace_ids" in plan:
+        # Delta mode: omit the field when there is nothing to build on; an empty array is invalid.
         foundation = _strings(
             errors,
             "plan.foundation_trace_ids",

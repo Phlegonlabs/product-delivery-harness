@@ -341,6 +341,28 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.assertEqual(1, code, output)
         self.assertIn("has no task", output)
 
+    def test_sources_null_exits_2(self) -> None:
+        plan = self.bound_plan()
+        plan["sources"] = None
+        self.write_plan(plan)
+        code, output = self.run_checker()
+        self.assertEqual(2, code, output)
+        self.assertIn("plan.sources", output)
+
+    def test_sources_non_array_exits_2(self) -> None:
+        plan = self.bound_plan()
+        plan["sources"] = "invalid"
+        self.write_plan(plan)
+        code, output = self.run_checker()
+        self.assertEqual(2, code, output)
+        self.assertIn("plan.sources", output)
+
+    def test_empty_foundation_trace_ids_fails(self) -> None:
+        self.write_plan(self.bound_plan(foundation=[]))
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("must not be empty", output)
+
     def test_legacy_plan_without_delta_source_passes(self) -> None:
         plan = self.bound_plan()
         plan["sources"] = []

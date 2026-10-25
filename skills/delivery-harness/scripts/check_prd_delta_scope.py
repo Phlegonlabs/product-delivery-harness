@@ -168,8 +168,12 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ManifestError) as exc:
         print(f"invalid plan: {exc}")
         return 2
+    sources = plan.get("sources", [])
+    if not isinstance(sources, list):
+        print("plan.sources must be an array")
+        return 2
     sources = [
-        source for source in plan.get("sources", [])
+        source for source in sources
         if isinstance(source, dict) and DELTA_KIND.fullmatch(str(source.get("kind", "")).strip())
     ]
     if not sources:
@@ -242,6 +246,8 @@ def main(argv: list[str] | None = None) -> int:
                 isinstance(item, str) and item.strip() for item in foundation
             ):
                 violations.append("plan.foundation_trace_ids must be an array of non-empty strings")
+            elif not foundation:
+                violations.append("plan.foundation_trace_ids must not be empty")
             else:
                 foundation_ids = set(foundation)
         allowed = requirements["new"] | requirements["revised"] | foundation_ids
