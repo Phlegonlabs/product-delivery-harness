@@ -219,6 +219,4 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 - **0.65.3** — 設計端採用同輪審核與定向複查，實作端合併 UI 驗收，保留 85／80 與必要證據。向作者提供完整畫面、字體、素材及視覺特徵，worker 選擇交由 agent 設定。保留既有 RUN 契約，修正診斷覆蓋、驗收重用及 Activation 暫存動作摘要。
 
-- **0.65.2** — 發布四語完整交付流程圖，標明 PRD 自查、基礎設定時點、MultiAgent 分工、既有 review 次數與 GTM 並行接入。記錄目前 owner 同時推動 Instagram 與 Threads，Facebook Pages 待評估，X 可選。保留 85／80 門檻與既有審查額度。
-
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

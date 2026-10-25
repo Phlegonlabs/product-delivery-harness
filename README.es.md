@@ -219,6 +219,4 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 - **0.65.3** — Unificar la revisión de diseño y la aceptación de implementación, conservando 85/80 y las pruebas necesarias. Entregar referencias visuales completas y delegar la selección de workers a la configuración del agente. Mantener contratos RUN existentes y corregir cobertura, reutilización de aceptación y resúmenes de acciones preparadas de Activation.
 
-- **0.65.2** — Publicar el diagrama completo de entrega en cuatro idiomas. Indicar autorrevisión del PRD, preparación inicial, roles MultiAgent, revisiones existentes y entradas paralelas de GTM. Instagram y Threads describen el contexto actual; Facebook Pages queda por evaluar y X es opcional. Conservar 85/80 y los presupuestos de revisión.
-
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).

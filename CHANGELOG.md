@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.65.1. Current releases are in [README.md](README.md#version-history).
+English release history through 0.65.2. Current releases are in [README.md](README.md#version-history).
+
+- **0.65.2** — Publish the complete four-language delivery flowchart. Mark PRD self-review, foundation timing, MultiAgent handoffs, existing review counts and parallel GTM inputs. Record Instagram and Threads as the current owner context, evaluate Facebook Pages and keep X optional. Preserve 85/80 and existing review budgets.
 
 - **0.65.1** — Clarify one complete PRD package author review and affected-scope rechecks before approval. Order core-journey proof and applicable load, cost, migration and recovery evidence within existing engineering tasks. Add X channel selection, content guidance and draft-to-measurement handoffs to the optional GTM skills. Explain roles, foundation timing and review limits in all four READMEs. Reuse existing records and review budgets; no new schema or review wave.
 

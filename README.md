@@ -219,6 +219,4 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 - **0.65.3** — Use one design review wave and one implementation UI acceptance while retaining 85/80 and required evidence. Deliver complete visual inputs to authors and let agent configuration choose workers. Preserve frozen runs and repair diagnostic coverage, acceptance reuse, and staged Activation digests.
 
-- **0.65.2** — Publish the complete four-language delivery flowchart. Mark PRD self-review, foundation timing, MultiAgent handoffs, existing review counts and parallel GTM inputs. Record Instagram and Threads as the current owner context, evaluate Facebook Pages and keep X optional. Preserve 85/80 and existing review budgets.
-
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
