@@ -107,7 +107,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 3. Run the focused checks selected from changed files, including security tests.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. Without the security lens on an executable diff, report `UNVALIDATED`, not PASS.
+6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling or data access; a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). A failed re-check stops for the owner.
 8. Perform only remaining authorized Git actions.
 

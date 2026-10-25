@@ -44,6 +44,8 @@ Environment-blocked attempts. An attempt the reviewer could not perform — chec
 
 Scope-disjoint carry-forward. A review PASS bound to SHA X stays valid for a descendant commit Y when every path changed between X and Y is outside the review scope and non-executable: docs, Epic, evidence, PLAN/RUN bookkeeping, README. Record the origin PASS SHA, the X..Y path list, and the reason; never relabel it as a fresh review. A security PASS follows the same rule only for that bookkeeping class; any code, config, dependency, migration, or toolchain change is a new candidate. Managed runs keep `reconcile-coordination-head` for RUN/PLAN bookkeeping.
 
+Security lens applicability. On the direct route, the security lens is required when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling, or data access. A diff that touches only documentation, copy, Epics, evidence records, PLAN/RUN bookkeeping, or design-source text records `security: not_applicable (<reason>)` with the changed path list as evidence instead of `UNVALIDATED`. Managed PLANs keep `security_review.status` as today.
+
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
 
 ## Gate Levels
