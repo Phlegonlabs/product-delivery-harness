@@ -22,7 +22,7 @@ Owner requests in chat on 2026-10-25: "review 重審的問題如何可以解決"
 - Pre-review repair gate: a repair reaches the reviewer only with the author's focused verifier PASS at the new head and, for a failure family, the family's acceptance matrix. Otherwise it returns to the author and costs no review attempt.
 - One reviewer per candidate carries every lens. Parallel reviewers need an explicit owner request and still return one consolidated finding set.
 - The direct-route security lens applies to executable diffs: code, configuration, dependencies, CI, infrastructure, secrets, data access. A docs, copy, Epic, evidence or bookkeeping-only diff records `security: not_applicable (<reason>)` with the path list instead of `UNVALIDATED`.
-- Scope-disjoint carry-forward: a review PASS at SHA X stays valid for descendant Y when every X..Y path is outside the review scope and non-executable (docs, Epic, evidence, PLAN/RUN bookkeeping, README). Record the origin SHA and the path list; never relabel the PASS as fresh.
+- Scope-disjoint carry-forward, direct route only: a review PASS at SHA X stays valid for descendant Y when every X..Y path is outside the review scope and non-executable (docs, Epic, evidence, README). Record the origin SHA and the path list; never relabel the PASS as fresh. Managed runs keep `reconcile-coordination-head` and gate freshness.
 - Planned review points are recorded at System Review And Route with a reason for each beyond one combined review plus one re-check.
 
 Kept unchanged: owner decisions, exact-SHA security freshness for code changes, HiFi 85/80, Impeccable, Visual Approval, the authorization ledger, `max_attempts` at most 2, and data safety. UI and PRD review waves were already cut to one wave in 0.66.0.
