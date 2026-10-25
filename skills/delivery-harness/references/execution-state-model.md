@@ -101,6 +101,8 @@ Required flags per `harness_transition.py` subcommand, as the parser defines the
 - `reserve-review-dispatch`: `--node-id`, `--worker-id`, `--attempt-id`; optional `--report-path` and `--packet-out` render the reviewer packet in the same call. With `--packet-out`, optional `--diff-artifact-out` retains a complete diff at a new checkout-external path.
 - `reconcile-interrupted`: `--worker-id`, `--reason`. Confirm the predecessor stopped and inspect partial work before retry.
 - `record-review-attempt`: `--lineage`, `--attempt-id`, `--worker-id`, `--result`, repeatable `--evidence`; optional `--mission-id`, `--finding`, `--security-result`, and `--tree-sha`. Every non-pass result needs findings. A node with the `security` lens requires `--security-result` and derives findings from that validated object. Supply global `--repo-root` to derive the reviewed tree when `--tree-sha` is absent.
+  - `--note <text>` records a non-blocking note with a PASS; a note never produces `fix_required`.
+  - `--blocker-class environment|review` with `--result blocked`: `environment` refunds the node attempt (at most two per node per RUN) and keeps the attempt log and worker entry; a blocked result is never a PASS.
 - `reject-worker-result`: `--node-id`, `--worker-id`, `--outcome retryable_failure|blocked`, repeatable `--reason`.
 - `record-integration`: `--mission-id`, `--integrated-sha`; optional repeatable `--verifier-result <absolute-external-json>`. It admits fresh protocol-v2 mission integration output and records integration in one locked, validated CAS transaction. Existing valid retained evidence remains usable without the flag.
 - `reconcile-candidate-head`: `--candidate-sha`, `--source`, `--repair-node-id`, `--repair-attempt-id`, `--repair-task-id`; requires global `--repo-root` and a held `--session-id` lock. Records an already committed, authorized repair after mission integration; it never edits Git or grants repair authority.
@@ -241,7 +243,7 @@ At resume, a worker recorded as `leased` or `worker_running` requires observatio
 
 ## Repairing The Integrated Candidate
 
-For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck.
+For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>`; `verification-gates.md#review-topology` owns the scope.
 
 The additional historical-review admission preserves a passed or failed integration reviewer at a recorded prior head after its current graph binding is cleared. It requires a unique retained review attempt, matching outcome and lineage. A blocked reviewer qualifies only through the existing interrupted-review reconciliation receipt, using the same predicate as closeout. Other blocked or active old reviewers remain invalid and refuse candidate movement before RUN persistence. The older fix_required prior-head rule keeps its pinned semantics. Its retained bytes and receipts stay unchanged. This admissibility does not revive its PASS or security coverage for the new candidate.
 

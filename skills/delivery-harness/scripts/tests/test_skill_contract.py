@@ -377,6 +377,56 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("it is not a fresh full review", skill)
         self.assertIn("A failed re-review stops at `blocked` and returns to the owner", gen_verify)
 
+    def test_review_convergence_rules_are_documented(self) -> None:
+        skill = self.read("SKILL.md")
+        gates = self.read("references/verification-gates.md")
+        gen_verify = self.read("references/gen-verify-correct.md")
+        state = self.read("references/execution-state-model.md")
+        delegation = self.read("references/delegation-contract.md")
+        bounded = self.read("references/bounded-enhancement.md")
+        stage = self.read(MANAGED_STAGE)
+
+        # Reviewers triage blocking findings from non-blocking notes; only
+        # blocking findings open a repair round.
+        self.assertIn("One reviewer per candidate", gates)
+        self.assertIn("Finding triage", gates)
+        self.assertIn("non-blocking notes", gates)
+        self.assertIn("record-review-attempt --note", gates)
+        self.assertIn(
+            "Security findings of severity critical/high are always blocking", gates
+        )
+        self.assertIn("separates blocking findings from non-blocking notes", delegation)
+        # The re-check is scoped to prior findings plus the repair range.
+        self.assertIn("Re-check scope", gates)
+        self.assertIn("resolved / unresolved / superseded", gates)
+        self.assertIn("repair range `<prior>..<head>`", state)
+        # The author proves the repair before it reaches a reviewer.
+        self.assertIn("Pre-review repair gate", gates)
+        self.assertIn("focused verifier PASS at the new head", gates)
+        self.assertIn("This is author evidence, not a review attempt", gates)
+        # An environment-blocked attempt refunds the attempt instead of
+        # consuming the review budget.
+        self.assertIn("blocker_class: environment", gates)
+        self.assertIn("at most two per node per RUN", gates)
+        self.assertIn("not a review verdict and never a PASS", gates)
+        self.assertIn("--blocker-class environment|review", state)
+        self.assertIn("environment-blocked review attempt is", gen_verify)
+        self.assertIn("Environment-blocked review attempts do not count", bounded)
+        self.assertIn("a note never opens a round", bounded)
+        # The security lens follows the diff, not a fixed rule.
+        self.assertIn("Security lens applicability", gates)
+        self.assertIn("security: not_applicable (<reason>)", gates)
+        self.assertIn("security: not_applicable", skill)
+        # A PASS survives scope-disjoint bookkeeping commits.
+        self.assertIn("Scope-disjoint carry-forward", gates)
+        self.assertIn("reconcile-coordination-head", gates)
+        self.assertIn("scope-disjoint bookkeeping commits carry it forward", skill)
+        # The round records its planned review points.
+        self.assertIn("Review count budget", gates)
+        self.assertIn("Planned review points: <n> (<reasons>)", skill)
+        self.assertIn("reason for each beyond one review plus one re-check", stage)
+        self.assertIn("re-check scope", stage)
+
     def test_scripted_transition_flag_surfaces_are_documented(self) -> None:
         state = self.read("references/execution-state-model.md")
         skill = self.read("SKILL.md")
