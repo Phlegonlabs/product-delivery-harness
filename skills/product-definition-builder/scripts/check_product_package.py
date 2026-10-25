@@ -950,7 +950,7 @@ def _validate_delta_file(
         _add(problems, label, "delta title outcome contains an unfilled placeholder")
 
     _validate_heading_sequence(delta_text, DELTA_HEADINGS, path=label, problems=problems)
-    _extract_machine_block(
+    approval_block = _extract_machine_block(
         delta_text,
         PRODUCT_APPROVAL_START,
         PRODUCT_APPROVAL_END,
@@ -958,6 +958,33 @@ def _validate_delta_file(
         label="product-definition approval",
         problems=problems,
     )
+    if approval_block is not None:
+        for duplicate in _duplicate_bullet_fields(approval_block):
+            _add(problems, label, f"duplicate field {duplicate!r}")
+        approval_fields = _bullet_fields(approval_block)
+        _require_fields(
+            approval_fields,
+            ("Decision", "Decision owner", "Decided on", "Blocking items"),
+            path=label,
+            problems=problems,
+            require_filled=require_filled,
+        )
+        decision = approval_fields.get("decision", "").casefold()
+        if decision and decision not in VALID_DECISIONS:
+            _add(problems, label, f"invalid decision {decision!r}")
+        if require_approved and decision != "approved":
+            _add(problems, label, "Decision must be approved")
+        owner = approval_fields.get("decision owner", "")
+        if require_filled and _invalid_human_owner(owner):
+            _add(problems, label, "Decision owner must name a human owner")
+        decided_on = approval_fields.get("decided on", "")
+        if decided_on and not _real_date(decided_on):
+            _add(problems, label, "Decided on must be a real YYYY-MM-DD date")
+        elif decided_on and not _not_future_date(decided_on):
+            _add(problems, label, "Decided on cannot be in the future")
+        blockers = approval_fields.get("blocking items", "").casefold()
+        if require_approved and blockers not in {"none", "n/a"}:
+            _add(problems, label, "Blocking items must be none")
 
     meta_rows = _find_table(delta_text, DELTA_METADATA_HEADER)
     meta: dict[str, str] = {}

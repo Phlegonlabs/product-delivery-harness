@@ -2693,7 +2693,14 @@ def delta_document(
     result: str = "pending",
     changed_rows: str = "| PRD-001 | revised | Complete the fixture | Harden completion evidence with a signed run log | TEST-001 |",
     impact: str = DELTA_EIR,
+    decision: str | None = None,
+    blocking_items: str = "none",
 ) -> str:
+    decision_value = (
+        decision
+        if decision is not None
+        else (status if status in {"approved", "revision_requested", "blocked"} else "draft")
+    )
     return f"""# PRD Delta {epic_id}: Harden the fixture gate
 
 | | |
@@ -2719,10 +2726,10 @@ The owner approved hardening completion evidence before wider adoption.
 ## Approval
 <!-- product-definition-approval:start -->
 ### Delta Approval
-- Decision: {status if status in {"approved", "revision_requested", "blocked"} else "draft"}
+- Decision: {decision_value}
 - Decision owner: Owner
 - Decided on: 2026-09-12
-- Blocking items: none
+- Blocking items: {blocking_items}
 <!-- product-definition-approval:end -->
 """
 
@@ -2854,6 +2861,30 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         delta = delta_document(status="draft", result=f"sha256:{self.result_digest(package)}")
         findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
         self.assertTrue(any("Status must be approved" in finding for finding in findings), findings)
+
+    def test_delta_mode_rejects_blocked_delta_approval(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            decision="blocked",
+            blocking_items="unresolved",
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
+        self.assertTrue(any("Decision must be approved" in finding for finding in findings), findings)
+        self.assertTrue(any("Blocking items must be none" in finding for finding in findings), findings)
+
+    def test_delta_mode_rejects_incomplete_delta_approval(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(result=f"sha256:{self.result_digest(package)}").replace(
+            "- Decision owner: Owner" + chr(10),
+            "",
+            1,
+        )
+        findings = self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}, require_approved=True)
+        self.assertTrue(
+            any("missing required field 'Decision owner'" in finding for finding in findings),
+            findings,
+        )
 
     def test_ambition_package_without_deltas_passes(self) -> None:
         package = self.finalize(delta_mode_prd(latest_line=None))
