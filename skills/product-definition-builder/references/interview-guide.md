@@ -32,7 +32,7 @@ Every final-phase question carries a skip rule, so ask only what remains applica
 
 ## Segmented Free-Text Sequence
 
-For a fresh package, use exactly three planned free-text turns. Ask only one segment per turn, end the turn, and wait for the reply. Before sending the next segment, remove prompts that the user's request, repository, existing package, or earlier replies already answer or make inapplicable. If a reply answers a later segment early, carry it forward instead of repeating it.
+For a fresh package, use exactly four planned free-text turns. Ask only one segment per turn, end the turn, and wait for the reply. Before sending the next segment, remove prompts that the user's request, repository, existing package, or earlier replies already answer or make inapplicable. If a reply answers a later segment early, carry it forward instead of repeating it.
 
 The short prompts below are the user-facing interview. Do not paste the longer **Question Routing Reference** as a questionnaire; use it only to interpret answers, detect gaps, and prepare concise follow-ups. Segment 1 must tell the user that applicable multiple-choice decisions follow after the open-ended sequence. No `AskUserQuestion` call may interrupt these segments.
 
@@ -71,11 +71,23 @@ Ask the unresolved parts of these short prompts:
 
 Capture internally: scope and non-goals; architecture and build-versus-buy constraints; cost, licensing, and lock-in tolerances; expected deployable surfaces; stable development and production targets; source refs; artifacts and signing; channels; release gates; availability signals; rollout and recovery; success metrics with baseline, window, source, and owner; measurable NFRs; test obligations; risks; observability; audit; jobs; and queues. For multiple platforms, record the owner-selected whole-platform order and each required stage-completion TEST; a single platform may record a concrete not-required reason. Ask concise targeted follow-ups rather than exposing this entire capture list to the user.
 
-After segment 3, compare the aggregate answers with **Completeness Criteria**. If a material item is still missing and the user did not authorize assumptions, ask one compact targeted free-text follow-up containing only the missing items. This follow-up is an exception, not a fourth planned segment. Begin the closed `AskUserQuestion` phase only after the coverage check passes.
+### Segment 4 — Ambition
+
+Ask the unresolved parts of these short prompts:
+
+- After this works, what should happen next? Which decision or recurring ritual does it feed, and what would make it unnecessary?
+- Who does this best today, what instruments and raw material do they work from, and can we get the same access (data, tools, a machine the model can install software on)?
+- Beyond the acceptable target, what is the unreasonable target?
+- Other than you and us, what would prove it worked?
+- Said as verbs, what is this work, and which other fields should be on the crew?
+
+Capture internally: the three rungs with their outside judges, best practitioners, their instruments, rawest material, stretch targets, the work restated as verbs, other fields on the crew with their roles, and access gaps. Record them in the PRD's `## Ambition` section per `output-contract.md`.
+
+After segment 4, compare the aggregate answers with **Completeness Criteria**. If a material item is still missing and the user did not authorize assumptions, ask one compact targeted free-text follow-up containing only the missing items. This follow-up is an exception, not a fifth planned segment. Begin the closed `AskUserQuestion` phase only after the coverage check passes.
 
 ## Question Routing Reference
 
-Ask only questions that are not already answered. Route unresolved details into the three short segments above or into the closed-question phase; do not emit this section as one long interview message.
+Ask only questions that are not already answered. Route unresolved details into the four short segments above or into the closed-question phase; do not emit this section as one long interview message.
 
 1. Product goal
    - What problem should this solve?
@@ -150,6 +162,11 @@ Ask only questions that are not already answered. Route unresolved details into 
     - Which metrics define launch success? For each, name the baseline, target or guardrail, measurement window, source/method, and owner.
     - Which observable test obligations must pass before release? Identify the functional or non-functional requirement each obligation proves, its test type, and its literal or measurable expected signal. The PRD assigns stable `TEST-*` IDs during synthesis.
     - What risks or unknowns should the team investigate first?
+12. Ambition
+    - What is the goal beyond the goal, and which rung of the ladder does this release serve?
+    - Who does this best today, and can we match their instruments, raw material, and access?
+    - What is the unreasonable target, and who outside the team proves it?
+    - Said as verbs, what is this work, and which fields belong on the crew?
 
 ## Completeness Criteria
 
@@ -173,7 +190,8 @@ Discovery is complete enough to draft when the agent can state:
 - The UI screens or interaction points that need a canonical PRD surface entry.
 - Approved or draft exact wording and bounded display responsibilities for visible regions, or permission to derive them.
 - The named human owner for the later `ui-design-builder` phase, or an explicit `not_required` result for a headless product. UI layout, visual, motion, media, wireframe, and token decisions remain deferred.
-- The success metrics and acceptance criteria, including baseline, target/guardrail, measurement window, source/method, and owner.
+- The success metrics and acceptance criteria, including baseline, target/guardrail, stretch, measurement window, source/method, and owner.
+- The Ambition ladder with an outside judge on every rung, at least one stretch target, the crew or an explicit `none`, and the access gaps.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
 - The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
 
@@ -183,7 +201,7 @@ If any item is missing and the user did not authorize assumptions, ask follow-up
 
 When `docs/product/PRD.md` (or another document clearly describing the same product) already exists, this run enhances it instead of starting fresh. Read the existing package in full first, then run a delta interview:
 
-- Record an `Enhancement Impact Record` before drafting. Classify product scope/behavior, UI structure/style, data/integrations, architecture/stack, data trust / AI, Security, monetization/partner channels, and release/operations as unchanged or changed; keep the existing `none` / `structure` / `style` / `both` vocabulary for the UI row. Each changed row names the affected IDs or decisions, artifacts to refresh, and approval gates to rerun. A Security change that changes a stack decision also marks Architecture/stack changed.
+- Record an `Enhancement Impact Record` in this round's PRD delta (`docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`, `artifact-lifecycle.md`) before drafting. Classify product scope/behavior, UI structure/style, data/integrations, architecture/stack, data trust / AI, Security, monetization/partner channels, and release/operations as unchanged or changed; keep the existing `none` / `structure` / `style` / `both` vocabulary for the UI row. Each changed row names the affected IDs or decisions, artifacts to refresh, and approval gates to rerun. A Security change that changes a stack decision also marks Architecture/stack changed.
 - First, classify the delta's UI impact explicitly with the owner: `none` (no UI change), `structure` (product-defined screens, routes, flows, or states change), `style` (only the downstream UI direction or design system is affected), or `both`. A `style`-only request routes to `ui-design-builder`; `structure` or `both` updates Product Definition first and then refreshes downstream UI approval.
 - Ask only about the categories above that the new idea actually adds to, changes, or leaves unresolved.
 - Do not re-ask a question the existing package already answers; carry that answer forward unchanged.
@@ -191,6 +209,7 @@ When `docs/product/PRD.md` (or another document clearly describing the same prod
 - Preserve stable release target IDs for unchanged targets. Add a target ID only for a new release destination, and retire rather than reuse an ID when a target is removed.
 - When the new idea adds a mobile, desktop, or browser-extension target, re-trigger the applicable target-set and implementation-strategy questions for that new target. Existing target answers remain unchanged.
 - If the new idea conflicts with an existing decision, surface the conflict explicitly and ask which should win instead of silently overwriting it.
+- Ask Segment 4 only when the delta changes goals, metrics, users, or the delta's ambition rung.
 
 ## Assumption Mode
 
@@ -201,3 +220,4 @@ If the user asks for a first draft without more questions:
 - Add unresolved items to the structured `Open Questions` table with owner, deadline, approval impact, and status.
 - Do not invent downstream UI choices. Record the `ui-design-builder` handoff as pending instead of assuming layout, style, motion, media, wireframe, or token decisions.
 - Do not invent compliance requirements or pricing. A named technology recommendation is allowed when it follows the applicable stack-selection guide, is supported by known requirements, and clearly identifies assumptions and alternatives; it remains `Recommended` and cannot pass Product Definition Approval unless the owner accepts it or previously delegated that exact decision class.
+- Draft the PRD's `## Ambition` section with `Assumed` markers on unverified entries.
