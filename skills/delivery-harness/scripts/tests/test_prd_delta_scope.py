@@ -115,7 +115,8 @@ class PrdDeltaScopeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
-        self.root = Path(self.directory.name).resolve()
+        self.root = Path(self.directory.name).resolve() / "repo"
+        self.root.mkdir()
         self.delta_path = self.root / DELTA_LOCATION
         self.delta_path.parent.mkdir(parents=True)
         self.delta_bytes = (DELTA_TEXT % ("f" * 64)).encode("utf-8")
@@ -132,9 +133,10 @@ class PrdDeltaScopeTests(unittest.TestCase):
         )
 
     def write_outside_delta(self) -> Path:
+        # The enclosing temporary directory is test-owned, so the outside
+        # fixture never touches a shared path and needs no separate cleanup.
         outside = self.root.parent / "prd-delta-escape.md"
         outside.write_bytes(self.delta_bytes)
-        self.addCleanup(lambda: outside.unlink(missing_ok=True))
         return outside
 
     def plan_with_location(self, location: str) -> dict[str, object]:
