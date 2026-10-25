@@ -46,6 +46,8 @@ Scope-disjoint carry-forward. A review PASS bound to SHA X stays valid for a des
 
 Security lens applicability. On the direct route, the security lens is required when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling, or data access. A diff that touches only documentation, copy, Epics, evidence records, PLAN/RUN bookkeeping, or design-source text records `security: not_applicable (<reason>)` with the changed path list as evidence instead of `UNVALIDATED`. Managed PLANs keep `security_review.status` as today.
 
+Review count budget. Record the planned review points for the round: reviewer dispatches, not self-checks. Give the reason for each point beyond one combined review plus one re-check.
+
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
 
 ## Gate Levels
