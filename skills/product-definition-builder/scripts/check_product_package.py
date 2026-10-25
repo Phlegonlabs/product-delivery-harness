@@ -19,6 +19,7 @@ from release_targets import parse_release_targets
 from git_evidence import GitEvidenceError, verify_revision_path
 from eval_policy import validate_eval_policy
 from contract_utils import (
+    _without_machine_block,
     canonical_product_bytes,
     canonical_stack_bytes,
     parse_digest,
@@ -138,6 +139,25 @@ REQUIRED_ENHANCEMENT_AREAS = {
     "monetization / partner",
     "release / operations",
 }
+
+DELTA_METADATA_HEADER = ("", "")
+DELTA_METADATA_KEYS = ("epic", "baseline prd", "result prd", "status", "ambition rung")
+DELTA_FILENAME_RE = re.compile(r"PRD-DELTA-(EPIC-\d+)\.md")
+DELTA_LATEST_LINE_RE = re.compile(r"(?m)^\s*Latest delta:\s*(\S+)\s*$")
+DELTA_LATEST_PATH_RE = re.compile(r"docs/product/deltas/PRD-DELTA-(EPIC-\d+)\.md")
+DELTA_EPIC_PATH_RE = re.compile(r"docs/epics/(EPIC-\d+)-[a-z0-9][a-z0-9-]*\.md", re.I)
+DELTA_HEADINGS = (
+    "## Why",
+    "## Enhancement Impact Record",
+    "## Changed Requirements",
+    "## Decisions",
+    "## Approval",
+)
+CHANGED_REQUIREMENTS_HEADER = ("id", "change", "before", "after", "test ids")
+VALID_DELTA_CHANGES = {"new", "revised", "retired"}
+VALID_DELTA_STATUSES = {"draft", "approved"}
+VALID_DELTA_TRACE_ID_RE = r"(?:PRD|UX|UI|ARCH)-[A-Z0-9-]+"
+HEADING_DATE_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 
 STACK_OPTIONS_HEADER = (
     "option id",
@@ -653,6 +673,399 @@ def _explicit_absence_reason(value: str) -> str | None:
         re.IGNORECASE | re.DOTALL,
     )
     return match.group(1).strip() if match else None
+
+
+def _latest_delta_reference(prd_text: str) -> str | None:
+    decisions = _section(prd_text, "## Product Definition Decisions")
+    if decisions is None:
+        return None
+    match = DELTA_LATEST_LINE_RE.search(decisions)
+    return match.group(1).strip() if match else None
+
+
+def _validate_enhancement_impact_record(
+    artifact_text: str,
+    *,
+    known_ids: set[str],
+    require_filled: bool,
+    problems: list[str],
+    path: str = "prd",
+) -> None:
+    impact_section = _section(artifact_text, "## Enhancement Impact Record")
+    impact_rows = (
+        _find_table(impact_section, ENHANCEMENT_IMPACT_HEADER)
+        if impact_section is not None
+        else None
+    )
+    if impact_rows is None:
+        _add(problems, path, "Enhancement Impact Record has no impact table")
+        return
+    _validate_table_rows(
+        impact_rows,
+        len(ENHANCEMENT_IMPACT_HEADER),
+        label="Enhancement Impact Record",
+        require_filled=require_filled,
+        problems=problems,
+        path=path,
+    )
+    seen_areas: set[str] = set()
+    for row in impact_rows:
+        if len(row) != len(ENHANCEMENT_IMPACT_HEADER):
+            continue
+        area = row[0].casefold()
+        if area in seen_areas:
+            _add(problems, path, f"Enhancement Impact Record has duplicate area {row[0]!r}")
+        seen_areas.add(area)
+        impact = row[1].casefold()
+        if area == "ui structure / style":
+            valid_impacts = {"none", "structure", "style", "both"}
+        else:
+            valid_impacts = {"unchanged", "changed"}
+        if impact not in valid_impacts:
+            _add(problems, path, f"{row[0]} has invalid enhancement impact {row[1]!r}")
+        changed = impact in {"changed", "structure", "style", "both"}
+        if changed:
+            referenced_ids = {
+                match.group(0).upper()
+                for match in re.finditer(
+                    r"\b(?:PRD|UX|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b",
+                    row[2],
+                    re.IGNORECASE,
+                )
+            }
+            unknown_ids = sorted(referenced_ids - known_ids)
+            if unknown_ids:
+                _add(
+                    problems,
+                    path,
+                    f"changed enhancement row {row[0]} references unknown IDs: "
+                    + ", ".join(unknown_ids),
+                )
+            if not (
+                re.search(r"\b(?:PRD|UX|UI|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b", row[2], re.IGNORECASE)
+                or re.search(r"\bdecision:\s*\S", row[2], re.IGNORECASE)
+            ):
+                _add(
+                    problems,
+                    path,
+                    f"changed enhancement row {row[0]} must name structured "
+                    "affected IDs or decision:<name> entries",
+                )
+            refresh = row[3].casefold()
+            if (
+                not _meaningful(row[3])
+                or refresh in {"none", "n/a"}
+                or refresh.startswith(("none ", "none —", "none-", "n/a "))
+                or ENHANCEMENT_ARTIFACT_RE.search(row[3]) is None
+            ):
+                _add(
+                    problems,
+                    path,
+                    f"changed enhancement row {row[0]} must record a non-none "
+                    "refresh",
+                )
+    missing = sorted(REQUIRED_ENHANCEMENT_AREAS - seen_areas)
+    if missing:
+        _add(
+            problems,
+            path,
+            "Enhancement Impact Record is missing areas: " + ", ".join(missing),
+        )
+
+
+def _validate_delta_file(
+    delta_path: Path,
+    delta_text: str,
+    *,
+    latest: bool,
+    repo_root: Path | None,
+    require_filled: bool,
+    require_approved: bool,
+    current_prd_digest: str,
+    known_requirement_ids: set[str],
+    known_test_ids: set[str],
+    impact_known_ids: set[str],
+    problems: list[str],
+) -> None:
+    label = f"delta {delta_path.name}"
+    filename_match = DELTA_FILENAME_RE.fullmatch(delta_path.name)
+    epic_id = filename_match.group(1) if filename_match else None
+    title = re.search(r"(?m)^# PRD Delta (EPIC-\d+): (.+)$", active_text(delta_text))
+    if epic_id is None:
+        _add(
+            problems,
+            label,
+            "delta filename must match PRD-DELTA-<EPIC-ID>.md with EPIC-<digits>",
+        )
+    elif title is None:
+        _add(problems, label, "missing '# PRD Delta <EPIC-ID>: <outcome>' title")
+    elif title.group(1) != epic_id:
+        _add(
+            problems,
+            label,
+            f"title epic {title.group(1)!r} does not match filename {delta_path.name!r}",
+        )
+    elif require_filled and _placeholder_cell(title.group(2)):
+        _add(problems, label, "delta title outcome contains an unfilled placeholder")
+
+    _validate_heading_sequence(delta_text, DELTA_HEADINGS, path=label, problems=problems)
+    _extract_machine_block(
+        delta_text,
+        PRODUCT_APPROVAL_START,
+        PRODUCT_APPROVAL_END,
+        path=label,
+        label="product-definition approval",
+        problems=problems,
+    )
+
+    meta_rows = _find_table(delta_text, DELTA_METADATA_HEADER)
+    meta: dict[str, str] = {}
+    if meta_rows is None:
+        _add(
+            problems,
+            label,
+            "delta must open with the two-column metadata table (Epic, "
+            "Baseline PRD, Result PRD, Status, Ambition rung)",
+        )
+    else:
+        for row in meta_rows:
+            if len(row) != len(DELTA_METADATA_HEADER):
+                _add(problems, label, f"delta metadata row has {len(row)} cells, expected 2")
+                continue
+            key = row[0].casefold()
+            if key in meta:
+                _add(problems, label, f"duplicate delta metadata key {row[0]!r}")
+            meta[key] = row[1]
+        for key in DELTA_METADATA_KEYS:
+            if key not in meta:
+                _add(problems, label, f"delta metadata is missing {key!r}")
+
+    epic_value = meta.get("epic", "")
+    epic_path_match = DELTA_EPIC_PATH_RE.fullmatch(epic_value.strip())
+    if "epic" in meta:
+        if epic_path_match is None:
+            _add(
+                problems,
+                label,
+                "delta metadata Epic must reference docs/epics/<EPIC-ID>-<slug>.md",
+            )
+        elif epic_id is not None and epic_path_match.group(1).upper() != epic_id:
+            _add(problems, label, "delta metadata Epic ID does not match the delta filename")
+        elif (
+            latest
+            and repo_root is not None
+            and not (repo_root / epic_value.strip()).is_file()
+        ):
+            _add(
+                problems,
+                label,
+                f"delta metadata Epic path does not exist: {epic_value.strip()}",
+            )
+    if "baseline prd" in meta and parse_digest(meta["baseline prd"]) is None:
+        _add(problems, label, "delta metadata Baseline PRD must use sha256:<64 lowercase hex>")
+    if "result prd" in meta:
+        result_digest = parse_digest(meta["result prd"])
+        if result_digest is None:
+            if meta["result prd"].strip().casefold() != "pending":
+                _add(
+                    problems,
+                    label,
+                    "delta metadata Result PRD must use sha256:<64 lowercase hex> or pending",
+                )
+            elif latest and require_approved:
+                _add(problems, label, "approved delta metadata Result PRD must not stay pending")
+        elif latest and result_digest != current_prd_digest:
+            _add(
+                problems,
+                label,
+                "delta metadata Result PRD hash does not match the current PRD.md content",
+            )
+    if "status" in meta:
+        status = meta["status"].strip().casefold()
+        if status not in VALID_DELTA_STATUSES:
+            _add(problems, label, "delta metadata Status must be draft or approved")
+        elif latest and require_approved and status != "approved":
+            _add(problems, label, "delta metadata Status must be approved")
+    if "ambition rung" in meta:
+        rung_match = re.fullmatch(r"\s*([123])\s*(?:—|-)\s*(.+?)\s*", meta["ambition rung"])
+        if rung_match is None:
+            _add(
+                problems,
+                label,
+                "delta metadata Ambition rung must use '1 / 2 / 3 — <one line>'",
+            )
+        elif require_filled and _placeholder_cell(rung_match.group(2)):
+            _add(problems, label, "delta metadata Ambition rung contains an unfilled placeholder")
+
+    changed_rows = _find_table(delta_text, CHANGED_REQUIREMENTS_HEADER)
+    if changed_rows is None:
+        _add(
+            problems,
+            label,
+            "delta must contain the Changed Requirements table "
+            "(ID | Change | Before | After | TEST IDs)",
+        )
+    else:
+        _validate_table_rows(
+            changed_rows,
+            len(CHANGED_REQUIREMENTS_HEADER),
+            label="Changed Requirements",
+            require_filled=require_filled,
+            problems=problems,
+            path=label,
+        )
+        for row in changed_rows:
+            if len(row) != len(CHANGED_REQUIREMENTS_HEADER):
+                continue
+            change = row[1].casefold()
+            if change not in VALID_DELTA_CHANGES:
+                _add(
+                    problems,
+                    label,
+                    f"Changed Requirements row {row[0]!r} Change must be new, revised or retired",
+                )
+            if not re.fullmatch(VALID_DELTA_TRACE_ID_RE, row[0].strip(), re.IGNORECASE):
+                _add(
+                    problems,
+                    label,
+                    f"Changed Requirements ID {row[0]!r} must be a PRD-/UX-/UI-/ARCH- trace ID",
+                )
+                continue
+            trace_id = row[0].strip().upper()
+            test_ids = _ids(row[4], "TEST")
+            if not test_ids and row[4].strip().casefold() not in {"none", "n/a"}:
+                _add(
+                    problems,
+                    label,
+                    f"Changed Requirements row {row[0]!r} TEST IDs must list TEST IDs or none",
+                )
+            if not latest:
+                continue
+            if change in {"new", "revised"}:
+                if trace_id not in known_requirement_ids:
+                    _add(
+                        problems,
+                        label,
+                        f"Changed Requirements {change} ID {trace_id} is absent from PRD.md",
+                    )
+                for test_id in sorted(test_ids - known_test_ids):
+                    _add(
+                        problems,
+                        label,
+                        f"Changed Requirements row {trace_id} references unknown {test_id}",
+                    )
+            elif change == "retired" and trace_id in known_requirement_ids:
+                _add(
+                    problems,
+                    label,
+                    f"Changed Requirements retired ID {trace_id} is still present in PRD.md",
+                )
+
+    impact_section = _section(delta_text, "## Enhancement Impact Record")
+    if impact_section is not None:
+        impact_rows = _find_table(impact_section, ENHANCEMENT_IMPACT_HEADER)
+        if impact_rows is None:
+            _add(problems, label, "Enhancement Impact Record has no impact table")
+        elif not latest:
+            _validate_table_rows(
+                impact_rows,
+                len(ENHANCEMENT_IMPACT_HEADER),
+                label="Enhancement Impact Record",
+                require_filled=require_filled,
+                problems=problems,
+                path=label,
+            )
+    if latest:
+        _validate_enhancement_impact_record(
+            delta_text,
+            known_ids=impact_known_ids,
+            require_filled=require_filled,
+            problems=problems,
+            path=label,
+        )
+
+
+def _validate_deltas(
+    prd_text: str,
+    deltas_dir: Path | None,
+    *,
+    require_filled: bool,
+    require_approved: bool,
+    repo_root: Path | None,
+    known_requirement_ids: set[str],
+    known_test_ids: set[str],
+    impact_known_ids: set[str],
+    problems: list[str],
+) -> None:
+    for line in active_text(prd_text).splitlines():
+        if re.match(r"^#{1,6}\s", line) and HEADING_DATE_RE.search(line):
+            _add(problems, "prd", f"delta mode forbids dated heading {line.strip()!r}")
+    if _has_heading(prd_text, "## Enhancement Impact Record"):
+        _add(
+            problems,
+            "prd",
+            "delta mode records the Enhancement Impact Record in PRD deltas, not PRD.md",
+        )
+    latest_reference = _latest_delta_reference(prd_text)
+    latest_name: str | None = None
+    if latest_reference is None:
+        _add(
+            problems,
+            "prd",
+            "Product Definition Decisions must record 'Latest delta: "
+            "docs/product/deltas/PRD-DELTA-<EPIC-ID>.md'",
+        )
+    else:
+        latest_match = DELTA_LATEST_PATH_RE.fullmatch(latest_reference)
+        if latest_match is None:
+            _add(
+                problems,
+                "prd",
+                "Latest delta must reference docs/product/deltas/PRD-DELTA-<EPIC-ID>.md",
+            )
+        else:
+            latest_name = f"PRD-DELTA-{latest_match.group(1)}.md"
+    if deltas_dir is None:
+        _add(
+            problems,
+            "prd",
+            "delta mode requires the docs/product/deltas directory to validate the recorded delta",
+        )
+        return
+    if not deltas_dir.is_dir():
+        _add(problems, "prd", f"delta mode requires the deltas directory {deltas_dir}")
+        return
+    delta_files = sorted(
+        path for path in deltas_dir.glob("*.md") if DELTA_FILENAME_RE.fullmatch(path.name)
+    )
+    if latest_name is not None and latest_name not in {path.name for path in delta_files}:
+        _add(problems, "prd", f"Latest delta file {latest_reference} is missing")
+    current_prd_digest = sha256_text(
+        _without_machine_block(prd_text, PRODUCT_APPROVAL_START, PRODUCT_APPROVAL_END)
+    )
+    for delta_path in delta_files:
+        try:
+            delta_text = delta_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            _add(
+                problems,
+                f"delta {delta_path.name}",
+                f"cannot read UTF-8 file {delta_path}: {exc}",
+            )
+            continue
+        _validate_delta_file(
+            delta_path,
+            delta_text,
+            latest=delta_path.name == latest_name,
+            repo_root=repo_root,
+            require_filled=require_filled,
+            require_approved=require_approved,
+            current_prd_digest=current_prd_digest,
+            known_requirement_ids=known_requirement_ids,
+            known_test_ids=known_test_ids,
+            impact_known_ids=impact_known_ids,
+            problems=problems,
+        )
 
 
 def _validate_architecture_sections(
@@ -1428,6 +1841,8 @@ def validate_texts(
     ui_contract: str | None = None,
     eval_policy: str | None = None,
     platform_delivery: str | None = None,
+    deltas_dir: Path | None = None,
+    notes: list[str] | None = None,
 ) -> list[str]:
     """Validate already-decoded core product-package texts."""
 
@@ -1443,6 +1858,9 @@ def validate_texts(
         raise ValueError("unsupported --platform-delivery value")
     problems: list[str] = validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
+    )
+    delta_mode = (_latest_delta_reference(prd_text) is not None) or (
+        deltas_dir is not None and deltas_dir.is_dir()
     )
 
     prd_required_headings = (
@@ -2695,6 +3113,15 @@ def validate_texts(
         ):
             _add(problems, "prd", "skipped Research Gate requires a reason")
 
+    impact_known_ids = (
+        requirement_ids
+        | ux_ids
+        | architecture_ids
+        | known_test_ids
+        | _ids(prd_text, "MR")
+        | _ids(prd_text, "RA")
+    )
+
     product_block = _extract_machine_block(
         prd_text,
         PRODUCT_APPROVAL_START,
@@ -2822,116 +3249,40 @@ def validate_texts(
         mode = product_fields.get("package mode", "").casefold()
         if mode and mode not in {"new", "enhancement"}:
             _add(problems, "prd approval", f"invalid Package mode {mode!r}")
-        if mode == "enhancement" and not _has_heading(
-            prd_text, "## Enhancement Impact Record"
-        ):
-            _add(
-                problems,
-                "prd",
-                "enhancement package is missing Enhancement Impact Record",
-            )
-        elif mode == "enhancement":
-            impact_section = _section(prd_text, "## Enhancement Impact Record")
-            impact_rows = (
-                _find_table(impact_section, ENHANCEMENT_IMPACT_HEADER)
-                if impact_section is not None
-                else None
-            )
-            if impact_rows is None:
-                _add(problems, "prd", "Enhancement Impact Record has no impact table")
+        if mode == "enhancement" and not delta_mode:
+            if not _has_heading(prd_text, "## Enhancement Impact Record"):
+                _add(
+                    problems,
+                    "prd",
+                    "enhancement package is missing Enhancement Impact Record",
+                )
             else:
-                _validate_table_rows(
-                    impact_rows,
-                    len(ENHANCEMENT_IMPACT_HEADER),
-                    label="Enhancement Impact Record",
+                _validate_enhancement_impact_record(
+                    prd_text,
+                    known_ids=impact_known_ids,
                     require_filled=require_filled,
                     problems=problems,
                 )
-                seen_areas: set[str] = set()
-                for row in impact_rows:
-                    if len(row) != len(ENHANCEMENT_IMPACT_HEADER):
-                        continue
-                    area = row[0].casefold()
-                    if area in seen_areas:
-                        _add(
-                            problems,
-                            "prd",
-                            f"Enhancement Impact Record has duplicate area {row[0]!r}",
-                        )
-                    seen_areas.add(area)
-                    impact = row[1].casefold()
-                    if area == "ui structure / style":
-                        valid_impacts = {"none", "structure", "style", "both"}
-                    else:
-                        valid_impacts = {"unchanged", "changed"}
-                    if impact not in valid_impacts:
-                        _add(
-                            problems,
-                            "prd",
-                            f"{row[0]} has invalid enhancement impact {row[1]!r}",
-                        )
-                    changed = impact in {"changed", "structure", "style", "both"}
-                    if changed:
-                        referenced_ids = {
-                            match.group(0).upper()
-                            for match in re.finditer(
-                                r"\b(?:PRD|UX|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b",
-                                row[2],
-                                re.IGNORECASE,
-                            )
-                        }
-                        known_ids = (
-                            requirement_ids
-                            | ux_ids
-                            | architecture_ids
-                            | known_test_ids
-                            | _ids(prd_text, "MR")
-                            | _ids(prd_text, "RA")
-                        )
-                        unknown_ids = sorted(referenced_ids - known_ids)
-                        if unknown_ids:
-                            _add(
-                                problems,
-                                "prd",
-                                f"changed enhancement row {row[0]} references unknown IDs: "
-                                + ", ".join(unknown_ids),
-                            )
-                        if not (
-                            re.search(
-                                r"\b(?:PRD|UX|UI|ARCH|TEST|MR|RA)-[A-Z0-9-]+\b",
-                                row[2],
-                                re.IGNORECASE,
-                            )
-                            or re.search(r"\bdecision:\s*\S", row[2], re.IGNORECASE)
-                        ):
-                            _add(
-                                problems,
-                                "prd",
-                                f"changed enhancement row {row[0]} must name structured "
-                                "affected IDs or decision:<name> entries",
-                            )
-                        refresh = row[3].casefold()
-                        if (
-                            not _meaningful(row[3])
-                            or refresh in {"none", "n/a"}
-                            or refresh.startswith(("none ", "none —", "none-", "n/a "))
-                            or ENHANCEMENT_ARTIFACT_RE.search(row[3]) is None
-                        ):
-                            _add(
-                                problems,
-                                "prd",
-                                f"changed enhancement row {row[0]} must record a non-none "
-                                "refresh",
-                            )
-                present = seen_areas
-                missing = sorted(REQUIRED_ENHANCEMENT_AREAS - present)
-                if missing:
-                    _add(
-                        problems,
-                        "prd",
-                        "Enhancement Impact Record is missing areas: "
-                        + ", ".join(missing),
-                    )
+
+    if delta_mode:
+        _validate_deltas(
+            prd_text,
+            deltas_dir,
+            require_filled=require_filled,
+            require_approved=require_approved,
+            repo_root=repo_root,
+            known_requirement_ids=requirement_ids
+            | ux_ids
+            | architecture_ids
+            | set(ui_surfaces),
+            known_test_ids=known_test_ids,
+            impact_known_ids=impact_known_ids,
+            problems=problems,
+        )
+    elif notes is not None:
+        notes.append(
+            "legacy package: no docs/product/deltas directory; delta checks skipped"
+        )
 
     stack_block = _extract_machine_block(
         stack_text,
@@ -3100,6 +3451,7 @@ def validate(
     ui_contract: str | None = None,
     eval_policy: str | None = None,
     platform_delivery: str | None = None,
+    notes: list[str] | None = None,
 ) -> list[str]:
     """Read and validate the three canonical core package files."""
 
@@ -3123,6 +3475,8 @@ def validate(
         ui_contract=ui_contract,
         eval_policy=eval_policy,
         platform_delivery=platform_delivery,
+        deltas_dir=prd_path.parent / "deltas",
+        notes=notes,
     )
 
 
@@ -3150,6 +3504,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
+    notes: list[str] = []
     problems = validate(
         args.prd,
         args.architecture,
@@ -3160,7 +3515,10 @@ def main(argv: list[str] | None = None) -> int:
         ui_contract=args.ui_contract,
         eval_policy=args.eval_policy,
         platform_delivery=args.platform_delivery,
+        notes=notes,
     )
+    for note in notes:
+        print(f"INFO {note}")
     if problems:
         for problem in problems:
             print(f"FAIL {problem}", file=sys.stderr)
