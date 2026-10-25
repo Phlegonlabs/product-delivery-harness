@@ -110,6 +110,31 @@ Changed rows use area-specific refreshes. Product behavior reopens `PRD.md` and 
 ## Goals
 - [Goal]
 
+## Ambition
+### Goal Beyond The Goal
+| Rung | Outcome | Outside judge |
+| --- | --- | --- |
+| 1 | [the task done well] | [what proves it, other than us] |
+| 2 | [the outcome the task serves] | [...] |
+| 3 | [the durable workflow or replaced ritual that takes the human out of the loop] | [...] |
+
+### Depth
+| Best practitioners | Their instruments | Rawest material | Stretch target | Outside judge |
+| --- | --- | --- | --- | --- |
+
+### Range
+Verbs: [the work restated as verbs, e.g. "getting busy people to believe a story about cause and effect and decide under uncertainty in 30 minutes"]
+
+| Field | What they actually do here | Method or tool | Used as |
+| --- | --- | --- | --- |
+| [journalist] | [...] | [...] | design input / review lens / go-to-market |
+
+### Access
+| Need | Present or missing | Unlocks |
+| --- | --- | --- |
+
+Rungs are better, not bigger. The outside judge is never the model or the owner's impression. A stretch target is recorded as reasonable, but acceptance still uses the TEST and metric target. Crew rows marked `review lens` become optional domain lenses for the delivery review; Harness owns that rule in [Review Topology](../../delivery-harness/references/verification-gates.md#review-topology). Do what the field does: each crew row names what that field actually does here, not a role-play. `## Ambition` is required for packages created or enhanced under this contract version; a package without `docs/product/deltas/` and without `## Ambition` is legacy and stays valid.
+
 ## Non-Goals
 - [Explicitly out of scope]
 
@@ -264,9 +289,10 @@ Record both gates even when they are not required. Do not select RevenueCat mere
 Use `monetization-and-partner-channel-guide.md` to select providers only after these decisions. If either gate is `required`, add every customer, partner, and admin surface to the UI Surface Contract and add observable success, failure, cancellation, refund, attribution, commission, payout, provisioning, and termination obligations. The later `ui-design-builder` run projects those approved surfaces into HiFi.
 
 ## Metrics
-| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |
-| --- | --- | --- | --- | --- | --- | --- |
+| Metric | Definition | Baseline | Target / guardrail | Stretch | Measurement window | Source / method | Owner |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 
+`Stretch` records the unreasonable target from `## Ambition` Depth; acceptance still uses `Target / guardrail`.
 Define the GA4/Firebase or approved alternative destination, canonical events and collection controls before dependent feature work.
 Trace initial event delivery, duplicate prevention and test-traffic isolation through TEST obligations; actual production measurement remains release-bound.
 
@@ -901,7 +927,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Each artifact opens with human-readable content and keeps decision records near the end: `PRD.md` opens with `## At a Glance`, records `## UI Design Handoff Status`, and closes with `## Product Definition Decisions`; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` opens with its machine-anchored Stack Decision Checkpoint and closes with `## Options And Open Decisions`.
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
-- No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
+- No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical, and the Metrics table's `Stretch` column.
 
 ### Completeness
 
