@@ -358,7 +358,7 @@ def render_packet(
         f"- Reviewed head: `{head}`",
         f"- Base: `{base}`",
         f"- Attempts: {run['graph_state']['node_states'][node_id]['attempts']}/{node['max_attempts']}",
-        "Classify every observation as a blocking finding (defect against"
+        "- Classify every observation as a blocking finding (defect against"
         " accepted scope, TEST obligations, security, or correctness) or a"
         " non-blocking note; notes never block.",
         f"- Scope: {', '.join(review['scope'])}",
