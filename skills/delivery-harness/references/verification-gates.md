@@ -28,7 +28,7 @@ For RUN-v11 screenshot evidence, the order is immutable Git blob read, safe byte
 
 ## Review Topology
 
-Default `review_policy: final_candidate`. One review node on the unified candidate carries every lens its diff needs, listed in `review.lenses`: `frontend_code` or `backend_code` for changed code, `visual` with `required_tools: ["chrome_devtools"]` when the PLAN has `ui_surfaces`, and `security` always. Its `review.type` is the widest lens (security, visual, frontend_code, backend_code). It binds the exact `integration_head_sha`, loads `code-security-review` for the security lens, and returns one consolidated finding set. A mission integrates after `worker_passed` and the Worker Result Gate; no mission review precedes it.
+Default `review_policy: final_candidate`. One review node on the unified candidate carries every lens its diff needs, listed in `review.lenses`: `frontend_code` or `backend_code` for changed code, `visual` with `required_tools: ["chrome_devtools"]` when the PLAN has `ui_surfaces`, and `security` when the plan's security policy requires it. Its `review.type` is the widest lens (security, visual, frontend_code, backend_code). It binds the exact `integration_head_sha`, loads `code-security-review` for the security lens, and returns one consolidated finding set. A mission integrates after `worker_passed` and the Worker Result Gate; no mission review precedes it.
 
 One reviewer per candidate. Parallel reviewers on one candidate or surface group need an explicit owner request and return one consolidated finding set through the parent; they never each start a repair loop.
 
