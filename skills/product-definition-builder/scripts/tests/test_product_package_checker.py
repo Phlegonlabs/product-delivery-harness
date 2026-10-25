@@ -2937,6 +2937,20 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         findings = self.validate(package)
         self.assertTrue(any("non-empty 'Verbs:' line" in finding for finding in findings), findings)
 
+    def test_ambition_rejects_an_empty_range_crew_table(self) -> None:
+        package = self.finalize(
+            delta_mode_prd(latest_line=None).replace(
+                "| Package review | Review rejected findings weekly | Unit test suites | design input |"
+                + chr(10)
+                + "| Release planning | Weigh gate findings against launch dates | Roadmap reviews | review lens |"
+                + chr(10),
+                "",
+                1,
+            )
+        )
+        findings = self.validate(package)
+        self.assertTrue(any("Range crew table" in finding for finding in findings), findings)
+
     def test_ambition_rejects_bad_range_used_as(self) -> None:
         package = self.finalize(
             delta_mode_prd(latest_line=None).replace("| Roadmap reviews | review lens |", "| Roadmap reviews | marketing |", 1)

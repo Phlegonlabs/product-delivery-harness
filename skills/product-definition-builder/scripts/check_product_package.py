@@ -884,6 +884,12 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
                 require_filled=require_filled,
                 problems=problems,
             )
+            if not range_rows:
+                _add(
+                    problems,
+                    "prd",
+                    "Range crew table must contain at least one row or the explicit 'none' row",
+                )
             if any(len(row) == len(AMBITION_RANGE_HEADER) and row[0].casefold() == "none" for row in range_rows):
                 if len(range_rows) != 1:
                     _add(problems, "prd", "Range 'none' row must be the table's only row")
