@@ -175,6 +175,53 @@ def _is_reconciled_interrupted_review(
     )
 
 
+def _is_environment_blocked_review(
+    worker: dict[str, Any],
+    node: dict[str, Any] | None,
+    attempt_log: Any,
+) -> bool:
+    """Recognize one transition-authored environment-blocked review attempt.
+
+    The reviewer never inspected the candidate, so the attempt carries no
+    structured review result; its unique retained entry names the environment
+    blocker class instead.
+    """
+
+    if (
+        worker.get("phase") != "blocked"
+        or worker.get("outcome") != "blocked"
+        or not isinstance(node, dict)
+        or not isinstance(node.get("review"), dict)
+        or not isinstance(attempt_log, list)
+    ):
+        return False
+    matches = [
+        attempt
+        for attempt in attempt_log
+        if isinstance(attempt, dict)
+        and attempt.get("attempt_id") == worker.get("attempt_id")
+    ]
+    return (
+        len(matches) == 1
+        and matches[0].get("kind") == "review"
+        and matches[0].get("result") == "blocked"
+        and matches[0].get("blocker_class") == "environment"
+        and matches[0].get("review_lineage_id")
+        == node["review"].get("lineage_id")
+    )
+
+
+def _validate_note_list(errors: list[str], path: str, notes: Any) -> None:
+    """Validate an optional list of non-empty review notes."""
+
+    if notes is None:
+        return
+    if not isinstance(notes, list) or any(
+        not _nonempty_string(item) for item in notes
+    ):
+        _add(errors, path, "must be a list of non-empty strings")
+
+
 def _sortable_acceptance_ids(value: Any) -> list[str] | None:
     """Return semantic TEST order only when the retained array has valid IDs."""
 
@@ -3641,6 +3688,8 @@ def _validate_run_attempt_log(
                 "verifier_dispatch",
                 "push_receipt",
                 "worker_ingestion_reconciliation",
+                "blocker_class",
+                "notes",
             }
             if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
                 continue
@@ -3904,6 +3953,17 @@ def _validate_run_attempt_log(
                 _add(errors, f"{path}.task_id", "is unknown")
             _strings(errors, f"{path}.evidence", attempt["evidence"])
             _optional_string(errors, f"{path}.review_lineage_id", attempt.get("review_lineage_id"))
+            blocker_class = attempt.get("blocker_class")
+            if blocker_class is not None and blocker_class not in {
+                "environment",
+                "review",
+            }:
+                _add(
+                    errors,
+                    f"{path}.blocker_class",
+                    'must be "environment" or "review"',
+                )
+            _validate_note_list(errors, f"{path}.notes", attempt.get("notes"))
             _strings(errors, f"{path}.failure_family_ids", attempt.get("failure_family_ids", []))
 
 
@@ -5263,7 +5323,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 worker,
                 review_worker_keys,
                 {"tree_sha", "base_sha", "security_result",
-                 "result_receipt", "failure_receipt", "workspace_mode"},
+                 "result_receipt", "failure_receipt", "workspace_mode",
+                 "notes"},
             ):
                 continue
             for key in (
@@ -5317,6 +5378,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     )
             _optional_sha(errors, f"{path}.tree_sha", worker.get("tree_sha"))
             _optional_sha(errors, f"{path}.base_sha", worker.get("base_sha"))
+            _validate_note_list(errors, f"{path}.notes", worker.get("notes"))
             if worker["worker_id"] in worker_ids:
                 _add(errors, f"{path}.worker_id", "must be unique across all workers")
             worker_ids.add(worker["worker_id"])
@@ -5347,10 +5409,16 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     node,
                     run.get("attempt_log"),
                 )
+                environment_blocked_without_result = _is_environment_blocked_review(
+                    worker,
+                    node,
+                    run.get("attempt_log"),
+                )
                 if (
                     worker.get("phase") in terminal_security_phases
                     and security_result is None
                     and not interrupted_without_result
+                    and not environment_blocked_without_result
                 ):
                     _add(
                         errors,
