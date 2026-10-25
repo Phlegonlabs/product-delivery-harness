@@ -26,7 +26,7 @@ if str(UI_TESTS_DIR) not in sys.path:
 if str(PDB_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(PDB_TESTS_DIR))
 
-from harness_manifest import plan_digest  # noqa: E402
+from harness_manifest import plan_digest, validate_plan  # noqa: E402
 from harness_design_contract import generated_contract_block  # noqa: E402
 from harness_contract_join import (  # noqa: E402
     full_design_system_checker_errors_at_paths,
@@ -151,6 +151,30 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
                 plan_path, None, design_system=registry_path, prd=prd_path
             )
         return json.loads(result.stdout)
+
+    def test_prd_delta_domain_lenses_validate_without_setting_type(self) -> None:
+        plan = valid_plan()
+        review = next(
+            node for node in plan["graph"]["nodes"] if node.get("review") is not None
+        )
+        review["review"]["lenses"] = [
+            "backend_code", "visual", "domain:accessibility",
+        ]
+        review["review"]["type"] = "visual"
+        self.assertEqual([], validate_plan(plan))
+
+        review["review"]["type"] = "backend_code"
+        errors = validate_plan(plan)
+        self.assertTrue(
+            any("must equal the widest lens" in error for error in errors), errors
+        )
+
+        review["review"]["type"] = "visual"
+        review["review"]["lenses"] = ["backend_code", "visual", "style"]
+        errors = validate_plan(plan)
+        self.assertTrue(
+            any("unsupported review lenses: style" in error for error in errors), errors
+        )
 
     def test_valid_plan_and_run_report_pass(self) -> None:
         plan = valid_plan()

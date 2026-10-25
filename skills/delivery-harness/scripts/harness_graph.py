@@ -29,6 +29,7 @@ from harness_schema import (
     GRAPH_OUTCOMES,
     ID_RE,
     is_valid_provider_id,
+    DOMAIN_LENS_RE,
     REVIEW_LENS_ORDER,
     REVIEWER_TOOL_KEYS,
     RUNTIME_REASONING_EFFORTS,
@@ -245,7 +246,12 @@ def _validate_graph(
                                 review["lenses"],
                                 nonempty=True,
                             )
-                            unknown_lenses = sorted(set(lenses) - RUNTIME_REVIEW_TYPES)
+                            unknown_lenses = sorted(
+                                lens
+                                for lens in lenses
+                                if lens not in RUNTIME_REVIEW_TYPES
+                                and DOMAIN_LENS_RE.fullmatch(lens) is None
+                            )
                             if unknown_lenses:
                                 _add(
                                     errors,
@@ -254,14 +260,16 @@ def _validate_graph(
                                 )
                             elif len(lenses) != len(set(lenses)):
                                 _add(errors, f"{review_path}.lenses", "must not contain duplicates")
-                            elif lenses and review["type"] != next(
-                                lens for lens in REVIEW_LENS_ORDER if lens in lenses
-                            ):
-                                _add(
-                                    errors,
-                                    f"{review_path}.type",
-                                    "must equal the widest lens: security, visual, frontend_code, then backend_code",
-                                )
+                            else:
+                                standard_lenses = [
+                                    lens for lens in REVIEW_LENS_ORDER if lens in lenses
+                                ]
+                                if standard_lenses and review["type"] != standard_lenses[0]:
+                                    _add(
+                                        errors,
+                                        f"{review_path}.type",
+                                        "must equal the widest lens: security, visual, frontend_code, then backend_code",
+                                    )
                         review_missions = _strings(
                             errors,
                             f"{review_path}.mission_ids",

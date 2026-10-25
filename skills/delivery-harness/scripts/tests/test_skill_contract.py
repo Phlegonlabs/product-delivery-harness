@@ -1997,5 +1997,26 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
 
 
+    def test_prd_delta_binding_and_domain_lenses_are_documented(self) -> None:
+        epic = self.read("assets/templates/EPIC.template.md")
+        self.assertIn("docs/product/deltas/PRD-DELTA-<EPIC-ID>.md", epic)
+        self.assertIn("Baseline/Result hashes", epic)
+        self.assertIn("Ambition rung: <1|2|3>", epic)
+        self.assertIn("Outside judge:", epic)
+        self.assertIn("Changed Requirements table", epic)
+        contract = self.read("references/contract-and-traceability.md")
+        self.assertIn('| PRD delta (delta mode only) |', contract)
+        self.assertIn('kind: "prd-delta"', contract)
+        self.assertIn("foundation_trace_ids", contract)
+        self.assertIn("check_prd_delta_scope.py", contract)
+        gates = self.read("references/verification-gates.md")
+        self.assertIn("Domain lenses.", gates)
+        self.assertIn("`domain:<field>`", gates)
+        self.assertIn("`review lens`", gates)
+        self.assertIn("never sets `review.type`", gates)
+        bounded = self.read("references/bounded-enhancement.md")
+        self.assertIn("PRD-DELTA-<EPIC-ID>.md", bounded)
+
+
 if __name__ == "__main__":
     unittest.main()
