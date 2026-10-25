@@ -2886,6 +2886,19 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
             findings,
         )
 
+    def test_delta_mode_accepts_retired_ids_in_the_impact_record(self) -> None:
+        package = self.finalize(delta_mode_prd())
+        delta = delta_document(
+            result=f"sha256:{self.result_digest(package)}",
+            changed_rows="| PRD-099 | retired | Previous requirement | none | none |",
+            impact=DELTA_EIR.replace(
+                "| Product scope / behavior | changed | PRD-001 |",
+                "| Product scope / behavior | changed | PRD-099 |",
+                1,
+            ),
+        )
+        self.assertEqual([], self.validate(package, deltas={"PRD-DELTA-EPIC-041.md": delta}))
+
     def test_ambition_package_without_deltas_passes(self) -> None:
         package = self.finalize(delta_mode_prd(latest_line=None))
         notes: list[str] = []

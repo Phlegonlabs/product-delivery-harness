@@ -1065,6 +1065,7 @@ def _validate_delta_file(
         elif require_filled and _placeholder_cell(rung_match.group(2)):
             _add(problems, label, "delta metadata Ambition rung contains an unfilled placeholder")
 
+    retired_ids: set[str] = set()
     changed_rows = _find_table(delta_text, CHANGED_REQUIREMENTS_HEADER)
     if changed_rows is None:
         _add(
@@ -1100,6 +1101,8 @@ def _validate_delta_file(
                 )
                 continue
             trace_id = row[0].strip().upper()
+            if change == "retired":
+                retired_ids.add(trace_id)
             test_ids = _ids(row[4], "TEST")
             if not test_ids and row[4].strip().casefold() not in {"none", "n/a"}:
                 _add(
@@ -1146,7 +1149,7 @@ def _validate_delta_file(
     if latest:
         _validate_enhancement_impact_record(
             delta_text,
-            known_ids=impact_known_ids,
+            known_ids=impact_known_ids | retired_ids,
             require_filled=require_filled,
             problems=problems,
             path=label,
