@@ -20,7 +20,7 @@ EXPECTED_CLI_ENTRYPOINTS = {
     "delivery-harness": {
         "archive_run.py", "check_delivery_acceptance.py", "check_deployment.py",
         "check_document_sync.py", "check_eval_acceptance.py",
-        "check_external_skill_dependencies.py", "check_launch_packet.py",
+        "check_external_skill_dependencies.py", "check_launch_packet.py", "check_prd_delta_scope.py",
         "check_skill_bindings.py", "check_skill_spec.py", "check_ui_contract.py",
         "ci_test_shards.py", "configure_project_context.py", "docs_weight.py",
         "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
