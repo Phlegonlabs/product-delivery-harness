@@ -99,7 +99,7 @@ After the version gate, run `python "<delivery-harness-skill-root>/scripts/harne
 
 New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
 
-Follow the verification ladder and Review Topology in `references/verification-gates.md`. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
+Follow the verification ladder, Review Topology, finding triage and re-check scope in `references/verification-gates.md`; the author's focused verifier evidence gates each re-check reservation. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
 
 Host verifiers run fresh and serially per runner, with source/Git guards and exact execution evidence.
 Keep requests and results outside the reviewed checkout. There is no verifier result cache.

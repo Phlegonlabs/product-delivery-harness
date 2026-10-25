@@ -241,7 +241,7 @@ At resume, a worker recorded as `leased` or `worker_running` requires observatio
 
 ## Repairing The Integrated Candidate
 
-For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck.
+For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>`; `verification-gates.md#review-topology` owns the scope.
 
 The additional historical-review admission preserves a passed or failed integration reviewer at a recorded prior head after its current graph binding is cleared. It requires a unique retained review attempt, matching outcome and lineage. A blocked reviewer qualifies only through the existing interrupted-review reconciliation receipt, using the same predicate as closeout. Other blocked or active old reviewers remain invalid and refuse candidate movement before RUN persistence. The older fix_required prior-head rule keeps its pinned semantics. Its retained bytes and receipts stay unchanged. This admissibility does not revive its PASS or security coverage for the new candidate.
 

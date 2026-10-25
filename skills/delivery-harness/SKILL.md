@@ -108,7 +108,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
 6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. Without the security lens on an executable diff, report `UNVALIDATED`, not PASS.
-7. Make one consolidated repair, then one targeted re-check of the original findings, changed code and direct consumers (`references/gen-verify-correct.md`). A failed re-check stops for the owner.
+7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). A failed re-check stops for the owner.
 8. Perform only remaining authorized Git actions.
 
 A text-only markup/style review makes no visual PASS claim and cannot close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.

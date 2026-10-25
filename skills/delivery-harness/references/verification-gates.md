@@ -34,7 +34,11 @@ One reviewer per candidate. Parallel reviewers on one candidate or surface group
 
 Finding triage. A reviewer separates blocking findings from non-blocking notes. A blocking finding is a defect against accepted scope, a TEST obligation, security, or correctness. A non-blocking note is style, decorative wording, a suggestion, or backlog. Only blocking findings produce `fix_required`; a PASS records notes through `record-review-attempt --note`, and the notes go to the backlog or the Epic. Security findings of severity critical/high are always blocking.
 
-Make one consolidated repair, then one targeted re-check on the new SHA: original findings, changed code, direct consumers. The security lens re-binds to the new SHA with full scope. A failed re-check stops at `blocked`.
+Make one consolidated repair, then one targeted re-check on the new SHA. The security lens re-binds to the new SHA with full scope. A failed re-check stops at `blocked`.
+
+Re-check scope. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>` with its name-status list and diff. The reviewer returns a verdict per prior finding (resolved / unresolved / superseded) and inspects the repair range and its direct consumers. The security lens stays at full scope. Anything else is a note, unless it is a validated security finding or a correctness defect inside the repair range.
+
+Pre-review repair gate. Before a re-check is reserved, or on the direct route dispatched, the author presents the focused verifier PASS at the new head and, for a failure family, the family's acceptance matrix with each equivalence class exercised. A repair without that evidence is not dispatched for review; it returns to the author. This is author evidence, not a review attempt.
 
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
 

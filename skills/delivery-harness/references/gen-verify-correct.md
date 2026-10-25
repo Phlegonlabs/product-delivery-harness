@@ -44,10 +44,12 @@ findings to the owning flow above.
    and send them to the owning corrector as one repair. Non-blocking
    suggestions go to the backlog.
 8. Repair only accepted scope. Rerun the affected verifier and every downstream
-   check invalidated by the new candidate. A re-review checks the original
-   findings, the changed code and its direct consumers, not the whole scope again.
-   This is the only repair budget; a second repair round needs an explicit owner
-   decision.
+   check invalidated by the new candidate. Present the focused verifier PASS at
+   the new head, plus a failure family's acceptance matrix, before the re-check
+   is dispatched. The re-check packet carries the prior blocking findings, the
+   prior notes and the repair range; it judges those findings and the repair,
+   not the whole scope again. This is the only repair budget; a second repair
+   round needs an explicit owner decision.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, exhausted budget, missing required capability, or a contract
