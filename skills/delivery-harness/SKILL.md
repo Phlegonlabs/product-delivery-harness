@@ -90,7 +90,7 @@ These rules apply to both routes:
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
 - Non-mission nodes reserve with `reserve-node-attempt`, execute outside the RUN lock, then record evidence with `record-node-result`; interrupted attempts become `blocked`.
-- A review PASS binds one exact SHA. Any repair invalidates it; scope-disjoint bookkeeping commits carry it forward (`references/verification-gates.md#review-topology`).
+- A review PASS binds one exact SHA. Any repair invalidates it; on the direct route, scope-disjoint bookkeeping commits carry it forward (`references/verification-gates.md#review-topology`).
 - Preserve failed, interrupted, cancelled, dirty, and partial worktree evidence. Never reset or remove it automatically.
 
 ## Direct Route
