@@ -94,10 +94,36 @@ def set_prd_delivery_profile(prd, ui_text, value):
     text = prd.read_text(encoding="utf-8")
     marker = "| Biggest risk | A malformed contract could appear approved |"
     row = f"| Delivery profile | {value} |"
-    assert marker in text and row not in text
-    prd.write_text(text.replace(marker, marker + "\n" + row), encoding="utf-8")
+    if row in text:
+        text = re.sub(r"^\| Delivery profile \|.*$", row, text, flags=re.M)
+    else:
+        assert marker in text
+        text = text.replace(marker, marker + "\n" + row)
+    prd.write_text(text, encoding="utf-8")
     return re.sub(r"^(PRD source: \S+ @ sha256:)[0-9a-f]{64}$",
                   lambda match: match.group(1) + digest(prd), ui_text, flags=re.M)
+
+
+def refresh_prd_identity(root, ui_text, prd):
+    """Rebind the evidence receipts this contract cites to the current PRD bytes."""
+    evidence = root / "docs/evidence"
+    for receipt_name in sorted(set(re.findall(r"evidence=(docs/evidence/\S+?\.json) @ sha256:", ui_text))):
+        receipt_path = root / receipt_name
+        out_path = evidence / (receipt_path.stem + "-output.json")
+        output = json.loads(out_path.read_text(encoding="utf-8"))
+        changed = False
+        for binding in output.get("execution", {}).get("artifacts", []):
+            if isinstance(binding, dict) and binding.get("path") == "docs/product/PRD.md" \
+                    and binding.get("sha256") != digest(prd):
+                binding["sha256"] = digest(prd)
+                changed = True
+        if not changed:
+            continue
+        out_path.write_text(json.dumps(output), encoding="utf-8")
+        receipt_path.write_text(json.dumps(build_receipt(root, out_path.relative_to(root).as_posix())), encoding="utf-8")
+        ui_text = re.sub(rf"(evidence={re.escape(receipt_name)} @ sha256:)[0-9a-f]{{64}}",
+                         lambda match: match.group(1) + digest(receipt_path), ui_text)
+    return ui_text
 
 
 def preflight(ui, root, prd, hifi):
@@ -429,6 +455,46 @@ class UiDesignV3Tests(unittest.TestCase):
             self.assertNotIn("Reason",
                              "\n".join(checker.validate_text(filled, require_filled=True, require_visual_approved=True,
                                                              delivery_profile="mvp")))
+
+    def test_delivery_profile_is_extracted_from_the_prd_at_a_glance_row(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            three = ui.read_text(encoding="utf-8")
+            target = re.search(r"^Approved target: (\S+ @ sha256:[0-9a-f]{64})", three, re.M).group(1)
+            start = three.index("## Design System Need Gate")
+            tail = three[start:]
+            tail = tail.replace("Decision: required", "Decision: not_required", 1)
+            tail = re.sub(r"^Package action:.*$",
+                          "Replacement visual contract when_not_required: target=" + target
+                          + "; ui-design=docs/design/ui-design.md @ sha256:<canonical>"
+                          + "; prd=docs/product/PRD.md @ sha256:<prdhash>",
+                          tail, flags=re.M)
+            tail = re.sub(r"^Compiled design system pair: .*\n", "", tail, flags=re.M)
+            text = set_prd_delivery_profile(prd, three[:start] + tail, "mvp")
+            text = refresh_prd_identity(root, text, prd)
+            text = text.replace("<prdhash>", digest(prd), 1)
+            canonical = checker.canonical_ui_approval_sha256(text)
+            text = text.replace("<canonical>", canonical, 1)
+            ui.write_text(text, encoding="utf-8")
+            self.assertEqual("mvp", checker._prd_delivery_profile(prd))
+            findings = checker.validate(ui, repo_root=root, prd_path=prd, hifi_path=hifi,
+                                        require_visual_approved=True)
+            self.assertTrue(findings)
+            for finding in findings:
+                self.assertTrue(finding.startswith("product-definition:"), finding)
+            standard_source = text.replace("sha256:" + canonical, "sha256:<canonical>", 1).replace(
+                "sha256:" + digest(prd), "sha256:<prdhash>", 1)
+            standard_source = set_prd_delivery_profile(prd, standard_source, "standard")
+            standard_source = refresh_prd_identity(root, standard_source, prd)
+            standard_source = standard_source.replace("<prdhash>", digest(prd), 1)
+            canonical = checker.canonical_ui_approval_sha256(standard_source)
+            standard_source = standard_source.replace("<canonical>", canonical, 1)
+            ui.write_text(standard_source, encoding="utf-8")
+            self.assertEqual("standard", checker._prd_delivery_profile(prd))
+            self.assertIn("ui-design/3 full UI package requires Design System Need Gate Decision: required",
+                          "\n".join(checker.validate(ui, repo_root=root, prd_path=prd, hifi_path=hifi,
+                                                     require_visual_approved=True)))
 
     def test_modified_direction_adds_one_revised_study_to_the_round(self):
         with tempfile.TemporaryDirectory() as directory:
