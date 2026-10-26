@@ -3028,16 +3028,55 @@ CONSOLE_JOURNEYS = """### Journey 2: Configure the fixture run
 1. The owner approves the pending run record per PRD-003."""
 
 
+def growth_contract_section(track: str = "web") -> str:
+    return f"""## Growth Contract
+### North Star
+| Track | North star | Day 7 target | Day 30 target | Stretch | Source (MS-*) |
+| --- | --- | --- | --- | --- | --- |
+| {track} | Weekly returning fixture users | 40% return by day 7 | 55% return by day 30 | 70% return by day 30 | MS-100 |
+
+### Re-engagement
+| Mechanism | Surface or event | TEST ID |
+| --- | --- | --- |
+| email digest | Fixture digest surface on the home route | TEST-001 |
+
+### Discovery Surfaces
+| Surface | Kind | Owner stage | TEST or MS ID |
+| --- | --- | --- | --- |
+| /launch | landing | gtm | MS-110 |
+
+### Launch Window
+| Day | Channel class | Action | Owner | Readback metric |
+| --- | --- | --- | --- | --- |
+| Day 0 | owned | Announce the fixture launch | Owner | Return visits |
+
+"""
+
+
 def shaped_prd(
     shape_value: str = "track: web; companion: Fixture landing page; console: none",
+    *,
+    growth: bool = True,
 ) -> str:
-    """Insert one At a Glance Shape row into the canonical fixture PRD."""
-    return valid_prd().replace(
+    """Insert one At a Glance Shape row (and its Growth Contract) into the fixture PRD."""
+
+    prd = valid_prd().replace(
         "| Biggest risk | A malformed contract could appear approved |",
         "| Biggest risk | A malformed contract could appear approved |\n"
         f"| Shape | {shape_value} |",
         1,
     )
+    if growth:
+        track_match = re.search(r"track:\s*(\w+)", shape_value)
+        track = track_match.group(1) if track_match else "web"
+        if track not in ("web", "app", "agent"):
+            track = "web"
+        prd = prd.replace(
+            "## Problem Statement",
+            growth_contract_section(track) + "## Problem Statement",
+            1,
+        )
+    return prd
 
 
 def seo_test_prd(shape_value: str) -> str:
@@ -3187,6 +3226,197 @@ class ShapeRowPackageTests(unittest.TestCase):
         )
         self.assertTrue(
             any("at least three Test Obligations" in item for item in untraced), untraced
+        )
+
+
+class GrowthContractTests(unittest.TestCase):
+    def validate(
+        self,
+        prd: str,
+        *,
+        architecture: str | None = None,
+    ) -> list[str]:
+        package = strictize_approved_package(
+            prd, architecture or valid_architecture(), valid_stack()
+        )
+        return check_product_package.validate_texts(
+            *package,
+            require_filled=True,
+            require_approved=True,
+        )
+
+    def test_growth_contract_without_shape_row_is_validated_but_optional(self) -> None:
+        prd = valid_prd().replace(
+            "## Problem Statement",
+            growth_contract_section("web") + "## Problem Statement",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+
+    def test_growth_contract_required_with_shape_row(self) -> None:
+        findings = self.validate(shaped_prd(growth=False))
+        self.assertTrue(
+            any("requires '## Growth Contract'" in item for item in findings), findings
+        )
+
+    def test_north_star_rejects_wrong_header(self) -> None:
+        prd = shaped_prd().replace(
+            "| Track | North star | Day 7 target | Day 30 target | Stretch | Source (MS-*) |",
+            "| Track | North star | Day 7 target | Day 30 target | Source (MS-*) |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("North Star must use the Track |" in item for item in findings), findings
+        )
+
+    def test_north_star_requires_shape_track_row(self) -> None:
+        prd = shaped_prd().replace(
+            "| web | Weekly returning fixture users",
+            "| app | Weekly returning fixture users",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("needs a row for the Shape track 'web'" in item for item in findings), findings
+        )
+
+    def test_north_star_rejects_unknown_track(self) -> None:
+        prd = shaped_prd().replace(
+            "| web | Weekly returning fixture users",
+            "| platform | Weekly returning fixture users",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("North Star track must be web, app or agent" in item for item in findings),
+            findings,
+        )
+
+    def test_reengagement_is_blocking_for_web(self) -> None:
+        prd = shaped_prd().replace(
+            "| email digest | Fixture digest surface on the home route | TEST-001 |",
+            "| none — decided after launch | n/a | n/a |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(any("blocking gap" in item for item in findings), findings)
+
+    def test_reengagement_agent_may_decline_with_reason(self) -> None:
+        prd = shaped_prd(
+            "track: agent; companion: none (docs ship inside the repo); console: none"
+        ).replace(
+            "| email digest | Fixture digest surface on the home route | TEST-001 |",
+            "| none — local fixture has no return channel yet | n/a | n/a |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+
+    def test_reengagement_agent_none_without_reason_fails(self) -> None:
+        prd = shaped_prd(
+            "track: agent; companion: none (docs ship inside the repo); console: none"
+        ).replace(
+            "| email digest | Fixture digest surface on the home route | TEST-001 |",
+            "| none | n/a | n/a |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("none row with a reason" in item for item in findings), findings
+        )
+
+    def test_discovery_surfaces_rules(self) -> None:
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| /launch | billboard | gtm | MS-110 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Discovery Surfaces kind must be" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| /launch | landing | ops | MS-110 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("owner stage must be delivery, activation, gtm or seo" in item for item in findings),
+            findings,
+        )
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| UI-999 | landing | gtm | MS-110 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("names unknown UI surface 'UI-999'" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| launch announcement | landing | gtm | MS-110 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any(
+                "must name an existing UI surface ID, a release target ID or a landing path"
+                in item
+                for item in findings
+            ),
+            findings,
+        )
+
+    def test_discovery_surface_may_name_a_release_target(self) -> None:
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| web-production | landing | gtm | MS-110 |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd, architecture=release_architecture()))
+
+    def test_launch_window_rules(self) -> None:
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day 0 | paid | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any(
+                "channel class must be owned, earned, search or store" in item
+                for item in findings
+            ),
+            findings,
+        )
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day 9 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Day 0 through Day 7" in item for item in findings), findings
+        )
+
+    def test_growth_contract_placeholders_fail_require_filled(self) -> None:
+        prd = shaped_prd().replace(
+            "| web | Weekly returning fixture users | 40% return by day 7 | "
+            "55% return by day 30 | 70% return by day 30 | MS-100 |",
+            "| web | Weekly returning fixture users | 40% return by day 7 | "
+            "55% return by day 30 | [TBD] | MS-100 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any(
+                "Growth Contract North Star row contains an empty value or placeholder"
+                in item
+                for item in findings
+            ),
+            findings,
         )
 
 
