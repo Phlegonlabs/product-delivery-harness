@@ -85,6 +85,7 @@ Use this structure:
 | Why now | [One line] |
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
+| Delivery profile | standard / mvp |
 
 [One paragraph describing the product, user, and outcome.]
 

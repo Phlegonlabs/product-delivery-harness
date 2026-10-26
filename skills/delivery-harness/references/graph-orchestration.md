@@ -121,7 +121,7 @@ A first-review PASS leaves the repair dormant; closeout recognizes the untaken r
 A `fix_required` activates the repair's one authorized writer attempt.
 Record its result, integrate it and run its focused integration checks through the normal mission protocol.
 The bounded pass route then permits one fresh targeted recheck on the repaired unified SHA.
-A failed recheck exhausts the review and repair route; stop and retain the findings for the owner.
+A failed recheck ends the review budget; remaining findings enter the Isolated Repair Protocol in `verification-gates.md` as scoped repairs that consume no review attempt.
 
 All source, scope, authorization, security, browser and evidence gates still apply.
 A repair not declared before execution needs the existing owner-authorized PLAN revision procedure.
@@ -216,7 +216,7 @@ Never reuse:
 - a prior successful verifier result after its input head changed;
 - a failed worker report as if the retry replaced its evidence.
 
-Do not retry the same failed approach more than twice. A runtime review is stricter: `max_attempts` cannot exceed 2 and attempts count cumulatively per the Root-Cause Repair Escalation section above. After the bound is exhausted, stop at `blocked` and identify the required decision; apply that section's owner gate before authoring any successor review node.
+Do not retry the same failed approach more than twice. A runtime review is stricter: `max_attempts` cannot exceed 2 and attempts count cumulatively per the Root-Cause Repair Escalation section above. After the bound is exhausted, remaining findings continue as isolated repairs with scoped reviews; no successor review node is authored.
 
 ### Bounded Loop Method
 

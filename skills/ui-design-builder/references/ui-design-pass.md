@@ -42,7 +42,7 @@ For administration, include the required work areas and their responsibilities, 
 
 Choose composition, hierarchy, grouping, typography, imagery and motion freely within the approved constraints. A hero, introduction, feature group or CTA is a design choice when it serves the page purpose; do not impose a universal section sequence. Use the existing Page-purpose mapping to distinguish fixed requirements from design freedom.
 
-Produce three materially different visual directions by default, with inspected reference lessons and the same representative primary and stress cases. Show applicable motion and reduced-motion treatment. If the owner explicitly requested one direction, produce one. Present comparable studies and wait for the owner's selection before creating the full connected HiFi HTML package.
+Produce three materially different visual directions by default, with inspected reference lessons and the same representative primary and stress cases. Show applicable motion and reduced-motion treatment. If the owner explicitly requested one direction, or the delivery profile is `mvp`, produce one. Present comparable studies and wait for the owner's selection before creating the full connected HiFi HTML package.
 ```
 
 ## Cheap Completeness Check
