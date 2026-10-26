@@ -2903,7 +2903,9 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         package = self.finalize(delta_mode_prd(latest_line=None))
         notes: list[str] = []
         self.assertEqual([], self.validate(package, notes=notes))
-        self.assertEqual([], notes)
+        self.assertEqual(1, len(notes))
+        self.assertIn("legacy", notes[0])
+        self.assertIn("Shape row", notes[0])
 
     def test_ambition_rejects_missing_rung(self) -> None:
         package = self.finalize(
@@ -3006,6 +3008,185 @@ class DeltaAmbitionPackageTests(unittest.TestCase):
         self.assertTrue(
             any("'## Ambition' must immediately follow '## Goals'" in finding for finding in findings),
             findings,
+        )
+
+
+SEO_TEST_ROW = (
+    "| TEST-004 | Landing page SEO metadata renders on the companion surface | seo | Yes "
+    "| PRD-001 | meta title and meta description render on the landing route |"
+)
+
+TEST_003_ROW = (
+    "| TEST-003 | Deny untrusted fixture input before any write | security | Yes | PRD-003 "
+    "| denial: rejected (validation error returned); no unauthorized side effects: "
+    "unchanged (run record has zero writes) |"
+)
+
+CONSOLE_JOURNEYS = """### Journey 2: Configure the fixture run
+1. The owner configures the fixture per PRD-001 and inspects the run state per PRD-002.
+### Journey 3: Approve a fixture change
+1. The owner approves the pending run record per PRD-003."""
+
+
+def shaped_prd(
+    shape_value: str = "track: web; companion: Fixture landing page; console: none",
+) -> str:
+    """Insert one At a Glance Shape row into the canonical fixture PRD."""
+    return valid_prd().replace(
+        "| Biggest risk | A malformed contract could appear approved |",
+        "| Biggest risk | A malformed contract could appear approved |\n"
+        f"| Shape | {shape_value} |",
+        1,
+    )
+
+
+def seo_test_prd(shape_value: str) -> str:
+    return shaped_prd(shape_value).replace(TEST_003_ROW, TEST_003_ROW + "\n" + SEO_TEST_ROW, 1)
+
+
+def frontend_delivery_prd(shape_value: str) -> str:
+    return shaped_prd(shape_value).replace(
+        "## Data and Integration Requirements",
+        "## Frontend Delivery Requirements\n"
+        "- Site-level SEO for the fixture landing pages: sitemap and robots policy "
+        "are recorded here.\n"
+        "## Data and Integration Requirements",
+        1,
+    )
+
+
+def console_journeys_prd(shape_value: str) -> str:
+    return shaped_prd(shape_value).replace(
+        "2. The checker reports an observable pass or exact finding.\n",
+        "2. The checker reports an observable pass or exact finding.\n"
+        + CONSOLE_JOURNEYS
+        + "\n",
+        1,
+    )
+
+
+class ShapeRowPackageTests(unittest.TestCase):
+    def validate(self, prd: str, *, notes: list[str] | None = None) -> list[str]:
+        package = strictize_approved_package(prd, valid_architecture(), valid_stack())
+        return check_product_package.validate_texts(
+            *package,
+            require_filled=True,
+            require_approved=True,
+            notes=notes,
+        )
+
+    def test_shape_row_package_passes(self) -> None:
+        self.assertEqual([], self.validate(shaped_prd()))
+
+    def test_package_without_shape_row_reports_one_informational_line(self) -> None:
+        notes: list[str] = []
+        self.assertEqual([], self.validate(valid_prd(), notes=notes))
+        self.assertEqual(1, len(notes))
+        self.assertIn("legacy", notes[0])
+
+    def test_shape_row_vocabulary_failures(self) -> None:
+        findings = self.validate(shaped_prd("track: platform; companion: none; console: none"))
+        self.assertTrue(
+            any("Shape track must be web, app or agent" in item for item in findings), findings
+        )
+        findings = self.validate(shaped_prd("track: web; companion: none; console: admin"))
+        self.assertTrue(
+            any("Shape console must be none, config-only or operations" in item for item in findings),
+            findings,
+        )
+        findings = self.validate(
+            shaped_prd("track: web; companion: https://fixture.example.com; console: none")
+        )
+        self.assertTrue(any("URL-free surface name" in item for item in findings), findings)
+        findings = self.validate(shaped_prd("track: web; console: none"))
+        self.assertTrue(any("missing the 'companion' value" in item for item in findings), findings)
+
+    def test_malformed_shape_row_fails(self) -> None:
+        findings = self.validate(shaped_prd("web track with console"))
+        self.assertTrue(
+            any("must use 'track: <value>" in item for item in findings), findings
+        )
+
+    def test_duplicate_shape_row_fails(self) -> None:
+        prd = shaped_prd().replace(
+            "| Biggest risk | A malformed contract could appear approved |",
+            "| Biggest risk | A malformed contract could appear approved |\n"
+            "| Shape | track: app; companion: none; console: none |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(any("five canonical rows" in item for item in findings), findings)
+
+    def test_app_track_with_required_seo_needs_companion(self) -> None:
+        findings = self.validate(seo_test_prd("track: app; companion: none; console: none"))
+        self.assertTrue(
+            any("needs a companion public surface" in item for item in findings), findings
+        )
+        self.assertEqual(
+            [], self.validate(seo_test_prd("track: app; companion: App store listing; console: none"))
+        )
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: app; companion: none; console: none"))
+        )
+
+    def test_app_track_seo_in_frontend_delivery_requirements_needs_companion(self) -> None:
+        findings = self.validate(
+            frontend_delivery_prd("track: app; companion: none; console: none")
+        )
+        self.assertTrue(
+            any("needs a companion public surface" in item for item in findings), findings
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                frontend_delivery_prd("track: app; companion: Fixture landing page; console: none")
+            ),
+        )
+
+    def test_agent_track_companion_rules(self) -> None:
+        findings = self.validate(shaped_prd("track: agent; companion: none; console: none"))
+        self.assertTrue(
+            any("requires a reason in parentheses" in item for item in findings), findings
+        )
+        findings = self.validate(
+            shaped_prd("track: agent; companion: Marketing homepage; console: none")
+        )
+        self.assertTrue(any("must name a docs surface" in item for item in findings), findings)
+        self.assertEqual(
+            [],
+            self.validate(
+                shaped_prd("track: agent; companion: none (docs ship inside the repo); console: none")
+            ),
+        )
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: agent; companion: Docs portal; console: none"))
+        )
+
+    def test_console_operations_requires_journeys_and_traced_tests(self) -> None:
+        shape_value = (
+            "track: agent; companion: none (docs ship inside the repo); console: operations"
+        )
+        findings = self.validate(shaped_prd(shape_value))
+        self.assertTrue(
+            any("(missing: configuration, run inspection)" in item for item in findings), findings
+        )
+        self.assertEqual([], self.validate(console_journeys_prd(shape_value)))
+        untraced = self.validate(
+            console_journeys_prd(shape_value)
+            .replace(
+                "1. The owner configures the fixture per PRD-001 and inspects the run state "
+                "per PRD-002.",
+                "1. The owner configures the fixture and inspects the run state.",
+                1,
+            )
+            .replace(
+                "1. The owner approves the pending run record per PRD-003.",
+                "1. The owner approves the pending run record.",
+                1,
+            )
+        )
+        self.assertTrue(
+            any("at least three Test Obligations" in item for item in untraced), untraced
         )
 
 

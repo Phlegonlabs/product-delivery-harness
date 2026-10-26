@@ -446,6 +446,41 @@ AT_A_GLANCE_ROWS = {
     "biggest risk",
 }
 PERSONAS_HEADER = ("persona", "need", "key workflow", "success signal")
+SHAPE_ROW_LABEL = "shape"
+SHAPE_FIELD_KEYS = ("track", "companion", "console")
+VALID_SHAPE_TRACKS = ("web", "app", "agent")
+VALID_SHAPE_CONSOLES = ("none", "config-only", "operations")
+COMPANION_URL_RE = re.compile(
+    r"://|^\s*www\.|[\w-]+\.(?:com|org|net|io|dev|app)(?:\s|$|/)",
+    re.IGNORECASE,
+)
+CONSOLE_JOURNEY_KEYWORDS = (
+    ("config", "configuration"),
+    ("run", "run inspection"),
+    ("approv", "approval"),
+)
+CONSOLE_TRACE_ID_RE = re.compile(r"\b[A-Z][A-Z0-9]*-[A-Z0-9-]+\b")
+GROWTH_NORTH_STAR_HEADER = (
+    "track",
+    "north star",
+    "day 7 target",
+    "day 30 target",
+    "stretch",
+    "source (ms-*)",
+)
+GROWTH_REENGAGEMENT_HEADER = ("mechanism", "surface or event", "test id")
+GROWTH_DISCOVERY_HEADER = ("surface", "kind", "owner stage", "test or ms id")
+GROWTH_LAUNCH_WINDOW_HEADER = (
+    "day",
+    "channel class",
+    "action",
+    "owner",
+    "readback metric",
+)
+VALID_DISCOVERY_KINDS = {"seo-cluster", "geo-page", "store-listing", "directory", "landing"}
+VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "seo"}
+VALID_LAUNCH_CHANNEL_CLASSES = {"owned", "earned", "search", "store"}
+LANDING_PATH_RE = re.compile(r"/\S*")
 UX_REQUIREMENTS_HEADER = (
     "id",
     "user / task",
@@ -922,6 +957,175 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
             _add(problems, "prd", "Access must contain at least one row")
 
 
+def _parse_shape_row(value: str) -> dict[str, str] | None:
+    fields: dict[str, str] = {}
+    for part in value.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        key, separator, cell = part.partition(":")
+        key = key.strip().casefold()
+        if not separator or not key or any(character.isspace() for character in key):
+            return None
+        fields[key] = cell.strip()
+    return fields
+
+
+def _prd_requires_aeo_seo(
+    prd_text: str, test_rows: list[tuple[str, ...]]
+) -> bool:
+    for row in test_rows:
+        if len(row) != len(TEST_OBLIGATIONS_HEADER):
+            continue
+        if row[3].strip().casefold() == "yes" and re.search(
+            r"\bAEO\b|\bSEO\b", " | ".join(row), re.IGNORECASE
+        ):
+            return True
+    frontend = _section(prd_text, "## Frontend Delivery Requirements")
+    return frontend is not None and bool(
+        re.search(r"\bAEO\b|\bSEO\b", frontend, re.IGNORECASE)
+    )
+
+
+def _validate_console_journeys(
+    prd_text: str,
+    test_rows: list[tuple[str, ...]],
+    *,
+    problems: list[str],
+) -> None:
+    journeys = _section(prd_text, "## User Journeys") or ""
+    covered = {keyword: False for keyword, _ in CONSOLE_JOURNEY_KEYWORDS}
+    journey_ids: set[str] = set()
+    for block in re.split(r"(?m)^###\s+", active_text(journeys))[1:]:
+        heading, _, body = block.partition("\n")
+        lowered = heading.casefold()
+        for keyword, _ in CONSOLE_JOURNEY_KEYWORDS:
+            if keyword in lowered:
+                covered[keyword] = True
+                journey_ids.update(
+                    match.upper() for match in CONSOLE_TRACE_ID_RE.findall(f"{heading}\n{body}")
+                )
+    missing = [label for keyword, label in CONSOLE_JOURNEY_KEYWORDS if not covered[keyword]]
+    if missing:
+        _add(
+            problems,
+            "prd",
+            "console: operations requires a User Journeys heading mentioning "
+            "configuration, run inspection and approval (missing: "
+            + ", ".join(missing)
+            + ")",
+        )
+    qualifying = 0
+    for row in test_rows:
+        if len(row) != len(TEST_OBLIGATIONS_HEADER):
+            continue
+        upstream = set(CONSOLE_TRACE_ID_RE.findall(row[4].upper()))
+        if upstream & journey_ids:
+            qualifying += 1
+    if qualifying < 3:
+        _add(
+            problems,
+            "prd",
+            "console: operations requires at least three Test Obligations "
+            "tracing into the configuration, run inspection and approval journeys",
+        )
+
+
+def _validate_shape_row(
+    prd_text: str,
+    *,
+    test_rows: list[tuple[str, ...]],
+    require_filled: bool,
+    problems: list[str],
+) -> dict[str, str] | None:
+    glance_rows = _find_table(
+        _section(prd_text, "## At a Glance") or "", AT_A_GLANCE_HEADER
+    )
+    shape_value = next(
+        (
+            row[1]
+            for row in glance_rows or []
+            if len(row) == 2 and row[0].strip().casefold() == SHAPE_ROW_LABEL
+        ),
+        None,
+    )
+    if shape_value is None:
+        return None
+    fields = _parse_shape_row(shape_value)
+    if fields is None:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape row must use 'track: <value>; companion: <value>; "
+            "console: <value>'",
+        )
+        return {}
+    for key in SHAPE_FIELD_KEYS:
+        if not fields.get(key):
+            _add(problems, "prd", f"At a Glance Shape row is missing the {key!r} value")
+    track = fields.get("track", "").strip().casefold()
+    if track and track not in VALID_SHAPE_TRACKS:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape track must be web, app or agent, not "
+            f"{fields['track'].strip()!r}",
+        )
+    console = fields.get("console", "").strip().casefold()
+    if console and console not in VALID_SHAPE_CONSOLES:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape console must be none, config-only or operations, "
+            f"not {fields['console'].strip()!r}",
+        )
+    companion = fields.get("companion", "").strip()
+    none_companion = (
+        re.fullmatch(r"none(?:\s*\(([^)]*)\))?", companion, re.IGNORECASE)
+        if companion
+        else None
+    )
+    if companion and none_companion is None and COMPANION_URL_RE.search(companion):
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape companion must be a UI surface ID, a release "
+            "target ID, a URL-free surface name, or none",
+        )
+    if require_filled:
+        if (
+            track == "app"
+            and none_companion is not None
+            and _prd_requires_aeo_seo(prd_text, test_rows)
+        ):
+            _add(
+                problems,
+                "prd",
+                "app track with a required AEO or SEO obligation needs a "
+                "companion public surface, not none",
+            )
+        if track == "agent":
+            if none_companion is not None:
+                if not (none_companion.group(1) or "").strip():
+                    _add(
+                        problems,
+                        "prd",
+                        "agent track with companion none requires a reason in parentheses",
+                    )
+            elif not (
+                re.fullmatch(r"UI-[A-Z0-9-]+", companion, re.IGNORECASE)
+                or "doc" in companion.casefold()
+            ):
+                _add(
+                    problems,
+                    "prd",
+                    f"agent track companion {companion!r} must name a docs surface",
+                )
+        if console == "operations":
+            _validate_console_journeys(prd_text, test_rows, problems=problems)
+    return fields
+
+
 def _validate_delta_file(
     delta_path: Path,
     delta_text: str,
@@ -1341,9 +1545,9 @@ def _validate_prd_core_sections(
         label_values = [row[0].casefold() for row in glance_rows if len(row) == 2]
         labels = set(label_values)
         if (
-            len(glance_rows) != len(AT_A_GLANCE_ROWS)
+            not AT_A_GLANCE_ROWS <= labels
+            or labels - AT_A_GLANCE_ROWS - {SHAPE_ROW_LABEL}
             or len(label_values) != len(set(label_values))
-            or labels != AT_A_GLANCE_ROWS
         ):
             _add(problems, "prd", "At a Glance must use exactly its five canonical rows")
         for row in glance_rows:
@@ -2415,6 +2619,13 @@ def validate_texts(
     ):
         _add(problems, "prd", "Test Obligations must include at least one Required Yes test")
 
+    shape_fields = _validate_shape_row(
+        prd_text,
+        test_rows=test_rows,
+        require_filled=require_filled,
+        problems=problems,
+    )
+
     ux_section = _section(prd_text, "## UX Requirements") or ""
     ux_rows = _find_table(ux_section, UX_REQUIREMENTS_HEADER) or []
     ux_ids = {
@@ -3474,6 +3685,10 @@ def validate_texts(
         notes.append(
             "legacy package: no docs/product/deltas directory and no Ambition "
             "section; delta and ambition checks skipped"
+        )
+    elif shape_fields is None and notes is not None:
+        notes.append(
+            "legacy package: no 'At a Glance' Shape row; growth contract checks skipped"
         )
 
     stack_block = _extract_machine_block(
