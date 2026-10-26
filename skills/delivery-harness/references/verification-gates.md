@@ -28,9 +28,25 @@ For RUN-v11 screenshot evidence, the order is immutable Git blob read, safe byte
 
 ## Review Topology
 
-Default `review_policy: final_candidate`. One review node on the unified candidate carries every lens its diff needs, listed in `review.lenses`: `frontend_code` or `backend_code` for changed code, `visual` with `required_tools: ["chrome_devtools"]` when the PLAN has `ui_surfaces`, and `security` always. Its `review.type` is the widest lens (security, visual, frontend_code, backend_code). It binds the exact `integration_head_sha`, loads `code-security-review` for the security lens, and returns one consolidated finding set. A mission integrates after `worker_passed` and the Worker Result Gate; no mission review precedes it.
+Default `review_policy: final_candidate`. One review node on the unified candidate carries every lens its diff needs, listed in `review.lenses`: `frontend_code` or `backend_code` for changed code, `visual` with `required_tools: ["chrome_devtools"]` when the PLAN has `ui_surfaces`, and `security` when the plan's security policy requires it. Its `review.type` is the widest lens (security, visual, frontend_code, backend_code). It binds the exact `integration_head_sha`, loads `code-security-review` for the security lens, and returns one consolidated finding set. A mission integrates after `worker_passed` and the Worker Result Gate; no mission review precedes it.
 
-Make one consolidated repair, then one targeted re-check on the new SHA: original findings, changed code, direct consumers. The security lens re-binds to the new SHA with full scope. A failed re-check stops at `blocked`.
+One reviewer per candidate. Parallel reviewers on one candidate or surface group need an explicit owner request and return one consolidated finding set through the parent; they never each start a repair loop.
+
+Finding triage. A reviewer separates blocking findings from non-blocking notes. A blocking finding is a defect against accepted scope, a TEST obligation, security, or correctness. A non-blocking note is style, decorative wording, a suggestion, or backlog. Only blocking findings produce `fix_required`; a PASS records notes through `record-review-attempt --note`, and the notes go to the backlog or the Epic. Security findings of severity critical/high are always blocking.
+
+Make one consolidated repair, then one targeted re-check on the new SHA. The security lens re-binds to the new SHA with full scope. A failed re-check stops at `blocked`.
+
+Re-check scope. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>` with its name-status list and diff. The reviewer returns a verdict per prior finding (resolved / unresolved / superseded) and inspects the repair range and its direct consumers. The security lens stays at full scope. Anything else is a note, unless it is a validated security finding or a correctness defect inside the repair range.
+
+Pre-review repair gate. Before a re-check is reserved, or on the direct route dispatched, the author presents the focused verifier PASS at the new head and, for a failure family, the family's acceptance matrix with each equivalence class exercised. A repair without that evidence is not dispatched for review; it returns to the author. This is author evidence, not a review attempt.
+
+Environment-blocked attempts. An attempt the reviewer could not perform — checkout or branch mismatch, sandbox permission denial, unavailable runtime, interrupted before inspection — is recorded `blocked` with `blocker_class: environment` and evidence. It does not consume the node's attempt or the repair budget; the transition refunds the node attempt, at most two per review lineage per RUN (a successor node in the same lineage shares the count), and keeps the attempt log and worker entry. It is not a review verdict and never a PASS.
+
+Scope-disjoint carry-forward. On the direct route only, a review PASS bound to SHA X, including its security lens, stays valid for a descendant commit Y when every path changed between X and Y is outside the review scope and non-executable: docs, Epic, evidence, README. Record the origin PASS SHA, the X..Y path list, and the reason; never relabel it as a fresh review. Any code, config, dependency, migration, or toolchain change is a new candidate. Managed runs do not use this rule: a bookkeeping child binds through `reconcile-coordination-head`, and any other head change invalidates every gate PASS (`execution-state-model.md`).
+
+Security lens applicability. On the direct route, the security lens is required when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling, or data access. A diff that touches only documentation, copy, Epics, evidence records, PLAN/RUN bookkeeping, or design-source text records `security: not_applicable (<reason>)` with the changed path list as evidence instead of `UNVALIDATED`. Managed PLANs keep `security_review.status` as today.
+
+Review count budget. Record the planned review points for the round: reviewer dispatches, not self-checks. Give the reason for each point beyond one combined review plus one re-check.
 
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
 

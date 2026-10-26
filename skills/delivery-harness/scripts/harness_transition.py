@@ -3704,6 +3704,7 @@ def _reserve_review_dispatch(
         "phase": "leased",
         "outcome": None,
         "findings": [],
+        "notes": [],
     }
     # Record the exact spawn receipt only after every guard has passed, as
     # _lease_worker does for mission workers.
@@ -3752,9 +3753,24 @@ def _reserve_review_dispatch(
         }
     }
 
+ENVIRONMENT_REFUND_CAP = 2
+
+
+def _environment_refunds(run: dict[str, Any], lineage_id: Any) -> int:
+    """Count retained environment refunds for one review lineage in this RUN."""
+    return sum(
+        1
+        for attempt in run.get("attempt_log", [])
+        if isinstance(attempt, dict)
+        and attempt.get("kind") == "review"
+        and attempt.get("blocker_class") == "environment"
+        and attempt.get("review_lineage_id") == lineage_id
+    )
+
+
 def _record_review_attempt(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
-) -> None:
+) -> dict[str, Any]:
     if any(
         isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
         for item in run.get("attempt_log", [])
@@ -3779,14 +3795,22 @@ def _record_review_attempt(
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
-    _validate_security_integration_checkout(
-        plan,
-        run,
-        node,
-        getattr(args, "repo_root", None),
-        operation="record",
-        run_path=getattr(args, "run", None),
-    )
+    blocker_class = getattr(args, "blocker_class", "review")
+    if blocker_class != "review" and args.result != "blocked":
+        raise ManifestError("--blocker-class applies only to a blocked review result")
+    environment_block = args.result == "blocked" and blocker_class == "environment"
+    # An environment block records that this reviewer could not inspect the
+    # candidate at all, so the live-checkout guard must not strand the attempt;
+    # the refunded budget re-enters only through a full fresh reservation.
+    if not environment_block:
+        _validate_security_integration_checkout(
+            plan,
+            run,
+            node,
+            getattr(args, "repo_root", None),
+            operation="record",
+            run_path=getattr(args, "run", None),
+        )
     if args.result not in node.get("allowed_outcomes", []):
         raise ManifestError("review result is not declared by its reserved PLAN node")
     state = run.get("graph_state", {}).get("node_states", {}).get(node["id"])
@@ -3801,53 +3825,59 @@ def _record_review_attempt(
     security_result: dict[str, Any] | None = None
     if is_security_review:
         if security_result_path is None:
-            raise ManifestError(
-                "security review completion requires --security-result"
+            if not environment_block:
+                raise ManifestError(
+                    "security review completion requires --security-result"
+                )
+        else:
+            current_head = run.get("integration", {}).get("integration_head_sha")
+            if worker.get("reviewed_sha") != current_head:
+                raise ManifestError(
+                    "security review result is stale; reserved SHA is not the current integration head"
+                )
+            if worker.get("base_sha") != run.get("integration", {}).get("batch_base_sha"):
+                raise ManifestError(
+                    "security review result is stale; reserved base is not the current batch base"
+                )
+            try:
+                security_result = load_security_review_result(security_result_path)
+            except SecurityReviewResultError as exc:
+                raise ManifestError(str(exc)) from exc
+            combined_review = len(review_lenses(node["review"])) > 1
+            security_errors = validate_security_review_result(
+                security_result,
+                expected_decision=security_result_decision(
+                    node["review"], args.result, security_result
+                ),
+                expected_reviewed_sha=worker.get("reviewed_sha"),
+                expected_base_sha=worker.get("base_sha"),
+                expected_scope=node["review"].get("scope", []),
+                required_tools=node["review"].get("required_tools", []),
+                required_checks=(
+                    plan.get("security_review", {}).get("required_checks", [])
+                    if isinstance(plan.get("security_review"), dict)
+                    else []
+                ),
+                allowed_decisions=node.get("allowed_outcomes", []),
             )
-        current_head = run.get("integration", {}).get("integration_head_sha")
-        if worker.get("reviewed_sha") != current_head:
-            raise ManifestError(
-                "security review result is stale; reserved SHA is not the current integration head"
-            )
-        if worker.get("base_sha") != run.get("integration", {}).get("batch_base_sha"):
-            raise ManifestError(
-                "security review result is stale; reserved base is not the current batch base"
-            )
-        try:
-            security_result = load_security_review_result(security_result_path)
-        except SecurityReviewResultError as exc:
-            raise ManifestError(str(exc)) from exc
-        combined_review = len(review_lenses(node["review"])) > 1
-        security_errors = validate_security_review_result(
-            security_result,
-            expected_decision=security_result_decision(
-                node["review"], args.result, security_result
-            ),
-            expected_reviewed_sha=worker.get("reviewed_sha"),
-            expected_base_sha=worker.get("base_sha"),
-            expected_scope=node["review"].get("scope", []),
-            required_tools=node["review"].get("required_tools", []),
-            required_checks=(
-                plan.get("security_review", {}).get("required_checks", [])
-                if isinstance(plan.get("security_review"), dict)
-                else []
-            ),
-            allowed_decisions=node.get("allowed_outcomes", []),
-        )
-        if security_errors:
-            raise ManifestError(
-                "invalid security review result:\n"
-                + "\n".join(f"- {item}" for item in security_errors)
-            )
-        if args.finding and not combined_review:
-            raise ManifestError(
-                "security review findings come from --security-result, not --finding"
-            )
-        # A combined node adds its other lenses' findings with --finding.
-        findings = [
-            *security_result_finding_summaries(security_result),
-            *(args.finding or []),
-        ]
+            if security_errors:
+                raise ManifestError(
+                    "invalid security review result:\n"
+                    + "\n".join(f"- {item}" for item in security_errors)
+                )
+            if args.finding and not combined_review:
+                raise ManifestError(
+                    "security review findings come from --security-result, not --finding"
+                )
+            # A combined node adds its other lenses' findings with --finding.
+            findings = [
+                *security_result_finding_summaries(security_result),
+                *(args.finding or []),
+            ]
+        if security_result is None:
+            # An environment block means the reviewer never inspected the
+            # candidate, so the blocker itself is the only finding source.
+            findings = args.finding or []
     else:
         if security_result_path is not None:
             raise ManifestError(
@@ -3860,6 +3890,7 @@ def _record_review_attempt(
         raise ManifestError("UI acceptance PASS requires ui_parity: and ui_page_quality: evidence anchors")
     if args.result != "pass" and not findings:
         raise ManifestError("a non-pass review requires at least one --finding")
+    notes = list(getattr(args, "note", None) or [])
     mission_ids = node["review"].get("mission_ids", [])
     mission_id = mission_ids[0] if len(mission_ids) == 1 else None
     if args.mission_id is not None and args.mission_id not in mission_ids:
@@ -3869,18 +3900,24 @@ def _record_review_attempt(
         attempt_evidence.append(
             "security_result_sha256:" + _json_sha256(security_result)
         )
-    run["attempt_log"].append(
-        {
-            "attempt_id": args.attempt_id,
-            "mission_id": args.mission_id or mission_id,
-            "task_id": None,
-            "lease_id": None,
-            "kind": "review",
-            "result": args.result,
-            "evidence": attempt_evidence,
-            "review_lineage_id": args.lineage,
-        }
+    refund = environment_block and (
+        _environment_refunds(run, node["review"].get("lineage_id"))
+        < ENVIRONMENT_REFUND_CAP
     )
+    attempt_entry = {
+        "attempt_id": args.attempt_id,
+        "mission_id": args.mission_id or mission_id,
+        "task_id": None,
+        "lease_id": None,
+        "kind": "review",
+        "result": args.result,
+        "evidence": attempt_evidence,
+        "review_lineage_id": args.lineage,
+        "notes": notes,
+    }
+    if args.result == "blocked":
+        attempt_entry["blocker_class"] = blocker_class
+    run["attempt_log"].append(attempt_entry)
     worker.update(
         {
             "phase": {
@@ -3889,6 +3926,7 @@ def _record_review_attempt(
             }.get(args.result, "worker_failed"),
             "outcome": args.result,
             "findings": findings,
+            "notes": notes,
         }
     )
     if security_result is not None:
@@ -3901,33 +3939,59 @@ def _record_review_attempt(
                 tree_sha = _git_tree(args.repo_root, reviewed)
         if is_full_sha(tree_sha):
             worker["tree_sha"] = tree_sha
-    state.update(
-        {
-            "phase": {
-                "pass": "succeeded",
-                "blocked": "blocked",
-            }.get(args.result, "failed"),
-            "last_outcome": args.result,
-            "blockers": findings if args.result == "blocked" else [],
-        }
-    )
-    for edge in plan.get("graph", {}).get("edges", []):
-        if (
-            not isinstance(edge, dict)
-            or edge.get("from") != node["id"]
-            or edge.get("kind") != "route"
-            or args.result not in edge.get("on_outcomes", [])
-        ):
-            continue
-        edge_state = run["graph_state"]["edge_states"][edge["id"]]
-        traversals = edge_state.get("traversals", 0)
-        bound = edge.get("max_traversals")
-        if isinstance(bound, int) and traversals >= bound:
-            edge_state["status"] = "exhausted"
-        else:
-            edge_state["status"] = "traversed"
-            edge_state["traversals"] = traversals + 1
-        edge_state["source_attempt_id"] = args.attempt_id
+    if refund:
+        # The reviewer could not inspect the candidate, so the node budget is
+        # refunded and the selector mints a fresh attempt; the retained
+        # attempt entry stays append-only evidence of the environment failure.
+        state.update(
+            {
+                "phase": "dormant",
+                "attempts": max(0, state.get("attempts", 0) - 1),
+                "last_attempt_id": None,
+                "last_outcome": None,
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+    else:
+        state.update(
+            {
+                "phase": {
+                    "pass": "succeeded",
+                    "blocked": "blocked",
+                }.get(args.result, "failed"),
+                "last_outcome": args.result,
+                "blockers": findings if args.result == "blocked" else [],
+            }
+        )
+        for edge in plan.get("graph", {}).get("edges", []):
+            if (
+                not isinstance(edge, dict)
+                or edge.get("from") != node["id"]
+                or edge.get("kind") != "route"
+                or args.result not in edge.get("on_outcomes", [])
+            ):
+                continue
+            edge_state = run["graph_state"]["edge_states"][edge["id"]]
+            traversals = edge_state.get("traversals", 0)
+            bound = edge.get("max_traversals")
+            if isinstance(bound, int) and traversals >= bound:
+                edge_state["status"] = "exhausted"
+            else:
+                edge_state["status"] = "traversed"
+                edge_state["traversals"] = traversals + 1
+            edge_state["source_attempt_id"] = args.attempt_id
+    receipt = {
+        "node_id": node["id"],
+        "worker_id": args.worker_id,
+        "attempt_id": args.attempt_id,
+        "result": args.result,
+        "blocker_class": blocker_class if args.result == "blocked" else None,
+        "refunded": refund,
+    }
+    if environment_block and not refund:
+        receipt["message"] = "environment refund cap reached"
+    return receipt
 
 def _skip_integration_review(
     plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
@@ -4133,6 +4197,17 @@ def build_parser() -> argparse.ArgumentParser:
     review.add_argument("--result", required=True)
     review.add_argument("--evidence", action="append", required=True)
     review.add_argument("--finding", action="append")
+    review.add_argument(
+        "--note",
+        action="append",
+        help="repeatable non-blocking observation; never blocks the review",
+    )
+    review.add_argument(
+        "--blocker-class",
+        choices=("environment", "review"),
+        default="review",
+        help="why a blocked review failed; environment refunds the attempt",
+    )
     review.add_argument("--security-result", type=Path)
     review.add_argument("--tree-sha")
     skip = subparsers.add_parser("skip-integration-review")
@@ -4326,7 +4401,7 @@ def _transition_under_lock(
     elif args.command == "heartbeat-run-lock":
         _heartbeat_run_lock(run, args)
     elif args.command != "watchdog":
-        _record_review_attempt(plan, run, args)
+        receipt = _record_review_attempt(plan, run, args)
     # A session holding the durable lock keeps it fresh through its own
     # transitions, so a long integration does not age it out mid-flight.
     lock = run.get("run_lock")

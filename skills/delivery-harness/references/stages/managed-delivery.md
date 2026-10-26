@@ -85,7 +85,7 @@ Use evidence for each prerequisite, not global Activation readiness, to unblock 
 
 Apply the direct route's self-review handoff before managed readiness.
 
-Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Mission Cohesion Gate, feature-batch missions with small fixed overhead and one bounded worker slice per task, one atomic commit boundary per executable task, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Reject readiness when unrelated features are bundled only because they share files/resources, one task needs a catch-all commit, or a single-task mission has no Mission Cohesion Gate reason. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery actually uses. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
+Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Mission Cohesion Gate, feature-batch missions with small fixed overhead and one bounded worker slice per task, one atomic commit boundary per executable task, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Reject readiness when unrelated features are bundled only because they share files/resources, one task needs a catch-all commit, or a single-task mission has no Mission Cohesion Gate reason. Record the planned review points for the round and the reason for each beyond one review plus one re-check. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery actually uses. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
 
 Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate when applicable.
 
@@ -99,7 +99,7 @@ After the version gate, run `python "<delivery-harness-skill-root>/scripts/harne
 
 New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
 
-Follow the verification ladder and Review Topology in `references/verification-gates.md`. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
+Follow the verification ladder, Review Topology, finding triage and re-check scope in `references/verification-gates.md`; the author's focused verifier evidence gates each re-check reservation. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
 
 Host verifiers run fresh and serially per runner, with source/Git guards and exact execution evidence.
 Keep requests and results outside the reviewed checkout. There is no verifier result cache.

@@ -51,6 +51,121 @@ def _git(repo: Path, *args: str) -> str:
     return result.stdout
 
 
+def _prior_fix_required_review(
+    plan: dict[str, Any], run: dict[str, Any], node_id: str,
+    review: dict[str, Any], head: str,
+) -> dict[str, Any] | None:
+    """Return the latest terminal fix_required review worker to re-check."""
+    workers = [
+        worker
+        for worker in run.get("review_workers", [])
+        if isinstance(worker, dict)
+        and worker.get("outcome") == "fix_required"
+        and isinstance(worker.get("reviewed_sha"), str)
+        and worker["reviewed_sha"]
+    ]
+    matches = [worker for worker in workers if worker.get("node_id") == node_id]
+    lineage_id = review.get("lineage_id")
+    if not matches and isinstance(lineage_id, str) and lineage_id:
+        nodes = {
+            node.get("id"): node
+            for node in plan.get("graph", {}).get("nodes", [])
+            if isinstance(node, dict)
+        }
+        matches = [
+            worker
+            for worker in workers
+            if isinstance(nodes.get(worker.get("node_id")), dict)
+            and nodes[worker["node_id"]].get("review", {}).get("lineage_id")
+            == lineage_id
+        ]
+        if not matches:
+            attempts = {
+                attempt.get("attempt_id"): attempt
+                for attempt in run.get("attempt_log", [])
+                if isinstance(attempt, dict)
+            }
+            matches = [
+                worker
+                for worker in workers
+                if isinstance(attempts.get(worker.get("attempt_id")), dict)
+                and attempts[worker["attempt_id"]].get("review_lineage_id")
+                == lineage_id
+            ]
+    if not matches:
+        return None
+    prior = matches[-1]
+    if prior["reviewed_sha"] == head:
+        return None
+    return prior
+
+
+def _recheck_lines(
+    recheck: dict[str, Any], repair_diff: str, repair_truncated: bool
+) -> list[str]:
+    lines = [
+        "",
+        "## Repair re-check",
+        "",
+        f"Prior reviewed head: `{recheck['prior_reviewed_sha']}`"
+        f" (attempt `{recheck['prior_attempt_id']}`,"
+        f" worker `{recheck['prior_worker_id']}`).",
+        "",
+        "Prior blocking findings:",
+        *(
+            f"- F{index}: {finding}"
+            for index, finding in enumerate(recheck["prior_findings"], 1)
+        ),
+    ]
+    if recheck["prior_notes"]:
+        lines += [
+            "",
+            "Prior non-blocking notes (they do not need a verdict):",
+            *(f"- {note}" for note in recheck["prior_notes"]),
+        ]
+    lines += [
+        "",
+        f"Repair range: `{recheck['repair_range']}`",
+        "",
+        "Changed files in the repair range:",
+        "",
+        recheck["repair_name_status"].rstrip(),
+        "",
+        "Repair diff:",
+        "",
+        "```diff",
+        repair_diff.rstrip(),
+        "```",
+    ]
+    if repair_truncated:
+        lines += [
+            "",
+            "This repair diff preview is incomplete. Read the fixed Git range"
+            f" directly (`{recheck['repair_range']}`). Report uninspected"
+            " paths and binary-content gaps; do not return a verdict while"
+            " required coverage remains unknown.",
+        ]
+    lines += [
+        "",
+        "Return a verdict for every prior blocking finding: resolved,"
+        " unresolved, or superseded, with path and line evidence at the"
+        " reviewed head.",
+        "Inspect the repair range and the direct consumers of the changed"
+        " code. The security lens re-binds to the reviewed head with full"
+        " scope.",
+        "An observation outside the prior findings and the repair range is a"
+        " non-blocking note unless it is a validated security finding or a"
+        " correctness defect in the repair range. Report notes separately;"
+        " do not turn them into blocking findings.",
+        "Do not reopen design direction, accepted scope, or stack decisions."
+        " Do not reset the repair budget.",
+        "If you cannot inspect the candidate (checkout or branch mismatch,"
+        " permission denial, unavailable runtime), stop and report an"
+        " environment blocker with evidence instead of a review verdict.",
+    ]
+    return lines
+
+
 def _relevant_acceptance_mappings(
     plan: dict[str, Any], missions: list[dict[str, Any]]
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -145,6 +260,41 @@ def render_packet(
         head = run["mission_states"][missions[0]["id"]].get("head_sha") or head
     if not isinstance(base, str) or not isinstance(head, str):
         raise ManifestError("review packet requires concrete base and reviewed head SHAs")
+    recheck = _prior_fix_required_review(plan, run, node_id, review, head)
+    recheck_contract = None
+    repair_diff = ""
+    repair_truncated = False
+    if recheck is not None:
+        repair_range = f"{recheck['reviewed_sha']}..{head}"
+        repair_name_status = _git(
+            repo_root, "-c", "core.quotePath=true", "diff",
+            "--no-ext-diff", "--no-textconv", "--name-status",
+            "--find-renames=50%", repair_range,
+        )
+        result = run_git(
+            repo_root, "diff", "--no-ext-diff", "--no-textconv", "--binary",
+            "--full-index", "--no-color", "--find-renames=50%",
+            "--src-prefix=a/", "--dst-prefix=b/", repair_range,
+            text=False, timeout=30,
+        )
+        if result.returncode != 0:
+            raise ManifestError("cannot read repair range diff")
+        repair_encoded = result.stdout
+        repair_truncated = len(repair_encoded) > max_diff_bytes
+        repair_diff = repair_encoded.decode("utf-8", errors="replace")
+        if repair_truncated:
+            repair_diff = repair_encoded[:max_diff_bytes].decode("utf-8", errors="replace")
+        findings = recheck.get("findings")
+        notes = recheck.get("notes")
+        recheck_contract = {
+            "prior_reviewed_sha": recheck["reviewed_sha"],
+            "prior_worker_id": recheck["worker_id"],
+            "prior_attempt_id": recheck["attempt_id"],
+            "prior_findings": findings if isinstance(findings, list) else [],
+            "prior_notes": notes if isinstance(notes, list) else [],
+            "repair_range": repair_range,
+            "repair_name_status": repair_name_status,
+        }
     diff_args = ("diff", "--no-ext-diff", "--no-textconv", "--binary",
                  "--full-index", "--no-color", "--find-renames=50%",
                  "--src-prefix=a/", "--dst-prefix=b/", f"{base}..{head}")
@@ -208,8 +358,15 @@ def render_packet(
         f"- Reviewed head: `{head}`",
         f"- Base: `{base}`",
         f"- Attempts: {run['graph_state']['node_states'][node_id]['attempts']}/{node['max_attempts']}",
+        "- Classify every observation as a blocking finding (defect against"
+        " accepted scope, TEST obligations, security, or correctness) or a"
+        " non-blocking note; notes never block.",
         f"- Scope: {', '.join(review['scope'])}",
     ]
+    if recheck is not None:
+        packet_lines += _recheck_lines(
+            recheck_contract, repair_diff, repair_truncated
+        )
     if review.get("stage") == "integration" and review["type"] == "security":
         packet_lines += [
             "", "## Security coverage", "",
@@ -312,6 +469,7 @@ def render_packet(
                 "acceptance": acceptance,
                 "acceptance_mappings": acceptance_mappings,
                 "acceptance_mappings_truncated": mappings_truncated,
+                "recheck": recheck_contract,
             },
             indent=2,
             ensure_ascii=False,

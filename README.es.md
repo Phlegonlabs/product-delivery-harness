@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.67.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.68.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -139,11 +139,11 @@ Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la 
 | Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. |
 | Direcciones | El mismo autor comprueba y repara los estudios renderizados antes de la selección del owner. Tres estudios; modificar añade un estudio revisado de la dirección elegida y una decisión; rechazar inicia otro conjunto. |
 | HiFi | Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente. Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. |
-| Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo. Usa un navegador real para UI. Una reparación consolidada y un recheck de hallazgos originales, código cambiado y consumidores directos; seguridad se vincula de nuevo con alcance completo. Un recheck fallido termina en `blocked`. |
+| Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo (navegador real para UI), con hallazgos triados en blocking y notes. Una reparación recibe un recheck acotado de los hallazgos previos y del rango de reparación; seguridad mantiene el alcance completo. Los intentos bloqueados por entorno no gastan presupuesto; un recheck fallido termina en `blocked`. |
 | Release | Una instrucción del owner puede nombrar varias acciones exactas. El archivo A y el SHA main S con árbol idéntico heredan evidencia verificada según las reglas siguientes. Un árbol distinto es otro candidato. |
 | Activation | Verifica autorización, readback independiente y comportamiento aplicable por target; preparación y readiness de producción siguen separados. |
 
-Omitir `review_policy` conserva el comportamiento histórico `per_mission`. Preserva pins PLAN/RUN y aprobaciones anteriores; renombrar un nodo nunca reinicia los intentos consumidos. Otro intento requiere la decisión explícita del owner registrada. La entrega de código exige seguridad; sin ella informa `UNVALIDATED`, nunca PASS. La primera revisión HiFi cubre cada eje de audit. La revisión posterior repite critique y audit en páginas y estados afectados y conserva la matriz completa.
+Omitir `review_policy` conserva el comportamiento histórico `per_mission`. Preserva pins PLAN/RUN y aprobaciones anteriores; renombrar un nodo nunca reinicia los intentos consumidos. Otro intento requiere la decisión explícita del owner registrada. Los diffs ejecutables exigen seguridad; sin ella informa `UNVALIDATED`, nunca PASS. Un diff de solo docs, copy, Epic, evidencia o bookkeeping registra `security: not_applicable (<reason>)` con la lista de rutas. Un PASS arrastrado con alcance disjunto conserva su SHA de origen y nunca se rotula como fresh. La primera revisión HiFi cubre cada eje de audit. La revisión posterior repite critique y audit en páginas y estados afectados y conserva la matriz completa.
 
 Impeccable sigue siendo obligatorio para HiFi, pero no es el reviewer predeterminado de implementación de solo lectura. Su workflow requiere autorización separada para subagents, navegador/server, snapshots y descargas opcionales. Producto, stack, dirección y Visual Approval siguen con sus owners.
 
@@ -209,6 +209,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.68.0** — Triar hallazgos de revisión en defectos blocking y notas no blocking: solo los hallazgos blocking fuerzan reparación, y el recheck verifica los hallazgos previos sobre el rango de reparación con seguridad a alcance completo. Los intentos de revisión bloqueados por entorno ya no gastan el presupuesto de intentos, las reparaciones llegan al reviewer solo con el PASS del verifier del autor, y los diffs no ejecutables registran `security: not_applicable` en lugar de `UNVALIDATED`. Un PASS arrastrado con alcance disjunto conserva su SHA de origen, y los puntos de revisión fuera de una revisión combinada más un recheck requieren un motivo registrado.
+
 - **0.67.0** — Exigir una petición explícita para los siete skills centrales y los cuatro independientes. Limitar las rutas Harness, la sincronización documental y los registros Epic al flujo solicitado. Conservar controles y dependencias sin iniciar otra etapa principal.
 
 - **0.66.0** — Reducir rondas de revisión repetidas en PRD, UI y entrega, conservando 85/80, Impeccable, Visual Approval y la revisión de seguridad del SHA exacto. Planificar missions como lotes de funcionalidad con un reviewer de lentes combinadas cada una y omitir la revisión de integración de código solo con una cadena de merges limpia probada. Reparar una vez cuando vuelven todas las revisiones del candidato y revisar después solo la reparación. Limitar la revisión HiFi posterior al registro con filas arrastradas, revisar una dirección modificada como un solo estudio y detectar en el PRD superficies inalcanzables y estados sin salida. Mantener un contrato Harness por RUN y por ronda de diseño, registrar la identidad no observada una vez por sesión y cargar una lista corta de entrada en lugar de los contratos largos. Corregir defectos falsos de retención y una carrera en el límite de commit del registro de integración, y publicar el trabajo de compilador, cobertura de estados, role-policy e ingestión de AgentKiosk.
@@ -216,7 +218,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.65.3** — Unificar la revisión de diseño y la aceptación de implementación, conservando 85/80 y las pruebas necesarias. Entregar referencias visuales completas y delegar la selección de workers a la configuración del agente. Mantener contratos RUN existentes y corregir cobertura, reutilización de aceptación y resúmenes de acciones preparadas de Activation.
 
 - **0.65.2** — Publicar el diagrama completo de entrega en cuatro idiomas. Indicar autorrevisión del PRD, preparación inicial, roles MultiAgent, revisiones existentes y entradas paralelas de GTM. Instagram y Threads describen el contexto actual; Facebook Pages queda por evaluar y X es opcional. Conservar 85/80 y los presupuestos de revisión.
-
-- **0.65.1** — Aclara una autorrevisión completa del paquete PRD y comprobaciones del alcance afectado antes de aprobar. Ordena la prueba del recorrido principal y evidencia aplicable de carga, coste, migración y recuperación dentro de las tareas existentes. Añade selección de X, contenido y enlaces entre borradores y medición a los skills GTM opcionales. Explica roles, preparación y límites de revisión en los cuatro READMEs. Reutiliza registros y presupuestos; no añade schema ni ronda de revisión.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).

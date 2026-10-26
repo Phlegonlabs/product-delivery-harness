@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.65.0. Current releases are in [README.md](README.md#version-history).
+English release history through 0.65.1. Current releases are in [README.md](README.md#version-history).
+
+- **0.65.1** — Clarify one complete PRD package author review and affected-scope rechecks before approval. Order core-journey proof and applicable load, cost, migration and recovery evidence within existing engineering tasks. Add X channel selection, content guidance and draft-to-measurement handoffs to the optional GTM skills. Explain roles, foundation timing and review limits in all four READMEs. Reuse existing records and review budgets; no new schema or review wave.
 
 - **0.65.0** — Require HiFi overall 85 and every H1-H9 dimension 80, with mandatory Impeccable and bounded repair review. Move build access, repository-protection readback, AEO/search, deployment, analytics, feedback, errors and alerts into existing startup stages. Explain parent-owned MultiAgent collaboration. Add guarded runtime observations, advisory compiler-source diagnostics and optional GTM strategy/content handoffs. Current HiFi acceptance changes; historical approvals and evidence retain their meaning.
 

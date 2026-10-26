@@ -39,19 +39,23 @@ findings to the owning flow above.
 6. On failure, record expected result, actual result, exit or observation,
    artifact or trace, and input identity. Do not hide the concrete difference.
 7. Wait for every required verifier and review result on the same candidate.
-   Group the findings by root-cause family and send them to the owning
-   corrector as one repair. Non-blocking suggestions go to the backlog.
+   Triage each review into blocking findings and non-blocking notes; only
+   blocking findings repair. Group the blocking findings by root-cause family
+   and send them to the owning corrector as one repair. Non-blocking
+   suggestions go to the backlog.
 8. Repair only accepted scope. Rerun the affected verifier and every downstream
-   check invalidated by the new candidate. A re-review checks the original
-   findings, the changed code and its direct consumers, not the whole scope again.
-   This is the only repair budget; a second repair round needs an explicit owner
-   decision.
+   check invalidated by the new candidate. Present the focused verifier PASS at
+   the new head, plus a failure family's acceptance matrix, before the re-check
+   is dispatched. The re-check packet carries the prior blocking findings, the
+   prior notes and the repair range; it judges those findings and the repair,
+   not the whole scope again. This is the only repair budget; a second repair
+   round needs an explicit owner decision.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, exhausted budget, missing required capability, or a contract
     gap. A failed re-review stops at `blocked` and returns to the owner; it never
-    starts another round on its own. Preserve history, candidate identity, and
-    unresolved work.
+    starts another round on its own. An environment-blocked review attempt is
+    not a round. Preserve history, candidate identity, and unresolved work.
 
 Keep the record in the existing task report, Epic, PLAN acceptance row, or RUN
 gate. Direct work does not create PLAN/RUN state to host this loop. Managed work
@@ -66,7 +70,9 @@ authority blocks the claim rather than inventing a PASS.
 Bind every PASS to the exact candidate SHA and declared inputs. A later change to
 covered source, configuration, contract, toolchain, or external state invalidates
 the affected result. Deterministic reuse follows `graph-orchestration.md`;
-security review never reuses a prior candidate, tree identity, or reviewer skip.
+security review never reuses a prior candidate, tree identity, or reviewer skip;
+the only exception is the direct-route scope-disjoint carry-forward in
+`verification-gates.md#review-topology`.
 
 Feature Must traces use existing `acceptance_gate_ids` and canonical Required-Yes
 `TEST-*` obligations. Every contributing mission precedes each final gate through
