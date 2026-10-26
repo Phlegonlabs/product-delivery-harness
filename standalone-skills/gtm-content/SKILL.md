@@ -49,6 +49,17 @@ Use the project's design/media route only when production is authorized.
 Do not expose internal screenshots or present another product's creative as this project's own.
 Adapt locales naturally while preserving facts, offers and destinations; keep variants independently reviewable.
 
+## Content Pipeline
+
+When a campaign needs several posts, derive them from one source piece per idea.
+The source piece states the audience task, supported proof and intended action once.
+Produce per-channel variants from it: an X thread, a Threads post, a Facebook post, a LinkedIn post and a short-video script.
+Write two hook variants for each variant so the owner can compare click-through later.
+Keep both hooks in the package; testing selects one, and drafting declares no winner.
+Shared facts stay the same across variants; adaptation means rewriting, not copying one caption.
+Package each source piece, variant and hook with the item fields the campaign template already has.
+The pipeline prepares reviewable copy. It does not publish, schedule or run the comparison.
+
 ## Assemble The Review Package
 
 Use [the campaign template](assets/templates/CAMPAIGN.template.md) when saving helps, or provide equivalent information inline.

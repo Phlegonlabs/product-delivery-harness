@@ -71,6 +71,18 @@ Prioritize qualitatively with:
 
 Rank technical blockers before growth experiments. Among non-blockers, prefer a strong existing-page opportunity over a speculative new content program. Do not use a universal position band, volume floor, keyword-difficulty score or domain-authority target as a hard gate.
 
+## Pre-Launch Planning Sequence
+
+For `pre_launch`, production search data does not exist yet. Build the plan in this order:
+
+1. Cluster the queries the product can answer, from audience language, support material and public demand evidence.
+2. Assign each cluster one responsibility on one planned public page, with the intent that page must satisfy.
+3. Draft the internal-link skeleton: which pages link to which, and what each anchor tells the reader.
+4. Route new or changed routes and metadata contracts to `product-definition-builder`, and approved implementation to `delivery-harness`.
+5. Label every claim `estimated` or `hypothesis` until the pages exist and search data arrives.
+
+The plan feeds the PRD's routes and metadata contract. It creates no page and promises no ranking.
+
 ## Traffic-Drop Sequence
 
 For `traffic_drop`, test explanations in this order:
@@ -82,6 +94,18 @@ For `traffic_drop`, test explanations in this order:
 5. Check release history, redirects, robots, canonicals, rendering, status codes, internal links and content changes for the affected pages.
 6. Check whether competitors or the result format changed, while keeping that evidence as public observation rather than private-performance fact.
 7. Report the smallest supported cause set and the evidence that would falsify it. Do not name an algorithm update or penalty without direct current evidence.
+
+## Growth Review Cadence
+
+When the PRD has a `## Growth Contract`, run `growth_review` at its Day 7 and Day 30 readbacks:
+
+1. Compare north-star results with the contract's Day 7 and Day 30 targets.
+2. Read back each discovery surface: what it earned in visibility and what visited it.
+3. Compare the launch window's channel classes with the readback metrics in the launch reach plan.
+4. Return next-round PRD delta candidates, each with its evidence and one owner route.
+
+The cadence is read-only. It reports evidence; the PRD owner accepts or rejects each candidate.
+A missed target is a finding, not a mandate to change the product or buy placement.
 
 ## Gap Routing
 

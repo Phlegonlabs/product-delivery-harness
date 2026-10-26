@@ -5,7 +5,7 @@ Use this template only when the owner asks to save a lifecycle public-release re
 ## Record
 
 - Schema: seo-review/2
-- Mode: <baseline / growth_review / traffic_drop>
+- Mode: <baseline / pre_launch / growth_review / traffic_drop>
 - Review type: lifecycle_public_release
 - Review owner: <human owner>
 - Product: <approved PRD product identity>

@@ -30,6 +30,7 @@ Repeat per item with a stable ID and revision:
 - Channel and exact account/Page, or unresolved target gap.
 - Audience, language, purpose and theme.
 - Exact public copy and sequence order.
+- Source piece and hook variant: source-piece ID plus `hook-a` or `hook-b` when the item belongs to a content pipeline.
 - Destination and public links, including proposed tracking identifiers where appropriate.
 - Media files or briefs, visible copy, alt text, provenance/rights and production gaps.
 - Evidence for public facts, available release and claims needing review.
