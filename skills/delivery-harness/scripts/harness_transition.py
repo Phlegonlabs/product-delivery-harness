@@ -4003,11 +4003,10 @@ def _record_review_attempt(
                 tree_sha = _git_tree(args.repo_root, reviewed)
         if is_full_sha(tree_sha):
             worker["tree_sha"] = tree_sha
-    scoped_pass = scoped and args.result == "pass"
-    # A scoped pass that carries a real security result is a full-value
-    # trust-boundary acceptance and consumes the attempt like any ordinary
-    # pass; only the lightweight scoped acceptance refunds the budget.
-    scoped_budget_refund = scoped_pass and security_result is None
+    # Every scoped PASS refunds the attempt: it accepts only the repair
+    # diff, so a trust-boundary security result rides along without
+    # consuming the full-scope review budget.
+    scoped_budget_refund = scoped and args.result == "pass"
     if refund:
         # The reviewer could not inspect the candidate, so the node budget is
         # refunded and the selector mints a fresh attempt; the retained

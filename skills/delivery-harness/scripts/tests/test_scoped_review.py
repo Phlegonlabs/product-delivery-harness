@@ -570,7 +570,8 @@ class ScopedReviewPassTests(unittest.TestCase):
                     repo_root=root, security_result=result_path
                 )
 
-        self.assertFalse(receipt["refunded"], receipt)
+        self.assertTrue(receipt["refunded"], receipt)
+        self.assertEqual(1, self.state["attempts"])
         self.assertNotIn("security_scope", self.worker)
         self.assertEqual("pass", self.worker["security_result"]["decision"])
 
