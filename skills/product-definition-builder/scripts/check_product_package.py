@@ -700,14 +700,18 @@ def _validate_table_rows(
             _add(problems, path, f"{label} row contains an empty value or placeholder")
 
 
+def _header_key(cell: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"\([^)]*\)", " ", cell)).strip().casefold()
+
+
 def _find_table(
     text: str, expected_header: tuple[str, ...]
 ) -> list[tuple[str, ...]] | None:
     lines = active_text(text).splitlines()
-    expected = tuple(cell.casefold() for cell in expected_header)
+    expected = tuple(_header_key(cell) for cell in expected_header)
     for index, line in enumerate(lines):
         cells = _table_cells(line)
-        if cells is None or tuple(cell.casefold() for cell in cells) != expected:
+        if cells is None or tuple(_header_key(cell) for cell in cells) != expected:
             continue
         rows: list[tuple[str, ...]] = []
         for candidate in lines[index + 1 :]:

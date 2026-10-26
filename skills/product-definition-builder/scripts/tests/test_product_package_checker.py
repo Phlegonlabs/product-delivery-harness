@@ -3036,17 +3036,17 @@ def growth_contract_section(track: str = "web") -> str:
 | {track} | Weekly returning fixture users | 40% return by day 7 | 55% return by day 30 | 70% return by day 30 | MS-100 |
 
 ### Re-engagement
-| Mechanism | Surface or event | TEST ID |
+| Mechanism (email / push / subscription / deep link / return trigger) | Surface or event | TEST ID |
 | --- | --- | --- |
 | email digest | Fixture digest surface on the home route | TEST-001 |
 
 ### Discovery Surfaces
-| Surface | Kind | Owner stage | TEST or MS ID |
+| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | Owner stage | TEST or MS ID |
 | --- | --- | --- | --- |
 | /launch | landing | gtm | MS-110 |
 
 ### Launch Window
-| Day | Channel class | Action | Owner | Readback metric |
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
 | --- | --- | --- | --- | --- |
 | Day 0 | owned | Announce the fixture launch | Owner | Return visits |
 
@@ -3292,6 +3292,39 @@ class GrowthContractTests(unittest.TestCase):
             any("North Star track must be web, app or agent" in item for item in findings),
             findings,
         )
+
+    def test_growth_contract_annotated_headers_are_canonical(self) -> None:
+        prd = shaped_prd().replace(
+            "| Mechanism (email / push / subscription / deep link / return trigger) | "
+            "Surface or event | TEST ID |",
+            "| Trigger (email / push / subscription / deep link / return trigger) | "
+            "Surface or event | TEST ID |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Re-engagement must use the Mechanism |" in item for item in findings),
+            findings,
+        )
+
+    def test_growth_contract_accepts_headers_without_annotations(self) -> None:
+        prd = shaped_prd().replace(
+            "| Mechanism (email / push / subscription / deep link / return trigger) | "
+            "Surface or event | TEST ID |",
+            "| Mechanism | Surface or event | TEST ID |",
+            1,
+        ).replace(
+            "| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | "
+            "Owner stage | TEST or MS ID |",
+            "| Surface | Kind | Owner stage | TEST or MS ID |",
+            1,
+        ).replace(
+            "| Day | Channel class (owned / earned / search / store) | Action | Owner | "
+            "Readback metric |",
+            "| Day | Channel class | Action | Owner | Readback metric |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
 
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
