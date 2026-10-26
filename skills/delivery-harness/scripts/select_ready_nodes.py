@@ -486,9 +486,11 @@ def _pending_scoped_repair(
     An isolated repair bound to the current head re-arms its integration
     review for one scoped pass even at the exhausted full-scope attempt cap:
     the scoped PASS refunds the attempt, so the review budget is never
-    exceeded. The entry stays pending until a scoped review attempt is
-    recorded for it at that head; ordinary (non-scoped) reservations keep
-    the guard.
+    exceeded. The entry stays pending until a scoped review attempt with a
+    terminal review outcome (pass or fix_required) is recorded for it at
+    that head. An environment-blocked scoped reviewer never inspected the
+    candidate, so it does not count as reviewed: the retry reservation is
+    scoped again instead of falling back to an ordinary full-scope review.
     """
 
     review = node.get("review")
@@ -513,6 +515,7 @@ def _pending_scoped_repair(
         and worker.get("node_id") == node.get("id")
         and worker.get("scoped") is True
         and worker.get("reviewed_sha") == head
+        and worker.get("outcome") in {"pass", "fix_required"}
         for worker in run.get("review_workers", [])
     )
     return None if reviewed else entry
