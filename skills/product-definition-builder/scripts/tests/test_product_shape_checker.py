@@ -466,29 +466,54 @@ def nonrequired_run_trace_prd(shape_value: str) -> str:
     )
 
 
+def seo_test_prd(shape_value: str) -> str:
+    return shaped_prd(shape_value).replace(TEST_003_ROW, TEST_003_ROW + "\n" + SEO_TEST_ROW, 1)
+
+
+def frontend_delivery_prd(shape_value: str, line: str) -> str:
+    return shaped_prd(shape_value).replace(
+        "## Data and Integration Requirements",
+        "## Frontend Delivery Requirements\n"
+        + line
+        + "\n## Data and Integration Requirements",
+        1,
+    )
+
+
+def not_required_seo_test_prd(shape_value: str) -> str:
+    not_required_row = (
+        "| TEST-005 | Landing page SEO metadata renders on the companion surface | seo | No "
+        "| PRD-001 | meta title renders on the landing route |"
+    )
+    return shaped_prd(shape_value).replace(
+        TEST_003_ROW, TEST_003_ROW + "\n" + not_required_row, 1
+    )
+
+
 OPERATIONS_SHAPE = (
     "track: agent; companion: none (docs ship inside the repo); console: operations"
 )
 
-
-class ProductShapeCheckerTests(unittest.TestCase):
-    def validate(
-        self, prd: str, *, architecture: str | None = None
-    ) -> list[str]:
-        selected_architecture = architecture
-        if selected_architecture is None and "<!-- ui-surface-contract:start -->" in prd:
-            selected_architecture = release_architecture()
-        package = strictize_approved_package(
-            prd, selected_architecture or valid_architecture(), valid_stack()
-        )
-        return check_product_package.validate_texts(
-            *package,
-            require_filled=True,
-            require_approved=True,
-        )
+APP_NONE_SHAPE = "track: app; companion: none; console: none"
 
 
-class ConsoleOperationsTests(ProductShapeCheckerTests):
+def validate_shape_package(prd: str, *, architecture: str | None = None) -> list[str]:
+    selected_architecture = architecture
+    if selected_architecture is None and "<!-- ui-surface-contract:start -->" in prd:
+        selected_architecture = release_architecture()
+    package = strictize_approved_package(
+        prd, selected_architecture or valid_architecture(), valid_stack()
+    )
+    return check_product_package.validate_texts(
+        *package,
+        require_filled=True,
+        require_approved=True,
+    )
+
+
+class ConsoleOperationsTests(unittest.TestCase):
+    def validate(self, prd: str) -> list[str]:
+        return validate_shape_package(prd)
     def test_console_operations_passes_with_per_journey_traces(self) -> None:
         self.assertEqual([], self.validate(console_journeys_prd(OPERATIONS_SHAPE)))
 
@@ -517,6 +542,61 @@ class ConsoleOperationsTests(ProductShapeCheckerTests):
         self.assertTrue(
             any("(missing: configuration, run inspection)" in item for item in findings),
             findings,
+        )
+
+
+class AppCompanionSeoTests(unittest.TestCase):
+    def validate(self, prd: str, *, architecture: str | None = None) -> list[str]:
+        return validate_shape_package(prd, architecture=architecture)
+
+    def test_excluded_frontend_seo_lines_do_not_require_a_companion(self) -> None:
+        for line in (
+            "- SEO: not_required — no public discovery surface",
+            "- Site-level SEO is not required — no public discovery surface",
+            "- AEO obligations: n/a for this private tool",
+            "- SEO obligations: none — the product ships no public surface",
+        ):
+            with self.subTest(line=line):
+                self.assertEqual(
+                    [], self.validate(frontend_delivery_prd(APP_NONE_SHAPE, line))
+                )
+
+    def test_frontend_seo_obligation_still_requires_a_companion(self) -> None:
+        seo_line = (
+            "- Site-level SEO for the fixture landing pages: sitemap and robots "
+            "policy are recorded here."
+        )
+        findings = self.validate(frontend_delivery_prd(APP_NONE_SHAPE, seo_line))
+        self.assertTrue(
+            any("needs a companion public surface" in item for item in findings),
+            findings,
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                frontend_delivery_prd(
+                    "track: app; companion: Fixture landing page; console: none",
+                    seo_line,
+                )
+            ),
+        )
+
+    def test_required_seo_test_still_requires_a_companion(self) -> None:
+        findings = self.validate(seo_test_prd(APP_NONE_SHAPE))
+        self.assertTrue(
+            any("needs a companion public surface" in item for item in findings),
+            findings,
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                seo_test_prd("track: app; companion: App store listing; console: none")
+            ),
+        )
+
+    def test_not_required_seo_test_does_not_require_a_companion(self) -> None:
+        self.assertEqual(
+            [], self.validate(not_required_seo_test_prd(APP_NONE_SHAPE))
         )
 
 

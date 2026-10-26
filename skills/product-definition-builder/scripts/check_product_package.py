@@ -460,6 +460,10 @@ CONSOLE_JOURNEY_KEYWORDS = (
     ("approv", "approval"),
 )
 CONSOLE_TRACE_ID_RE = re.compile(r"\b[A-Z][A-Z0-9]*-[A-Z0-9-]+\b")
+AEO_SEO_RE = re.compile(r"\bAEO\b|\bSEO\b", re.IGNORECASE)
+EXCLUDED_OBLIGATION_RE = re.compile(
+    r"not_required|not required|n/a|none", re.IGNORECASE
+)
 GROWTH_NORTH_STAR_HEADER = (
     "track",
     "north star",
@@ -977,13 +981,14 @@ def _prd_requires_aeo_seo(
     for row in test_rows:
         if len(row) != len(TEST_OBLIGATIONS_HEADER):
             continue
-        if row[3].strip().casefold() == "yes" and re.search(
-            r"\bAEO\b|\bSEO\b", " | ".join(row), re.IGNORECASE
-        ):
+        if row[3].strip().casefold() == "yes" and AEO_SEO_RE.search(" | ".join(row)):
             return True
     frontend = _section(prd_text, "## Frontend Delivery Requirements")
-    return frontend is not None and bool(
-        re.search(r"\bAEO\b|\bSEO\b", frontend, re.IGNORECASE)
+    if frontend is None:
+        return False
+    return any(
+        AEO_SEO_RE.search(line) and not EXCLUDED_OBLIGATION_RE.search(line)
+        for line in frontend.splitlines()
     )
 
 
