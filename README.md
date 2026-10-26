@@ -219,6 +219,4 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 - **0.67.0** — Require an explicit request for all seven core skills and four standalone skills. Scope Harness routing, document sync and Epic records to requested workflows. Preserve required checks and dependencies without starting another top-level stage.
 
-- **0.66.0** — Cut repeated review rounds across PRD, UI and delivery while keeping 85/80, Impeccable, Visual Approval and exact-SHA security review. Plan missions as feature batches with one combined-lens reviewer each and skip a code integration review only on a proven clean merge chain. Repair once after all reviews of a candidate return and re-review only the repair. Scope HiFi re-review to the ledger with carried rows, revise a modified direction as one study, and catch unreachable surfaces and dead-end states in the PRD check. Keep one Harness contract per RUN and per design round, record unobserved identity once per session, and load a short entry checklist instead of the long contracts. Fix retention false defects, a commit-boundary race in integration recording, and release the AgentKiosk compiler, state-coverage, role-policy and ingestion work.
-
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
