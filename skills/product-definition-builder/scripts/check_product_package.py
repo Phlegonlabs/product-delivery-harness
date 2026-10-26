@@ -711,7 +711,10 @@ def _validate_table_rows(
 
 
 def _header_key(cell: str) -> str:
-    return re.sub(r"\s+", " ", re.sub(r"\([^)]*\)", " ", cell)).strip().casefold()
+    # Annotations follow the header word; take the text before the first
+    # parenthesis so a malformed cell cannot drive repeated suffix scans.
+    head = cell.split("(", 1)[0]
+    return re.sub(r"\s+", " ", head).strip().casefold()
 
 
 def _find_table(
@@ -1018,10 +1021,14 @@ def _prd_requires_aeo_seo(
     frontend = _section(prd_text, "## Frontend Delivery Requirements")
     if frontend is None:
         return False
-    return any(
-        AEO_SEO_RE.search(line) and not EXCLUDED_OBLIGATION_RE.search(line)
-        for line in frontend.splitlines()
-    )
+    for line in frontend.splitlines():
+        for match in AEO_SEO_RE.finditer(line):
+            # The exclusion must sit in the obligation's own clause, which ends
+            # at the next semicolon or sentence stop, not anywhere on the line.
+            clause = re.split(r"[;.]", line[match.end():], maxsplit=1)[0]
+            if not EXCLUDED_OBLIGATION_RE.search(clause):
+                return True
+    return False
 
 
 def _validate_console_journeys(
@@ -1205,9 +1212,15 @@ def _absent_cell(value: str) -> bool:
     )
 
 
-def _launch_day_lower(cell: str) -> int | None:
+def _launch_day_bounds(cell: str) -> tuple[int, int] | None:
     match = LAUNCH_DAY_CELL_RE.fullmatch(cell.strip())
-    return int(match.group("lower")) if match else None
+    if not match:
+        return None
+    lower = int(match.group("lower"))
+    upper = int(match.group("upper")) if match.group("upper") is not None else lower
+    if upper < lower:
+        return None
+    return lower, upper
 
 
 def _validate_growth_contract(
@@ -1407,8 +1420,8 @@ def _validate_growth_contract(
                     "Launch Window channel class must be owned, earned, search or store, not "
                     f"{row[1].strip()!r}",
                 )
-            lower = _launch_day_lower(row[0])
-            if lower is not None and 0 <= lower <= 7:
+            bounds = _launch_day_bounds(row[0])
+            if bounds is not None and bounds[0] <= 7 and bounds[1] >= 0:
                 launch_day_seen = True
         if not launch_day_seen:
             _add(

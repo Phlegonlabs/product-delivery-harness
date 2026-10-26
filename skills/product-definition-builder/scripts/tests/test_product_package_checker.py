@@ -3507,6 +3507,35 @@ class GrowthContractTests(unittest.TestCase):
             any("Day 0 through Day 7" in item for item in findings), findings
         )
 
+    def test_launch_window_reversed_ranges_do_not_qualify(self) -> None:
+        for cell in ("Day 7-0", "Day 0--1", "9-12"):
+            with self.subTest(cell=cell):
+                prd = shaped_prd().replace(
+                    "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+                    f"| {cell} | owned | Announce the fixture launch | Owner | Return visits |",
+                    1,
+                )
+                findings = self.validate(prd)
+                self.assertTrue(
+                    any("Day 0 through Day 7" in item for item in findings), findings
+                )
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day 5-9 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+
+    def test_header_key_ignores_unbalanced_annotations_linearly(self) -> None:
+        import time
+
+        from check_product_package import _header_key
+
+        started = time.perf_counter()
+        key = _header_key("Mechanism " + "(" * 100000)
+        self.assertEqual("mechanism", key)
+        self.assertLess(time.perf_counter() - started, 1.0)
+
     def test_launch_window_day_parsing_respects_signs(self) -> None:
         prd = shaped_prd().replace(
             "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
