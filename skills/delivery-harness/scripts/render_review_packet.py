@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from harness_git import GitMetadataError, reject_object_substitution, run_git
-from harness_graph import ui_acceptance_review
+from harness_graph import repair_scope_entry, ui_acceptance_review
 from harness_manifest import ManifestError, load_plan, load_run, validate_current_plan_run
 from harness_schema import review_lenses, review_policy
 from check_launch_packet import (
@@ -166,6 +166,79 @@ def _recheck_lines(
     return lines
 
 
+def _scoped_repair_lines(
+    scoped: dict[str, Any],
+    prior_findings: list[str],
+    name_status: str,
+    scoped_diff: str,
+    truncated: bool,
+) -> list[str]:
+    """The scoped section that replaces the full-candidate diff."""
+
+    trust = scoped.get("trust_boundary") is True
+    scoped_range = f"{scoped['prior_head_sha']}..{scoped['candidate_sha']}"
+    lines = [
+        "",
+        "## Scoped repair review",
+        "",
+        "This head is a recorded isolated repair. The candidate already"
+        " carries a non-scoped PASS; this review covers the repair diff only.",
+        "",
+    ]
+    if prior_findings:
+        lines += [
+            "Prior finding under repair:",
+            *(
+                f"- F{index}: {finding}"
+                for index, finding in enumerate(prior_findings, 1)
+            ),
+            "",
+        ]
+        verdict = (
+            "Return a verdict on every prior finding: resolved, unresolved,"
+            " or superseded, with path and line evidence at the reviewed head."
+        )
+    else:
+        verdict = (
+            "Return a pass or fix_required verdict on the scoped repair at"
+            " the reviewed head."
+        )
+    lines += [
+        f"Repair range: `{scoped_range}` (scoped to the recorded repair paths)",
+        "",
+        "Changed files in the repair range:",
+        "",
+        name_status.rstrip(),
+        "",
+        "Repair diff:",
+        "",
+        "```diff",
+        scoped_diff.rstrip(),
+        "```",
+    ]
+    if truncated:
+        lines += [
+            "",
+            "This repair diff preview is incomplete. Read the fixed Git range"
+            f" directly (`{scoped_range}`). Report uninspected"
+            " paths and binary-content gaps; do not return a verdict while"
+            " required coverage remains unknown.",
+        ]
+    lines += [
+        "",
+        f"Trust boundary: {'yes' if trust else 'no'}. Apply the security"
+        " lens to the scoped repair paths only when the trust boundary flag"
+        " is set.",
+        "",
+        verdict,
+        "Inspect only the repair paths and their direct consumers.",
+        "An observation outside the repair paths and their direct consumers"
+        " is a non-blocking note unless it is a validated security finding;"
+        " report notes separately and do not turn them into blocking findings.",
+    ]
+    return lines
+
+
 def _relevant_acceptance_mappings(
     plan: dict[str, Any], missions: list[dict[str, Any]]
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -260,7 +333,12 @@ def render_packet(
         head = run["mission_states"][missions[0]["id"]].get("head_sha") or head
     if not isinstance(base, str) or not isinstance(head, str):
         raise ManifestError("review packet requires concrete base and reviewed head SHAs")
-    recheck = _prior_fix_required_review(plan, run, node_id, review, head)
+    scoped_entry = repair_scope_entry(run, head)
+    recheck = (
+        None
+        if scoped_entry is not None
+        else _prior_fix_required_review(plan, run, node_id, review, head)
+    )
     recheck_contract = None
     repair_diff = ""
     repair_truncated = False
@@ -295,24 +373,55 @@ def render_packet(
             "repair_range": repair_range,
             "repair_name_status": repair_name_status,
         }
-    diff_args = ("diff", "--no-ext-diff", "--no-textconv", "--binary",
-                 "--full-index", "--no-color", "--find-renames=50%",
-                 "--src-prefix=a/", "--dst-prefix=b/", f"{base}..{head}")
+    scoped_prior = (
+        scoped_entry["prior_head_sha"] if scoped_entry is not None else None
+    )
+    scoped_paths = (
+        list(scoped_entry["repair_paths"]) if scoped_entry is not None else []
+    )
+    diff_range = (
+        f"{scoped_prior}..{head}"
+        if scoped_entry is not None
+        else f"{base}..{head}"
+    )
+    pathspec: tuple[str, ...] = (
+        ("--", *scoped_paths) if scoped_entry is not None else ()
+    )
+    scoped_name_status = ""
+    scoped_contract = None
+    if scoped_entry is not None:
+        scoped_name_status = _git(
+            repo_root, "--literal-pathspecs", "-c", "core.quotePath=true", "diff",
+            "--no-ext-diff", "--no-textconv", "--name-status",
+            "--find-renames=50%", diff_range, *pathspec,
+        )
+        scoped_contract = {
+            "prior_head_sha": scoped_entry["prior_head_sha"],
+            "candidate_sha": scoped_entry["candidate_sha"],
+            "repair_paths": list(scoped_entry["repair_paths"]),
+            "trust_boundary": scoped_entry.get("trust_boundary") is True,
+        }
+    diff_args = ("--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
+                 "--binary", "--full-index", "--no-color", "--find-renames=50%",
+                 "--src-prefix=a/", "--dst-prefix=b/", diff_range, *pathspec)
     result = run_git(repo_root, *diff_args, text=False, timeout=30)
     if result.returncode != 0:
-        raise ManifestError("cannot read full review diff")
+        raise ManifestError("cannot read review diff")
     encoded = result.stdout
     diff = encoded.decode("utf-8", errors="replace")
     pending_artifacts: list[tuple[Path, bytes]] = []
     diff_artifact = None
     if diff_artifact_out is not None:
         diff_artifact = {
-            "path": str(diff_artifact_out.resolve()), "base_sha": base,
+            "path": str(diff_artifact_out.resolve()),
+            "base_sha": scoped_prior or base,
             "head_sha": head, "sha256": hashlib.sha256(encoded).hexdigest(),
             "bytes": len(encoded),
-            "name_status": _git(repo_root, "-c", "core.quotePath=true", "diff",
+            "name_status": _git(repo_root, "--literal-pathspecs",
+                                "-c", "core.quotePath=true", "diff",
                                 "--no-ext-diff", "--no-textconv", "--name-status",
-                                "--find-renames=50%", f"{base}..{head}"),
+                                "--find-renames=50%", diff_range,
+                                *pathspec),
         }
         pending_artifacts.append((diff_artifact_out, encoded))
     truncated = len(encoded) > max_diff_bytes
@@ -320,9 +429,11 @@ def render_packet(
         diff = encoded[:max_diff_bytes].decode("utf-8", errors="replace")
         changed = _git(
             repo_root,
+            "--literal-pathspecs",
             "diff",
             "--name-only",
-            f"{base}..{head}",
+            diff_range,
+            *pathspec,
         ).strip()
     acceptance = [
         {"task_id": task["id"], "acceptance_matrix": task["acceptance_matrix"]}
@@ -366,6 +477,25 @@ def render_packet(
     if recheck is not None:
         packet_lines += _recheck_lines(
             recheck_contract, repair_diff, repair_truncated
+        )
+    elif scoped_entry is not None:
+        finding_workers = [
+            worker
+            for worker in run.get("review_workers", [])
+            if isinstance(worker, dict)
+            and worker.get("outcome") == "fix_required"
+            and worker.get("reviewed_sha") == scoped_prior
+            and worker.get("node_id") == node_id
+        ]
+        prior_findings = (
+            finding_workers[-1].get("findings") if finding_workers else []
+        )
+        packet_lines += _scoped_repair_lines(
+            scoped_entry,
+            prior_findings if isinstance(prior_findings, list) else [],
+            scoped_name_status,
+            diff,
+            truncated,
         )
     if review.get("stage") == "integration" and review["type"] == "security":
         packet_lines += [
@@ -431,7 +561,7 @@ def render_packet(
             "Missing required evidence blocks acceptance. Security and final regression obligations remain separate.",
             "Return ui_parity:<retained comparison anchor> and ui_page_quality:<retained quality-report anchor> in review evidence.",
         ]
-    if truncated:
+    if truncated and scoped_entry is None:
         # The untruncated diff already carries every path. Keep an explicit
         # path list only when byte truncation could hide the tail.
         packet_lines += [
@@ -447,7 +577,7 @@ def render_packet(
             " from the artifact when supplied (verify its hash), or inspect the same fixed Git"
             " range directly. Report uninspected paths and binary-content gaps;"
             " do not return PASS while required coverage remains unknown."
-            if truncated else ""
+            if truncated and scoped_entry is None else ""
         ),
         "",
         "## Contract",
@@ -470,19 +600,23 @@ def render_packet(
                 "acceptance_mappings": acceptance_mappings,
                 "acceptance_mappings_truncated": mappings_truncated,
                 "recheck": recheck_contract,
+                "scoped_repair": scoped_contract,
             },
             indent=2,
             ensure_ascii=False,
         ),
         "```",
-        "",
-        f"## Diff{' (truncated)' if truncated else ''}",
-        "",
-        "```diff",
-        diff.rstrip(),
-        "```",
-        "",
     ]
+    if scoped_entry is None:
+        packet_lines += [
+            "",
+            f"## Diff{' (truncated)' if truncated else ''}",
+            "",
+            "```diff",
+            diff.rstrip(),
+            "```",
+            "",
+        ]
     packet = "\n".join(packet_lines)
     if max_message_bytes is not None:
         try:

@@ -48,13 +48,15 @@ findings to the owning flow above.
    the new head, plus a failure family's acceptance matrix, before the re-check
    is dispatched. The re-check packet carries the prior blocking findings, the
    prior notes and the repair range; it judges those findings and the repair,
-   not the whole scope again. This is the only repair budget; a second repair
-   round needs an explicit owner decision.
+   not the whole scope again. One consolidated repair and one targeted re-check
+   are the whole review budget; remaining defects then continue as isolated
+   repairs under `verification-gates.md`'s Isolated Repair Protocol.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
-10. Stop on PASS, exhausted budget, missing required capability, or a contract
-    gap. A failed re-review stops at `blocked` and returns to the owner; it never
-    starts another round on its own. An environment-blocked review attempt is
+10. Stop on PASS, missing required capability, a contract gap, or an unsafe
+    repair. A failed re-check hands remaining defects to the Isolated Repair
+    Protocol; it never starts another full review round on its own. An
+    environment-blocked review attempt is
     not a round. Preserve history, candidate identity, and unresolved work.
 
 Keep the record in the existing task report, Epic, PLAN acceptance row, or RUN
@@ -71,7 +73,8 @@ Bind every PASS to the exact candidate SHA and declared inputs. A later change t
 covered source, configuration, contract, toolchain, or external state invalidates
 the affected result. Deterministic reuse follows `graph-orchestration.md`;
 security review never reuses a prior candidate, tree identity, or reviewer skip;
-the only exception is the direct-route scope-disjoint carry-forward in
+the exceptions are the direct-route scope-disjoint carry-forward and the
+scope-bound carry-forward of the Isolated Repair Protocol in
 `verification-gates.md#review-topology`.
 
 Feature Must traces use existing `acceptance_gate_ids` and canonical Required-Yes

@@ -11,7 +11,11 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any
 
-from harness_core import _nonempty_string, _normalized_branch, classify_execution_route
+from harness_core import (
+    _nonempty_string,
+    _normalized_branch,
+    classify_execution_route,
+)
 from harness_manifest import (
     EXACT_RECEIPT_REQUIRED_VERSION,
     ManifestError,
@@ -37,7 +41,7 @@ from harness_schema import (
     run_required_harness_version,
     version_at_least,
 )
-from harness_graph import unactivated_review_repairs
+from harness_graph import repair_scope_entry, unactivated_review_repairs
 
 
 class GraphSelectionError(ValueError):
@@ -473,6 +477,50 @@ def _incoming_route_matched(
     return False
 
 
+def _pending_scoped_repair(
+    node: dict[str, Any],
+    run: dict[str, Any],
+) -> dict[str, Any] | None:
+    """Return the unreviewed repair scope recorded at the integration head.
+
+    An isolated repair bound to the current head re-arms its integration
+    review for one scoped pass even at the exhausted full-scope attempt cap:
+    the scoped PASS refunds the attempt, so the review budget is never
+    exceeded. The entry stays pending until a scoped review attempt with a
+    terminal review outcome (pass or fix_required) is recorded for it at
+    that head. An environment-blocked scoped reviewer never inspected the
+    candidate, so it does not count as reviewed: the retry reservation is
+    scoped again instead of falling back to an ordinary full-scope review.
+    """
+
+    review = node.get("review")
+    if (
+        node.get("kind") != "verifier"
+        or node.get("executor") != "runtime_worker"
+        or not isinstance(review, dict)
+        or review.get("stage", "preintegration") != "integration"
+    ):
+        return None
+    integration = run.get("integration")
+    head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    entry = repair_scope_entry(run, head)
+    if entry is None:
+        return None
+    reviewed = any(
+        isinstance(worker, dict)
+        and worker.get("node_id") == node.get("id")
+        and worker.get("scoped") is True
+        and worker.get("reviewed_sha") == head
+        and worker.get("outcome") in {"pass", "fix_required"}
+        for worker in run.get("review_workers", [])
+    )
+    return None if reviewed else entry
+
+
 def _logical_reasons(
     node: dict[str, Any],
     plan: dict[str, Any],
@@ -594,7 +642,8 @@ def _logical_reasons(
         reasons.add("node_phase_not_ready")
     if state["blockers"] and not retryable_mission and not retryable_node:
         reasons.add("blocker_present")
-    if state["attempts"] >= node["max_attempts"]:
+    pending_scoped_repair = _pending_scoped_repair(node, run)
+    if state["attempts"] >= node["max_attempts"] and pending_scoped_repair is None:
         reasons.add("attempts_exhausted")
 
     for edge in dependencies[node_id]:

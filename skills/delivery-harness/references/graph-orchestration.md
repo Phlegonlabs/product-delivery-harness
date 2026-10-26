@@ -121,7 +121,7 @@ A first-review PASS leaves the repair dormant; closeout recognizes the untaken r
 A `fix_required` activates the repair's one authorized writer attempt.
 Record its result, integrate it and run its focused integration checks through the normal mission protocol.
 The bounded pass route then permits one fresh targeted recheck on the repaired unified SHA.
-A failed recheck exhausts the review and repair route; stop and retain the findings for the owner.
+A failed recheck ends the review budget; remaining findings enter the Isolated Repair Protocol in `verification-gates.md` as scoped repairs that consume no review attempt.
 
 All source, scope, authorization, security, browser and evidence gates still apply.
 A repair not declared before execution needs the existing owner-authorized PLAN revision procedure.
@@ -131,7 +131,7 @@ A PLAN without `review_policy` retains `per_mission` semantics; this initial-rev
 
 Use one review, one consolidated repair, and one targeted re-check (`gen-verify-correct.md`). Group the repair by root cause and freeze its acceptance matrix before writing. A scope or contract gap returns upstream.
 
-Carry consumed attempts across revisions by stable mission + review surface + root-cause lineage. Replacing a node never resets that budget. The scripts enforce each node's `max_attempts`; the parent retains the cross-revision history. A failed re-check stops at `blocked`. One third attempt needs the owner's quoted decision, changed strategy, and acceptance matrix recorded in `docs/goal/DECISIONS.md`. The successor node permits only that one attempt.
+Carry consumed attempts across revisions by stable mission + review surface + root-cause lineage. Replacing a node never resets that budget. The scripts enforce each node's `max_attempts`; the parent retains the cross-revision history. A failed re-check ends the review budget; remaining findings continue as isolated repairs with scoped reviews, recorded in `docs/goal/DECISIONS.md` without a successor node.
 
 ## Multi-Reviewer Fan-Out
 
@@ -216,7 +216,7 @@ Never reuse:
 - a prior successful verifier result after its input head changed;
 - a failed worker report as if the retry replaced its evidence.
 
-Do not retry the same failed approach more than twice. A runtime review is stricter: `max_attempts` cannot exceed 2 and attempts count cumulatively per the Root-Cause Repair Escalation section above. After the bound is exhausted, stop at `blocked` and identify the required decision; apply that section's owner gate before authoring any successor review node.
+Do not retry the same failed approach more than twice. A runtime review is stricter: `max_attempts` cannot exceed 2 and attempts count cumulatively per the Root-Cause Repair Escalation section above. After the bound is exhausted, remaining findings continue as isolated repairs with scoped reviews; no successor review node is authored.
 
 ### Bounded Loop Method
 

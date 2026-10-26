@@ -60,6 +60,7 @@ Record:
 
 ```text
 Project size: small | large
+Delivery profile: standard | mvp
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 Host adapter: none | general (observed host identity or generic)
@@ -78,6 +79,10 @@ When an existing RUN is `running`, perform the Resume Reconciliation Gate in `re
 
 After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts using that RUN's exact pinned bundle. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
+### MVP Week
+
+The owner-selected `mvp` delivery profile targets one week from approved PRD to a verified release candidate for a small project or an MVP. It runs one combined review plus one re-check in delivery, folds Final UI Acceptance into the combined review, isolates every post-re-check defect, runs the broad suite once, and keeps at most four owner gates across the flow. Speed changes nothing else: the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding still apply.
+
 ## Non-Negotiable Boundaries
 
 These rules apply to both routes:
@@ -90,7 +95,7 @@ These rules apply to both routes:
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
 - Non-mission nodes reserve with `reserve-node-attempt`, execute outside the RUN lock, then record evidence with `record-node-result`; interrupted attempts become `blocked`.
-- A review PASS binds one exact SHA. Any repair invalidates it; on the direct route, scope-disjoint bookkeeping commits carry it forward (`references/verification-gates.md#review-topology`).
+- A review PASS binds one exact SHA. Any repair invalidates it for the paths the repair touches; on the direct route, scope-disjoint bookkeeping commits carry it forward, and a scoped repair PASS re-binds the repaired paths (`references/verification-gates.md#review-topology`).
 - Preserve failed, interrupted, cancelled, dirty, and partial worktree evidence. Never reset or remove it automatically.
 
 ## Direct Route
@@ -109,7 +114,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
 6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling or data access; a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
-7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). A failed re-check stops for the owner.
+7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
 8. Perform only remaining authorized Git actions.
 
 A text-only markup/style review makes no visual PASS claim and cannot close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.

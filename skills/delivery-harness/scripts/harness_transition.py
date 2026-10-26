@@ -39,6 +39,7 @@ from harness_graph import (
     reviewed_merge_chain_covers,
     ui_acceptance_evidence_present,
     ui_acceptance_review,
+    repair_scope_entry,
 )
 from harness_manifest import (
     _verifier_owners,
@@ -63,6 +64,7 @@ from harness_worker_result_transition import (
 )
 from select_ready_nodes import (
     GraphSelectionError,
+    _pending_scoped_repair,
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
@@ -96,6 +98,45 @@ def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     except GitMetadataError as exc:
         raise ManifestError(str(exc)) from exc
     return result.returncode == 0
+
+
+def _literal_pathspec_diff_paths(
+    root: Path, base_sha: str, head_sha: str, repair_paths: list[str]
+) -> set[str]:
+    """Changed paths Git itself reports under the repair paths as pathspecs.
+
+    Recorded scopes are replayed as pathspecs by the scoped review packet, so
+    the reconcile subset check re-reads the candidate diff through the same
+    ``--literal-pathspecs`` invocation: pathspec magic recorded by an older
+    run can never hide a changed path from the scoped review.
+    """
+
+    try:
+        reject_object_substitution(root)
+        result = run_git(
+            root,
+            "--literal-pathspecs",
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            f"{base_sha}..{head_sha}",
+            "--",
+            *repair_paths,
+            text=False,
+        )
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
+    if result.returncode != 0:
+        raise ManifestError("cannot observe the scoped repair diff from Git")
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ManifestError("scoped repair paths are not valid UTF-8") from exc
+    paths = output.split("\0")
+    if paths[-1:] == [""]:
+        paths.pop()
+    return set(paths)
 
 
 def _candidate_changed_paths(root: Path, base_sha: str, head_sha: str) -> list[str]:
@@ -2385,6 +2426,28 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
     run["integration"]["integration_head_sha"] = args.integrated_sha
 
 
+def _refund_exhausted_gate_attempts(plan: dict[str, Any], run: dict[str, Any]) -> None:
+    """Give re-armed batch/final gates at their attempt cap one attempt back."""
+
+    gate_ids = {
+        verifier.get("id")
+        for group in ("batch_verifiers", "final_gates")
+        for verifier in plan.get(group, [])
+        if isinstance(verifier, dict) and _nonempty_string(verifier.get("id"))
+    }
+    for node in plan.get("graph", {}).get("nodes", []):
+        if not isinstance(node, dict) or node.get("kind") != "verifier":
+            continue
+        if node.get("executor") not in {"local_command", "harness_parent"} or node.get("ref") not in gate_ids:
+            continue
+        state = run.get("graph_state", {}).get("node_states", {}).get(node.get("id"))
+        if not isinstance(state, dict) or state.get("phase") != "ready":
+            continue
+        attempts = int(state.get("attempts") or 0)
+        if attempts >= int(node.get("max_attempts") or 0) and attempts > 0:
+            state["attempts"] = attempts - 1
+
+
 def _invalidate_stale_current_projections(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -2728,6 +2791,18 @@ def _reconcile_candidate_head(
             "repair attempt does not match the batch/final verifier failure receipt"
         )
 
+    declared_repair_paths = list(getattr(args, "repair_path", None) or [])
+    for repair_path in declared_repair_paths:
+        reason = validate_changed_path(repair_path)
+        if reason is None and repair_path.startswith(":"):
+            reason = "must not start with Git pathspec magic"
+        if reason is None and "[" in repair_path:
+            reason = "contains unsupported glob syntax"
+        if reason:
+            raise ManifestError(
+                "--repair-path must be a literal repository-relative file path: "
+                f"{repair_path!r} {reason}"
+            )
     task_matches = [
         (mission, task)
         for mission in plan.get("missions", [])
@@ -2885,7 +2960,41 @@ def _reconcile_candidate_head(
             candidate_sha,
             allowed_scopes=review_scopes,
         )
-    _require_candidate_revalidation_budget(plan, run)
+    if declared_repair_paths:
+        changed_paths = _candidate_changed_paths(root, current_head, candidate_sha)
+        outside_scopes = [
+            path for path in changed_paths if path not in declared_repair_paths
+        ]
+        if outside_scopes:
+            raise ManifestError(
+                "repair changed paths outside --repair-path scope: "
+                + ", ".join(outside_scopes)
+            )
+        scoped_view = _literal_pathspec_diff_paths(
+            root, current_head, candidate_sha, declared_repair_paths
+        )
+        hidden = [path for path in changed_paths if path not in scoped_view]
+        if hidden:
+            raise ManifestError(
+                "--repair-path scope would hide changed candidate paths: "
+                + ", ".join(hidden)
+            )
+        for repair_path in declared_repair_paths:
+            if repair_path in changed_paths:
+                continue
+            probe = run_git(
+                root, "cat-file", "-e", f"{candidate_sha}:{repair_path}"
+            )
+            if probe.returncode != 0:
+                raise ManifestError(
+                    "--repair-path must name a file the candidate changes or "
+                    f"a file present in the candidate tree: {repair_path!r}"
+                )
+    if not declared_repair_paths:
+        # An isolated --repair-path repair re-arms the review node for a scoped
+        # review whose PASS refunds the attempt, so only an ordinary repair
+        # stays bound by the revalidation budget here.
+        _require_candidate_revalidation_budget(plan, run)
 
     # The scope and budget checks above may take time.  Bind the mutation to a
     # second live Git observation so a concurrent commit, checkout, or product
@@ -2913,7 +3022,21 @@ def _reconcile_candidate_head(
     prior_heads = integration.setdefault("prior_head_shas", [])
     if current_head not in prior_heads:
         prior_heads.append(current_head)
+    if declared_repair_paths:
+        integration.setdefault("repair_scopes", []).append(
+            {
+                "candidate_sha": candidate_sha,
+                "prior_head_sha": current_head,
+                "repair_paths": list(declared_repair_paths),
+                "source": args.source,
+                "trust_boundary": bool(getattr(args, "trust_boundary", False)),
+            }
+        )
     _invalidate_stale_current_projections(plan, run, current_head, candidate_sha)
+    if declared_repair_paths:
+        # A scoped repair consumes no attempt: the deterministic gates it
+        # re-arms get their spent attempt back so they can run once more.
+        _refund_exhausted_gate_attempts(plan, run)
     integration["integration_head_sha"] = candidate_sha
     continuity = run.get("landing", {}).get("continuity")
     if isinstance(continuity, dict) and continuity.get("status") == "preserved":
@@ -3706,6 +3829,17 @@ def _reserve_review_dispatch(
         "findings": [],
         "notes": [],
     }
+    pending_scope = _pending_scoped_repair(node, run)
+    pre_state = run["graph_state"]["node_states"][args.node_id]
+    review_worker["attempt_charged"] = (
+        int(pre_state.get("attempts") or 0) < int(node.get("max_attempts") or 1)
+    )
+    if pending_scope is not None:
+        # The reviewed head is a recorded isolated repair, so this reservation
+        # is the scoped review of that repair diff; the recorded PASS refunds
+        # the attempt, so the full-scope review budget is never exceeded.
+        review_worker["scoped"] = True
+        review_worker["repair_paths"] = list(pending_scope["repair_paths"])
     # Record the exact spawn receipt only after every guard has passed, as
     # _lease_worker does for mission workers.
     if directive["worker_runtime"] == "subagent":
@@ -3755,6 +3889,10 @@ def _reserve_review_dispatch(
 
 ENVIRONMENT_REFUND_CAP = 2
 
+SCOPED_REPAIR_SECURITY_SCOPE = (
+    "not_applicable (scoped repair outside trust boundaries)"
+)
+
 
 def _environment_refunds(run: dict[str, Any], lineage_id: Any) -> int:
     """Count retained environment refunds for one review lineage in this RUN."""
@@ -3792,6 +3930,26 @@ def _record_review_attempt(
         )
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
+    scoped = bool(getattr(args, "scoped", False))
+    if worker.get("scoped") is True and not scoped:
+        raise ManifestError(
+            "review dispatch was reserved as a scoped repair review; "
+            "record it with --scoped"
+        )
+    repair_scope = (
+        repair_scope_entry(run, worker.get("reviewed_sha")) if scoped else None
+    )
+    if scoped and repair_scope is None:
+        raise ManifestError(
+            "--scoped requires a recorded repair scope whose candidate_sha "
+            "equals the reviewed head"
+        )
+    scoped_security_pass = (
+        scoped
+        and args.result == "pass"
+        and repair_scope is not None
+        and repair_scope.get("trust_boundary") is not True
+    )
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
@@ -3825,7 +3983,7 @@ def _record_review_attempt(
     security_result: dict[str, Any] | None = None
     if is_security_review:
         if security_result_path is None:
-            if not environment_block:
+            if not environment_block and not scoped_security_pass:
                 raise ManifestError(
                     "security review completion requires --security-result"
                 )
@@ -3917,6 +4075,9 @@ def _record_review_attempt(
     }
     if args.result == "blocked":
         attempt_entry["blocker_class"] = blocker_class
+    if scoped:
+        attempt_entry["scoped"] = True
+        attempt_entry["repair_paths"] = list(repair_scope["repair_paths"])
     run["attempt_log"].append(attempt_entry)
     worker.update(
         {
@@ -3931,6 +4092,11 @@ def _record_review_attempt(
     )
     if security_result is not None:
         worker["security_result"] = security_result
+    if scoped:
+        worker["scoped"] = True
+        worker["repair_paths"] = list(repair_scope["repair_paths"])
+    if scoped_security_pass:
+        worker["security_scope"] = SCOPED_REPAIR_SECURITY_SCOPE
     if args.result == "pass":
         tree_sha = getattr(args, "tree_sha", None)
         if tree_sha is None and getattr(args, "repo_root", None) is not None:
@@ -3939,6 +4105,10 @@ def _record_review_attempt(
                 tree_sha = _git_tree(args.repo_root, reviewed)
         if is_full_sha(tree_sha):
             worker["tree_sha"] = tree_sha
+    # Every scoped PASS refunds the attempt: it accepts only the repair
+    # diff, so a trust-boundary security result rides along without
+    # consuming the full-scope review budget.
+    scoped_budget_refund = scoped and args.result == "pass"
     if refund:
         # The reviewer could not inspect the candidate, so the node budget is
         # refunded and the selector mints a fresh attempt; the retained
@@ -3954,16 +4124,34 @@ def _record_review_attempt(
             }
         )
     else:
-        state.update(
-            {
-                "phase": {
-                    "pass": "succeeded",
-                    "blocked": "blocked",
-                }.get(args.result, "failed"),
-                "last_outcome": args.result,
-                "blockers": findings if args.result == "blocked" else [],
-            }
-        )
+        if scoped_budget_refund:
+            # A scoped PASS accepts the repair diff only, so the candidate keeps
+            # its full-scope coverage from the prior non-scoped PASS. The node
+            # succeeds on this attempt without consuming the review budget; the
+            # retained attempt entry stays as the scoped acceptance evidence.
+            state.update(
+                {
+                    "phase": "succeeded",
+                    "attempts": (
+                        max(0, state.get("attempts", 0) - 1)
+                        if worker.get("attempt_charged", True)
+                        else state.get("attempts", 0)
+                    ),
+                    "last_outcome": args.result,
+                    "blockers": [],
+                }
+            )
+        else:
+            state.update(
+                {
+                    "phase": {
+                        "pass": "succeeded",
+                        "blocked": "blocked",
+                    }.get(args.result, "failed"),
+                    "last_outcome": args.result,
+                    "blockers": findings if args.result == "blocked" else [],
+                }
+            )
         for edge in plan.get("graph", {}).get("edges", []):
             if (
                 not isinstance(edge, dict)
@@ -3987,8 +4175,10 @@ def _record_review_attempt(
         "attempt_id": args.attempt_id,
         "result": args.result,
         "blocker_class": blocker_class if args.result == "blocked" else None,
-        "refunded": refund,
+        "refunded": bool(refund or scoped_budget_refund),
     }
+    if scoped:
+        receipt["scoped"] = True
     if environment_block and not refund:
         receipt["message"] = "environment refund cap reached"
     return receipt
@@ -4208,6 +4398,12 @@ def build_parser() -> argparse.ArgumentParser:
         default="review",
         help="why a blocked review failed; environment refunds the attempt",
     )
+    review.add_argument(
+        "--scoped",
+        action="store_true",
+        help="record a scoped repair review pass against the head's recorded "
+        "repair scope; a scoped PASS refunds the attempt",
+    )
     review.add_argument("--security-result", type=Path)
     review.add_argument("--tree-sha")
     skip = subparsers.add_parser("skip-integration-review")
@@ -4284,6 +4480,18 @@ def build_parser() -> argparse.ArgumentParser:
     candidate.add_argument("--repair-node-id", required=True)
     candidate.add_argument("--repair-attempt-id", required=True)
     candidate.add_argument("--repair-task-id", required=True)
+    candidate.add_argument(
+        "--repair-path",
+        action="append",
+        help="repeatable repo-relative path repaired by this candidate; the "
+        "candidate diff must stay inside the declared repair paths",
+    )
+    candidate.add_argument(
+        "--trust-boundary",
+        action="store_true",
+        help="the repair touches a trust boundary; a scoped security re-check "
+        "keeps its full structured security result",
+    )
     coordination = subparsers.add_parser("reconcile-coordination-head")
     coordination.add_argument("--candidate-sha", required=True)
     coordination.add_argument("--source", required=True)

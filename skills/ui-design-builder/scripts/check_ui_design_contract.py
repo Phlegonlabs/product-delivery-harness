@@ -170,7 +170,8 @@ VALID_MOTION_STATUSES = {"approved", "deferred"}
 VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
 VALID_DIRECTION_DECISIONS = {"approved", "selected", "mixed-and-approved"}
-VALID_DIRECTION_MODES = {"one recommended direction", "three comparable directions"}
+MVP_DEFERRED_DIRECTION_DECISION = "deferred to visual approval (mvp)"
+VALID_DIRECTION_MODES = {"one recommended direction", "one recommended direction (mvp)", "three comparable directions"}
 STACK_SEMANTIC_KEYS = {
     "platform",
     "renderingModel",
@@ -285,6 +286,22 @@ def _section(text: str, heading: str) -> str | None:
     return match.group(1) if match else None
 
 
+def _prd_delivery_profile(prd_path: Path | None) -> str | None:
+    """The owner-selected `Delivery profile` row in the PRD's `## At a Glance`."""
+
+    if prd_path is None:
+        return None
+    try:
+        prd_text = prd_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    at_a_glance = _section(prd_text, "## At a Glance") or ""
+    for match in re.finditer(r"^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$", at_a_glance, re.MULTILINE):
+        if match.group(1).casefold() == "delivery profile":
+            return match.group(2).strip().casefold() or None
+    return None
+
+
 def _field_values(section: str, name: str) -> list[str]:
     return [
         match.group(1).strip()
@@ -299,6 +316,21 @@ def _field_values(section: str, name: str) -> list[str]:
 def _field(section: str, name: str) -> str | None:
     values = _field_values(section, name)
     return values[0] if values else None
+
+
+def _same_line_value(section: str, name: str) -> str | None:
+    """The field value only when it starts on the `name:` line itself.
+
+    `_field_values` lets its whitespace class cross the newline, so an
+    empty `name:` line captures the following line as the value.
+    """
+
+    match = re.search(
+        rf"^\s*{re.escape(name)}\s*:[ \t]*(\S.*)$",
+        section,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    return match.group(1).strip() if match else None
 
 
 def _filled(value: str | None) -> bool:
@@ -2651,6 +2683,7 @@ def validate_text(
     require_visual_approved: bool = False,
     require_hifi_preflight: bool = False,
     allow_pending_design_system_pair: bool = False,
+    delivery_profile: str | None = None,
 ) -> list[str]:
     text = active_text(text)
     problems: list[str] = []
@@ -2718,6 +2751,7 @@ def validate_text(
             if (require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved) and values.get(name, "").casefold() != "approved":
                 _add(problems, f"{name} must be exactly approved")
 
+    direction_mode = ""
     intake = sections.get("## UI Design Intake")
     if intake is not None:
         values = _require_fields(
@@ -2740,6 +2774,8 @@ def validate_text(
             )
         if (v3 and (require_filled or require_visual_approved) and direction_mode == "one recommended direction"
                 and not (_human_owner(values.get("Decision owner")) and _date(values.get("Decided on")))):
+            # The (mvp) mode records its approval at Visual Approval, so only the
+            # explicit owner instruction needs an intake decision here.
             _add(problems, "ui-design/3 one recommended direction requires the owner's explicit intake decision: "
                            "human Decision owner and Decided on")
 
@@ -2875,18 +2911,25 @@ def validate_text(
 
     if require_visual_approved or require_hifi_preflight:
         style = sections.get("## Style Integration", "")
+        mvp_deferred_direction = (
+            delivery_profile == "mvp"
+            and direction_mode == "one recommended direction (mvp)"
+            and (_field(style, "Direction decision") or "").strip().casefold()
+            == MVP_DEFERRED_DIRECTION_DECISION
+        )
+        style_fields: tuple[str, ...] = (
+            "Design author",
+            "Selected direction",
+            "Direction decision",
+            "Candidate theme",
+            "Review medium",
+            "Connected HiFi reference",
+        )
+        if not mvp_deferred_direction:
+            style_fields += ("Direction decision owner", "Direction decided on")
         style_values = _require_fields(
             style,
-            (
-                "Design author",
-                "Selected direction",
-                "Direction decision",
-                "Direction decision owner",
-                "Direction decided on",
-                "Candidate theme",
-                "Review medium",
-                "Connected HiFi reference",
-            ),
+            style_fields,
             label="Style Integration",
             require_filled=True,
             problems=problems,
@@ -2895,13 +2938,16 @@ def validate_text(
             _add(problems, "Style Integration Design author must be frontend-design")
         if style_values.get("Review medium") != "HTML projection only":
             _add(problems, "Style Integration Review medium must be HTML projection only; it is not native verification")
-        if style_values.get("Direction decision", "").casefold() not in VALID_DIRECTION_DECISIONS | (
+        accepted_decisions = VALID_DIRECTION_DECISIONS | (
             ui_design_v3.V3_DIRECTION_DECISIONS if v3 else set()
-        ):
+        )
+        if mvp_deferred_direction:
+            accepted_decisions = accepted_decisions | {MVP_DEFERRED_DIRECTION_DECISION}
+        if style_values.get("Direction decision", "").casefold() not in accepted_decisions:
             _add(problems, "Style Integration Direction decision is not approved")
-        if not _human_owner(style_values.get("Direction decision owner")):
+        if not mvp_deferred_direction and not _human_owner(style_values.get("Direction decision owner")):
             _add(problems, "Style Integration Direction decision owner must be human")
-        if not _date(style_values.get("Direction decided on")):
+        if not mvp_deferred_direction and not _date(style_values.get("Direction decided on")):
             _add(
                 problems,
                 "Style Integration Direction decided on must be a real YYYY-MM-DD date",
@@ -2968,15 +3014,24 @@ def validate_text(
             _add(problems, "HiFi blocks or disputes must be none")
 
         visual = sections.get("## Visual Approval", "")
+        visual_fields: tuple[str, ...] = ("Decision", "Decision owner", "Decided on", "Approved target")
+        if mvp_deferred_direction:
+            visual_fields += ("Covers direction",)
         visual_values = _require_fields(
             visual,
-            ("Decision", "Decision owner", "Decided on", "Approved target"),
+            visual_fields,
             label="Visual Approval",
             require_filled=True,
             problems=problems,
         )
         if visual_values.get("Decision", "").casefold() != "approved":
             _add(problems, "Visual Approval Decision must be approved")
+        if mvp_deferred_direction and visual_values.get("Covers direction", "").strip().casefold() != "yes":
+            _add(
+                problems,
+                "Visual Approval Covers direction must be yes while the direction decision "
+                "is deferred to Visual Approval (mvp)",
+            )
         if not _human_owner(visual_values.get("Decision owner")):
             _add(problems, "Visual Approval Decision owner must be human")
         if not _date(visual_values.get("Decided on")):
@@ -3022,6 +3077,8 @@ def validate_text(
             require_filled=True,
             problems=problems,
         )
+        if not _filled(_same_line_value(gate, "Reason")):
+            _add(problems, "Design System Need Gate Reason must be filled on the Reason: line")
         gate_decision = gate_values.get("Decision", "").casefold()
         if gate_decision not in {"required", "not_required"}:
             _add(problems, "Design System Need Gate must be required or not_required")
@@ -3082,6 +3139,7 @@ def validate_text(
             for finding in ui_design_v3.package_gate_findings(
                 gate_decision, _field_values(gate, "Package action"),
                 disposition_match.group("decision").casefold() if disposition_match else None,
+                delivery_profile=delivery_profile,
             ):
                 _add(problems, finding)
         if disposition_match is None:
@@ -3144,6 +3202,7 @@ def _validate_impl(
         require_visual_approved=require_visual_approved,
         require_hifi_preflight=require_hifi_preflight,
         allow_pending_design_system_pair=_allow_pending_design_system_pair,
+        delivery_profile=_prd_delivery_profile(prd_path),
     )
 
     active = active_text(text)

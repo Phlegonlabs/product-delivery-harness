@@ -49,7 +49,7 @@ from harness_schema import (
 )
 from security_review_result import validate_security_review_result
 from harness_design_coverage import validate_design_coverage
-from harness_git import same_worktree_path
+from harness_git import run_git, same_worktree_path
 
 
 from harness_core import (
@@ -96,6 +96,7 @@ from harness_graph import (
     _cycle_nodes,
     _validate_graph,
     _validate_graph_state,
+    repair_scope_entry,
     validate_cleanup_lifecycle_targets,
 )
 from harness_ui_evidence import (
@@ -3701,6 +3702,8 @@ def _validate_run_attempt_log(
                 "worker_ingestion_reconciliation",
                 "blocker_class",
                 "notes",
+                "scoped",
+                "repair_paths",
             }
             if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
                 continue
@@ -3722,6 +3725,22 @@ def _validate_run_attempt_log(
             for key in ("task_id", "lease_id"):
                 _optional_string(errors, f"{path}.{key}", attempt[key])
             _optional_string(errors, f"{path}.node_id", attempt.get("node_id"))
+            scoped_flag = attempt.get("scoped")
+            if scoped_flag is not None and not isinstance(scoped_flag, bool):
+                _add(errors, f"{path}.scoped", "must be a boolean")
+            entry_repair_paths = attempt.get("repair_paths")
+            if entry_repair_paths is not None and (
+                not isinstance(entry_repair_paths, list)
+                or any(
+                    not isinstance(item, str) or not item
+                    for item in entry_repair_paths
+                )
+            ):
+                _add(
+                    errors,
+                    f"{path}.repair_paths",
+                    "must be a list of non-empty strings",
+                )
             has_node_id = attempt.get("node_id") is not None
             if (attempt.get("kind") == "node_attempt") != has_node_id:
                 _add(
@@ -4415,7 +4434,12 @@ def preintegration_review_errors(
     return errors
 
 
-def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
+def validate_run(
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    *,
+    repo_root: str | Path | None = None,
+) -> list[str]:
     """Validate a plan-backed harness_run object and cross-plan consistency."""
 
     errors: list[str] = []
@@ -5051,6 +5075,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     integration_optional_keys.add("coordination_paths")
     integration_optional_keys.add("integration_tree_sha")
     integration_optional_keys.add("reviewed_merge_chain")
+    integration_optional_keys.add("repair_scopes")
     if _keys(
         errors,
         "run.integration",
@@ -5168,6 +5193,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         retention = integration.get("retention")
         if retention is not None and retention not in {"persistent", "ephemeral"}:
             _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
+        if "repair_scopes" in integration:
+            _validate_repair_scopes(errors, integration.get("repair_scopes"))
 
     mission_ids = {mission["id"] for mission in plan.get("missions", []) if isinstance(mission, dict) and "id" in mission}
     task_ids = {
@@ -5335,7 +5362,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 review_worker_keys,
                 {"tree_sha", "base_sha", "security_result",
                  "result_receipt", "failure_receipt", "workspace_mode",
-                 "notes"},
+                 "attempt_charged",
+                 "notes", "scoped", "repair_paths", "security_scope"},
             ):
                 continue
             for key in (
@@ -5403,6 +5431,43 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             ):
                 _add(errors, f"{path}.outcome", "is not declared by the reviewed node")
             findings = _strings(errors, f"{path}.findings", worker["findings"])
+            scoped = worker.get("scoped")
+            if scoped is not None and not isinstance(scoped, bool):
+                _add(errors, f"{path}.scoped", "must be a boolean")
+                scoped = None
+            worker_repair_paths = worker.get("repair_paths")
+            scoped_entry = repair_scope_entry(run, worker.get("reviewed_sha"))
+            if scoped is True or worker_repair_paths is not None:
+                if scoped is not True:
+                    _add(
+                        errors,
+                        f"{path}.repair_paths",
+                        "require a scoped review worker",
+                    )
+                elif not isinstance(scoped_entry, dict):
+                    _add(
+                        errors,
+                        f"{path}.scoped",
+                        "requires a recorded repair scope for the reviewed head",
+                    )
+                elif not isinstance(worker_repair_paths, list) or any(
+                    not isinstance(item, str) or not item
+                    for item in worker_repair_paths
+                ):
+                    _add(
+                        errors,
+                        f"{path}.repair_paths",
+                        "must copy the recorded repair scope paths",
+                    )
+                elif worker_repair_paths != scoped_entry.get("repair_paths"):
+                    _add(
+                        errors,
+                        f"{path}.repair_paths",
+                        "must copy the recorded repair scope paths",
+                    )
+            security_scope = worker.get("security_scope")
+            if security_scope is not None and not _nonempty_string(security_scope):
+                _add(errors, f"{path}.security_scope", "must be a non-empty string")
             is_security_review = (
                 isinstance(node, dict)
                 and isinstance(node.get("review"), dict)
@@ -5425,11 +5490,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     node,
                     run.get("attempt_log"),
                 )
+                scoped_security_without_result = (
+                    scoped is True
+                    and worker.get("phase") == "worker_passed"
+                    and isinstance(scoped_entry, dict)
+                    and scoped_entry.get("trust_boundary") is not True
+                    and _nonempty_string(worker.get("security_scope"))
+                )
                 if (
                     worker.get("phase") in terminal_security_phases
                     and security_result is None
                     and not interrupted_without_result
                     and not environment_blocked_without_result
+                    and not scoped_security_without_result
                 ):
                     _add(
                         errors,
@@ -6024,7 +6097,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 "run.graph_state.edge_states",
                 "complete graph run requires every edge to be terminal",
             )
-        _validate_required_security_closeout(errors, plan, run)
+        _validate_required_security_closeout(errors, plan, run, repo_root)
+        _scoped_coverage_chain_errors(errors, plan, run, repo_root)
         # A repair mission behind a route that was never taken stays queued.
         if not isinstance(mission_states, dict) or any(
             not isinstance(state, dict)
@@ -6274,14 +6348,375 @@ def _closeout_edge_terminal(
     return _closeout_route_untaken(edge, source)
 
 
+def _validate_repair_scopes(errors: list[str], scopes: Any) -> None:
+    """Validate run.integration.repair_scopes, the recorded repair candidates."""
+
+    path = "run.integration.repair_scopes"
+    if not isinstance(scopes, list):
+        _add(errors, path, "must be a list")
+        return
+    for index, entry in enumerate(scopes):
+        entry_path = f"{path}[{index}]"
+        if not _keys(
+            errors,
+            entry_path,
+            entry,
+            {"candidate_sha", "prior_head_sha", "repair_paths", "source"},
+            {"trust_boundary"},
+        ):
+            continue
+        for key in ("candidate_sha", "prior_head_sha"):
+            if not is_full_sha(entry[key]):
+                _add(errors, f"{entry_path}.{key}", "must be a full lowercase Git SHA")
+        if not _nonempty_string(entry["source"]):
+            _add(errors, f"{entry_path}.source", "must be a non-empty string")
+        if "trust_boundary" in entry and not isinstance(entry["trust_boundary"], bool):
+            _add(errors, f"{entry_path}.trust_boundary", "must be a boolean")
+        paths = entry["repair_paths"]
+        if (
+            not isinstance(paths, list)
+            or not paths
+            or any(not isinstance(item, str) or not item for item in paths)
+        ):
+            _add(
+                errors,
+                f"{entry_path}.repair_paths",
+                "must be a non-empty list of non-empty strings",
+            )
+            continue
+        if any(
+            item.startswith(("/", "\\"))
+            or "\\" in item
+            or ".." in item.split("/")
+            for item in paths
+        ):
+            _add(
+                errors,
+                f"{entry_path}.repair_paths",
+                "must contain repository-relative POSIX paths without '..'",
+            )
+
+
+def _git_changed_paths_between(
+    repo_root: str | Path, base: str, head: str
+) -> tuple[set[str] | None, str]:
+    """Changed paths between two heads, or ``(None, reason)`` on Git failure."""
+
+    try:
+        result = run_git(
+            Path(repo_root), "diff", "--name-only", "-z", f"{base}..{head}", text=False
+        )
+    except Exception as error:
+        return None, str(error) or error.__class__.__name__
+    if result.returncode != 0:
+        detail = ""
+        for stream in (result.stderr, result.stdout):
+            if isinstance(stream, bytes):
+                stream = stream.decode("utf-8", errors="replace")
+            if isinstance(stream, str) and stream.strip():
+                detail = stream.strip().splitlines()[0]
+                break
+        reason = f"exit {result.returncode}"
+        if detail:
+            reason = f"{reason}: {detail}"
+        return None, reason
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, "changed paths are not valid UTF-8"
+    return {name for name in output.split("\0") if name}, ""
+
+
+def _scoped_coverage_chain_errors(
+    errors: list[str],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    repo_root: str | Path | None = None,
+) -> None:
+    """Closeout completeness for review nodes whose latest PASS is scoped.
+
+    A scoped PASS accepts the repair diff only, so it covers the current
+    integration head only when the latest full-scope review (PASS or
+    fix_required) anchors the base head and recorded repair_scopes entries
+    chain it, through reviewed scoped PASSes, to the current head with
+    every changed path inside the declared repair paths and a
+    security_result behind every trust boundary.
+    """
+
+    integration = run.get("integration")
+    head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    scopes = (
+        integration.get("repair_scopes")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not is_full_sha(head) or not isinstance(scopes, list) or not scopes:
+        return
+    graph_state = run.get("graph_state")
+    node_states = (
+        graph_state.get("node_states", {}) if isinstance(graph_state, dict) else {}
+    )
+    workers_by_node: dict[str, list[dict[str, Any]]] = {}
+    for worker in run.get("review_workers", []) or []:
+        if isinstance(worker, dict) and isinstance(worker.get("node_id"), str):
+            workers_by_node.setdefault(worker["node_id"], []).append(worker)
+    for node in plan.get("graph", {}).get("nodes", []):
+        if not (
+            isinstance(node, dict) and isinstance(node.get("review"), dict)
+        ):
+            continue
+        node_id = node.get("id")
+        state = node_states.get(node_id) if isinstance(node_states, dict) else None
+        if (
+            not isinstance(state, dict)
+            or state.get("phase") != "succeeded"
+            or state.get("last_outcome") != "pass"
+        ):
+            continue
+        bound_worker = next(
+            (
+                worker
+                for worker in workers_by_node.get(node_id, [])
+                if worker.get("worker_id") == state.get("bound_worker_id")
+                and worker.get("attempt_id") == state.get("last_attempt_id")
+            ),
+            None,
+        )
+        if not isinstance(bound_worker, dict) or bound_worker.get("scoped") is not True:
+            continue
+        reason = _scoped_chain_break_reason(
+            node,
+            workers_by_node.get(node_id, []),
+            scopes,
+            head,
+            repo_root,
+            run.get("attempt_log"),
+            run.get("review_workers"),
+        )
+        if reason:
+            _add(
+                errors,
+                f"run.graph_state.node_states.{node_id}",
+                f"review coverage chain broken: {reason}",
+            )
+
+
+def _scoped_chain_break_reason(
+    node: dict[str, Any],
+    node_workers: list[dict[str, Any]],
+    scopes: list[Any],
+    head: str,
+    repo_root: str | Path | None,
+    attempt_log: Any,
+    all_workers: Any = None,
+) -> str | None:
+    """Why the node's scoped latest PASS does not cover the integration head."""
+
+    scoped_passes = {
+        worker["reviewed_sha"]: worker
+        for worker in node_workers
+        if isinstance(worker, dict)
+        and worker.get("outcome") == "pass"
+        and worker.get("scoped") is True
+        and is_full_sha(worker.get("reviewed_sha"))
+    }
+    # The anchor is the latest full-scope review of the candidate by
+    # attempt order, whatever its outcome: a fix_required re-check
+    # inspected every path, so the paths it did not flag carry forward
+    # into the scoped repair chain. An older review never anchors behind
+    # a newer one. The append-only attempt log owns that order, so the
+    # last eligible serialised worker anchors only when the log agrees:
+    # an anchor absent from the log, or a logged newer attempt behind it,
+    # breaks the chain instead of silently picking the stale review.
+    attempt_positions: dict[str, int] = {}
+    for index, attempt in enumerate(
+        attempt_log if isinstance(attempt_log, list) else []
+    ):
+        attempt_id = (
+            attempt.get("attempt_id") if isinstance(attempt, dict) else None
+        )
+        if isinstance(attempt_id, str):
+            attempt_positions.setdefault(attempt_id, index)
+    eligible_anchors = [
+        worker
+        for worker in node_workers
+        if isinstance(worker, dict)
+        and worker.get("outcome") in {"pass", "fix_required"}
+        and worker.get("scoped") is not True
+        and is_full_sha(worker.get("reviewed_sha"))
+    ]
+    if not eligible_anchors:
+        return "no non-scoped review anchors a repair chain to the integration head"
+    anchor_worker = eligible_anchors[-1]
+    anchor_attempt = anchor_worker.get("attempt_id")
+    if not isinstance(anchor_attempt, str) or (
+        anchor_attempt not in attempt_positions
+    ):
+        return "anchor order inconsistent with the attempt log"
+    anchor_position = attempt_positions[anchor_attempt]
+    for worker in eligible_anchors:
+        attempt_id = worker.get("attempt_id")
+        if (
+            isinstance(attempt_id, str)
+            and attempt_positions.get(attempt_id, -1) > anchor_position
+        ):
+            return "anchor order inconsistent with the attempt log"
+    # A logged full review newer than the anchor that kept no worker
+    # record is still a newer full review: it cannot be skipped by
+    # dropping its worker entry. An entry with no lineage is ambiguous
+    # history and breaks the chain the same way.
+    lineage_id = (
+        node.get("review", {}).get("lineage_id")
+        if isinstance(node.get("review"), dict)
+        else None
+    )
+    retained_attempts = {
+        worker.get("attempt_id")
+        for worker in node_workers
+        if isinstance(worker, dict)
+    }
+    # A lineage-less entry retained by another node's worker is that
+    # node's review, not this node's orphan.
+    attributed_elsewhere = {
+        worker.get("attempt_id")
+        for worker in (all_workers if isinstance(all_workers, list) else [])
+        if isinstance(worker, dict) and worker.get("node_id") != node.get("id")
+    }
+    for index, attempt in enumerate(
+        attempt_log if isinstance(attempt_log, list) else []
+    ):
+        if not isinstance(attempt, dict) or attempt.get("kind") != "review":
+            continue
+        lineage = attempt.get("review_lineage_id")
+        if lineage is None and attempt.get("attempt_id") in attributed_elsewhere:
+            continue
+        if (
+            lineage in {lineage_id, None}
+            and attempt.get("scoped") is not True
+            and attempt.get("result") in {"pass", "fix_required"}
+            and index > anchor_position
+            and attempt.get("attempt_id") not in retained_attempts
+        ):
+            return "anchor order inconsistent with the attempt log"
+    anchor = anchor_worker["reviewed_sha"]
+    entries_by_prior: dict[str, list[dict[str, Any]]] = {}
+    for entry in scopes:
+        if (
+            isinstance(entry, dict)
+            and is_full_sha(entry.get("prior_head_sha"))
+            and is_full_sha(entry.get("candidate_sha"))
+        ):
+            entries_by_prior.setdefault(entry["prior_head_sha"], []).append(entry)
+    chain: list[dict[str, Any]] | None = None
+    queue: list[tuple[str, list[dict[str, Any]]]] = [(anchor, [])]
+    visited: set[str] = set()
+    while queue:
+        current, trail = queue.pop(0)
+        if current == head:
+            chain = trail
+            break
+        if current in visited:
+            continue
+        visited.add(current)
+        for entry in entries_by_prior.get(current, []):
+            candidate = entry["candidate_sha"]
+            if candidate in scoped_passes:
+                queue.append((candidate, [*trail, entry]))
+    if chain is None:
+        return "no reviewed scoped chain reaches the integration head from a non-scoped review"
+    if not chain and anchor_worker.get("outcome") == "fix_required":
+        return "fix_required anchor at the integration head has no chained repair step"
+    covered_paths = {
+        item
+        for entry in chain
+        if isinstance(entry.get("repair_paths"), list)
+        for item in entry["repair_paths"]
+        if isinstance(item, str)
+    }
+    changed_paths: set[str] | None = None
+    if repo_root is not None:
+        if chain:
+            observed, git_reason = _git_changed_paths_between(
+                repo_root, chain[0]["prior_head_sha"], head
+            )
+            if observed is None:
+                return f"git diff unavailable ({git_reason})"
+            changed_paths = observed
+        else:
+            changed_paths = set()
+    if changed_paths is None:
+        # No repo root: the stored repair paths stand in for the diff, so
+        # this basis is path-declared, never diff-verified.
+        uncovered: list[str] = []
+    else:
+        uncovered = sorted(changed_paths - covered_paths)
+    if uncovered:
+        return f"uncovered path {uncovered[0]}"
+    if isinstance(node.get("review"), dict) and node["review"].get("type") == "security":
+        anchor_result = anchor_worker.get("security_result")
+        anchor_decision = (
+            anchor_result.get("decision")
+            if isinstance(anchor_result, dict)
+            else None
+        )
+        # Each chained entry behind a trust boundary still carries its own
+        # structured security pass.
+        for entry in chain:
+            if entry.get("trust_boundary") is not True:
+                continue
+            worker = scoped_passes.get(entry["candidate_sha"])
+            if not isinstance(worker, dict) or not isinstance(
+                worker.get("security_result"), dict
+            ):
+                return (
+                    "trust-boundary scoped PASS at "
+                    f"{entry['candidate_sha']} has no security_result"
+                )
+        # The structured security decision judges the anchor, not its
+        # overall outcome: a combined review that fails on another lens
+        # keeps decision=pass, so only a security decision that is not a
+        # pass demands trust-boundary scoped security passes. The
+        # repair-step rule for a fix_required outcome stays above.
+        if anchor_decision != "pass":
+            trust_boundary_secured = all(
+                entry.get("trust_boundary") is True
+                and isinstance(
+                    (scoped_passes.get(entry["candidate_sha"]) or {}).get(
+                        "security_result"
+                    ),
+                    dict,
+                )
+                and scoped_passes[entry["candidate_sha"]]["security_result"].get(
+                    "decision"
+                )
+                == "pass"
+                for entry in chain
+            )
+            if not trust_boundary_secured:
+                return (
+                    "anchor security result is fix_required and no "
+                    "trust-boundary scoped security pass covers it"
+                )
+    return None
+
+
 def _validate_required_security_closeout(
-    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+    errors: list[str],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    repo_root: str | Path | None = None,
 ) -> None:
     """Require the current exact-head structured security PASS at closeout.
 
     A historical PASS (or a skipped/superseded graph state) must not satisfy a
     required integration security node. Bind the proof to the graph state's
-    current reviewer identity and to the current integration/base SHAs.
+    current reviewer identity and to the current integration/base SHAs. A
+    non-trust-boundary scoped PASS satisfies the current-head requirement
+    through a valid scoped coverage chain instead of its own result.
     """
 
     policy = plan.get("security_review")
@@ -6348,7 +6783,50 @@ def _validate_required_security_closeout(
             current_worker.get("phase") != "worker_passed"
             or current_worker.get("outcome") != "pass"
             or current_worker.get("reviewed_sha") != integration_head
-            or current_worker.get("base_sha") != batch_base
+        ):
+            _add(
+                errors,
+                path,
+                "required security integration review needs a current worker_passed PASS result for the integration head and batch base",
+            )
+            continue
+        if current_worker.get("scoped") is True:
+            # A scoped PASS carries no result of its own outside trust
+            # boundaries; the coverage chain behind it is the security
+            # proof for the current head.
+            scopes = (
+                integration.get("repair_scopes")
+                if isinstance(integration, dict)
+                and isinstance(integration.get("repair_scopes"), list)
+                else []
+            )
+            if scopes:
+                reason = _scoped_chain_break_reason(
+                    node,
+                    [
+                        worker
+                        for worker in current_review_workers
+                        if isinstance(worker, dict)
+                        and worker.get("node_id") == node_id
+                    ],
+                    scopes,
+                    integration_head,
+                    repo_root,
+                    run.get("attempt_log"),
+                    current_review_workers,
+                )
+            else:
+                reason = "no repair scopes are recorded for the scoped PASS"
+            if reason is not None:
+                _add(
+                    errors,
+                    path,
+                    "required security integration review coverage chain broken: "
+                    + reason,
+                )
+            continue
+        if (
+            current_worker.get("base_sha") != batch_base
             or not isinstance(current_worker.get("security_result"), dict)
         ):
             _add(
@@ -6439,7 +6917,7 @@ def validate_current_plan_run(
             [
                 *plan_errors,
                 *contract_errors,
-                *validate_run(plan, run),
+                *validate_run(plan, run, repo_root=effective_repo_root),
                 *evidence_errors,
                 *integration_errors,
             ]
