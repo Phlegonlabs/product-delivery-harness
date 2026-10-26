@@ -1,6 +1,6 @@
 # Review Budget And MVP Profile
 
-Status: in_progress; worker packages pending integration
+Status: candidate verified; publication pending
 Design workflow: enhancement
 UI impact: none (Harness review rules, managed route, READMEs and documentation; no product UI changes).
 
@@ -37,13 +37,27 @@ Three sibling packages own the canonical rules under `skills/**` except the vers
 
 ## Change Log
 
-pending
+| Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
+| --- | --- | --- | --- |
+| V4 READMEs, CHANGELOG, Epic, version 0.70.0 | GLM-5.3 Flash worker | `aa0615a3`..`a4ccde28`, integrated `d2e7f317` | `test_skill_contract.py` 65 OK, `test_readme_structure.py` 3 OK |
+| V3 UI and PRD review budget, mvp profile | GLM-5.3 Flash worker | `7a196566`..`5b51b643`, integrated `b3e8200e` | ui contract 22 OK, pdb contract 57 OK |
+| V1 delivery rules: two-review budget, Isolated Repair Protocol, mvp profile | GLM-5.3 Flash worker | `93d77749`..`d86ca157`, integrated `a1d65faa`; parent gap fixes `0e4ac721`, `9d703b05`, `67fd7d0a` | delivery contract 67 OK |
+| V2 scoped review transitions, coverage chain, scoped packet | GLM-5.3 Flash workers (two sessions; the first hit its turn limit after step 1) | `d35455dc`..`15486b38`, integrated `c7cbaafb` | `test_scoped_review.py` 17 OK |
+| Review round 1 at `c7cbaafb` | Protected GPT-6.1 Sol xhigh, four narrow scopes; the scripts scope timed out (environment block) | runs `20261026-105605-*` | rules: 5 blocking (packet flag, budget guard, no PASS anchor, security closeout, trust-boundary refund); UI: 2 blocking (fifth owner gate, forced design system); docs PASS |
+| Consolidated repair | GLM workers for scripts and UI, parent for prose | `a3e26820`..`49509e08`, `30b2b652`..`582467c8`, `5db50287`, integrated `cf0ec8a1` | full matrix at `cf0ec8a1` green |
+| Targeted re-check at `cf0ec8a1` | four narrow scopes | runs `20261026-114421-*` | all 7 prior findings resolved; 6 new in the repair range (pathspec exclusion, reservation at the cap, zero-step anchor, git-failure fallback, security anchor, UI checker direction and empty reason) |
+| Isolated repairs, rounds 1-4 under the new protocol | GLM workers (scripts, closeout, UI checker) and parent (prose, anchor residuals) | `802ca0d5`..`20e65ebc`, `c4bb269b`, `df63efeb`, `88ea278b`, `5a7fd21c`, `b2f3a846`, `54fc51e9` | scoped reviews `20261026-123841-*`, `-132546-*`, `-133439-*`, `-134113-*`, final `20261026-13xxxx` PASS; each round shrank the finding set (6 → 4 → 2 → 1 → 1 → 0) |
 
 ## Verification
 
-pending
+Full Required Verification matrix on an immutable detached checkout of `b2f3a846` (log `matrix-b2f3a846.log` under `%LOCALAPPDATA%/Temp/pdh-review-budget-20261026/`): `check_skill_spec.py`, pyflakes across the six script trees and `docs_weight.py` exit 0; delivery-harness 1618 OK (19 skipped); golden path 1 OK; product-definition-builder 226 OK; ui-design-builder 355 OK (2 skipped); design-system-compiler 214 OK (2 skipped); product-activation 68 OK; seo-growth-review 21 OK; `git diff --check` exit 0. Earlier full runs at `c7cbaafb`, `cf0ec8a1`, `20e65ebc` and `67d85fbd` were also green.
+
+The final head `54fc51e9` changes `harness_manifest.py` and one test module after that run; affected suites on an immutable checkout of `54fc51e9` (`affected-54fc51e9.log`): scoped suites 39 OK, `test_graph_closeout.py` 8, `test_historical_integration_review.py` 9, `test_harness_v11.py` 24, review suites 47, delivery contract 67, pyflakes and `check_skill_spec.py` exit 0.
+
+Independent review: `c7cbaafb` `fix_required`, one consolidated repair, `cf0ec8a1` re-check `fix_required` inside the repair range, then four isolated-repair rounds with scoped reviews, final scoped review of `54fc51e9` PASS with security PASS. The round ran under the rules it introduces: two full reviews, then isolated repairs with scoped reviews and no extra global round.
 
 ## Remaining Work
 
-- Consumer syncs after the release lands.
+- Publication: PR from `feat/review-budget-and-mvp-profile` to `main`, CI on the exact candidate, tag `v0.70.0`, consumer syncs. Nothing here authorizes a push, PR or installation.
+- Backlog notes from review: declared-path coverage has no success-channel receipt; the cross-node attribution test uses an unregistered node and a filtered error list; no regression for foreign attribution with the current node's lineage; the delivery test suite needs sharding (27 minutes per full run).
 - The growth skills review (go-to-market, gtm-content, product-activation, seo-growth-review) for reach and clicks is a separate follow-up.
