@@ -446,6 +446,41 @@ AT_A_GLANCE_ROWS = {
     "biggest risk",
 }
 PERSONAS_HEADER = ("persona", "need", "key workflow", "success signal")
+SHAPE_ROW_LABEL = "shape"
+SHAPE_FIELD_KEYS = ("track", "companion", "console")
+VALID_SHAPE_TRACKS = ("web", "app", "agent")
+VALID_SHAPE_CONSOLES = ("none", "config-only", "operations")
+COMPANION_URL_RE = re.compile(
+    r"://|^\s*www\.|[\w-]+\.(?:com|org|net|io|dev|app)(?:\s|$|/)",
+    re.IGNORECASE,
+)
+CONSOLE_JOURNEY_KEYWORDS = (
+    ("config", "configuration"),
+    ("run", "run inspection"),
+    ("approv", "approval"),
+)
+CONSOLE_TRACE_ID_RE = re.compile(r"\b[A-Z][A-Z0-9]*-[A-Z0-9-]+\b")
+GROWTH_NORTH_STAR_HEADER = (
+    "track",
+    "north star",
+    "day 7 target",
+    "day 30 target",
+    "stretch",
+    "source (ms-*)",
+)
+GROWTH_REENGAGEMENT_HEADER = ("mechanism", "surface or event", "test id")
+GROWTH_DISCOVERY_HEADER = ("surface", "kind", "owner stage", "test or ms id")
+GROWTH_LAUNCH_WINDOW_HEADER = (
+    "day",
+    "channel class",
+    "action",
+    "owner",
+    "readback metric",
+)
+VALID_DISCOVERY_KINDS = {"seo-cluster", "geo-page", "store-listing", "directory", "landing"}
+VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "seo"}
+VALID_LAUNCH_CHANNEL_CLASSES = {"owned", "earned", "search", "store"}
+LANDING_PATH_RE = re.compile(r"/\S*")
 UX_REQUIREMENTS_HEADER = (
     "id",
     "user / task",
@@ -922,6 +957,408 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
             _add(problems, "prd", "Access must contain at least one row")
 
 
+def _parse_shape_row(value: str) -> dict[str, str] | None:
+    fields: dict[str, str] = {}
+    for part in value.split(";"):
+        part = part.strip()
+        if not part:
+            continue
+        key, separator, cell = part.partition(":")
+        key = key.strip().casefold()
+        if not separator or not key or any(character.isspace() for character in key):
+            return None
+        fields[key] = cell.strip()
+    return fields
+
+
+def _prd_requires_aeo_seo(
+    prd_text: str, test_rows: list[tuple[str, ...]]
+) -> bool:
+    for row in test_rows:
+        if len(row) != len(TEST_OBLIGATIONS_HEADER):
+            continue
+        if row[3].strip().casefold() == "yes" and re.search(
+            r"\bAEO\b|\bSEO\b", " | ".join(row), re.IGNORECASE
+        ):
+            return True
+    frontend = _section(prd_text, "## Frontend Delivery Requirements")
+    return frontend is not None and bool(
+        re.search(r"\bAEO\b|\bSEO\b", frontend, re.IGNORECASE)
+    )
+
+
+def _validate_console_journeys(
+    prd_text: str,
+    test_rows: list[tuple[str, ...]],
+    *,
+    problems: list[str],
+) -> None:
+    journeys = _section(prd_text, "## User Journeys") or ""
+    covered = {keyword: False for keyword, _ in CONSOLE_JOURNEY_KEYWORDS}
+    journey_ids: set[str] = set()
+    for block in re.split(r"(?m)^###\s+", active_text(journeys))[1:]:
+        heading, _, body = block.partition("\n")
+        lowered = heading.casefold()
+        for keyword, _ in CONSOLE_JOURNEY_KEYWORDS:
+            if keyword in lowered:
+                covered[keyword] = True
+                journey_ids.update(
+                    match.upper() for match in CONSOLE_TRACE_ID_RE.findall(f"{heading}\n{body}")
+                )
+    missing = [label for keyword, label in CONSOLE_JOURNEY_KEYWORDS if not covered[keyword]]
+    if missing:
+        _add(
+            problems,
+            "prd",
+            "console: operations requires a User Journeys heading mentioning "
+            "configuration, run inspection and approval (missing: "
+            + ", ".join(missing)
+            + ")",
+        )
+    qualifying = 0
+    for row in test_rows:
+        if len(row) != len(TEST_OBLIGATIONS_HEADER):
+            continue
+        upstream = set(CONSOLE_TRACE_ID_RE.findall(row[4].upper()))
+        if upstream & journey_ids:
+            qualifying += 1
+    if qualifying < 3:
+        _add(
+            problems,
+            "prd",
+            "console: operations requires at least three Test Obligations "
+            "tracing into the configuration, run inspection and approval journeys",
+        )
+
+
+def _validate_shape_row(
+    prd_text: str,
+    *,
+    test_rows: list[tuple[str, ...]],
+    require_filled: bool,
+    problems: list[str],
+) -> dict[str, str] | None:
+    glance_rows = _find_table(
+        _section(prd_text, "## At a Glance") or "", AT_A_GLANCE_HEADER
+    )
+    shape_value = next(
+        (
+            row[1]
+            for row in glance_rows or []
+            if len(row) == 2 and row[0].strip().casefold() == SHAPE_ROW_LABEL
+        ),
+        None,
+    )
+    if shape_value is None:
+        return None
+    fields = _parse_shape_row(shape_value)
+    if fields is None:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape row must use 'track: <value>; companion: <value>; "
+            "console: <value>'",
+        )
+        return {}
+    for key in SHAPE_FIELD_KEYS:
+        if not fields.get(key):
+            _add(problems, "prd", f"At a Glance Shape row is missing the {key!r} value")
+    track = fields.get("track", "").strip().casefold()
+    if track and track not in VALID_SHAPE_TRACKS:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape track must be web, app or agent, not "
+            f"{fields['track'].strip()!r}",
+        )
+    console = fields.get("console", "").strip().casefold()
+    if console and console not in VALID_SHAPE_CONSOLES:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape console must be none, config-only or operations, "
+            f"not {fields['console'].strip()!r}",
+        )
+    companion = fields.get("companion", "").strip()
+    none_companion = (
+        re.fullmatch(r"none(?:\s*\(([^)]*)\))?", companion, re.IGNORECASE)
+        if companion
+        else None
+    )
+    if companion and none_companion is None and COMPANION_URL_RE.search(companion):
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape companion must be a UI surface ID, a release "
+            "target ID, a URL-free surface name, or none",
+        )
+    if require_filled:
+        if (
+            track == "app"
+            and none_companion is not None
+            and _prd_requires_aeo_seo(prd_text, test_rows)
+        ):
+            _add(
+                problems,
+                "prd",
+                "app track with a required AEO or SEO obligation needs a "
+                "companion public surface, not none",
+            )
+        if track == "agent":
+            if none_companion is not None:
+                if not (none_companion.group(1) or "").strip():
+                    _add(
+                        problems,
+                        "prd",
+                        "agent track with companion none requires a reason in parentheses",
+                    )
+            elif not (
+                re.fullmatch(r"UI-[A-Z0-9-]+", companion, re.IGNORECASE)
+                or "doc" in companion.casefold()
+            ):
+                _add(
+                    problems,
+                    "prd",
+                    f"agent track companion {companion!r} must name a docs surface",
+                )
+        if console == "operations":
+            _validate_console_journeys(prd_text, test_rows, problems=problems)
+    return fields
+
+
+def _absent_cell(value: str) -> bool:
+    return (
+        value.strip().casefold() in {"none", "n/a", "not_required"}
+        or _explicit_absence_reason(value) is not None
+    )
+
+
+def _validate_growth_contract(
+    prd_text: str,
+    *,
+    shape_fields: dict[str, str] | None,
+    ui_surface_ids: set[str],
+    release_target_ids: set[str],
+    known_test_ids: set[str],
+    require_filled: bool,
+    problems: list[str],
+) -> None:
+    section = _section(prd_text, "## Growth Contract")
+    if section is None:
+        if shape_fields is not None and require_filled:
+            _add(
+                problems,
+                "prd",
+                "a package with an At a Glance Shape row requires '## Growth Contract'",
+            )
+        return
+    track = (shape_fields or {}).get("track", "").strip().casefold()
+    if track not in VALID_SHAPE_TRACKS:
+        track = ""
+    north_rows = _find_table(
+        _subsection(section, "### North Star") or "", GROWTH_NORTH_STAR_HEADER
+    )
+    if north_rows is None:
+        _add(
+            problems,
+            "prd",
+            "Growth Contract North Star must use the Track | North star | "
+            "Day 7 target | Day 30 target | Stretch | Source (MS-*) table",
+        )
+    else:
+        _validate_table_rows(
+            north_rows,
+            len(GROWTH_NORTH_STAR_HEADER),
+            label="Growth Contract North Star",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        if not north_rows:
+            _add(problems, "prd", "Growth Contract North Star must contain at least one row")
+        for row in north_rows:
+            if (
+                len(row) == len(GROWTH_NORTH_STAR_HEADER)
+                and row[0].strip().casefold() not in VALID_SHAPE_TRACKS
+            ):
+                _add(
+                    problems,
+                    "prd",
+                    "Growth Contract North Star track must be web, app or agent, not "
+                    f"{row[0].strip()!r}",
+                )
+        if track and not any(
+            len(row) == len(GROWTH_NORTH_STAR_HEADER)
+            and row[0].strip().casefold() == track
+            for row in north_rows
+        ):
+            _add(
+                problems,
+                "prd",
+                f"Growth Contract North Star needs a row for the Shape track {track!r}",
+            )
+    reengagement_rows = _find_table(
+        _subsection(section, "### Re-engagement") or "", GROWTH_REENGAGEMENT_HEADER
+    )
+    if reengagement_rows is None:
+        _add(
+            problems,
+            "prd",
+            "Growth Contract Re-engagement must use the Mechanism | Surface or event | "
+            "TEST ID table",
+        )
+    else:
+        _validate_table_rows(
+            reengagement_rows,
+            len(GROWTH_REENGAGEMENT_HEADER),
+            label="Growth Contract Re-engagement",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        if not reengagement_rows:
+            _add(problems, "prd", "Growth Contract Re-engagement must contain at least one row")
+        mechanism_rows = [
+            row
+            for row in reengagement_rows
+            if len(row) == len(GROWTH_REENGAGEMENT_HEADER) and not _absent_cell(row[0])
+        ]
+        reasoned_none = any(
+            len(row) == len(GROWTH_REENGAGEMENT_HEADER)
+            and (_explicit_absence_reason(row[0]) or "").strip()
+            for row in reengagement_rows
+        )
+        if track in {"web", "app"} and not mechanism_rows:
+            _add(
+                problems,
+                "prd",
+                f"{track} track requires at least one Re-engagement mechanism; "
+                "a missing mechanism is a blocking gap",
+            )
+        if track == "agent" and not mechanism_rows and not reasoned_none:
+            _add(
+                problems,
+                "prd",
+                "agent track requires a Re-engagement mechanism or a none row with a reason",
+            )
+    discovery_rows = _find_table(
+        _subsection(section, "### Discovery Surfaces") or "", GROWTH_DISCOVERY_HEADER
+    )
+    if discovery_rows is None:
+        _add(
+            problems,
+            "prd",
+            "Growth Contract Discovery Surfaces must use the Surface | Kind | Owner stage | "
+            "TEST or MS ID table",
+        )
+    else:
+        _validate_table_rows(
+            discovery_rows,
+            len(GROWTH_DISCOVERY_HEADER),
+            label="Growth Contract Discovery Surfaces",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        if not discovery_rows:
+            _add(
+                problems,
+                "prd",
+                "Growth Contract Discovery Surfaces must contain at least one row",
+            )
+        known_surface_ids = {surface.upper() for surface in ui_surface_ids}
+        for row in discovery_rows:
+            if len(row) != len(GROWTH_DISCOVERY_HEADER):
+                continue
+            kind = row[1].strip().casefold()
+            if kind not in VALID_DISCOVERY_KINDS:
+                _add(
+                    problems,
+                    "prd",
+                    "Discovery Surfaces kind must be seo-cluster, geo-page, store-listing, "
+                    f"directory or landing, not {row[1].strip()!r}",
+                )
+            stage = row[2].strip().casefold()
+            if stage not in VALID_DISCOVERY_OWNER_STAGES:
+                _add(
+                    problems,
+                    "prd",
+                    "Discovery Surfaces owner stage must be delivery, activation, gtm or seo, "
+                    f"not {row[2].strip()!r}",
+                )
+            surface = row[0].strip()
+            if re.fullmatch(r"UI-[A-Z0-9-]+", surface, re.IGNORECASE):
+                if surface.upper() not in known_surface_ids:
+                    _add(
+                        problems,
+                        "prd",
+                        f"Discovery Surfaces row names unknown UI surface {surface!r}",
+                    )
+            elif surface not in release_target_ids and not LANDING_PATH_RE.fullmatch(surface):
+                _add(
+                    problems,
+                    "prd",
+                    f"Discovery Surfaces surface {surface!r} must name an existing UI surface "
+                    "ID, a release target ID or a landing path",
+                )
+    launch_rows = _find_table(
+        _subsection(section, "### Launch Window") or "", GROWTH_LAUNCH_WINDOW_HEADER
+    )
+    if launch_rows is None:
+        _add(
+            problems,
+            "prd",
+            "Growth Contract Launch Window must use the Day | Channel class | Action | Owner | "
+            "Readback metric table",
+        )
+    else:
+        _validate_table_rows(
+            launch_rows,
+            len(GROWTH_LAUNCH_WINDOW_HEADER),
+            label="Growth Contract Launch Window",
+            require_filled=require_filled,
+            problems=problems,
+        )
+        if not launch_rows:
+            _add(problems, "prd", "Growth Contract Launch Window must contain at least one row")
+        launch_day_seen = False
+        for row in launch_rows:
+            if len(row) != len(GROWTH_LAUNCH_WINDOW_HEADER):
+                continue
+            channel = row[1].strip().casefold()
+            if channel not in VALID_LAUNCH_CHANNEL_CLASSES:
+                _add(
+                    problems,
+                    "prd",
+                    "Launch Window channel class must be owned, earned, search or store, not "
+                    f"{row[1].strip()!r}",
+                )
+            day_match = re.search(r"\d+", row[0])
+            if day_match is not None and 0 <= int(day_match.group(0)) <= 7:
+                launch_day_seen = True
+        if not launch_day_seen:
+            _add(
+                problems,
+                "prd",
+                "Launch Window needs at least one row for Day 0 through Day 7",
+            )
+    trace_cells: list[str] = []
+    for row in north_rows or []:
+        if len(row) == len(GROWTH_NORTH_STAR_HEADER):
+            trace_cells.append(row[5])
+    for row in reengagement_rows or []:
+        if len(row) == len(GROWTH_REENGAGEMENT_HEADER):
+            trace_cells.append(row[2])
+    for row in discovery_rows or []:
+        if len(row) == len(GROWTH_DISCOVERY_HEADER):
+            trace_cells.append(row[3])
+    unknown_tests: set[str] = set()
+    for cell in trace_cells:
+        for match in re.finditer(r"\bTEST-[A-Z0-9-]+\b", cell, re.IGNORECASE):
+            test_id = match.group(0).upper()
+            if test_id not in known_test_ids:
+                unknown_tests.add(test_id)
+    for test_id in sorted(unknown_tests):
+        _add(problems, "prd", f"Growth Contract references unknown {test_id}")
+
+
 def _validate_delta_file(
     delta_path: Path,
     delta_text: str,
@@ -1341,9 +1778,9 @@ def _validate_prd_core_sections(
         label_values = [row[0].casefold() for row in glance_rows if len(row) == 2]
         labels = set(label_values)
         if (
-            len(glance_rows) != len(AT_A_GLANCE_ROWS)
+            not AT_A_GLANCE_ROWS <= labels
+            or labels - AT_A_GLANCE_ROWS - {SHAPE_ROW_LABEL}
             or len(label_values) != len(set(label_values))
-            or labels != AT_A_GLANCE_ROWS
         ):
             _add(problems, "prd", "At a Glance must use exactly its five canonical rows")
         for row in glance_rows:
@@ -2415,6 +2852,22 @@ def validate_texts(
     ):
         _add(problems, "prd", "Test Obligations must include at least one Required Yes test")
 
+    shape_fields = _validate_shape_row(
+        prd_text,
+        test_rows=test_rows,
+        require_filled=require_filled,
+        problems=problems,
+    )
+    _validate_growth_contract(
+        prd_text,
+        shape_fields=shape_fields,
+        ui_surface_ids=set(ui_surfaces),
+        release_target_ids={target.target_id for target in release_contract.targets},
+        known_test_ids=known_test_ids,
+        require_filled=require_filled,
+        problems=problems,
+    )
+
     ux_section = _section(prd_text, "## UX Requirements") or ""
     ux_rows = _find_table(ux_section, UX_REQUIREMENTS_HEADER) or []
     ux_ids = {
@@ -3474,6 +3927,10 @@ def validate_texts(
         notes.append(
             "legacy package: no docs/product/deltas directory and no Ambition "
             "section; delta and ambition checks skipped"
+        )
+    elif shape_fields is None and notes is not None:
+        notes.append(
+            "legacy package: no 'At a Glance' Shape row; growth contract checks skipped"
         )
 
     stack_block = _extract_machine_block(
