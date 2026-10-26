@@ -28,8 +28,14 @@ for path in (TESTS_DIR, SCRIPTS_DIR):
 import harness_transition as harness_transition  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 from harness_manifest import ManifestError, plan_digest, validate_run  # noqa: E402
+from render_review_packet import render_packet  # noqa: E402
 from test_security_review_result import valid_result  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
+
+
+def packet_contract(packet: str) -> dict[str, object]:
+    block = packet.split("## Contract", 1)[1].split("```json", 1)[1]
+    return json.loads(block.split("```", 1)[0])
 
 
 class RepairScopeRecordingTests(unittest.TestCase):
@@ -739,6 +745,96 @@ class ScopedCoverageChainTests(unittest.TestCase):
             f"trust-boundary scoped PASS at {self.H2} has no security_result",
             errors[0],
         )
+
+
+class ScopedPacketRenderTests(unittest.TestCase):
+    """render_packet scopes the packet to the recorded repair scope."""
+
+    def setUp(self) -> None:
+        self._temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self._temp.cleanup)
+        self.root = Path(self._temp.name).resolve()
+        mf.init_repo(self.root, "file.txt", default_branch="codex/test")
+        self.base = mf.git(self.root, "rev-parse", "HEAD")
+        (self.root / "file.txt").write_text("feature\n", encoding="utf-8")
+        mf.git(self.root, "commit", "-qam", "candidate feature")
+        self.prior = mf.git(self.root, "rev-parse", "HEAD")
+        (self.root / "file.txt").write_text("feature2\n", encoding="utf-8")
+        (self.root / "repair.txt").write_text("fix\n", encoding="utf-8")
+        mf.git(self.root, "add", "repair.txt")
+        mf.git(self.root, "commit", "-qam", "isolated repair")
+        self.head = mf.git(self.root, "rev-parse", "HEAD")
+
+        self.plan = mf.valid_plan()
+        self.run = mf.valid_run(self.plan)
+        self.run["integration"]["batch_base_sha"] = self.base
+        self.run["integration"]["integration_head_sha"] = self.head
+        self.run["mission_states"]["M1"]["head_sha"] = self.head
+        self.run["integration"]["repair_scopes"] = [
+            {
+                "candidate_sha": self.head,
+                "prior_head_sha": self.prior,
+                "repair_paths": ["repair.txt"],
+                "source": "isolated repair commit",
+                "trust_boundary": False,
+            }
+        ]
+        self.run["review_workers"] = [
+            {
+                "worker_id": "RW-PRIOR",
+                "node_id": "N-REVIEW-M1",
+                "attempt_id": "ATT-PRIOR",
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": "0" * 64,
+                "graph_revision": self.run["graph_state"]["graph_revision"],
+                "reviewed_sha": self.prior,
+                "review_path": str(self.root),
+                "worker_runtime": "parent",
+                "completion_channel": "agent_result",
+                "runtime_binding": {},
+                "task_thread_id": None,
+                "report_path": None,
+                "phase": "worker_failed",
+                "outcome": "fix_required",
+                "findings": ["repair.txt:1 header misses the accepted copy"],
+            }
+        ]
+
+    def test_scoped_section_renders_only_scoped_paths_and_contract(self) -> None:
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+
+        self.assertIn("## Scoped repair review", packet)
+        self.assertNotIn("## Repair re-check", packet)
+        self.assertNotIn("## Diff", packet)
+        self.assertIn(f"Repair range: `{self.prior}..{self.head}`", packet)
+        self.assertIn("A\trepair.txt", packet)
+        self.assertNotIn("M\tfile.txt", packet)
+        self.assertIn(
+            "- F1: repair.txt:1 header misses the accepted copy", packet
+        )
+        self.assertIn("Trust boundary: no.", packet)
+        self.assertIn(
+            "Inspect only the repair paths and their direct consumers.", packet
+        )
+        contract = packet_contract(packet)
+        self.assertEqual(
+            {
+                "prior_head_sha": self.prior,
+                "candidate_sha": self.head,
+                "repair_paths": ["repair.txt"],
+                "trust_boundary": False,
+            },
+            contract["scoped_repair"],
+        )
+        self.assertIsNone(contract["recheck"])
+
+    def test_no_scoped_section_without_a_recorded_entry(self) -> None:
+        self.run["integration"]["repair_scopes"] = []
+
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+
+        self.assertNotIn("## Scoped repair review", packet)
+        self.assertIsNone(packet_contract(packet)["scoped_repair"])
 
 
 if __name__ == "__main__":
