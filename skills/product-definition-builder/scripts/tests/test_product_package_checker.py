@@ -3255,7 +3255,8 @@ class ShapeRowPackageTests(unittest.TestCase):
             )
         )
         self.assertTrue(
-            any("at least three Test Obligations" in item for item in untraced), untraced
+            any("requires a Required Yes Test Obligation tracing into the" in item for item in untraced),
+            untraced,
         )
 
 
