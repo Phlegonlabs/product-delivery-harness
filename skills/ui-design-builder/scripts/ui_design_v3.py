@@ -1,7 +1,8 @@
 """Policy added by ``UI contract: ui-design/3`` for new full UI packages.
 
-ui-design/2 keeps its original meaning. A ui-design/3 package always ships the
-design-system Markdown/JSON/HTML package, records rendered direction studies by
+ui-design/2 keeps its original meaning. A ui-design/3 package ships the
+design-system Markdown/JSON/HTML package unless an mvp-profile package records
+``not_required`` with its reason, records rendered direction studies by
 one author (three by default, one only by explicit owner choice), and adds an
 observed intermediate-width HiFi receipt when approved web intervals exist.
 """
@@ -29,10 +30,20 @@ def package_action(values: list[str]) -> str | None:
     return action if action in PACKAGE_ACTIONS else None
 
 
-def package_gate_findings(decision: str, action_values: list[str], disposition: str | None) -> list[str]:
-    """A full ui-design/3 package cannot skip the design-system package."""
+def package_gate_findings(
+    decision: str, action_values: list[str], disposition: str | None,
+    delivery_profile: str | None = None,
+) -> list[str]:
+    """A full ui-design/3 package cannot skip the design-system package.
+
+    Exception: with ``Delivery profile: mvp`` the gate may be ``not_required``;
+    the gate section's own ``Reason`` field stays mandatory and the approved
+    target row then carries the conformance identity.
+    """
 
     problems: list[str] = []
+    if decision == "not_required" and delivery_profile == "mvp":
+        return problems
     if decision != "required":
         problems.append("ui-design/3 full UI package requires Design System Need Gate Decision: required")
     if len(action_values) != 1:
