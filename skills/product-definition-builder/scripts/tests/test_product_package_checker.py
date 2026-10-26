@@ -2176,6 +2176,37 @@ Security scope: executable
         problems = self.validate(architecture=blanket)
         self.assertTrue(any("mandatory and cannot be not_required" in item for item in problems))
 
+    def test_at_a_glance_accepts_a_delivery_profile_row(self) -> None:
+        with_profile = valid_prd().replace(
+            "| Biggest risk |",
+            "| Delivery profile | mvp |\n| Biggest risk |",
+            1,
+        )
+        self.assertEqual(
+            [],
+            [item for item in self.validate(prd=with_profile) if "At a Glance" in item],
+        )
+
+        bad_value = with_profile.replace(
+            "| Delivery profile | mvp |", "| Delivery profile | fast |", 1
+        )
+        self.assertTrue(
+            any(
+                "'Delivery profile' must be one of: mvp, standard" in item
+                for item in self.validate(prd=bad_value)
+            )
+        )
+
+        duplicate = with_profile.replace(
+            "| Biggest risk |", "| Delivery profile | standard |\n| Biggest risk |", 1
+        )
+        self.assertTrue(
+            any(
+                "exactly its five canonical rows" in item
+                for item in self.validate(prd=duplicate)
+            )
+        )
+
     def test_empty_core_prd_and_incomplete_ui_surface_cannot_pass(self) -> None:
         duplicate_glance = valid_prd().replace(
             "| Primary user |",
