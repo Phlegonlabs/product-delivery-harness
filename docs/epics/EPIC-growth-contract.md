@@ -26,8 +26,8 @@ Kept unchanged: no publishing, scheduling or ad spend by the skills; no ranking 
 | ID | Expected outcome | Verification |
 | --- | --- | --- |
 | GC-1 | The PRD package check validates the At a Glance `Shape` row and the `## Growth Contract` tables against journeys, UI surfaces and release targets | `test_product_package_checker.py` (Shape, Growth Contract) |
-| GC-2 | Product Definition records the `Shape` row, `## Growth Contract` and the two new Segment 4 discovery prompts | `test_skill_contract.py` (product-definition-builder) |
-| GC-3 | The UI contract requires the track-specific surfaces, including the console's three core screens when `console: operations` | `test_skill_contract.py` (ui-design-builder) |
+| GC-2 | Product Definition records the `Shape` row, `## Growth Contract` and the two new Segment 4 discovery prompts | `test_skill_contract.py::test_discovery_asks_about_return_visits_and_first_contact` (product-definition-builder) |
+| GC-3 | The UI contract requires the track-specific surfaces, including the console's three core screens when `console: operations` | `test_skill_contract.py::test_required_surfaces_follow_the_product_track` (ui-design-builder) |
 | GC-4 | Delivery foundations expand per track (SEO/GEO/AEO, deep links, push, measurement, directory metadata, `llms.txt`) and the architecture playbook holds the `agentic-operations-console` profile | `test_skill_contract.py` (delivery-harness) |
 | GC-5 | Product Activation owns the `aso-and-store-launch`, `agent-directory` and `geo-readback` profiles, and seo-growth-review owns `pre_launch` mode and the Day 7 and Day 30 `growth_review` cadence | product-activation and seo-growth-review test suites |
 | GC-6 | The four READMEs describe the same release meaning and keep the version-history contract at 0.71.0 | `test_skill_contract.py` version assertions and `test_readme_structure.py` |
