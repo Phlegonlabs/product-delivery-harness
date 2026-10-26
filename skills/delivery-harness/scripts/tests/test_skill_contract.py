@@ -427,6 +427,78 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("reason for each beyond one review plus one re-check", stage)
         self.assertIn("re-check scope", stage)
 
+    def test_two_review_budget_and_isolated_repairs_are_documented(self) -> None:
+        skill = self.read("SKILL.md")
+        gates = self.read("references/verification-gates.md")
+        gen_verify = self.read("references/gen-verify-correct.md")
+        state = self.read("references/execution-state-model.md")
+        delegation = self.read("references/delegation-contract.md")
+        bounded = self.read("references/bounded-enhancement.md")
+
+        # Each candidate stage gets at most two independent review passes.
+        self.assertIn(
+            "at most two independent review passes: the initial review and one targeted re-check",
+            gates,
+        )
+        self.assertIn("no owner decision opens another full review round", gates)
+        self.assertIn(
+            "every remaining defect enters the [Isolated Repair Protocol]", skill
+        )
+        # After the re-check, defects enter the isolated protocol.
+        self.assertIn("## Isolated Repair Protocol", gates)
+        self.assertIn("One finding family becomes one bounded repair task", gates)
+        self.assertIn("render_review_packet.py --repair-scope", gates)
+        self.assertIn(
+            "security: not_applicable (scoped repair outside trust boundaries)", gates
+        )
+        self.assertIn(
+            "No Final UI Acceptance rerun happens unless the repair touches a UI surface",
+            gates,
+        )
+        self.assertIn(
+            "A scoped review does not consume the review node's attempts", gates
+        )
+        self.assertIn("record-review-attempt --scoped", gates)
+        self.assertIn("rerun only the failing suites plus the changed-file selection", gates)
+        # The scoped PASS re-binds the repaired paths; untouched paths carry forward.
+        self.assertIn("Scope-bound carry-forward", gates)
+        self.assertIn("Record the origin PASS SHA, the repair path list", gates)
+        self.assertIn("record-review-attempt --scoped", state)
+        self.assertIn("reconcile-candidate-head --repair-path", state)
+        # The scoped reviewer brief is bounded to the repair.
+        self.assertIn("An isolated-repair brief carries only the finding", delegation)
+        # The loop docs route remaining defects into the protocol.
+        self.assertIn("remaining defects then continue as isolated", gen_verify)
+        self.assertIn("A failed re-check hands remaining defects to the Isolated Repair", gen_verify)
+        self.assertIn(
+            "Remaining defects continue as isolated repairs under `verification-gates.md`'s Isolated Repair Protocol",
+            bounded,
+        )
+        self.assertIn(
+            "stop only on a contract gap, a missing capability, or an unsafe repair",
+            bounded,
+        )
+        self.assertNotIn("round needs an explicit owner decision", gen_verify)
+        self.assertNotIn("a second round needs an explicit owner decision", bounded)
+
+    def test_mvp_delivery_profile_is_documented(self) -> None:
+        skill = self.read("SKILL.md")
+        stage = self.read(MANAGED_STAGE)
+
+        self.assertIn("Delivery profile: standard | mvp", skill)
+        self.assertIn("### MVP Week", skill)
+        self.assertIn(
+            "the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding",
+            skill,
+        )
+        self.assertIn("`Delivery profile` from System Review And Route", stage)
+        self.assertIn("folds Final UI Acceptance into that combined review", stage)
+        self.assertIn("keeps at most four owner gates", stage)
+        self.assertIn(
+            "Under the `mvp` profile, Final UI Acceptance is part of the one combined review",
+            stage,
+        )
+
     def test_scripted_transition_flag_surfaces_are_documented(self) -> None:
         state = self.read("references/execution-state-model.md")
         skill = self.read("SKILL.md")
