@@ -9,7 +9,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from ci_test_shards import CommandError, candidate_files, discover_files, split_files
+from ci_test_shards import SERIAL_FILES, CommandError, candidate_files, discover_files, run_suite, split_files
 
 
 class CITestShardTests(unittest.TestCase):
@@ -62,3 +62,40 @@ class CITestShardTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _module(body_lines: list[str]) -> str:
+    return "\n".join(["import unittest", "", "", "class T(unittest.TestCase):", *body_lines, ""])
+
+
+class RunSuiteTests(unittest.TestCase):
+    def test_run_suite_runs_modules_in_parallel_and_reports_failures(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tests = root / "skills/seo-growth-review/scripts/tests"
+            tests.mkdir(parents=True)
+            (tests / "test_alpha.py").write_text(
+                _module(["    def test_ok(self):", "        self.assertTrue(True)"]), encoding="utf-8"
+            )
+            (tests / "test_beta.py").write_text(
+                _module(["    def test_bad(self):", "        self.fail('expected')"]), encoding="utf-8"
+            )
+            log_dir = root / "logs"
+            self.assertEqual(1, run_suite(root, "seo", 2, log_dir))
+            self.assertIn("expected", (log_dir / "test_beta.py.log").read_text(encoding="utf-8"))
+            (tests / "test_beta.py").write_text(
+                _module(["    def test_ok(self):", "        pass"]), encoding="utf-8"
+            )
+            self.assertEqual(0, run_suite(root, "seo", 2, log_dir))
+
+    def test_run_suite_rejects_zero_workers(self) -> None:
+        from pathlib import Path
+
+        with self.assertRaises(CommandError):
+            run_suite(Path("."), "seo", 0, Path("unused"))
+
+    def test_install_script_module_runs_serially(self) -> None:
+        self.assertIn("test_install_script.py", SERIAL_FILES)

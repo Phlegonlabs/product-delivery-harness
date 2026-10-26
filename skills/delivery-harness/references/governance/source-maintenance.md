@@ -43,6 +43,7 @@ python skills/delivery-harness/scripts/check_skill_spec.py
 python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
+# or, in parallel with per-module logs: python skills/delivery-harness/scripts/ci_test_shards.py run --suite harness --workers 8
 # POSIX shells
 HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
 # PowerShell

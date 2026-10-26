@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.71.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.72.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -209,6 +209,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` ejecuta los módulos de prueba de una suite en procesos paralelos con logs por módulo, así la matriz local de Required Verification termina en minutos en lugar de 27 en un solo núcleo.
+
 - **0.71.0** — Cada proyecto declara su forma a propósito: el At a Glance del PRD gana una fila `Shape` que nombra el track, la superficie pública acompañante y el tipo de consola, y `## Growth Contract` registra el north star con objetivos Day 7 y Day 30, mecanismos de re-engagement, discovery surfaces y una launch window. Las superficies UI requeridas por track, las bases de entrega por track, el perfil de arquitectura `agentic-operations-console` y los perfiles de activación para lanzamiento en store, directorios de agentes y read-back GEO extienden el flujo de web a productos app y agent. `seo-growth-review` gana un modo `pre_launch` y readbacks `growth_review` de Day 7 y Day 30 que alimentan el siguiente delta del PRD, go-to-market redacta el Launch Reach Plan y GTM Content empaqueta una pieza fuente en variantes por canal con dos hooks.
 
 - **0.70.0** — Cada etapa candidata conserva un presupuesto de dos revisiones: una revisión inicial y un recheck acotado; la ronda extra autorizada por el owner y los nodos de revisión sucesores desaparecen. Tras el recheck, cada defecto restante o nuevo se vuelve una reparación aislada con su verifier enfocado y una revisión acotada solo del diff de reparación: la lente de seguridad se une en los límites de confianza, un PASS acotado revincula las rutas reparadas, los PASS previos se arrastran y la validación final amplia corre una vez por candidato al final. La ruta gestionada registra alcances de reparación y PASS acotados, y el perfil de entrega `mvp` elegido por el owner comprime un proyecto pequeño o un MVP de una semana a como máximo cuatro gates del owner.
@@ -216,7 +218,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.69.0** — Discovery pregunta un cuarto segmento Ambition, `PRD.md` gana `## Ambition` con una columna `Stretch` en Metrics, y las rondas del PRD dejan de apilarse en un archivo acumulativo: cada ronda publica un delta alineado con su Epic. El Epic registra su delta y el rung de ambition, el PLAN congela una fuente `prd-delta`, y un verificador de alcance ata los traces de misión a los IDs de requerimientos del delta vinculado.
 
 - **0.68.0** — Triar hallazgos de revisión en defectos blocking y notas no blocking: solo los hallazgos blocking fuerzan reparación, y el recheck verifica los hallazgos previos sobre el rango de reparación con seguridad a alcance completo. Los intentos de revisión bloqueados por entorno ya no gastan el presupuesto de intentos, las reparaciones llegan al reviewer solo con el PASS del verifier del autor, y los diffs no ejecutables registran `security: not_applicable` en lugar de `UNVALIDATED`. Un PASS arrastrado con alcance disjunto conserva su SHA de origen, y los puntos de revisión fuera de una revisión combinada más un recheck requieren un motivo registrado.
-
-- **0.67.0** — Exigir una petición explícita para los siete skills centrales y los cuatro independientes. Limitar las rutas Harness, la sincronización documental y los registros Epic al flujo solicitado. Conservar controles y dependencias sin iniciar otra etapa principal.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).
