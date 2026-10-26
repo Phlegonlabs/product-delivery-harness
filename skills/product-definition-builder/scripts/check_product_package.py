@@ -1139,6 +1139,7 @@ def _validate_growth_contract(
     shape_fields: dict[str, str] | None,
     ui_surface_ids: set[str],
     release_target_ids: set[str],
+    known_test_ids: set[str],
     require_filled: bool,
     problems: list[str],
 ) -> None:
@@ -1338,6 +1339,24 @@ def _validate_growth_contract(
                 "prd",
                 "Launch Window needs at least one row for Day 0 through Day 7",
             )
+    trace_cells: list[str] = []
+    for row in north_rows or []:
+        if len(row) == len(GROWTH_NORTH_STAR_HEADER):
+            trace_cells.append(row[5])
+    for row in reengagement_rows or []:
+        if len(row) == len(GROWTH_REENGAGEMENT_HEADER):
+            trace_cells.append(row[2])
+    for row in discovery_rows or []:
+        if len(row) == len(GROWTH_DISCOVERY_HEADER):
+            trace_cells.append(row[3])
+    unknown_tests: set[str] = set()
+    for cell in trace_cells:
+        for match in re.finditer(r"\bTEST-[A-Z0-9-]+\b", cell, re.IGNORECASE):
+            test_id = match.group(0).upper()
+            if test_id not in known_test_ids:
+                unknown_tests.add(test_id)
+    for test_id in sorted(unknown_tests):
+        _add(problems, "prd", f"Growth Contract references unknown {test_id}")
 
 
 def _validate_delta_file(
@@ -2844,6 +2863,7 @@ def validate_texts(
         shape_fields=shape_fields,
         ui_surface_ids=set(ui_surfaces),
         release_target_ids={target.target_id for target in release_contract.targets},
+        known_test_ids=known_test_ids,
         require_filled=require_filled,
         problems=problems,
     )

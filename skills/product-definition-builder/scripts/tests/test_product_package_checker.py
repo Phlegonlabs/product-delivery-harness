@@ -3419,6 +3419,26 @@ class GrowthContractTests(unittest.TestCase):
             findings,
         )
 
+    def test_growth_contract_trace_ids(self) -> None:
+        prd = shaped_prd().replace(
+            "| web | Weekly returning fixture users | 40% return by day 7 | "
+            "55% return by day 30 | 70% return by day 30 | MS-100 |",
+            "| web | Weekly returning fixture users | 40% return by day 7 | "
+            "55% return by day 30 | 70% return by day 30 | TEST-001 |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| /launch | landing | gtm | TEST-999 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Growth Contract references unknown TEST-999" in item for item in findings),
+            findings,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
