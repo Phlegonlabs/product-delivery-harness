@@ -1,6 +1,6 @@
 # Growth Contract, Product Tracks And The Agentic Operations Console
 
-Status: in_progress; worker packages pending integration
+Status: candidate verified; publication pending
 Design workflow: enhancement
 UI impact: none (skill rules for consumer products, READMEs and documentation; no product UI in this repository).
 
@@ -40,13 +40,26 @@ Four sibling packages (G1-G4) own the canonical rules under `skills/**` and `sta
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
-| pending | Worker packages G1-G5 land the canonical rules, READMEs, version surfaces and this Epic; entries record at integration | pending | pending |
+| G1 PRD Shape row, Growth Contract, discovery prompts, console pattern | GLM-5.3 Flash worker | `25dc31ac`..`1f051c68`, integrated `b025e6af` | pdb contract 57 OK |
+| G3 track surfaces, per-track foundations, activation profiles | GLM-5.3 Flash worker | `c5b762f9`..`1d091012`, integrated `f63a1d15` | ui contract 22, delivery contract 68, activation 68 OK |
+| G4 Launch Reach Plan, Content Pipeline, pre_launch and growth_review | GLM-5.3 Flash worker; parent kept pre_launch inline (`5f76145a`) | `78f4342f`..`348d0932`, integrated `720c1c94` | seo-growth-review 21 OK |
+| G5 READMEs, CHANGELOG, Epic, version 0.71.0 | GLM-5.3 Flash worker | `4ada8479`..`57b0a9e8`, integrated `782359e4` | delivery contract 67, readme structure 3 OK |
+| G2 Shape and Growth Contract checker | GLM-5.3 Flash worker | `0c194e76`..`2b5c8088`, integrated `42ba2408` | pdb suite 248 OK |
+| Review round 1 at `42ba2408` | Protected GPT-6.1 Sol xhigh; four scopes, then six narrower prose scopes rerun two at a time after load-induced timeouts | runs `20261026-144257-*`, `-15xxxx-*` | checker: 6 blocking (annotated headers, trace identifiers, per-journey console coverage, excluded SEO lines, quadratic companion regex, signed days); prose: Owner stage values and Day 0-7 rule, focused test pins, activation kind-to-profile mapping, SEO template Mode suffix; docs PASS after pins |
+| Consolidated repair | GLM-5.3 Flash workers for the checker (two sessions, disjoint functions), parent for prose and pins | `b75bd617`..`dce344fe`, `af3d9276`..`aaf47c19`, `92108c9a`, `dabd7c1e`, `e6a094d2`, `ff107754` | pdb suite 272 OK; activation, seo, ui, delivery contract suites OK |
+| Isolated repairs under the 0.70 protocol | Parent: annotation key, SEO exclusion scoping (three passes until per-occurrence fixed windows with word boundaries), day ranges, huge bounds, activation validator profile catalog, test path setup | `1cebd67b`, `e7ea6044`, `061c605b`; scoped reviews `20261026-15xxxx-*` | final scoped review of `061c605b` PASS; findings shrank 6 → 3 → 2 → 1 → 0 |
 
 ## Verification
 
-pending
+Full Required Verification matrix on an immutable detached checkout of `42ba2408` (log `matrix-42ba2408.log` under `%LOCALAPPDATA%/Temp/pdh-review-budget-20261026/`): `check_skill_spec.py`, pyflakes across the six script trees and `docs_weight.py` exit 0; delivery-harness 1620 OK (19 skipped); golden path 1 OK; product-definition-builder 248 OK; ui-design-builder 355 OK (2 skipped); design-system-compiler 214 OK (2 skipped); product-activation 68 OK; seo-growth-review 21 OK; `git diff --check` exit 0.
+
+Later heads changed only the product-definition-builder checker and tests, the product-activation validator and tests, and prose. Affected suites on immutable checkouts: `92108c9a` (pdb 269, ui contract 23), `ff107754` (pdb 272, activation 68, seo 21, ui contract 23, delivery contract 68, cross-skill pipeline 18), `1cebd67b` (pdb 272, activation 68), `e7ea6044` (pdb 272, activation 68), `061c605b` (pdb 272); pyflakes, `check_skill_spec.py` and `git diff --check` exit 0 each time.
+
+Independent review: `42ba2408` `fix_required` across the checker and prose scopes, one consolidated repair, then isolated repairs with scoped reviews; final scoped review of `061c605b` PASS. Timed-out and transport-failed review attempts were environment blocks and did not count.
 
 ## Remaining Work
 
 - Consumer retrofits: the three consumer projects' PRDs gain a `Shape` row and a `## Growth Contract`.
+- Publication: PR chain `feat/review-budget-and-mvp-profile` (0.70.0) then `feat/growth-contract` (0.71.0) to `main`, CI on each exact candidate, tags, consumer syncs. Nothing here authorizes a push, PR or installation.
+- Backlog notes from review: the Shape-row tests omit `n/a` prefix and longer-word exclusion variants; validator-level acceptance of the new activation profiles with architecture targets lacks a focused case; the growth_review cadence has no fallback example when no launch reach plan exists.
 - Test-suite sharding for speed.

@@ -6,7 +6,7 @@ Index of live documents. Only open Epics are indexed; closed Epics live in Git h
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior, installation and release instructions | Documentation of record |
 | `CHANGELOG.md` | Release history older than the newest README entries | Added with the 0.66.0 README diet |
-| `docs/epics/EPIC-growth-contract.md` | Product shape and tracks, the PRD Growth Contract and the agentic operations console | in_progress; worker packages pending integration |
+| `docs/epics/EPIC-growth-contract.md` | Product shape and tracks, the PRD Growth Contract and the agentic operations console | candidate `061c605b` verified and scoped review PASS; publication pending |
 | `docs/epics/EPIC-review-budget-and-mvp-profile.md` | Two-review budget, isolated repairs with scoped review and the `mvp` delivery profile | candidate `54fc51e9` verified and scoped review PASS; publication pending |
 | `docs/epics/EPIC-prd-deltas-and-ambition.md` | Ambition discovery, the `## Ambition` PRD section and per-round PRD deltas aligned with the Epic | PR #158 alignment repair reviewed at `a6fd7baa`; final CI and merge pending |
 | `docs/epics/EPIC-review-recheck-convergence.md` | Finding triage, scoped re-checks and budget refunds to cut delivery review rounds | PR #157 merged at `8abcd645`; full CI passed; formal release work pending |
