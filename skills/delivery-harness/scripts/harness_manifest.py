@@ -96,6 +96,7 @@ from harness_graph import (
     _cycle_nodes,
     _validate_graph,
     _validate_graph_state,
+    repair_scope_entry,
     validate_cleanup_lifecycle_targets,
 )
 from harness_ui_evidence import (
@@ -3701,6 +3702,8 @@ def _validate_run_attempt_log(
                 "worker_ingestion_reconciliation",
                 "blocker_class",
                 "notes",
+                "scoped",
+                "repair_paths",
             }
             if not _keys(errors, path, attempt, attempt_keys, optional_attempt_keys):
                 continue
@@ -3722,6 +3725,22 @@ def _validate_run_attempt_log(
             for key in ("task_id", "lease_id"):
                 _optional_string(errors, f"{path}.{key}", attempt[key])
             _optional_string(errors, f"{path}.node_id", attempt.get("node_id"))
+            scoped_flag = attempt.get("scoped")
+            if scoped_flag is not None and not isinstance(scoped_flag, bool):
+                _add(errors, f"{path}.scoped", "must be a boolean")
+            entry_repair_paths = attempt.get("repair_paths")
+            if entry_repair_paths is not None and (
+                not isinstance(entry_repair_paths, list)
+                or any(
+                    not isinstance(item, str) or not item
+                    for item in entry_repair_paths
+                )
+            ):
+                _add(
+                    errors,
+                    f"{path}.repair_paths",
+                    "must be a list of non-empty strings",
+                )
             has_node_id = attempt.get("node_id") is not None
             if (attempt.get("kind") == "node_attempt") != has_node_id:
                 _add(
@@ -5338,7 +5357,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                 review_worker_keys,
                 {"tree_sha", "base_sha", "security_result",
                  "result_receipt", "failure_receipt", "workspace_mode",
-                 "notes"},
+                 "notes", "scoped", "repair_paths", "security_scope"},
             ):
                 continue
             for key in (
@@ -5406,6 +5425,43 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
             ):
                 _add(errors, f"{path}.outcome", "is not declared by the reviewed node")
             findings = _strings(errors, f"{path}.findings", worker["findings"])
+            scoped = worker.get("scoped")
+            if scoped is not None and not isinstance(scoped, bool):
+                _add(errors, f"{path}.scoped", "must be a boolean")
+                scoped = None
+            worker_repair_paths = worker.get("repair_paths")
+            scoped_entry = repair_scope_entry(run, worker.get("reviewed_sha"))
+            if scoped is True or worker_repair_paths is not None:
+                if scoped is not True:
+                    _add(
+                        errors,
+                        f"{path}.repair_paths",
+                        "require a scoped review worker",
+                    )
+                elif not isinstance(scoped_entry, dict):
+                    _add(
+                        errors,
+                        f"{path}.scoped",
+                        "requires a recorded repair scope for the reviewed head",
+                    )
+                elif not isinstance(worker_repair_paths, list) or any(
+                    not isinstance(item, str) or not item
+                    for item in worker_repair_paths
+                ):
+                    _add(
+                        errors,
+                        f"{path}.repair_paths",
+                        "must copy the recorded repair scope paths",
+                    )
+                elif worker_repair_paths != scoped_entry.get("repair_paths"):
+                    _add(
+                        errors,
+                        f"{path}.repair_paths",
+                        "must copy the recorded repair scope paths",
+                    )
+            security_scope = worker.get("security_scope")
+            if security_scope is not None and not _nonempty_string(security_scope):
+                _add(errors, f"{path}.security_scope", "must be a non-empty string")
             is_security_review = (
                 isinstance(node, dict)
                 and isinstance(node.get("review"), dict)
@@ -5428,11 +5484,19 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
                     node,
                     run.get("attempt_log"),
                 )
+                scoped_security_without_result = (
+                    scoped is True
+                    and worker.get("phase") == "worker_passed"
+                    and isinstance(scoped_entry, dict)
+                    and scoped_entry.get("trust_boundary") is not True
+                    and _nonempty_string(worker.get("security_scope"))
+                )
                 if (
                     worker.get("phase") in terminal_security_phases
                     and security_result is None
                     and not interrupted_without_result
                     and not environment_blocked_without_result
+                    and not scoped_security_without_result
                 ):
                     _add(
                         errors,

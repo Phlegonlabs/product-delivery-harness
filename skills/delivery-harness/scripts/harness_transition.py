@@ -39,6 +39,7 @@ from harness_graph import (
     reviewed_merge_chain_covers,
     ui_acceptance_evidence_present,
     ui_acceptance_review,
+    repair_scope_entry,
 )
 from harness_manifest import (
     _verifier_owners,
@@ -3787,6 +3788,10 @@ def _reserve_review_dispatch(
 
 ENVIRONMENT_REFUND_CAP = 2
 
+SCOPED_REPAIR_SECURITY_SCOPE = (
+    "not_applicable (scoped repair outside trust boundaries)"
+)
+
 
 def _environment_refunds(run: dict[str, Any], lineage_id: Any) -> int:
     """Count retained environment refunds for one review lineage in this RUN."""
@@ -3824,6 +3829,21 @@ def _record_review_attempt(
         )
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
+    scoped = bool(getattr(args, "scoped", False))
+    repair_scope = (
+        repair_scope_entry(run, worker.get("reviewed_sha")) if scoped else None
+    )
+    if scoped and repair_scope is None:
+        raise ManifestError(
+            "--scoped requires a recorded repair scope whose candidate_sha "
+            "equals the reviewed head"
+        )
+    scoped_security_pass = (
+        scoped
+        and args.result == "pass"
+        and repair_scope is not None
+        and repair_scope.get("trust_boundary") is not True
+    )
     node = _review_node(plan, worker.get("node_id"))
     if node["review"].get("lineage_id") != args.lineage:
         raise ManifestError("review result lineage does not match its reserved PLAN node")
@@ -3857,7 +3877,7 @@ def _record_review_attempt(
     security_result: dict[str, Any] | None = None
     if is_security_review:
         if security_result_path is None:
-            if not environment_block:
+            if not environment_block and not scoped_security_pass:
                 raise ManifestError(
                     "security review completion requires --security-result"
                 )
@@ -3949,6 +3969,9 @@ def _record_review_attempt(
     }
     if args.result == "blocked":
         attempt_entry["blocker_class"] = blocker_class
+    if scoped:
+        attempt_entry["scoped"] = True
+        attempt_entry["repair_paths"] = list(repair_scope["repair_paths"])
     run["attempt_log"].append(attempt_entry)
     worker.update(
         {
@@ -3963,6 +3986,11 @@ def _record_review_attempt(
     )
     if security_result is not None:
         worker["security_result"] = security_result
+    if scoped:
+        worker["scoped"] = True
+        worker["repair_paths"] = list(repair_scope["repair_paths"])
+    if scoped_security_pass:
+        worker["security_scope"] = SCOPED_REPAIR_SECURITY_SCOPE
     if args.result == "pass":
         tree_sha = getattr(args, "tree_sha", None)
         if tree_sha is None and getattr(args, "repo_root", None) is not None:
@@ -3971,6 +3999,11 @@ def _record_review_attempt(
                 tree_sha = _git_tree(args.repo_root, reviewed)
         if is_full_sha(tree_sha):
             worker["tree_sha"] = tree_sha
+    scoped_pass = scoped and args.result == "pass"
+    # A scoped pass that carries a real security result is a full-value
+    # trust-boundary acceptance and consumes the attempt like any ordinary
+    # pass; only the lightweight scoped acceptance refunds the budget.
+    scoped_budget_refund = scoped_pass and security_result is None
     if refund:
         # The reviewer could not inspect the candidate, so the node budget is
         # refunded and the selector mints a fresh attempt; the retained
@@ -3986,16 +4019,30 @@ def _record_review_attempt(
             }
         )
     else:
-        state.update(
-            {
-                "phase": {
-                    "pass": "succeeded",
-                    "blocked": "blocked",
-                }.get(args.result, "failed"),
-                "last_outcome": args.result,
-                "blockers": findings if args.result == "blocked" else [],
-            }
-        )
+        if scoped_budget_refund:
+            # A scoped PASS accepts the repair diff only, so the candidate keeps
+            # its full-scope coverage from the prior non-scoped PASS. The node
+            # succeeds on this attempt without consuming the review budget; the
+            # retained attempt entry stays as the scoped acceptance evidence.
+            state.update(
+                {
+                    "phase": "succeeded",
+                    "attempts": max(0, state.get("attempts", 0) - 1),
+                    "last_outcome": args.result,
+                    "blockers": [],
+                }
+            )
+        else:
+            state.update(
+                {
+                    "phase": {
+                        "pass": "succeeded",
+                        "blocked": "blocked",
+                    }.get(args.result, "failed"),
+                    "last_outcome": args.result,
+                    "blockers": findings if args.result == "blocked" else [],
+                }
+            )
         for edge in plan.get("graph", {}).get("edges", []):
             if (
                 not isinstance(edge, dict)
@@ -4019,8 +4066,10 @@ def _record_review_attempt(
         "attempt_id": args.attempt_id,
         "result": args.result,
         "blocker_class": blocker_class if args.result == "blocked" else None,
-        "refunded": refund,
+        "refunded": bool(refund or scoped_budget_refund),
     }
+    if scoped:
+        receipt["scoped"] = True
     if environment_block and not refund:
         receipt["message"] = "environment refund cap reached"
     return receipt
@@ -4239,6 +4288,12 @@ def build_parser() -> argparse.ArgumentParser:
         choices=("environment", "review"),
         default="review",
         help="why a blocked review failed; environment refunds the attempt",
+    )
+    review.add_argument(
+        "--scoped",
+        action="store_true",
+        help="record a scoped repair review pass against the head's recorded "
+        "repair scope; a scoped PASS refunds the attempt",
     )
     review.add_argument("--security-result", type=Path)
     review.add_argument("--tree-sha")

@@ -10,6 +10,7 @@ contract that makes the scoped route expressible.
 from __future__ import annotations
 
 import copy
+import json
 import sys
 import tempfile
 import unittest
@@ -26,7 +27,8 @@ for path in (TESTS_DIR, SCRIPTS_DIR):
 
 import harness_transition as harness_transition  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
-from harness_manifest import ManifestError, validate_run  # noqa: E402
+from harness_manifest import ManifestError, plan_digest, validate_run  # noqa: E402
+from test_security_review_result import valid_result  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
 
 
@@ -281,5 +283,269 @@ class RepairScopeRecordingTests(unittest.TestCase):
         self.assertEqual([], validate_run(self.plan, self.run))
 
 
+class ScopedReviewPassTests(unittest.TestCase):
+    """record-review-attempt --scoped accepts the repair diff and refunds."""
+
+    HEAD = "b" * 40
+    PRIOR = "a" * 40
+    REPAIR_PATHS = ["src/a/one.py"]
+
+    def setUp(self) -> None:
+        self.plan = mf.valid_plan()
+        node = copy.deepcopy(self.plan["graph"]["nodes"][1])
+        node["id"] = "N-EXTRA-REVIEW"
+        node["allowed_outcomes"] = [
+            "pass",
+            "fix_required",
+            "retryable_failure",
+            "contract_gap",
+            "blocked",
+        ]
+        node["review"].update(
+            stage="integration", lineage_id="RL-EXTRA", mission_ids=["M1", "M2"]
+        )
+        self.review_node = node
+        self.plan["graph"]["nodes"].append(node)
+        self.plan["graph"]["edges"].extend(
+            [
+                {
+                    "id": "E-EXTRA-READY",
+                    "kind": "dependency",
+                    "from": "N-M2",
+                    "to": node["id"],
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+                {
+                    "id": "E-EXTRA-PASS",
+                    "kind": "route",
+                    "from": node["id"],
+                    "to": "N-FINAL",
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+            ]
+        )
+        self.run = mf.valid_run(self.plan)
+        self.run["status"] = "running"
+        self.run["integration"].update(
+            {
+                "integration_head_sha": self.HEAD,
+                "prior_head_shas": [self.PRIOR],
+                "repair_scopes": [
+                    {
+                        "candidate_sha": self.HEAD,
+                        "prior_head_sha": self.PRIOR,
+                        "repair_paths": list(self.REPAIR_PATHS),
+                        "source": "isolated repair commit",
+                        "trust_boundary": False,
+                    }
+                ],
+            }
+        )
+        for edge in self.plan["graph"]["edges"]:
+            self.run["graph_state"]["edge_states"].setdefault(
+                edge["id"],
+                {"status": "dormant", "traversals": 0, "source_attempt_id": None},
+            )
+        self.state = self.run["graph_state"]["node_states"][node["id"]]
+        self.state.update(
+            {
+                "phase": "running",
+                "attempts": 2,
+                "last_attempt_id": "ATT-SCOPED",
+                "last_outcome": None,
+                "bound_worker_id": "RW-SCOPED",
+                "blockers": [],
+            }
+        )
+        self.worker = {
+            "worker_id": "RW-SCOPED",
+            "node_id": node["id"],
+            "attempt_id": "ATT-SCOPED",
+            "plan_revision": self.plan["revision"],
+            "plan_digest_sha256": mf.valid_run(self.plan)["plan"]["digest_sha256"],
+            "graph_revision": self.run["graph_state"]["graph_revision"],
+            "reviewed_sha": self.HEAD,
+            "review_path": "C:/repo",
+            "worker_runtime": "parent",
+            "completion_channel": "agent_result",
+            "runtime_binding": {},
+            "task_thread_id": None,
+            "report_path": None,
+            "phase": "leased",
+            "outcome": None,
+            "findings": [],
+        }
+        self.run["review_workers"].append(self.worker)
+
+    def entry(self, **overrides: object) -> dict[str, object]:
+        value = {
+            "candidate_sha": self.HEAD,
+            "prior_head_sha": self.PRIOR,
+            "repair_paths": list(self.REPAIR_PATHS),
+            "source": "isolated repair commit",
+            "trust_boundary": False,
+        }
+        value.update(overrides)
+        return value
+
+    def record(self, **overrides: object) -> dict[str, object]:
+        values = {
+            "lineage": "RL-EXTRA",
+            "attempt_id": "ATT-SCOPED",
+            "worker_id": "RW-SCOPED",
+            "mission_id": None,
+            "result": "pass",
+            "evidence": ["reviewed the scoped repair diff"],
+            "finding": None,
+            "note": None,
+            "blocker_class": "review",
+            "security_result": None,
+            "tree_sha": None,
+            "repo_root": None,
+            "scoped": True,
+        }
+        values.update(overrides)
+        return harness_transition._record_review_attempt(
+            self.plan, self.run, Namespace(**values)
+        )
+
+    def set_security_review(self) -> None:
+        review = self.review_node["review"]
+        review["type"] = "security"
+        review["lenses"] = ["security"]
+        review["scope"] = ["src/**"]
+        digest = plan_digest(self.plan)
+        self.run["plan"]["digest_sha256"] = digest
+        self.worker["base_sha"] = self.PRIOR
+        self.worker["plan_digest_sha256"] = digest
+
+    def test_scoped_pass_refunds_the_attempt_and_records_paths(self) -> None:
+        receipt = self.record()
+
+        self.assertTrue(receipt["refunded"], receipt)
+        self.assertTrue(receipt["scoped"])
+        self.assertEqual(
+            {
+                "phase": "succeeded",
+                "attempts": 1,
+                "last_attempt_id": "ATT-SCOPED",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-SCOPED",
+                "blockers": [],
+            },
+            self.state,
+        )
+        self.assertTrue(self.worker["scoped"])
+        self.assertEqual(self.REPAIR_PATHS, self.worker["repair_paths"])
+        attempt = next(
+            item
+            for item in self.run["attempt_log"]
+            if item.get("attempt_id") == "ATT-SCOPED"
+        )
+        self.assertTrue(attempt["scoped"])
+        self.assertEqual(self.REPAIR_PATHS, attempt["repair_paths"])
+        self.assertEqual(
+            "traversed",
+            self.run["graph_state"]["edge_states"]["E-EXTRA-PASS"]["status"],
+        )
+        self.assertEqual([], validate_run(self.plan, self.run), validate_run(self.plan, self.run))
+
+    def test_scoped_fix_required_still_consumes_the_attempt(self) -> None:
+        receipt = self.record(
+            result="fix_required", finding=["src/a/one.py:1 regression remains"]
+        )
+
+        self.assertFalse(receipt["refunded"], receipt)
+        self.assertEqual("failed", self.state["phase"])
+        self.assertEqual(2, self.state["attempts"])
+        self.assertEqual("fix_required", self.state["last_outcome"])
+        self.assertTrue(self.worker["scoped"])
+        self.assertEqual(self.REPAIR_PATHS, self.worker["repair_paths"])
+        self.assertEqual([], validate_run(self.plan, self.run))
+
+    def test_scoped_requires_a_recorded_repair_scope(self) -> None:
+        self.run["integration"]["repair_scopes"] = []
+
+        with self.assertRaisesRegex(ManifestError, "--scoped requires"):
+            self.record()
+
+    def test_unscoped_worker_cannot_claim_repair_paths(self) -> None:
+        self.record()
+        self.worker["scoped"] = None
+
+        errors = validate_run(self.plan, self.run)
+
+        self.assertTrue(
+            any("repair_paths" in item for item in errors), errors
+        )
+
+    def security_checkout_mocks(self, root: Path) -> dict[str, object]:
+        self.run["observed"]["git"].update(
+            {
+                "parent_worktree_path": str(root),
+                "parent_branch": "refs/heads/codex/test",
+                "parent_head_sha": self.HEAD,
+                "parent_dirty": False,
+            }
+        )
+        return {
+            "_git_branch_name": lambda _root: "refs/heads/codex/test",
+            "_git_out": lambda _root, *args: (
+                self.HEAD + "\n" if args == ("rev-parse", "HEAD") else ""
+            ),
+            "_git_tree": lambda *_args: "f" * 40,
+            "_git_status_excluding_run": lambda *_args: "",
+            "_git_is_ancestor": lambda *_args: True,
+            "_reject_unplanned_candidate_paths": lambda *_args, **_kw: None,
+        }
+
+    def test_scoped_security_pass_needs_no_result_outside_trust_boundaries(
+        self,
+    ) -> None:
+        self.set_security_review()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.multiple(
+                harness_transition, **self.security_checkout_mocks(root)
+            ):
+                receipt = self.record(repo_root=root)
+
+        self.assertTrue(receipt["refunded"], receipt)
+        self.assertNotIn("security_result", self.worker)
+        self.assertEqual(
+            "not_applicable (scoped repair outside trust boundaries)",
+            self.worker["security_scope"],
+        )
+        self.assertEqual([], validate_run(self.plan, self.run), validate_run(self.plan, self.run))
+
+    def test_scoped_security_pass_with_trust_boundary_requires_result(self) -> None:
+        self.set_security_review()
+        self.run["integration"]["repair_scopes"] = [self.entry(trust_boundary=True)]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with mock.patch.multiple(
+                harness_transition, **self.security_checkout_mocks(root)
+            ):
+                with self.assertRaisesRegex(
+                    ManifestError, "--security-result"
+                ):
+                    self.record(repo_root=root)
+
+                result = valid_result(self.HEAD, self.PRIOR)
+                result["scope"] = self.review_node["review"]["scope"]
+                result_path = Path(directory) / "security-result.json"
+                result_path.write_text(json.dumps(result), encoding="utf-8")
+                receipt = self.record(
+                    repo_root=root, security_result=result_path
+                )
+
+        self.assertFalse(receipt["refunded"], receipt)
+        self.assertNotIn("security_scope", self.worker)
+        self.assertEqual("pass", self.worker["security_result"]["decision"])
+
+
 if __name__ == "__main__":
     unittest.main()
+
