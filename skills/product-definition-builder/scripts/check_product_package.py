@@ -995,14 +995,13 @@ def _validate_console_journeys(
 ) -> None:
     journeys = _section(prd_text, "## User Journeys") or ""
     covered = {keyword: False for keyword, _ in CONSOLE_JOURNEY_KEYWORDS}
-    journey_ids: set[str] = set()
+    journey_ids: dict[str, set[str]] = {}
     for block in re.split(r"(?m)^###\s+", active_text(journeys))[1:]:
         heading, _, body = block.partition("\n")
-        lowered = heading.casefold()
         for keyword, _ in CONSOLE_JOURNEY_KEYWORDS:
-            if keyword in lowered:
+            if keyword in heading.casefold():
                 covered[keyword] = True
-                journey_ids.update(
+                journey_ids.setdefault(keyword, set()).update(
                     match.upper() for match in CONSOLE_TRACE_ID_RE.findall(f"{heading}\n{body}")
                 )
     missing = [label for keyword, label in CONSOLE_JOURNEY_KEYWORDS if not covered[keyword]]
@@ -1015,19 +1014,27 @@ def _validate_console_journeys(
             + ", ".join(missing)
             + ")",
         )
-    qualifying = 0
-    for row in test_rows:
-        if len(row) != len(TEST_OBLIGATIONS_HEADER):
-            continue
-        upstream = set(CONSOLE_TRACE_ID_RE.findall(row[4].upper()))
-        if upstream & journey_ids:
-            qualifying += 1
-    if qualifying < 3:
+    required_traces = [
+        set(CONSOLE_TRACE_ID_RE.findall(row[4].upper()))
+        for row in test_rows
+        if len(row) == len(TEST_OBLIGATIONS_HEADER) and row[3].strip().casefold() == "yes"
+    ]
+    untraced = [
+        label
+        for keyword, label in CONSOLE_JOURNEY_KEYWORDS
+        if covered[keyword]
+        and not any(
+            upstream & journey_ids.get(keyword, set()) for upstream in required_traces
+        )
+    ]
+    if untraced:
         _add(
             problems,
             "prd",
-            "console: operations requires at least three Test Obligations "
-            "tracing into the configuration, run inspection and approval journeys",
+            "console: operations requires a Required Yes Test Obligation tracing "
+            "into the "
+            + ", ".join(untraced)
+            + (" journey" if len(untraced) == 1 else " journeys"),
         )
 
 
