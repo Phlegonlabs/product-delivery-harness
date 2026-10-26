@@ -29,6 +29,7 @@ import harness_transition as harness_transition  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 from harness_manifest import ManifestError, plan_digest, validate_run  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
+from select_ready_nodes import select_ready_nodes  # noqa: E402
 from test_security_review_result import valid_result  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
 
@@ -38,88 +39,175 @@ def packet_contract(packet: str) -> dict[str, object]:
     return json.loads(block.split("```", 1)[0])
 
 
+def _replace_fixture_sha(value: object, old: str, new: str) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if item == old:
+                value[key] = new
+            else:
+                _replace_fixture_sha(item, old, new)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            if item == old:
+                value[index] = new
+            else:
+                _replace_fixture_sha(item, old, new)
+
+
+def build_reconcile_fixture(
+    *, with_integration_review: bool = False
+) -> dict[str, object]:
+    """Plan, RUN, and a real two-commit repo for candidate-repair tests.
+
+    The RUN binds the closeout fixture's synthetic integration head to the
+    real ``previous_head`` commit; ``candidate`` is the committed isolated
+    repair on top. Callers wire the returned values onto the test case and
+    register ``temp`` for cleanup.
+    """
+
+    plan = mf.valid_plan()
+    plan["missions"][0]["tasks"][0]["write_scope"] = [
+        "src/a/one.py",
+        "src/a/two.py",
+    ]
+    final_node = next(
+        node for node in plan["graph"]["nodes"] if node["id"] == "N-FINAL"
+    )
+    final_node["allowed_outcomes"].append("retryable_failure")
+    if with_integration_review:
+        node = copy.deepcopy(plan["graph"]["nodes"][1])
+        node["id"] = "N-EXTRA-REVIEW"
+        node["review"].update(
+            stage="integration",
+            lineage_id="RL-EXTRA",
+            mission_ids=["M1"],
+        )
+        plan["graph"]["nodes"].append(node)
+        plan["graph"]["edges"].extend(
+            [
+                {
+                    "id": "E-EXTRA-READY",
+                    "kind": "dependency",
+                    "from": "N-M1",
+                    "to": node["id"],
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+                {
+                    "id": "E-EXTRA-PASS",
+                    "kind": "route",
+                    "from": node["id"],
+                    "to": "N-FINAL",
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+            ]
+        )
+    run = mf.valid_run(plan)
+    mf.mark_complete(plan, run)
+    run["status"] = "running"
+    run["active_wave"]["status"] = "idle"
+    adapter = run["runtime_capabilities"]["runtime_adapter"]
+    adapter["detection_source"] = "observed"
+    adapter["capability_probe"] = mf.native_capability_probe(subagents=True)
+
+    nodes = {node["id"]: node for node in plan["graph"]["nodes"]}
+    retained = {item["attempt_id"] for item in run["attempt_log"]}
+    for node_id, state in run["graph_state"]["node_states"].items():
+        attempt_id = state.get("last_attempt_id")
+        node = nodes[node_id]
+        if (
+            isinstance(attempt_id, str)
+            and attempt_id not in retained
+            and node.get("executor") in {"local_command", "harness_parent"}
+        ):
+            run["attempt_log"].append(
+                {
+                    "attempt_id": attempt_id,
+                    "mission_id": None,
+                    "task_id": None,
+                    "lease_id": None,
+                    "kind": "historical_graph_attempt",
+                    "result": "pass",
+                    "evidence": ["retained fixture graph attempt"],
+                }
+            )
+            retained.add(attempt_id)
+
+    temp = tempfile.TemporaryDirectory()
+    root = Path(temp.name).resolve()
+    mf.init_repo(root, "README.md", default_branch="codex/test")
+    repair_file = root / "src" / "a" / "one.py"
+    repair_file.parent.mkdir(parents=True, exist_ok=True)
+    repair_file.write_text("VALUE = 0\n", encoding="utf-8")
+    existing = root / "src" / "a" / "existing.py"
+    existing.write_text("EXISTING = 0\n", encoding="utf-8")
+    mf.git(root, "add", "src/a/one.py", "src/a/existing.py")
+    mf.git(root, "commit", "-qm", "integrated candidate")
+    previous_head = mf.git(root, "rev-parse", "HEAD")
+    repair_file.write_text("VALUE = 1\n", encoding="utf-8")
+    mf.git(root, "commit", "-qam", "repair the finding")
+    candidate = mf.git(root, "rev-parse", "HEAD")
+
+    # Rebind the closeout fixture's synthetic integration head to the real
+    # candidate head everywhere, so retained PASS projections stay valid.
+    fixture_head = run["integration"]["integration_head_sha"]
+    _replace_fixture_sha(run, fixture_head, previous_head)
+    run["integration"]["integration_head_sha"] = previous_head
+    rekeyed: dict[str, str] = {}
+    for execution in run["verifier_executions"]:
+        document = execution.get("key_document")
+        if isinstance(document, dict):
+            old_key = execution.get("execution_key")
+            key = execution_key_from_document(document)
+            execution["execution_key"] = key
+            execution["evidence_key"] = key
+            if isinstance(old_key, str):
+                rekeyed[old_key] = key
+    for result in [*run["batch_gate_results"], *run["final_gate_results"]]:
+        result["evidence"] = [
+            rekeyed.get(item, item) for item in result.get("evidence", [])
+        ]
+    commit_targets = run["authorizations"]["create_local_commits"]["scope"][
+        "targets"
+    ]
+    if "branch:codex/test" not in commit_targets:
+        commit_targets.append("branch:codex/test")
+    run["observed"]["captured_at"] = "2026-10-26T00:00:00Z"
+    run["observed"]["git"].update(
+        {
+            "parent_worktree_path": str(root),
+            "parent_branch": "codex/test",
+            "parent_head_sha": candidate,
+            "parent_dirty": False,
+        }
+    )
+    return {
+        "plan": plan,
+        "run": run,
+        "temp": temp,
+        "root": root,
+        "previous_head": previous_head,
+        "candidate": candidate,
+    }
+
+
 class RepairScopeRecordingTests(unittest.TestCase):
     """reconcile-candidate-head --repair-path records the scoped repair."""
 
     def setUp(self) -> None:
-        self.plan = mf.valid_plan()
-        self.plan["missions"][0]["tasks"][0]["write_scope"] = [
-            "src/a/one.py",
-            "src/a/two.py",
-        ]
-        final_node = next(
-            node for node in self.plan["graph"]["nodes"] if node["id"] == "N-FINAL"
-        )
-        final_node["allowed_outcomes"].append("retryable_failure")
-        self.run = mf.valid_run(self.plan)
-        mf.mark_complete(self.plan, self.run)
-        self.run["status"] = "running"
-        self.run["active_wave"]["status"] = "idle"
-        adapter = self.run["runtime_capabilities"]["runtime_adapter"]
-        adapter["detection_source"] = "observed"
-        adapter["capability_probe"] = mf.native_capability_probe(subagents=True)
-
-        nodes = {node["id"]: node for node in self.plan["graph"]["nodes"]}
-        retained = {item["attempt_id"] for item in self.run["attempt_log"]}
-        for node_id, state in self.run["graph_state"]["node_states"].items():
-            attempt_id = state.get("last_attempt_id")
-            node = nodes[node_id]
-            if (
-                isinstance(attempt_id, str)
-                and attempt_id not in retained
-                and node.get("executor") in {"local_command", "harness_parent"}
-            ):
-                self.run["attempt_log"].append(
-                    {
-                        "attempt_id": attempt_id,
-                        "mission_id": None,
-                        "task_id": None,
-                        "lease_id": None,
-                        "kind": "historical_graph_attempt",
-                        "result": "pass",
-                        "evidence": ["retained fixture graph attempt"],
-                    }
-                )
-                retained.add(attempt_id)
-
-        self._temp = tempfile.TemporaryDirectory()
+        fixture = build_reconcile_fixture()
+        self.plan = fixture["plan"]
+        self.run = fixture["run"]
+        self._temp = fixture["temp"]
         self.addCleanup(self._temp.cleanup)
-        self.root = Path(self._temp.name).resolve()
-        mf.init_repo(self.root, "README.md", default_branch="codex/test")
-        repair_file = self.root / "src" / "a" / "one.py"
-        repair_file.parent.mkdir(parents=True, exist_ok=True)
-        repair_file.write_text("VALUE = 0\n", encoding="utf-8")
-        existing = self.root / "src" / "a" / "existing.py"
-        existing.write_text("EXISTING = 0\n", encoding="utf-8")
-        mf.git(self.root, "add", "src/a/one.py", "src/a/existing.py")
-        mf.git(self.root, "commit", "-qm", "integrated candidate")
-        self.previous_head = mf.git(self.root, "rev-parse", "HEAD")
-        repair_file.write_text("VALUE = 1\n", encoding="utf-8")
-        mf.git(self.root, "commit", "-qam", "repair the finding")
-        self.candidate = mf.git(self.root, "rev-parse", "HEAD")
+        self.root = fixture["root"]
+        self.previous_head = fixture["previous_head"]
+        self.candidate = fixture["candidate"]
+        harness_transition._record_observation(
+            self.plan, self.run, Namespace(repo_root=self.root)
+        )
 
-        # Rebind the closeout fixture's synthetic integration head to the real
-        # candidate head everywhere, so retained PASS projections stay valid.
-        fixture_head = self.run["integration"]["integration_head_sha"]
-        self._replace_sha(self.run, fixture_head, self.previous_head)
-        self.run["integration"]["integration_head_sha"] = self.previous_head
-        rekeyed: dict[str, str] = {}
-        for execution in self.run["verifier_executions"]:
-            document = execution.get("key_document")
-            if isinstance(document, dict):
-                old_key = execution.get("execution_key")
-                key = execution_key_from_document(document)
-                execution["execution_key"] = key
-                execution["evidence_key"] = key
-                if isinstance(old_key, str):
-                    rekeyed[old_key] = key
-        for result in [
-            *self.run["batch_gate_results"],
-            *self.run["final_gate_results"],
-        ]:
-            result["evidence"] = [
-                rekeyed.get(item, item) for item in result.get("evidence", [])
-            ]
         final_state = self.run["graph_state"]["node_states"]["N-FINAL"]
         self.repair_attempt_id = final_state["last_attempt_id"]
         final_state.update(
@@ -170,35 +258,6 @@ class RepairScopeRecordingTests(unittest.TestCase):
                 },
             }
         )
-        commit_targets = self.run["authorizations"]["create_local_commits"][
-            "scope"
-        ]["targets"]
-        if "branch:codex/test" not in commit_targets:
-            commit_targets.append("branch:codex/test")
-        self.run["observed"]["captured_at"] = "2026-10-26T00:00:00Z"
-        self.run["observed"]["git"].update(
-            {
-                "parent_worktree_path": str(self.root),
-                "parent_branch": "codex/test",
-                "parent_head_sha": self.candidate,
-                "parent_dirty": False,
-            }
-        )
-
-    def _replace_sha(self, value: object, old: str, new: str) -> None:
-        if isinstance(value, dict):
-            for key, item in value.items():
-                if item == old:
-                    value[key] = new
-                else:
-                    self._replace_sha(item, old, new)
-        elif isinstance(value, list):
-            for index, item in enumerate(value):
-                if item == old:
-                    value[index] = new
-                else:
-                    self._replace_sha(item, old, new)
-
     def args(self, **overrides: object) -> Namespace:
         values = {
             "repo_root": self.root,
@@ -342,6 +401,180 @@ class RepairScopeRecordingTests(unittest.TestCase):
             self.run["integration"]["repair_scopes"],
         )
         self.assertEqual([], validate_run(self.plan, self.run))
+
+
+class ScopedRepairReserveAtCapTests(unittest.TestCase):
+    """A fresh repair scope re-arms the integration review at the attempt cap."""
+
+    def setUp(self) -> None:
+        fixture = build_reconcile_fixture(with_integration_review=True)
+        self.plan = fixture["plan"]
+        self.run = fixture["run"]
+        self.addCleanup(fixture["temp"].cleanup)
+        self.root = fixture["root"]
+        self.previous_head = fixture["previous_head"]
+        self.candidate = fixture["candidate"]
+        self.review_state = self.run["graph_state"]["node_states"][
+            "N-EXTRA-REVIEW"
+        ]
+        self.review_state.update(
+            {
+                "phase": "ready",
+                "attempts": 0,
+                "last_attempt_id": None,
+                "last_outcome": None,
+                "bound_worker_id": None,
+                "blockers": [],
+            }
+        )
+        # The closeout fixture's synthetic review worker and traversals for the
+        # extra node predate this journey; the review runs fresh from ready.
+        self.run["review_workers"] = [
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("node_id") != "N-EXTRA-REVIEW"
+        ]
+        for edge_id in ("E-EXTRA-READY", "E-EXTRA-PASS"):
+            self.run["graph_state"]["edge_states"][edge_id] = {
+                "status": "dormant",
+                "traversals": 0,
+                "source_attempt_id": None,
+            }
+        spawn_targets = self.run["authorizations"]["spawn_subagents"]["scope"][
+            "targets"
+        ]
+        if "*" not in spawn_targets:
+            spawn_targets.append("*")
+        harness_transition._record_observation(
+            self.plan, self.run, Namespace(repo_root=self.root)
+        )
+
+    def commit_repair(self, value: str) -> str:
+        one = self.root / "src" / "a" / "one.py"
+        one.write_text(f"VALUE = {value}\n", encoding="utf-8")
+        mf.git(self.root, "commit", "-qam", f"isolated repair {value}")
+        head = mf.git(self.root, "rev-parse", "HEAD")
+        harness_transition._record_observation(
+            self.plan, self.run, Namespace(repo_root=self.root)
+        )
+        return head
+
+    def reconcile(
+        self, candidate: str, repair_path: list[str] | None
+    ) -> dict[str, object]:
+        values = {
+            "repo_root": self.root,
+            "run": None,
+            "candidate_sha": candidate,
+            "source": "post-integration repair commit verified by the parent",
+            "repair_node_id": "N-EXTRA-REVIEW",
+            "repair_attempt_id": self.review_state.get("last_attempt_id"),
+            "repair_task_id": "M1/T01",
+            "repair_path": repair_path,
+            "trust_boundary": False,
+        }
+        with mock.patch.object(
+            harness_transition, "_git_is_ancestor", return_value=True
+        ):
+            return harness_transition._reconcile_candidate_head(
+                self.plan, self.run, Namespace(**values)
+            )
+
+    def reserve(self, suffix: str) -> dict[str, object]:
+        return harness_transition._reserve_review_dispatch(
+            self.plan,
+            self.run,
+            Namespace(
+                node_id="N-EXTRA-REVIEW",
+                worker_id=f"RW-{suffix}",
+                attempt_id=f"ATT-{suffix}",
+                report_path=None,
+            ),
+            repo_root=None,
+        )
+
+    def record(
+        self,
+        suffix: str,
+        result: str,
+        *,
+        scoped: bool = False,
+        finding: list[str] | None = None,
+    ) -> dict[str, object]:
+        return harness_transition._record_review_attempt(
+            self.plan,
+            self.run,
+            Namespace(
+                lineage="RL-EXTRA",
+                attempt_id=f"ATT-{suffix}",
+                worker_id=f"RW-{suffix}",
+                mission_id=None,
+                result=result,
+                evidence=[f"reviewed {suffix}"],
+                finding=finding,
+                note=None,
+                blocker_class="review",
+                security_result=None,
+                tree_sha=None,
+                repo_root=None,
+                scoped=scoped,
+            ),
+        )
+
+    def test_scoped_repair_round_trip_at_the_attempt_cap(self) -> None:
+        self.assertEqual([], validate_run(self.plan, self.run))
+
+        self.reserve("R1")
+        self.record("R1", "fix_required", finding=["src/a/one.py:1 regression"])
+        self.assertEqual(1, self.review_state["attempts"])
+
+        # The fixture repo already carries the first isolated repair commit.
+        candidate1 = self.candidate
+        self.reconcile(candidate1, repair_path=None)
+        self.assertEqual(1, self.review_state["attempts"])
+
+        self.reserve("R2")
+        self.record("R2", "fix_required", finding=["src/a/one.py:2 regression"])
+        self.assertEqual(2, self.review_state["attempts"])
+
+        candidate2 = self.commit_repair("2")
+        self.reconcile(candidate2, repair_path=["src/a/one.py"])
+        self.assertEqual(
+            [], validate_run(self.plan, self.run, repo_root=self.root)
+        )
+
+        selection = select_ready_nodes(
+            self.plan, self.run, manifest_already_validated=True
+        )
+        self.assertIn(
+            "N-EXTRA-REVIEW",
+            [item["node_id"] for item in selection["dispatchable_nodes"]],
+        )
+        self.assertEqual(
+            [],
+            [
+                item
+                for item in selection["deferred_nodes"]
+                if item["node_id"] == "N-EXTRA-REVIEW"
+            ],
+        )
+
+        self.reserve("R3")
+        self.assertEqual(2, self.review_state["attempts"])
+        worker = self.run["review_workers"][-1]
+        self.assertIs(True, worker["scoped"])
+        self.assertEqual(["src/a/one.py"], worker["repair_paths"])
+
+        with self.assertRaisesRegex(ManifestError, "--scoped"):
+            self.record("R3", "pass")
+
+        receipt = self.record("R3", "pass", scoped=True)
+        self.assertTrue(receipt["refunded"], receipt)
+        self.assertEqual("succeeded", self.review_state["phase"])
+        self.assertEqual(1, self.review_state["attempts"])
+        self.assertEqual(
+            [], validate_run(self.plan, self.run, repo_root=self.root)
+        )
 
 
 class ScopedReviewPassTests(unittest.TestCase):

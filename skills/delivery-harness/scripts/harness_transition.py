@@ -64,6 +64,7 @@ from harness_worker_result_transition import (
 )
 from select_ready_nodes import (
     GraphSelectionError,
+    _pending_scoped_repair,
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
@@ -3802,6 +3803,13 @@ def _reserve_review_dispatch(
         "findings": [],
         "notes": [],
     }
+    pending_scope = _pending_scoped_repair(node, run)
+    if pending_scope is not None:
+        # The reviewed head is a recorded isolated repair, so this reservation
+        # is the scoped review of that repair diff; the recorded PASS refunds
+        # the attempt, so the full-scope review budget is never exceeded.
+        review_worker["scoped"] = True
+        review_worker["repair_paths"] = list(pending_scope["repair_paths"])
     # Record the exact spawn receipt only after every guard has passed, as
     # _lease_worker does for mission workers.
     if directive["worker_runtime"] == "subagent":
@@ -3893,6 +3901,11 @@ def _record_review_attempt(
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
     scoped = bool(getattr(args, "scoped", False))
+    if worker.get("scoped") is True and not scoped:
+        raise ManifestError(
+            "review dispatch was reserved as a scoped repair review; "
+            "record it with --scoped"
+        )
     repair_scope = (
         repair_scope_entry(run, worker.get("reviewed_sha")) if scoped else None
     )
