@@ -6615,10 +6615,25 @@ def _scoped_chain_break_reason(
             if isinstance(anchor_result, dict)
             else None
         )
-        if (
-            anchor_worker.get("outcome") == "fix_required"
-            or anchor_decision == "fix_required"
-        ):
+        # Each chained entry behind a trust boundary still carries its own
+        # structured security pass.
+        for entry in chain:
+            if entry.get("trust_boundary") is not True:
+                continue
+            worker = scoped_passes.get(entry["candidate_sha"])
+            if not isinstance(worker, dict) or not isinstance(
+                worker.get("security_result"), dict
+            ):
+                return (
+                    "trust-boundary scoped PASS at "
+                    f"{entry['candidate_sha']} has no security_result"
+                )
+        # The structured security decision judges the anchor, not its
+        # overall outcome: a combined review that fails on another lens
+        # keeps decision=pass, so only a security decision that is not a
+        # pass demands trust-boundary scoped security passes. The
+        # repair-step rule for a fix_required outcome stays above.
+        if anchor_decision != "pass":
             trust_boundary_secured = all(
                 entry.get("trust_boundary") is True
                 and isinstance(
@@ -6637,17 +6652,6 @@ def _scoped_chain_break_reason(
                 return (
                     "anchor security result is fix_required and no "
                     "trust-boundary scoped security pass covers it"
-                )
-        for entry in chain:
-            if entry.get("trust_boundary") is not True:
-                continue
-            worker = scoped_passes.get(entry["candidate_sha"])
-            if not isinstance(worker, dict) or not isinstance(
-                worker.get("security_result"), dict
-            ):
-                return (
-                    "trust-boundary scoped PASS at "
-                    f"{entry['candidate_sha']} has no security_result"
                 )
     return None
 
