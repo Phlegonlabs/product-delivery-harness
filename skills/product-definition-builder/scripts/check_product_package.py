@@ -482,6 +482,10 @@ VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "seo"}
 VALID_LAUNCH_CHANNEL_CLASSES = {"owned", "earned", "search", "store"}
 GROWTH_TEST_ID_RE = re.compile(r"\bTEST-[A-Z0-9-]+\b", re.IGNORECASE)
 GROWTH_TRACE_ID_RE = re.compile(r"\b(?:TEST|MS)-[A-Z0-9-]+\b", re.IGNORECASE)
+LAUNCH_DAY_CELL_RE = re.compile(
+    r"(?:day\s*)?(?P<lower>[+-]?\d+)(?:\s*-\s*(?P<upper>[+-]?\d+))?",
+    re.IGNORECASE,
+)
 LANDING_PATH_RE = re.compile(r"/\S*")
 UX_REQUIREMENTS_HEADER = (
     "id",
@@ -1139,6 +1143,11 @@ def _absent_cell(value: str) -> bool:
     )
 
 
+def _launch_day_lower(cell: str) -> int | None:
+    match = LAUNCH_DAY_CELL_RE.fullmatch(cell.strip())
+    return int(match.group("lower")) if match else None
+
+
 def _validate_growth_contract(
     prd_text: str,
     *,
@@ -1336,8 +1345,8 @@ def _validate_growth_contract(
                     "Launch Window channel class must be owned, earned, search or store, not "
                     f"{row[1].strip()!r}",
                 )
-            day_match = re.search(r"\d+", row[0])
-            if day_match is not None and 0 <= int(day_match.group(0)) <= 7:
+            lower = _launch_day_lower(row[0])
+            if lower is not None and 0 <= lower <= 7:
                 launch_day_seen = True
         if not launch_day_seen:
             _add(

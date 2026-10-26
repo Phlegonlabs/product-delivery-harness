@@ -3476,6 +3476,38 @@ class GrowthContractTests(unittest.TestCase):
             any("Day 0 through Day 7" in item for item in findings), findings
         )
 
+    def test_launch_window_day_parsing_respects_signs(self) -> None:
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day -1 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Day 0 through Day 7" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| -1 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Day 0 through Day 7" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day 0-2 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| 0-2 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+
     def test_growth_contract_placeholders_fail_require_filled(self) -> None:
         prd = shaped_prd().replace(
             "| web | Weekly returning fixture users | 40% return by day 7 | "
