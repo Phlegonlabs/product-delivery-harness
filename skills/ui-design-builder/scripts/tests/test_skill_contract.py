@@ -320,12 +320,34 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
         self.assertIn("it never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
+        self.assertIn("The review budget is one diagnostic wave and one re-review of the consolidated repair", rubric)
+        self.assertIn("No third wave, whole-HiFi re-grade, or owner-granted extra round exists", rubric)
         self.assertNotIn("and the full rubric once", rubric)
         self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
                        "references/review-evidence.md", UI_STAGE):
             with self.subTest(source=source):
                 self.assertIn("ui-grading-rubric.md#repair-re-review-scope", self.read(source))
+
+    def test_review_budget_and_mvp_profile_wording(self):
+        skill = self.read("SKILL.md")
+        stage = self.read(UI_STAGE)
+        pass_guide = self.read("references/ui-design-pass.md")
+        self.assertIn(
+            "one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9 "
+            "and one re-review of the consolidated repair", skill)
+        self.assertNotIn("another failure stops at", skill)
+        self.assertNotIn("second failed review stops at", pass_guide)
+        self.assertIn("isolated repair and one scoped re-review of the affected pages", pass_guide)
+        self.assertIn("isolated scoped repairs after that re-review", stage)
+        for content in (skill, stage):
+            self.assertIn("Delivery profile: standard | mvp", content)
+        self.assertIn("one direction study", stage)
+        self.assertIn("required surfaces only", stage)
+        self.assertIn("compile a design system only when the recorded Need Gate is `required`", stage)
+        self.assertIn("at most four owner gates", stage)
+        self.assertIn("execution authorization, and release", stage)
+        self.assertIn("do not change under `mvp`", stage)
 
     def test_first_wave_axes_and_scoped_re_review(self):
         rubric = self.read("references/ui-grading-rubric.md")

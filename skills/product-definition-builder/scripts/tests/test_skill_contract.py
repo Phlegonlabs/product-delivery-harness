@@ -318,6 +318,22 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Begin the closed `AskUserQuestion` phase only after", interview)
         self.assertNotIn("ask one organized free-text interview message", skill.lower())
 
+    def test_delivery_profile_and_prd_review_budget(self) -> None:
+        skill = self.read("SKILL.md")
+        stage = self.read(STAGE)
+        interview = self.read("references/interview-guide.md")
+        self.assertIn("Delivery profile: standard | mvp", skill)
+        self.assertIn("one owner call", skill)
+        self.assertIn("| Delivery profile | standard / mvp |", stage)
+        self.assertIn("this checkpoint and step 15's Product Definition Approval are one owner call", stage)
+        self.assertIn("may conclude `documented assumptions`", stage)
+        self.assertIn("compresses the four segments into two turns", stage)
+        self.assertIn("compresses them into two turns: Segments 1+2, then 3+4", interview)
+        self.assertIn("complete PRD review budget; no independent review wave", stage)
+        self.assertIn("PRD delta round", stage)
+        self.assertNotIn("exactly four planned free-text turns", interview)
+        self.assertNotIn("exactly four bounded free-text turns", stage)
+
     def test_skill_routes_backend_products_to_backend_selection(self) -> None:
         skill = self.read(STAGE)
         architecture = self.read("references/architecture-playbook.md")
