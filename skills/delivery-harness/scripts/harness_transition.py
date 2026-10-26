@@ -2426,6 +2426,28 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
     run["integration"]["integration_head_sha"] = args.integrated_sha
 
 
+def _refund_exhausted_gate_attempts(plan: dict[str, Any], run: dict[str, Any]) -> None:
+    """Give re-armed batch/final gates at their attempt cap one attempt back."""
+
+    gate_ids = {
+        verifier.get("id")
+        for group in ("batch_verifiers", "final_gates")
+        for verifier in plan.get(group, [])
+        if isinstance(verifier, dict) and _nonempty_string(verifier.get("id"))
+    }
+    for node in plan.get("graph", {}).get("nodes", []):
+        if not isinstance(node, dict) or node.get("kind") != "verifier":
+            continue
+        if node.get("executor") not in {"local_command", "harness_parent"} or node.get("ref") not in gate_ids:
+            continue
+        state = run.get("graph_state", {}).get("node_states", {}).get(node.get("id"))
+        if not isinstance(state, dict) or state.get("phase") != "ready":
+            continue
+        attempts = int(state.get("attempts") or 0)
+        if attempts >= int(node.get("max_attempts") or 0) and attempts > 0:
+            state["attempts"] = attempts - 1
+
+
 def _invalidate_stale_current_projections(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -3011,6 +3033,10 @@ def _reconcile_candidate_head(
             }
         )
     _invalidate_stale_current_projections(plan, run, current_head, candidate_sha)
+    if declared_repair_paths:
+        # A scoped repair consumes no attempt: the deterministic gates it
+        # re-arms get their spent attempt back so they can run once more.
+        _refund_exhausted_gate_attempts(plan, run)
     integration["integration_head_sha"] = candidate_sha
     continuity = run.get("landing", {}).get("continuity")
     if isinstance(continuity, dict) and continuity.get("status") == "preserved":
@@ -3804,6 +3830,10 @@ def _reserve_review_dispatch(
         "notes": [],
     }
     pending_scope = _pending_scoped_repair(node, run)
+    pre_state = run["graph_state"]["node_states"][args.node_id]
+    review_worker["attempt_charged"] = (
+        int(pre_state.get("attempts") or 0) < int(node.get("max_attempts") or 1)
+    )
     if pending_scope is not None:
         # The reviewed head is a recorded isolated repair, so this reservation
         # is the scoped review of that repair diff; the recorded PASS refunds
@@ -4102,7 +4132,11 @@ def _record_review_attempt(
             state.update(
                 {
                     "phase": "succeeded",
-                    "attempts": max(0, state.get("attempts", 0) - 1),
+                    "attempts": (
+                        max(0, state.get("attempts", 0) - 1)
+                        if worker.get("attempt_charged", True)
+                        else state.get("attempts", 0)
+                    ),
                     "last_outcome": args.result,
                     "blockers": [],
                 }

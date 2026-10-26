@@ -445,6 +445,8 @@ AT_A_GLANCE_ROWS = {
     "success looks like",
     "biggest risk",
 }
+# Rows a package may add after the five canonical ones; each has a closed value set.
+AT_A_GLANCE_OPTIONAL_ROWS = {"delivery profile": {"standard", "mvp"}}
 PERSONAS_HEADER = ("persona", "need", "key workflow", "success signal")
 SHAPE_ROW_LABEL = "shape"
 SHAPE_FIELD_KEYS = ("track", "companion", "console")
@@ -1906,15 +1908,29 @@ def _validate_prd_core_sections(
             problems=problems,
         )
         label_values = [row[0].casefold() for row in glance_rows if len(row) == 2]
-        labels = set(label_values)
+        canonical = [
+            label
+            for label in label_values
+            if label not in AT_A_GLANCE_OPTIONAL_ROWS and label != SHAPE_ROW_LABEL
+        ]
         if (
-            not AT_A_GLANCE_ROWS <= labels
-            or labels - AT_A_GLANCE_ROWS - {SHAPE_ROW_LABEL}
+            len(canonical) != len(AT_A_GLANCE_ROWS)
             or len(label_values) != len(set(label_values))
+            or set(canonical) != AT_A_GLANCE_ROWS
         ):
             _add(problems, "prd", "At a Glance must use exactly its five canonical rows")
         for row in glance_rows:
-            if len(row) == 2 and not _meaningful(row[1], minimum=8):
+            if len(row) != 2:
+                continue
+            allowed = AT_A_GLANCE_OPTIONAL_ROWS.get(row[0].casefold())
+            if allowed is not None:
+                if row[1].strip().casefold() not in allowed:
+                    _add(
+                        problems,
+                        "prd",
+                        f"At a Glance row {row[0]!r} must be one of: " + ", ".join(sorted(allowed)),
+                    )
+            elif not _meaningful(row[1], minimum=8):
                 _add(problems, "prd", f"At a Glance row {row[0]!r} is not meaningful")
 
     for heading, minimum in (

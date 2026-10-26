@@ -379,6 +379,24 @@ class RepairScopeRecordingTests(unittest.TestCase):
         )
         self.assertEqual([], validate_run(self.plan, self.run))
 
+    def test_scoped_repair_refunds_exhausted_gate_attempts(self) -> None:
+        final_state = self.run["graph_state"]["node_states"]["N-FINAL"]
+        final_state["attempts"] = 2
+
+        self.reconcile(repair_path=["src/a/one.py"])
+
+        self.assertEqual("ready", final_state["phase"])
+        self.assertEqual(1, final_state["attempts"])
+        self.assertEqual([], validate_run(self.plan, self.run))
+
+    def test_plain_reconciliation_refunds_no_gate_attempt(self) -> None:
+        final_state = self.run["graph_state"]["node_states"]["N-FINAL"]
+        final_state["attempts"] = 1
+
+        self.reconcile()
+
+        self.assertEqual(1, final_state["attempts"])
+
     def test_without_repair_path_no_scope_is_recorded(self) -> None:
         self.reconcile()
 
@@ -582,6 +600,29 @@ class ScopedRepairReserveAtCapTests(unittest.TestCase):
         receipt = self.record("R3", "pass", scoped=True)
         self.assertTrue(receipt["refunded"], receipt)
         self.assertEqual("succeeded", self.review_state["phase"])
+        # The reservation at the cap charged nothing, so the refund gives
+        # nothing back: both full-scope attempts stay spent.
+        self.assertIs(False, worker["attempt_charged"])
+        self.assertEqual(2, self.review_state["attempts"])
+        self.assertEqual(
+            [], validate_run(self.plan, self.run, repo_root=self.root)
+        )
+
+    def test_scoped_pass_refunds_only_an_attempt_it_charged(self) -> None:
+        self.reserve("R1")
+        self.record("R1", "fix_required", finding=["src/a/one.py:1 regression"])
+        self.assertEqual(1, self.review_state["attempts"])
+
+        self.reconcile(self.candidate, repair_path=["src/a/one.py"])
+
+        self.reserve("R2")
+        worker = self.run["review_workers"][-1]
+        self.assertIs(True, worker["scoped"])
+        self.assertIs(True, worker["attempt_charged"])
+        self.assertEqual(2, self.review_state["attempts"])
+
+        receipt = self.record("R2", "pass", scoped=True)
+        self.assertTrue(receipt["refunded"], receipt)
         self.assertEqual(1, self.review_state["attempts"])
         self.assertEqual(
             [], validate_run(self.plan, self.run, repo_root=self.root)
@@ -1289,6 +1330,25 @@ class ScopedPacketRenderTests(unittest.TestCase):
             contract["scoped_repair"],
         )
         self.assertIsNone(contract["recheck"])
+
+    def test_prior_findings_come_from_the_same_review_node(self) -> None:
+        other = copy.deepcopy(self.run["review_workers"][0])
+        other.update(
+            {
+                "worker_id": "RW-OTHER",
+                "node_id": "N-OTHER-REVIEW",
+                "attempt_id": "ATT-OTHER",
+                "findings": ["repair.txt:1 finding from another lineage"],
+            }
+        )
+        self.run["review_workers"].append(other)
+
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+
+        self.assertIn(
+            "- F1: repair.txt:1 header misses the accepted copy", packet
+        )
+        self.assertNotIn("finding from another lineage", packet)
 
     def test_recorded_pathspec_magic_cannot_hide_the_scoped_diff(self) -> None:
         self.run["integration"]["repair_scopes"][0]["repair_paths"] = [
