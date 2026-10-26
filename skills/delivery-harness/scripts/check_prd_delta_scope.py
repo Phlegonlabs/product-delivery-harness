@@ -22,7 +22,7 @@ from harness_core import ManifestError, load_plan
 
 DELTA_KIND = re.compile(r"prd[- ]delta\Z", re.IGNORECASE)
 SHA256 = re.compile(r"[0-9a-f]{64}\Z")
-SEPARATOR_CELL = re.compile(r"-{3,}\Z")
+SEPARATOR_CELL = re.compile(r":?-{3,}:?\Z")
 CHANGES = ("new", "revised", "retired")
 REQUIRED_YES = "(Required: Yes)"
 TEST_ID = re.compile(r"TEST-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
@@ -56,7 +56,7 @@ def parse_changed_requirements(text: str) -> dict[str, Any]:
     parsed["required_yes"] = set()
     parsed["test_ids"] = {}
     for cells in rows[1:]:
-        if cells and SEPARATOR_CELL.fullmatch(cells[0]):
+        if cells and all(SEPARATOR_CELL.fullmatch(cell) for cell in cells):
             continue
         if len(cells) < 5 or not all(cells[:2]):
             raise ValueError("Changed Requirements rows need ID, Change and TEST IDs cells")
@@ -101,7 +101,7 @@ def parse_test_obligations(text: str) -> dict[str, bool]:
         )
     obligations: dict[str, bool] = {}
     for cells in rows[1:]:
-        if cells and SEPARATOR_CELL.fullmatch(cells[0]):
+        if cells and all(SEPARATOR_CELL.fullmatch(cell) for cell in cells):
             continue
         if len(cells) < 4 or not cells[0]:
             raise ValueError("Test Obligations rows need TEST ID and Required cells")

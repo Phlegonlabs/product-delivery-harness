@@ -78,6 +78,14 @@ TEMPLATE_DELTA_TEXT = """# PRD-DELTA-EPIC-7
 """
 
 
+def separator_row(style: str, cells: int) -> str:
+    tokens = {"left": ":---", "right": "---:", "center": ":---:"}
+    styles = [tokens[style]] if style in tokens else [":---", "---:", ":---:", "---"]
+    return (
+        "| " + " | ".join(styles[index % len(styles)] for index in range(cells)) + " |"
+    )
+
+
 def delta_source(content_sha256: str | None) -> dict[str, object]:
     return {
         "id": "SRC-DELTA",
@@ -159,6 +167,19 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.delta_path.write_bytes(delta_bytes)
         return hashlib.sha256(delta_bytes).hexdigest()
 
+    def write_aligned_tables(self, delta_separator: str, prd_separator: str) -> None:
+        delta_bytes = (
+            (DELTA_TEXT % ("f" * 64)).replace(
+                "| --- | --- | --- | --- | --- |", delta_separator
+            )
+        ).encode("utf-8")
+        self.delta_sha = hashlib.sha256(delta_bytes).hexdigest()
+        self.delta_path.write_bytes(delta_bytes)
+        self.prd_path.write_text(
+            PRD_TEXT.replace("| --- | --- | --- | --- | --- | --- |", prd_separator),
+            encoding="utf-8",
+        )
+
     def bound_plan(
         self,
         *,
@@ -198,6 +219,74 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.assertEqual(0, code, output)
         self.assertIn("scope ok", output)
         self.assertIn("1 new, 1 revised, 1 retired", output)
+
+    def test_aligned_separator_rows_are_accepted(self) -> None:
+        for alignment in ("left", "right", "center", "mixed"):
+            with self.subTest(alignment=alignment):
+                self.write_aligned_tables(
+                    separator_row(alignment, 5), separator_row(alignment, 6)
+                )
+                self.write_plan(self.bound_plan())
+                code, output = self.run_checker()
+                self.assertEqual(0, code, output)
+                self.assertIn("scope ok", output)
+
+    def test_aligned_tables_keep_prd_required_yes_enforcement(self) -> None:
+        delta_bytes = (
+            (TEMPLATE_DELTA_TEXT % ("f" * 64)).replace(
+                "| --- | --- | --- | --- | --- |",
+                "| :--- | ---: | :---: | --- | ---: |",
+            )
+        ).encode("utf-8")
+        self.delta_sha = hashlib.sha256(delta_bytes).hexdigest()
+        self.delta_path.write_bytes(delta_bytes)
+        self.prd_path.write_text(
+            PRD_TEXT.replace(
+                "| --- | --- | --- | --- | --- | --- |",
+                "| :---: | :---: | :---: | :---: | :---: | :---: |",
+            ),
+            encoding="utf-8",
+        )
+        self.write_plan(
+            self.bound_plan(
+                mission_trace_ids=["PRD-101"],
+                task_trace_ids=[["PRD-102"]],
+                content_sha256=self.delta_sha,
+            )
+        )
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("PRD-101", output)
+        self.assertIn("has no task", output)
+
+    def test_changed_requirements_first_cell_only_separator_row_fails(self) -> None:
+        delta_bytes = (
+            (DELTA_TEXT % ("f" * 64)).replace(
+                "| PRD-103 | retired | Old behavior | - | - |\n",
+                "| PRD-103 | retired | Old behavior | - | - |\n"
+                "| --- | broken | x | y | z |\n",
+            )
+        ).encode("utf-8")
+        self.delta_sha = hashlib.sha256(delta_bytes).hexdigest()
+        self.delta_path.write_bytes(delta_bytes)
+        self.write_plan(self.bound_plan())
+        code, output = self.run_checker()
+        self.assertEqual(2, code, output)
+        self.assertIn("must be new, revised or retired", output)
+
+    def test_test_obligations_first_cell_only_separator_row_fails(self) -> None:
+        self.prd_path.write_text(
+            PRD_TEXT.replace(
+                "| TEST-201 | Round outcome is observable | E2E | Yes | PRD-101 | outcome observed |\n",
+                "| --- | broken | E2E |\n"
+                "| TEST-201 | Round outcome is observable | E2E | Yes | PRD-101 | outcome observed |\n",
+            ),
+            encoding="utf-8",
+        )
+        self.write_plan(self.bound_plan())
+        code, output = self.run_checker()
+        self.assertEqual(2, code, output)
+        self.assertIn("Test Obligations rows need TEST ID and Required cells", output)
 
     def test_retired_trace_fails(self) -> None:
         self.write_plan(
