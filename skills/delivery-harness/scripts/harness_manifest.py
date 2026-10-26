@@ -6554,6 +6554,32 @@ def _scoped_chain_break_reason(
             and attempt_positions.get(attempt_id, -1) > anchor_position
         ):
             return "anchor order inconsistent with the attempt log"
+    # A logged full review newer than the anchor that kept no worker
+    # record is still a newer full review: it cannot be skipped by
+    # dropping its worker entry.
+    lineage_id = (
+        node.get("review", {}).get("lineage_id")
+        if isinstance(node.get("review"), dict)
+        else None
+    )
+    retained_attempts = {
+        worker.get("attempt_id")
+        for worker in node_workers
+        if isinstance(worker, dict)
+    }
+    for index, attempt in enumerate(
+        attempt_log if isinstance(attempt_log, list) else []
+    ):
+        if (
+            isinstance(attempt, dict)
+            and attempt.get("kind") == "review"
+            and attempt.get("review_lineage_id") == lineage_id
+            and attempt.get("scoped") is not True
+            and attempt.get("result") in {"pass", "fix_required"}
+            and index > anchor_position
+            and attempt.get("attempt_id") not in retained_attempts
+        ):
+            return "anchor order inconsistent with the attempt log"
     anchor = anchor_worker["reviewed_sha"]
     entries_by_prior: dict[str, list[dict[str, Any]]] = {}
     for entry in scopes:

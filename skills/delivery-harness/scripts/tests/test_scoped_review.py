@@ -342,7 +342,7 @@ class RepairScopeRecordingTests(unittest.TestCase):
                 harness_transition.subprocess, "run"
             ) as subprocess_run:
                 with self.assertRaises(ManifestError):
-                    self.reconcile(repair_path=[repair_path])
+                    self.reconcile(repair_path=repair_path)
         self.assertFalse(run_git.called)
         self.assertFalse(subprocess_run.called)
         self.assertEqual(before, self.run)
