@@ -622,6 +622,13 @@ class ScopedCoverageChainTests(unittest.TestCase):
                 },
             ]
         )
+        if security:
+            self.plan["required_reviews"] = ["backend_code", "security"]
+            self.plan["security_review"] = {
+                "status": "required",
+                "skill_slot": "code_security_verification",
+                "reason": None,
+            }
         self.run = mf.valid_run(self.plan)
         mf.mark_complete(self.plan, self.run)
         self.run["integration"].update(
@@ -736,6 +743,7 @@ class ScopedCoverageChainTests(unittest.TestCase):
             item
             for item in validate_run(self.plan, self.run, **kwargs)
             if "review coverage chain broken" in item
+            and "required security integration review" not in item
         ]
 
     def test_full_chain_covers_the_real_diff(self) -> None:
@@ -796,6 +804,60 @@ class ScopedCoverageChainTests(unittest.TestCase):
             self._fail_anchor()
 
             self.assertEqual([], self.chain_errors(repo_root=root))
+
+    def secure_security_workers(self) -> None:
+        batch_base = self.run["integration"]["batch_base_sha"]
+        bases = {
+            "RW-CHAIN-0": batch_base,
+            "RW-CHAIN-1": self.H0,
+            "RW-CHAIN-2": self.H1,
+        }
+        for worker in self.run["review_workers"]:
+            if worker.get("worker_id") not in bases:
+                continue
+            worker["base_sha"] = bases[worker["worker_id"]]
+            if worker.get("scoped") is True:
+                worker["security_scope"] = (
+                    harness_transition.SCOPED_REPAIR_SECURITY_SCOPE
+                )
+        anchor = next(
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("worker_id") == "RW-CHAIN-0"
+        )
+        node = next(
+            item
+            for item in self.plan["graph"]["nodes"]
+            if item.get("id") == "N-EXTRA-REVIEW"
+        )
+        result = valid_result(self.H0, batch_base)
+        result["scope"] = list(node["review"]["scope"])
+        anchor["security_result"] = result
+
+    def security_closeout_errors(self) -> list[str]:
+        return [
+            item
+            for item in validate_run(self.plan, self.run)
+            if "required security integration review" in item
+        ]
+
+    def test_security_node_closes_through_non_boundary_scoped_chain(self) -> None:
+        self.build_run(security=True)
+        self.secure_security_workers()
+
+        self.assertEqual([], self.security_closeout_errors())
+
+    def test_security_node_still_needs_results_behind_trust_boundaries(self) -> None:
+        self.build_run(security=True)
+        self.secure_security_workers()
+        self.run["integration"]["repair_scopes"][1]["trust_boundary"] = True
+
+        errors = self.security_closeout_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            "coverage chain broken: trust-boundary scoped PASS", errors[0]
+        )
 
     def test_trust_boundary_scoped_pass_without_security_result_fails(self) -> None:
         self.build_run(security=True)

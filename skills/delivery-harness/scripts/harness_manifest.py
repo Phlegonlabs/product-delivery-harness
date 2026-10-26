@@ -6096,7 +6096,7 @@ def validate_run(
                 "run.graph_state.edge_states",
                 "complete graph run requires every edge to be terminal",
             )
-        _validate_required_security_closeout(errors, plan, run)
+        _validate_required_security_closeout(errors, plan, run, repo_root)
         _scoped_coverage_chain_errors(errors, plan, run, repo_root)
         # A repair mission behind a route that was never taken stays queued.
         if not isinstance(mission_states, dict) or any(
@@ -6572,13 +6572,18 @@ def _scoped_chain_break_reason(
 
 
 def _validate_required_security_closeout(
-    errors: list[str], plan: dict[str, Any], run: dict[str, Any]
+    errors: list[str],
+    plan: dict[str, Any],
+    run: dict[str, Any],
+    repo_root: str | Path | None = None,
 ) -> None:
     """Require the current exact-head structured security PASS at closeout.
 
     A historical PASS (or a skipped/superseded graph state) must not satisfy a
     required integration security node. Bind the proof to the graph state's
-    current reviewer identity and to the current integration/base SHAs.
+    current reviewer identity and to the current integration/base SHAs. A
+    non-trust-boundary scoped PASS satisfies the current-head requirement
+    through a valid scoped coverage chain instead of its own result.
     """
 
     policy = plan.get("security_review")
@@ -6645,7 +6650,48 @@ def _validate_required_security_closeout(
             current_worker.get("phase") != "worker_passed"
             or current_worker.get("outcome") != "pass"
             or current_worker.get("reviewed_sha") != integration_head
-            or current_worker.get("base_sha") != batch_base
+        ):
+            _add(
+                errors,
+                path,
+                "required security integration review needs a current worker_passed PASS result for the integration head and batch base",
+            )
+            continue
+        if current_worker.get("scoped") is True:
+            # A scoped PASS carries no result of its own outside trust
+            # boundaries; the coverage chain behind it is the security
+            # proof for the current head.
+            scopes = (
+                integration.get("repair_scopes")
+                if isinstance(integration, dict)
+                and isinstance(integration.get("repair_scopes"), list)
+                else []
+            )
+            if scopes:
+                reason = _scoped_chain_break_reason(
+                    node,
+                    [
+                        worker
+                        for worker in current_review_workers
+                        if isinstance(worker, dict)
+                        and worker.get("node_id") == node_id
+                    ],
+                    scopes,
+                    integration_head,
+                    repo_root,
+                )
+            else:
+                reason = "no repair scopes are recorded for the scoped PASS"
+            if reason is not None:
+                _add(
+                    errors,
+                    path,
+                    "required security integration review coverage chain broken: "
+                    + reason,
+                )
+            continue
+        if (
+            current_worker.get("base_sha") != batch_base
             or not isinstance(current_worker.get("security_result"), dict)
         ):
             _add(
