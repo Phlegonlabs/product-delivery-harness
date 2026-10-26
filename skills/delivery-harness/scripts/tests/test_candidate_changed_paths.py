@@ -17,6 +17,7 @@ for candidate in (TESTS_DIR, SCRIPTS_DIR):
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
 
+import harness_manifest  # noqa: E402
 import harness_transition  # noqa: E402
 
 
@@ -152,6 +153,38 @@ class CandidateChangedPathTests(unittest.TestCase):
                 harness_transition._candidate_changed_paths(
                     Path("unused"), "a" * 40, "b" * 40
                 )
+
+    def test_changed_paths_between_heads_keep_non_ascii_names_literal(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            _init_repository(root)
+            (root / "seed.txt").write_text("base\n", encoding="utf-8")
+            base = _commit_all(root, "base")
+            (root / "src").mkdir()
+            (root / "src" / "\u00e9.py").write_text("repair\n", encoding="utf-8")
+            head = _commit_all(root, "non-ascii repair")
+
+            paths, reason = harness_manifest._git_changed_paths_between(
+                root, base, head
+            )
+
+        self.assertEqual("", reason)
+        self.assertEqual({"src/\u00e9.py"}, paths)
+
+    def test_changed_paths_between_heads_reject_invalid_utf8(self) -> None:
+        with mock.patch.object(
+            harness_manifest,
+            "run_git",
+            return_value=SimpleNamespace(returncode=0, stdout=b"bad-\xff.py\0"),
+        ) as run_git:
+            paths, reason = harness_manifest._git_changed_paths_between(
+                Path("unused"), "a" * 40, "b" * 40
+            )
+
+        self.assertIsNone(paths)
+        self.assertIn("not valid UTF-8", reason)
+        self.assertIn("-z", run_git.call_args.args)
+        self.assertIs(run_git.call_args.kwargs["text"], False)
 
 
 if __name__ == "__main__":

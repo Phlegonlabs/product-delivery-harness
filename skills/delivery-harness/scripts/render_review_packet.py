@@ -485,6 +485,7 @@ def render_packet(
             if isinstance(worker, dict)
             and worker.get("outcome") == "fix_required"
             and worker.get("reviewed_sha") == scoped_prior
+            and worker.get("node_id") == node_id
         ]
         prior_findings = (
             finding_workers[-1].get("findings") if finding_workers else []

@@ -5362,6 +5362,7 @@ def validate_run(
                 review_worker_keys,
                 {"tree_sha", "base_sha", "security_result",
                  "result_receipt", "failure_receipt", "workspace_mode",
+                 "attempt_charged",
                  "notes", "scoped", "repair_paths", "security_scope"},
             ):
                 continue
@@ -6402,12 +6403,16 @@ def _git_changed_paths_between(
     """Changed paths between two heads, or ``(None, reason)`` on Git failure."""
 
     try:
-        result = run_git(Path(repo_root), "diff", "--name-only", f"{base}..{head}")
+        result = run_git(
+            Path(repo_root), "diff", "--name-only", "-z", f"{base}..{head}", text=False
+        )
     except Exception as error:
         return None, str(error) or error.__class__.__name__
     if result.returncode != 0:
         detail = ""
         for stream in (result.stderr, result.stdout):
+            if isinstance(stream, bytes):
+                stream = stream.decode("utf-8", errors="replace")
             if isinstance(stream, str) and stream.strip():
                 detail = stream.strip().splitlines()[0]
                 break
@@ -6415,7 +6420,11 @@ def _git_changed_paths_between(
         if detail:
             reason = f"{reason}: {detail}"
         return None, reason
-    return {line for line in result.stdout.splitlines() if line.strip()}, ""
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return None, "changed paths are not valid UTF-8"
+    return {name for name in output.split("\0") if name}, ""
 
 
 def _scoped_coverage_chain_errors(
