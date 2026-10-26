@@ -170,6 +170,7 @@ VALID_MOTION_STATUSES = {"approved", "deferred"}
 VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
 VALID_DIRECTION_DECISIONS = {"approved", "selected", "mixed-and-approved"}
+MVP_DEFERRED_DIRECTION_DECISION = "deferred to visual approval (mvp)"
 VALID_DIRECTION_MODES = {"one recommended direction", "one recommended direction (mvp)", "three comparable directions"}
 STACK_SEMANTIC_KEYS = {
     "platform",
@@ -2735,6 +2736,7 @@ def validate_text(
             if (require_filled or require_structure_validated or require_wireframe_approved or require_visual_approved) and values.get(name, "").casefold() != "approved":
                 _add(problems, f"{name} must be exactly approved")
 
+    direction_mode = ""
     intake = sections.get("## UI Design Intake")
     if intake is not None:
         values = _require_fields(
@@ -2894,18 +2896,25 @@ def validate_text(
 
     if require_visual_approved or require_hifi_preflight:
         style = sections.get("## Style Integration", "")
+        mvp_deferred_direction = (
+            delivery_profile == "mvp"
+            and direction_mode == "one recommended direction (mvp)"
+            and (_field(style, "Direction decision") or "").strip().casefold()
+            == MVP_DEFERRED_DIRECTION_DECISION
+        )
+        style_fields: tuple[str, ...] = (
+            "Design author",
+            "Selected direction",
+            "Direction decision",
+            "Candidate theme",
+            "Review medium",
+            "Connected HiFi reference",
+        )
+        if not mvp_deferred_direction:
+            style_fields += ("Direction decision owner", "Direction decided on")
         style_values = _require_fields(
             style,
-            (
-                "Design author",
-                "Selected direction",
-                "Direction decision",
-                "Direction decision owner",
-                "Direction decided on",
-                "Candidate theme",
-                "Review medium",
-                "Connected HiFi reference",
-            ),
+            style_fields,
             label="Style Integration",
             require_filled=True,
             problems=problems,
@@ -2914,13 +2923,16 @@ def validate_text(
             _add(problems, "Style Integration Design author must be frontend-design")
         if style_values.get("Review medium") != "HTML projection only":
             _add(problems, "Style Integration Review medium must be HTML projection only; it is not native verification")
-        if style_values.get("Direction decision", "").casefold() not in VALID_DIRECTION_DECISIONS | (
+        accepted_decisions = VALID_DIRECTION_DECISIONS | (
             ui_design_v3.V3_DIRECTION_DECISIONS if v3 else set()
-        ):
+        )
+        if mvp_deferred_direction:
+            accepted_decisions = accepted_decisions | {MVP_DEFERRED_DIRECTION_DECISION}
+        if style_values.get("Direction decision", "").casefold() not in accepted_decisions:
             _add(problems, "Style Integration Direction decision is not approved")
-        if not _human_owner(style_values.get("Direction decision owner")):
+        if not mvp_deferred_direction and not _human_owner(style_values.get("Direction decision owner")):
             _add(problems, "Style Integration Direction decision owner must be human")
-        if not _date(style_values.get("Direction decided on")):
+        if not mvp_deferred_direction and not _date(style_values.get("Direction decided on")):
             _add(
                 problems,
                 "Style Integration Direction decided on must be a real YYYY-MM-DD date",
@@ -2987,15 +2999,24 @@ def validate_text(
             _add(problems, "HiFi blocks or disputes must be none")
 
         visual = sections.get("## Visual Approval", "")
+        visual_fields: tuple[str, ...] = ("Decision", "Decision owner", "Decided on", "Approved target")
+        if mvp_deferred_direction:
+            visual_fields += ("Covers direction",)
         visual_values = _require_fields(
             visual,
-            ("Decision", "Decision owner", "Decided on", "Approved target"),
+            visual_fields,
             label="Visual Approval",
             require_filled=True,
             problems=problems,
         )
         if visual_values.get("Decision", "").casefold() != "approved":
             _add(problems, "Visual Approval Decision must be approved")
+        if mvp_deferred_direction and visual_values.get("Covers direction", "").strip().casefold() != "yes":
+            _add(
+                problems,
+                "Visual Approval Covers direction must be yes while the direction decision "
+                "is deferred to Visual Approval (mvp)",
+            )
         if not _human_owner(visual_values.get("Decision owner")):
             _add(problems, "Visual Approval Decision owner must be human")
         if not _date(visual_values.get("Decided on")):

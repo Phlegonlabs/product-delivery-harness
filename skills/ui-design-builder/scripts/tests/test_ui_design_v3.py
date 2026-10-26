@@ -89,6 +89,17 @@ def v3_publication(root, *, action="compile", disposition="none"):
     return ui, prd, hifi
 
 
+def set_prd_delivery_profile(prd, ui_text, value):
+    """Record the owner-selected profile in the PRD At a Glance row and rebind the source hash."""
+    text = prd.read_text(encoding="utf-8")
+    marker = "| Biggest risk | A malformed contract could appear approved |"
+    row = f"| Delivery profile | {value} |"
+    assert marker in text and row not in text
+    prd.write_text(text.replace(marker, marker + "\n" + row), encoding="utf-8")
+    return re.sub(r"^(PRD source: \S+ @ sha256:)[0-9a-f]{64}$",
+                  lambda match: match.group(1) + digest(prd), ui_text, flags=re.M)
+
+
 def preflight(ui, root, prd, hifi):
     return checker._validate_for_design_system_preflight(ui, repo_root=root, prd_path=prd,
                                                          wireframes_path=None, hifi_path=hifi)
@@ -311,6 +322,47 @@ class UiDesignV3Tests(unittest.TestCase):
                                                      allow_pending_design_system_pair=True))
             self.assertNotIn("Direction mode must be one of", joined)
             self.assertNotIn("requires the owner's explicit intake decision", joined)
+
+    def test_mvp_direction_decision_may_be_deferred_to_the_visual_approval(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            three = ui.read_text(encoding="utf-8")
+            others = [line for line in three.splitlines() if re.match(r"\| VD-R1-0[23] \|", line)]
+            one = three.replace("Direction mode: three comparable directions",
+                                "Direction mode: one recommended direction (mvp)")
+            for line in others:
+                one = one.replace(line + "\n", "")
+            one = one.replace("Direction decision: approved",
+                              "Direction decision: deferred to Visual Approval (mvp)", 1)
+            one = re.sub(r"^Direction decision owner: .*\n", "", one, count=1)
+            one = re.sub(r"^Direction decided on: .*\n", "", one, count=1)
+            visual = one.index("## Visual Approval")
+            one = one[:visual] + one[visual:].replace(
+                "Decision: approved", "Decision: approved\nCovers direction: yes", 1)
+            one = set_prd_delivery_profile(prd, one, "mvp")
+            self.assertEqual("mvp", checker._prd_delivery_profile(prd))
+            ui.write_text(one, encoding="utf-8")
+            joined = "\n".join(checker.validate_text(one, require_filled=True, require_visual_approved=True,
+                                                     allow_pending_design_system_pair=True,
+                                                     delivery_profile="mvp"))
+            self.assertEqual("", joined)
+            missing_cover = one.replace("Decision: approved\nCovers direction: yes",
+                                        "Decision: approved", 1)
+            self.assertIn("Visual Approval Covers direction must be yes",
+                          "\n".join(checker.validate_text(missing_cover, require_filled=True,
+                                                          require_visual_approved=True,
+                                                          allow_pending_design_system_pair=True,
+                                                          delivery_profile="mvp")))
+            self.assertIn("Style Integration Direction decision is not approved",
+                          "\n".join(checker.validate_text(one, require_filled=True, require_visual_approved=True,
+                                                          allow_pending_design_system_pair=True,
+                                                          delivery_profile="standard")))
+            pending = three.replace("Direction decision: approved", "Direction decision: pending", 1)
+            self.assertIn("Style Integration Direction decision is not approved",
+                          "\n".join(checker.validate_text(pending, require_filled=True,
+                                                          require_visual_approved=True,
+                                                          allow_pending_design_system_pair=True)))
 
     def test_mvp_profile_allows_a_not_required_design_system_gate(self):
         with tempfile.TemporaryDirectory() as directory:
