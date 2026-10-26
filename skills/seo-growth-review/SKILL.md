@@ -1,6 +1,6 @@
 ---
 name: seo-growth-review
-description: Use only when the user explicitly requests seo-growth-review or a requested skill workflow requires it. Audit deployed public websites for organic-search growth using live-site evidence, Search Console, GA4, Google Trends, Keyword Planner, or user-provided exports. Use for SEO reviews, keyword research, organic-traffic diagnosis, query-to-page opportunity mapping, and post-release growth reviews. Read-only by default; route external setup to product-activation, product-contract changes to product-definition-builder, implementation to delivery-harness, and API access to an external connector or MCP rather than embedding credentials or provider clients here.
+description: Use only when the user explicitly requests seo-growth-review or a requested skill workflow requires it. Audit deployed public websites for organic-search growth using live-site evidence, Search Console, GA4, Google Trends, Keyword Planner, or user-provided exports. Use for SEO reviews, keyword research, organic-traffic diagnosis, query-to-page opportunity mapping, pre-launch page planning, and post-release growth reviews. Read-only by default; route external setup to product-activation, product-contract changes to product-definition-builder, implementation to delivery-harness, and API access to an external connector or MCP rather than embedding credentials or provider clients here.
 ---
 
 # SEO Growth Review
@@ -18,6 +18,8 @@ Resolve `<seo-growth-review-skill-root>` and logical script paths as [Installed 
 At every invocation with a repository, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work) read-only; a public-only review records repository checks as not applicable. Separate test traffic and synthetic content from production measurement. Report exposed test pages or polluted analytics to their implementation/activation owner, never fix external settings under review authority.
 
 Turn production search and behavior evidence into a short, prioritized organic-growth review. Separate observed first-party demand from market estimates and hypotheses. Explain what should be improved, why it matters, how success will be measured, and which upstream workflow owns any change.
+
+Before launch, the `pre_launch` mode plans query clusters, page responsibilities and the internal-link skeleton from hypotheses. After launch, the `growth_review` cadence reads back the PRD Growth Contract at Day 7 and Day 30. It returns next-round PRD delta candidates with the evidence.
 
 This skill owns the review and opportunity ranking only. It does not own product requirements, website implementation, external-console setup, API authentication, content publication, or a standing dashboard.
 

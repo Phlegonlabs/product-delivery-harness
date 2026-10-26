@@ -190,6 +190,19 @@ Use for scheduled automations, event-triggered workflows, AI agents, data pipeli
 - Failure handling: partial success, retryable and non-retryable errors, dead-letter queue, alerting, resume, rollback or compensating actions.
 - Observability: run history, step-level logs, latency, success rate, cost, token or API usage, integration error rates.
 
+## Agentic Operations Console Pattern
+
+Use for an agent or automation product whose Shape row records `console: operations`. The console is a deliberately designed backend control surface, not an afterthought. Build it from these six modules:
+
+- Configuration: agent definitions, model and provider routing, tool permissions, and prompt and skill versions.
+- Execution: run history, traces and logs, rerun, and a kill switch.
+- Human-in-the-loop: approval queue, escalation, and who approves what.
+- Cost and usage: tokens, calls, spend, and budget alerts.
+- Quality: eval sets, pass rates, and regression comparison; reuse `eval-policy/1` from `eval-policy-contract.md`.
+- Security: tenant isolation, secret management, and audit export; reuse the PRD's Data and Trust and Security Requirements and their TEST traces.
+
+A `console: operations` shape requires User Journeys for configuration, run inspection, and approval, plus at least one TEST per module the product selects. Reflect the selected modules in `architecture.md`'s component, observability, and security sections.
+
 ## API or Backend Service Pattern
 
 Use when the product is mainly a service consumed by other systems.

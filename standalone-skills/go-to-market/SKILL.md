@@ -14,7 +14,7 @@ Choose channels from audience evidence and operating capacity. X, Threads and Fa
 
 ## Ground The Strategy
 
-Read effective project instructions, PRD `## Metrics` and surface or operation IDs, the latest release record and its availability state, the brand or voice source, `docs/ACTIVATION.md` `MS-*` rows when present, and the existing campaign record.
+Read effective project instructions, PRD `## Metrics`, the PRD `## Growth Contract` when present, and surface or operation IDs, the latest release record and its availability state, the brand or voice source, `docs/ACTIVATION.md` `MS-*` rows when present, and the existing campaign record.
 A repository or Harness installation is not required. Preserve existing document conventions and accepted decisions.
 Ask only for consequential gaps that the available sources cannot answer.
 
@@ -70,6 +70,16 @@ State each hypothesis, audience, channel, message, effort limit, owner, window, 
 Include a response to weak or inconclusive evidence.
 Propose cadence from capacity and account evidence; never import another project's schedule or a universal best time.
 Include replies and moderation in the workload. A calendar is a proposal, not an active scheduler.
+
+## Launch Reach Plan
+
+Read [the launch reach plan](references/launch-reach-plan.md) when the project has a launch window to plan.
+Derive the plan from the PRD Growth Contract's launch window, not from a generic launch calendar.
+List Day 0 to Day 7 and Day 30 distribution in four classes: owned, earned, search and store.
+Give each item an owner, a date, a real destination and one readback metric.
+Sequence search and store assets before Day 0, earned distribution on Day 0 to Day 2, and owned items every day.
+Hold the Day 7 and Day 30 readbacks against the contract's north-star targets.
+Every item stays a proposal. This skill does not publish, schedule, buy placement or submit to a store.
 
 ## Deliver For Review
 

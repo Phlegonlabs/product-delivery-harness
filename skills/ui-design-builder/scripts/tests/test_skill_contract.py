@@ -103,6 +103,14 @@ console.log("hybrid fallback and stale QA assertions completed");
     def read(self, relative: str) -> str:
         return (SKILL_ROOT / relative).read_text(encoding="utf-8")
 
+    def test_required_surfaces_follow_the_product_track(self):
+        stage = self.read(UI_STAGE)
+        self.assertIn("The PRD `Shape` row names the product track and fixes the required surfaces.", stage)
+        self.assertIn("primary return surface", stage)
+        self.assertIn("store-listing", stage)
+        self.assertIn("onboarding", stage)
+        self.assertIn("console: operations", stage)
+
     def test_skill_owns_ui_after_product_approval(self):
         skill = self.read("SKILL.md")
         self.assertIn("name: ui-design-builder", skill)

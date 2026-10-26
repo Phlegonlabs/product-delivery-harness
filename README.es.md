@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.70.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.71.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -89,17 +89,17 @@ Usa $seo-growth-review para auditar este sitio en producción, reconciliar la vi
 
 | Skill | Responsabilidad |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` con `## Ambition`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
+| `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
 | `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación y PLAN/RUN cuando hace falta |
 | `code-security-review` | Lente de seguridad sobre el candidato exacto: hallazgos, herramientas, cobertura y exclusiones |
-| `product-activation` | `docs/ACTIVATION.md`, configuración externa, pruebas de comportamiento y handoff de medición |
-| `seo-growth-review` | Evidencia SEO y de crecimiento orgánico en producción; revisión inline o informe solicitado explícitamente |
+| `product-activation` | `docs/ACTIVATION.md`, configuración externa, pruebas de comportamiento, handoff de medición y los perfiles `aso-and-store-launch`, `agent-directory` y `geo-readback` |
+| `seo-growth-review` | Evidencia SEO y de crecimiento orgánico en producción; revisión inline o informe solicitado explícitamente, con modo `pre_launch` y readbacks `growth_review` de Day 7 y Day 30 |
 
 ## Skills independientes
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepara borradores, assets y calendarios por canal.
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos y redacta el Launch Reach Plan. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepara borradores, assets, calendarios y variantes por canal con dos hooks.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) redacta READMEs con demostraciones reales. [Release Packager](standalone-skills/release-packager/SKILL.md) verifica artifacts de release y rutas de instalación del consumidor.
 
@@ -109,7 +109,7 @@ Estos cuatro directorios completos requieren registro separado en el host; `inst
 
 ```mermaid
 flowchart LR
-  Product["Product Definition y Ambition con aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
+  Product["Product Definition, Ambition y Growth Contract con aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
   Product -->|"sin UI o mejora o mantenimiento acotado"| Harness["Entrega Direct o gestionada"]
   Design --> Harness
   Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia"] --> C["Candidato fijo C"]
@@ -136,7 +136,7 @@ Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la 
 
 | Etapa | Revisión predeterminada y condición de parada |
 | --- | --- |
-| Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. Discovery pregunta un segmento Ambition, `PRD.md` lleva `## Ambition`, y cada ronda del PRD publica un delta alineado con su Epic. El paquete conserva un presupuesto de dos revisiones —una revisión inicial y un recheck acotado— y los defectos posteriores se vuelven reparaciones aisladas con revisión acotada. |
+| Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. Discovery pregunta un segmento Ambition, `PRD.md` lleva `## Ambition`, y cada ronda del PRD publica un delta alineado con su Epic. La fila `Shape` del At a Glance declara el track, la superficie acompañante y la consola, y el checker la valida. `## Growth Contract` registra el north star, el re-engagement, las discovery surfaces y la launch window. El paquete conserva un presupuesto de dos revisiones —una revisión inicial y un recheck acotado— y los defectos posteriores se vuelven reparaciones aisladas con revisión acotada. |
 | Direcciones | El mismo autor comprueba y repara los estudios renderizados antes de la selección del owner. Tres estudios; modificar añade un estudio revisado de la dirección elegida y una decisión; rechazar inicia otro conjunto. |
 | HiFi | Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente. Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. La etapa conserva el mismo presupuesto de dos revisiones; los defectos posteriores se vuelven reparaciones aisladas con una revisión acotada del diff de reparación. |
 | Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo (navegador real para UI), con hallazgos triados en blocking y notes, más un recheck acotado. Tras el recheck, cada defecto restante o nuevo se vuelve una reparación acotada con su verifier enfocado y una revisión acotada solo del diff de reparación (hallazgo, diff de reparación, consumidores directos); la lente de seguridad se une cuando el diff toca un límite de confianza, un PASS acotado revincula las rutas reparadas y las revisiones acotadas no gastan intentos. Sin nueva Final UI Acceptance salvo que la reparación toque una superficie UI, y entonces solo esa superficie; la validación final amplia corre una vez por candidato al final. Los intentos bloqueados por entorno no gastan presupuesto. |
@@ -209,6 +209,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.71.0** — Cada proyecto declara su forma a propósito: el At a Glance del PRD gana una fila `Shape` que nombra el track, la superficie pública acompañante y el tipo de consola, y `## Growth Contract` registra el north star con objetivos Day 7 y Day 30, mecanismos de re-engagement, discovery surfaces y una launch window. Las superficies UI requeridas por track, las bases de entrega por track, el perfil de arquitectura `agentic-operations-console` y los perfiles de activación para lanzamiento en store, directorios de agentes y read-back GEO extienden el flujo de web a productos app y agent. `seo-growth-review` gana un modo `pre_launch` y readbacks `growth_review` de Day 7 y Day 30 que alimentan el siguiente delta del PRD, go-to-market redacta el Launch Reach Plan y GTM Content empaqueta una pieza fuente en variantes por canal con dos hooks.
+
 - **0.70.0** — Cada etapa candidata conserva un presupuesto de dos revisiones: una revisión inicial y un recheck acotado; la ronda extra autorizada por el owner y los nodos de revisión sucesores desaparecen. Tras el recheck, cada defecto restante o nuevo se vuelve una reparación aislada con su verifier enfocado y una revisión acotada solo del diff de reparación: la lente de seguridad se une en los límites de confianza, un PASS acotado revincula las rutas reparadas, los PASS previos se arrastran y la validación final amplia corre una vez por candidato al final. La ruta gestionada registra alcances de reparación y PASS acotados, y el perfil de entrega `mvp` elegido por el owner comprime un proyecto pequeño o un MVP de una semana a como máximo cuatro gates del owner.
 
 - **0.69.0** — Discovery pregunta un cuarto segmento Ambition, `PRD.md` gana `## Ambition` con una columna `Stretch` en Metrics, y las rondas del PRD dejan de apilarse en un archivo acumulativo: cada ronda publica un delta alineado con su Epic. El Epic registra su delta y el rung de ambition, el PLAN congela una fuente `prd-delta`, y un verificador de alcance ata los traces de misión a los IDs de requerimientos del delta vinculado.
@@ -216,7 +218,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.68.0** — Triar hallazgos de revisión en defectos blocking y notas no blocking: solo los hallazgos blocking fuerzan reparación, y el recheck verifica los hallazgos previos sobre el rango de reparación con seguridad a alcance completo. Los intentos de revisión bloqueados por entorno ya no gastan el presupuesto de intentos, las reparaciones llegan al reviewer solo con el PASS del verifier del autor, y los diffs no ejecutables registran `security: not_applicable` en lugar de `UNVALIDATED`. Un PASS arrastrado con alcance disjunto conserva su SHA de origen, y los puntos de revisión fuera de una revisión combinada más un recheck requieren un motivo registrado.
 
 - **0.67.0** — Exigir una petición explícita para los siete skills centrales y los cuatro independientes. Limitar las rutas Harness, la sincronización documental y los registros Epic al flujo solicitado. Conservar controles y dependencias sin iniciar otra etapa principal.
-
-- **0.66.0** — Reducir rondas de revisión repetidas en PRD, UI y entrega, conservando 85/80, Impeccable, Visual Approval y la revisión de seguridad del SHA exacto. Planificar missions como lotes de funcionalidad con un reviewer de lentes combinadas cada una y omitir la revisión de integración de código solo con una cadena de merges limpia probada. Reparar una vez cuando vuelven todas las revisiones del candidato y revisar después solo la reparación. Limitar la revisión HiFi posterior al registro con filas arrastradas, revisar una dirección modificada como un solo estudio y detectar en el PRD superficies inalcanzables y estados sin salida. Mantener un contrato Harness por RUN y por ronda de diseño, registrar la identidad no observada una vez por sesión y cargar una lista corta de entrada en lugar de los contratos largos. Corregir defectos falsos de retención y una carrera en el límite de commit del registro de integración, y publicar el trabajo de compilador, cobertura de estados, role-policy e ingestión de AgentKiosk.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).

@@ -86,8 +86,11 @@ Use this structure:
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
 | Delivery profile | standard / mvp |
+| Shape | track: web / app / agent; companion: <public surface or none>; console: none / config-only / operations |
 
 [One paragraph describing the product, user, and outcome.]
+
+The Shape row declares the delivery track on purpose. `track` is `web`, `app`, or `agent`; `companion` names the public companion surface or `none`; `console` is `none`, `config-only`, or `operations`. Keep the row consistent with the User Journeys, UI surfaces and release targets. An app track needs a companion public surface when AEO/SEO is required. An agent track needs a public docs surface or an explicit `none` with its reason. `console: operations` needs the console journeys in the Agentic Operations Console Pattern. A legacy package without the Shape row stays valid.
 
 ## Enhancement Impact Record
 Include this section only in enhancement mode for a package without `docs/product/deltas/`; with deltas, this record lives in the PRD delta, not in `PRD.md`.
@@ -137,6 +140,25 @@ When no other field helps, keep one row `| none | <reason> | n/a | n/a |`.
 | --- | --- | --- |
 
 Rungs are better, not bigger. The outside judge is never the model or the owner's impression. The stretch target is the unreasonable target the team treats as reasonable; acceptance still uses the TEST and metric target. Crew rows marked `review lens` become optional domain lenses for the delivery review; Harness owns that rule in [Review Topology](../../delivery-harness/references/verification-gates.md#review-topology). Do what the field does: each crew row names what that field actually does here, not a role-play. `## Ambition` is required for packages created or enhanced under this contract version; a package without `docs/product/deltas/` and without `## Ambition` is legacy and stays valid.
+
+## Growth Contract
+### North Star
+| Track | North star | Day 7 target | Day 30 target | Stretch | Source (MS-*) |
+| --- | --- | --- | --- | --- | --- |
+
+### Re-engagement
+| Mechanism (email / push / subscription / deep link / return trigger) | Surface or event | TEST ID |
+| --- | --- | --- |
+
+### Discovery Surfaces
+| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | Owner stage | TEST or MS ID |
+| --- | --- | --- | --- |
+
+### Launch Window
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
+| --- | --- | --- | --- | --- |
+
+Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `seo`; the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap. Each discovery surface maps to a UI surface or release target that exists in this PRD.
 
 ## Non-Goals
 - [Explicitly out of scope]
@@ -297,7 +319,7 @@ Use `monetization-and-partner-channel-guide.md` to select providers only after t
 
 `Stretch` repeats the stretch target from `## Ambition` Depth.
 Define the GA4/Firebase or approved alternative destination, canonical events and collection controls before dependent feature work.
-Trace initial event delivery, duplicate prevention and test-traffic isolation through TEST obligations; actual production measurement remains release-bound.
+Trace initial event delivery, duplicate prevention and test-traffic isolation through TEST obligations; actual production measurement remains release-bound. The Day 7 and Day 30 growth reviews read these definitions against the Growth Contract's north-star targets and feed the next delta round.
 
 ## Risks
 | Risk | Impact | Mitigation |

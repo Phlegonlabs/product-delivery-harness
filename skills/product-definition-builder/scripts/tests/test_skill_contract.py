@@ -278,6 +278,23 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         )
         self.assertNotIn("immediately after the free-text interview message", interview)
 
+    def test_discovery_asks_about_return_visits_and_first_contact(self) -> None:
+        interview = self.read("references/interview-guide.md")
+        contract = self.read("references/output-contract.md")
+        self.assertIn("why would someone come back or open the app again", interview)
+        self.assertIn("where will people first see it", interview)
+        self.assertIn("The delivery Shape: track, companion surface, and console type.", interview)
+        self.assertIn("| Shape | track: web / app / agent; companion:", contract)
+        self.assertIn("## Growth Contract", contract)
+        self.assertIn("`Owner stage` is `delivery`, `activation`, `gtm` or `seo`", contract)
+        self.assertIn("within Day 0 to Day 7 inclusive", contract)
+        stage = self.read(STAGE)
+        self.assertIn("Record the At a Glance Shape row and the `## Growth Contract` before Product Definition Approval", stage)
+        refinement = self.read("references/prd-refinement.md")
+        self.assertIn("growth review against the Growth Contract feeds a delta round", refinement)
+        for heading in ("### North Star", "### Re-engagement", "### Discovery Surfaces", "### Launch Window"):
+            self.assertIn(heading, contract)
+
     def test_open_ended_interview_has_four_adaptive_segments(self) -> None:
         skill = self.read(STAGE)
         interview = self.read("references/interview-guide.md")

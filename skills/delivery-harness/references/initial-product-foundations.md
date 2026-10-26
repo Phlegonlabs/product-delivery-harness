@@ -1,6 +1,6 @@
 # Initial Product Foundations
 
-Plan these foundations during Product Definition for new website and app projects.
+Plan these foundations during Product Definition for new website, app, and agent projects.
 Execute them from the first usable implementation build, before the features that depend on them.
 Enhancements inspect existing setup and repair only the accepted gaps.
 This uses existing stages, TEST obligations and dependency edges; it adds no approval gate or readiness schema.
@@ -37,6 +37,18 @@ See [GA4 setup](https://support.google.com/analytics/answer/9304153) and [Fireba
 Pre-build work is planning plus observed local facts. External provisioning needed to create the first artifact is a separately authorized operator/provider prerequisite outside Harness/RUN.
 Keep authorized non-secret operator observations in the existing Deployment/operator evidence. They do not establish fixed-build Activation readiness or verified measurement; rebind and reverify them against the actual first build.
 The prerequisite does not require paid distribution membership for every local experiment.
+
+### Required Early Missions By Track
+
+The PRD `Shape` row names the product track. Plan that track's required early missions with the table above, and give each one a `TEST-*` obligation and an owner in Product Definition.
+
+| Track | Required early missions |
+| --- | --- |
+| web | SEO cluster and internal-link skeleton; GEO/AEO structured data, `llms.txt`, and citeable pages; measurement events; the re-engagement hook from the Growth Contract |
+| app | Deep links (Universal Links / App Links) joined to the companion surface; push and onboarding events; store listing assets; crash and analytics setup |
+| agent | Directory metadata; `llms.txt` and the public docs page; usage events; the tool permission boundary; console health when `console: operations` |
+
+A track row names required missions, not extra gates. Keep an existing explicit non-applicability record for anything the product genuinely does not need.
 
 ## Execute From A Fixed Initial Build
 

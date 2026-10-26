@@ -478,6 +478,9 @@ def _validate_tables(
 
 KNOWN_PROFILES = {
     "core",
+    "aso-and-store-launch",
+    "agent-directory",
+    "geo-readback",
     "web",
     "web-auth",
     "forms-leads",
