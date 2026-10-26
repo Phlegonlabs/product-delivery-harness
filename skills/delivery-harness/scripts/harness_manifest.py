@@ -2014,6 +2014,7 @@ def validate_plan(
         "review_policy",
         "security_review",
         "platform_delivery",
+        "foundation_trace_ids",
     }
     if not _keys(errors, "plan", plan, top_keys, plan_optional_keys):
         return sorted(errors)
@@ -2046,6 +2047,16 @@ def validate_plan(
         or plan["review_policy"] not in REVIEW_POLICIES
     ):
         _add(errors, "plan.review_policy", "must be per_mission or final_candidate")
+    if "foundation_trace_ids" in plan:
+        # Delta mode: omit the field when there is nothing to build on; an empty array is invalid.
+        foundation = _strings(
+            errors,
+            "plan.foundation_trace_ids",
+            plan["foundation_trace_ids"],
+            nonempty=True,
+        )
+        if len(foundation) != len(set(foundation)):
+            _add(errors, "plan.foundation_trace_ids", "must not contain duplicates")
     _validate_plan_security_review(errors, plan, required_reviews)
     if "branch_policy" in plan:
         errors.extend(validate_branch_policy_shape(plan))

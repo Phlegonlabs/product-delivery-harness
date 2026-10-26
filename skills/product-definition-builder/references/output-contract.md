@@ -54,7 +54,7 @@ The research-to-approval order is research-first evidence → complete candidate
 Two rules keep the package readable:
 
 - **Meaning before bookkeeping.** Each file opens with what a human needs to understand the product and ends with the ID matrices and decision records that machines, auditors, and downstream skills need. Never open a file with a trace table.
-- **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns is a sign the content wants to be a list instead.
+- **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns is a sign the content wants to be a list instead; the Metrics table's `Stretch` column and the environment contract in `architecture.md` are the exceptions.
 
 Length budget. These are targets, not caps — say less when the product is simple, and go over only when the product is genuinely more complex, not when a section drifted:
 
@@ -89,7 +89,7 @@ Use this structure:
 [One paragraph describing the product, user, and outcome.]
 
 ## Enhancement Impact Record
-Include this section only in enhancement mode.
+Include this section only in enhancement mode for a package without `docs/product/deltas/`; with deltas, this record lives in the PRD delta, not in `PRD.md`.
 
 | Area | Impact | Affected IDs / decisions | Required refresh |
 | --- | --- | --- | --- |
@@ -109,6 +109,33 @@ Changed rows use area-specific refreshes. Product behavior reopens `PRD.md` and 
 
 ## Goals
 - [Goal]
+
+## Ambition
+### Goal Beyond The Goal
+| Rung | Outcome | Outside judge |
+| --- | --- | --- |
+| 1 | [the task done well] | [what proves it, other than us] |
+| 2 | [the outcome the task serves] | [...] |
+| 3 | [the durable workflow or replaced ritual that takes the human out of the loop] | [...] |
+
+### Depth
+| Best practitioners | Their instruments | Rawest material | Stretch target | Outside judge |
+| --- | --- | --- | --- | --- |
+
+### Range
+Verbs: [the work restated as verbs, e.g. "getting busy people to believe a story about cause and effect and decide under uncertainty in 30 minutes"]
+
+| Field | What they actually do here | Method or tool | Used as |
+| --- | --- | --- | --- |
+| [journalist] | [...] | [...] | design input / review lens / go-to-market |
+
+When no other field helps, keep one row `| none | <reason> | n/a | n/a |`.
+
+### Access
+| Need | Present or missing | Unlocks |
+| --- | --- | --- |
+
+Rungs are better, not bigger. The outside judge is never the model or the owner's impression. The stretch target is the unreasonable target the team treats as reasonable; acceptance still uses the TEST and metric target. Crew rows marked `review lens` become optional domain lenses for the delivery review; Harness owns that rule in [Review Topology](../../delivery-harness/references/verification-gates.md#review-topology). Do what the field does: each crew row names what that field actually does here, not a role-play. `## Ambition` is required for packages created or enhanced under this contract version; a package without `docs/product/deltas/` and without `## Ambition` is legacy and stays valid.
 
 ## Non-Goals
 - [Explicitly out of scope]
@@ -264,9 +291,10 @@ Record both gates even when they are not required. Do not select RevenueCat mere
 Use `monetization-and-partner-channel-guide.md` to select providers only after these decisions. If either gate is `required`, add every customer, partner, and admin surface to the UI Surface Contract and add observable success, failure, cancellation, refund, attribution, commission, payout, provisioning, and termination obligations. The later `ui-design-builder` run projects those approved surfaces into HiFi.
 
 ## Metrics
-| Metric | Definition | Baseline | Target / guardrail | Measurement window | Source / method | Owner |
-| --- | --- | --- | --- | --- | --- | --- |
+| Metric | Definition | Baseline | Target / guardrail | Stretch | Measurement window | Source / method | Owner |
+| --- | --- | --- | --- | --- | --- | --- | --- |
 
+`Stretch` repeats the stretch target from `## Ambition` Depth.
 Define the GA4/Firebase or approved alternative destination, canonical events and collection controls before dependent feature work.
 Trace initial event delivery, duplicate prevention and test-traffic isolation through TEST obligations; actual production measurement remains release-bound.
 
@@ -309,7 +337,7 @@ Product Definition does not decide density, layout preference, visual style, mot
 
 ## Product Definition Decisions
 
-This section is present for every product, including headless APIs and automations. It separates content decisions from the later filesystem publication authorization.
+This section is present for every product, including headless APIs and automations. It separates content decisions from the later filesystem publication authorization. Once the package has `docs/product/deltas/`, this section carries one line `Latest delta: docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` naming the current round's delta.
 
 ### Research Gate
 
@@ -459,6 +487,51 @@ Rules:
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
 - An incident requires typed containment, a human owner, and explicit routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
 - The verdict vocabulary is closed: `no_change`, `enhancement`, or `incident`. Every later run reads this file in full during enhancement detection.
+
+## `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`
+
+An enhancement round that changes the approved package records itself in a PRD delta with schema `prd-delta/1`. `<EPIC-ID>` is the Epic file's id token: `EPIC-041` for `docs/epics/EPIC-041-<slug>.md`. One delta per round, aligned one-to-one with that round's Epic. `PRD.md` keeps only the approved state; the delta holds the round's why, impact, before/after, and approval. Create it from `assets/templates/PRD_DELTA.template.md` at the start of the round with the baseline hash, and publish the delta, the PRD, and their review copies together.
+
+Use this structure:
+
+```markdown
+# PRD Delta <EPIC-ID>: <outcome in one line>
+
+| | |
+| --- | --- |
+| Epic | docs/epics/EPIC-<id>-<slug>.md |
+| Baseline PRD | sha256:<64 lowercase hex of PRD.md before this delta> |
+| Result PRD | sha256:<64 lowercase hex after publication> or pending |
+| Status | draft / approved |
+| Ambition rung | 1 / 2 / 3 — <one line naming the rung from the PRD Ambition ladder> |
+
+## Why
+[Owner request, date and source; the goal beyond the goal this round serves.]
+
+## Enhancement Impact Record
+[The table from `## PRD.md`, unchanged columns.]
+
+## Changed Requirements
+| ID | Change | Before | After | TEST IDs |
+| --- | --- | --- | --- | --- |
+| PRD-0xx | new / revised / retired | [summary or n/a] | [summary] | TEST-0xx |
+
+## Decisions
+- decision:<slug> — [one line]
+
+## Approval
+[Product Definition Approval for this delta: owner, date, result PRD hash, using the same `product-definition-approval` marker block convention as PRD.md.]
+```
+
+A `Baseline PRD` or `Result PRD` hash is the SHA-256 of `PRD.md`'s file text without the `product-definition-approval` marker block, exactly as `bilingual-review.md` defines the review-source hash. The delta's own hash excludes its marker block. Each published delta receives a complete `PRD-DELTA-<EPIC-ID>.zh-TW.md` review copy; `bilingual-review.md` owns the pairing.
+
+Once a package has `docs/product/deltas/`:
+
+- A `PRD.md` heading containing a `YYYY-MM-DD` date is forbidden. Dated round history lives in the deltas.
+- `## Enhancement Impact Record` lives in the delta, not in `PRD.md`.
+- `## Product Definition Decisions` carries one line `Latest delta: docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` naming the current round's delta.
+
+A new round adds a new delta and updates that line. Whole-package replacement keeps the archive steps in `artifact-lifecycle.md`. A bounded enhancement needs no whole-package archive: the delta's before/after rows plus Git are the history.
 
 ## `architecture.md`
 
@@ -856,7 +929,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 - Each artifact opens with human-readable content and keeps decision records near the end: `PRD.md` opens with `## At a Glance`, records `## UI Design Handoff Status`, and closes with `## Product Definition Decisions`; `architecture.md` opens with `## Architecture Summary` and closes with `## Architecture Trace Index`; `stack-decisions.md` opens with its machine-anchored Stack Decision Checkpoint and closes with `## Options And Open Decisions`.
 - `## At a Glance` answers what the product is, who it is for, why now, what success looks like, and the biggest risk — one line each, on one screen.
 - Each artifact is within reach of its length budget in "How To Read This Package". A file well over budget names which content should have moved to another artifact instead of expanding.
-- No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical.
+- No table in the package exceeds seven columns except the environment contract in `architecture.md`, whose columns are all release-critical, and the Metrics table's `Stretch` column.
 
 ### Completeness
 

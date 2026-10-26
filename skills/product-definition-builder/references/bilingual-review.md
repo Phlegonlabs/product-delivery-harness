@@ -14,11 +14,15 @@ Each review copy has exactly one source marker, containing the SHA-256 of the En
 
 Use `architecture.md` for the architecture marker. Custom filenames explicitly requested by the owner use their real source basenames and explicit review paths. Compute the hash after writing the corresponding English revision. A stale-hash failure prints the current value. A changed hash means the review needs reconciliation, not permission to update only its marker.
 
+A published PRD delta keeps the same pairing. Translate each `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` in full into `PRD-DELTA-<EPIC-ID>.zh-TW.md` beside it. Its copy uses the same marker rule with the delta's own hash: `<!-- review-source: PRD-DELTA-<EPIC-ID>.md sha256:<64 lowercase hex characters> -->`, computed without the `product-definition-approval` marker block. Publish each delta pair together with the PRD pair. The current PRD copy keeps refreshing only the sections the round changed.
+
 Before every owner review, semantically compare each pair for coverage and matching meaning, then run:
 
 ```text
-python "<product-definition-builder-skill-root>/scripts/check_review_translations.py" --prd <staged PRD.md> --architecture <staged architecture.md>
+python "<product-definition-builder-skill-root>/scripts/check_review_translations.py" --prd <staged PRD.md> --architecture <staged architecture.md> --delta <staged PRD-DELTA-<EPIC-ID>.md>
 ```
+
+Pass `--delta` once per delta the round publishes; a delta round's check is incomplete without it.
 
 The default companions sit beside the sources; `--prd-review` and `--architecture-review` support explicitly requested custom names. The read-only checker rejects missing copies, stale source hashes, missing or added trace IDs, missing heading-level counts, missing table shapes/rows and missing numeric literals (excluding trace IDs, URLs and source/approval digests). It compares heading levels and table structure, not translated heading text, order or meaning. These structural and literal checks do not prove translation quality, complete meaning or human approval. Compare every substantive section of a new copy in the required order. For a later revision, compare only the sections that changed in either file since the last full comparison; the passing checker covers the unchanged structure. Do not ask for approval with a missing, stale or materially inconsistent review copy.
 

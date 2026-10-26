@@ -179,6 +179,55 @@ class ReviewTranslationTests(unittest.TestCase):
         result = subprocess.run(command, capture_output=True, text=True, timeout=15)
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
 
+    def write_delta_pair(self, name="PRD-DELTA-EPIC-041.md", *, stale=False):
+        deltas = self.root / "deltas"
+        deltas.mkdir(exist_ok=True)
+        source = deltas / name
+        approval = ("<!-- product-definition-approval:start -->\n### Delta Approval\n"
+                    "- Decided on: 2026-09-12\n"
+                    "<!-- product-definition-approval:end -->\n")
+        source.write_text(
+            "# PRD Delta EPIC-041: Harden the draft gate\n"
+            "PRD-001 needs a signed run log; TEST-001 verifies it on 2026-09-12.\n"
+            + approval,
+            encoding="utf-8")
+        digest = hashlib.sha256(source.read_bytes()).hexdigest()
+        if stale:
+            digest = "b" * 64
+        review = source.with_name(f"{source.stem}.zh-TW.md")
+        review.write_text(
+            f"<!-- review-source: {name} sha256:{digest} -->\n"
+            "# PRD Delta EPIC-041：強化草稿閘門\n"
+            "PRD-001 需要簽署的執行記錄；TEST-001 於 2026-09-12 驗證此行為。\n"
+            + approval,
+            encoding="utf-8")
+        return source
+
+    def test_delta_pair_passes_and_is_repeatable(self):
+        first = self.write_delta_pair()
+        second = self.write_delta_pair("PRD-DELTA-EPIC-042.md")
+        command = [sys.executable, str(SCRIPTS / "check_review_translations.py"),
+                   "--prd", str(self.source),
+                   "--delta", str(first), "--delta", str(second)]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+
+    def test_stale_delta_marker_is_rejected(self):
+        delta = self.write_delta_pair(stale=True)
+        command = [sys.executable, str(SCRIPTS / "check_review_translations.py"),
+                   "--prd", str(self.source), "--delta", str(delta)]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        self.assertEqual(1, result.returncode)
+        self.assertIn("stale review", result.stdout)
+
+    def test_missing_delta_copy_is_rejected(self):
+        delta = self.write_delta_pair()
+        delta.with_name("PRD-DELTA-EPIC-041.zh-TW.md").unlink()
+        command = [sys.executable, str(SCRIPTS / "check_review_translations.py"),
+                   "--prd", str(self.source), "--delta", str(delta)]
+        result = subprocess.run(command, capture_output=True, text=True, timeout=15)
+        self.assertEqual(1, result.returncode)
+
 
 if __name__ == "__main__":
     unittest.main()

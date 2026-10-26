@@ -93,6 +93,8 @@ def impact_for(name, reason):
         artifacts, stages, checks = ["architecture", "stack", "HiFi", "legacy wireframes when pinned", "acceptance"], ["product", "design", "delivery"], ["product package", "affected UI gates", "requirement-linked tests"]
     elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
         artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
+    elif name.startswith("docs/product/deltas/"):
+        artifacts, stages, checks = ["bound Epic scope", "PRD baseline"], ["intake", "product", "delivery"], ["delta requirement IDs and TEST obligations", "Epic and PLAN delta binding"]
     elif name.startswith("docs/design/"):
         artifacts, stages, checks = ["HiFi", "legacy wireframes when pinned", "conditional design-system pair", "implementation"], ["design", "delivery"], ["UI contract", "product interactions", "visual and accessibility evidence"]
     elif filename in {"DEPLOYMENT.md", "ACTIVATION.md"}:
@@ -136,30 +138,42 @@ def _retired_pointers(text):
     return sorted(pointers)
 
 
+def _scoped_markdown_children(root, name, label, paths):
+    """Append direct .md children of one scoped folder; never follow links."""
+    folder = safe_path(root, name)
+    if not folder.exists():
+        return
+    if not folder.is_dir():
+        raise ValueError(f"{label} inventory must be a directory")
+    entries = []
+    with os.scandir(folder) as iterator:
+        for entry in iterator:
+            if len(entries) >= 128:
+                raise ValueError(f"scope the {label} directory explicitly")
+            entries.append(Path(entry.path))
+    for path in sorted(entries):
+        if path.suffix == ".md":
+            relative = path.relative_to(root).as_posix()
+            safe_path(root, relative, document=True)
+            paths.append(relative)
+            if len(paths) > 128:
+                raise ValueError(f"scope the {label} inventory explicitly")
+
+
 def default_inventory(root, baseline=None):
-    """Include live Epic names without following links or scanning history."""
+    """Include live Epic and PRD delta names without following links or scanning history."""
     paths = list(DEFAULT_PATHS)
-    folder = safe_path(root, "docs/epics")
-    if folder.exists():
-        if not folder.is_dir():
-            raise ValueError("Epic inventory must be a directory")
-        entries = []
-        with os.scandir(folder) as iterator:
-            for entry in iterator:
-                if len(entries) >= 128:
-                    raise ValueError("scope the Epic directory explicitly")
-                entries.append(Path(entry.path))
-        for path in sorted(entries):
-            if path.suffix == ".md":
-                name = path.relative_to(root).as_posix()
-                safe_path(root, name, document=True)
-                paths.append(name)
-                if len(paths) > 128:
-                    raise ValueError("scope the Epic inventory explicitly")
-    # Retain removed Epic paths so a missing document cannot disappear silently.
+    _scoped_markdown_children(root, "docs/epics", "Epic", paths)
+    _scoped_markdown_children(root, "docs/product/deltas", "PRD delta", paths)
+    # Retain removed Epic and PRD delta paths so a missing document cannot disappear silently.
     if isinstance(baseline, dict) and isinstance(baseline.get("documents"), dict):
         for name in baseline["documents"]:
-            if isinstance(name, str) and name.startswith("docs/epics/") and name.count("/") == 2 and name not in paths:
+            if not isinstance(name, str) or name in paths:
+                continue
+            retained = (name.startswith("docs/epics/") and name.count("/") == 2) or (
+                name.startswith("docs/product/deltas/") and name.count("/") == 3
+            )
+            if retained:
                 safe_path(root, name, document=True)
                 paths.append(name)
     return paths

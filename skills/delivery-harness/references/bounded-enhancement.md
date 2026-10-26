@@ -25,6 +25,8 @@ Classify the record before implementation, after the owner accepts the outcome:
 - For an isolated small fix with no suitable Epic, create a concise bounded Epic; it may link detailed direct-task evidence rather than duplicate it.
 - A follow-up to a closed Epic may append a dated fix record without rewriting its earlier result. A new outcome or changed acceptance criteria needs a linked new Epic; do not quietly broaden the closed one.
 
+When the round changes the PRD, its one Epic binds to that round's one PRD delta at `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`; a small fix that leaves the PRD unchanged has no delta. Legacy Epics without a delta stay valid.
+
 Keep a short Change Log in the chosen record: request or finding, reason, affected files/requirements and UI scope, exact commit or evidence, verification result and remaining work. Record each logical fix when it is made, including failed checks and later repairs. Group related edits; do not log every keystroke or duplicate PLAN/RUN state. Before handoff, reconcile the log with the actual diff and keep unresolved criteria visible. A documentation-only internal enhancement may reference its existing contract/tests instead of inventing a product PRD.
 
 ## Repository Change Checkpoints

@@ -268,6 +268,9 @@ RUNTIME_REVIEW_TYPES = {"frontend_code", "backend_code", "visual", "security"}
 # A review node with `lenses` sets `type` to its widest lens in this order, so
 # every security and visual rule keyed on `type` still applies to it.
 REVIEW_LENS_ORDER = ("security", "visual", "frontend_code", "backend_code")
+# PRD Ambition Range rows marked `review lens` become optional `domain:<field>`
+# lenses on the one combined review; they never set `review.type`.
+DOMAIN_LENS_RE = re.compile(r"domain:\S.{0,127}\Z", re.DOTALL)
 # An absent PLAN `review_policy` means per_mission, the rule of every older PLAN.
 REVIEW_POLICIES = {"per_mission", "final_candidate"}
 
