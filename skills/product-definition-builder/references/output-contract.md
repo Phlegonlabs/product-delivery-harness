@@ -86,8 +86,11 @@ Use this structure:
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
 | Delivery profile | standard / mvp |
+| Shape | track: web / app / agent; companion: <public surface or none>; console: none / config-only / operations |
 
 [One paragraph describing the product, user, and outcome.]
+
+The Shape row declares the delivery track on purpose. `track` is `web`, `app`, or `agent`; `companion` names the public companion surface or `none`; `console` is `none`, `config-only`, or `operations`. Keep the row consistent with the User Journeys, UI surfaces and release targets. An app track needs a companion public surface when AEO/SEO is required. An agent track needs a public docs surface or an explicit `none` with its reason. `console: operations` needs the console journeys in the Agentic Operations Console Pattern. A legacy package without the Shape row stays valid.
 
 ## Enhancement Impact Record
 Include this section only in enhancement mode for a package without `docs/product/deltas/`; with deltas, this record lives in the PRD delta, not in `PRD.md`.
