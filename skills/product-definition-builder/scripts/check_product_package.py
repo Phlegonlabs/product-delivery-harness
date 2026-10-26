@@ -3968,9 +3968,11 @@ def validate_texts(
             "section; delta and ambition checks skipped"
         )
     elif shape_fields is None and notes is not None:
-        notes.append(
-            "legacy package: no 'At a Glance' Shape row; growth contract checks skipped"
-        )
+        if _section(prd_text, "## Growth Contract") is None:
+            notes.append(
+                "legacy package: no 'At a Glance' Shape row; "
+                "growth contract checks skipped"
+            )
 
     stack_block = _extract_machine_block(
         stack_text,

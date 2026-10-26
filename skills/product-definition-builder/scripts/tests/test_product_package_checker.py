@@ -3123,6 +3123,36 @@ class ShapeRowPackageTests(unittest.TestCase):
         self.assertEqual(1, len(notes))
         self.assertIn("legacy", notes[0])
 
+    def test_growth_contract_presence_gates_the_skip_note(self) -> None:
+        prd = valid_prd().replace(
+            "- Reject incomplete authority before implementation starts.\n## Non-Goals",
+            "- Reject incomplete authority before implementation starts.\n"
+            + AMBITION_SECTION
+            + "## Non-Goals",
+            1,
+        ).replace(
+            "| Metric | Definition | Baseline | Target / guardrail | Measurement window | "
+            "Source / method | Owner |\n"
+            "| --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Completion | Completed runs | 0 | 90% | 30 days | Event count | Owner |",
+            "| Metric | Definition | Baseline | Target / guardrail | Stretch | "
+            "Measurement window | Source / method | Owner |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Completion | Completed runs | 0 | 90% | 99% | 30 days | Event count | Owner |",
+            1,
+        )
+        notes: list[str] = []
+        self.assertEqual([], self.validate(prd, notes=notes))
+        self.assertIn("growth contract checks skipped", notes[0])
+        prd = prd.replace(
+            "## Problem Statement",
+            growth_contract_section() + "## Problem Statement",
+            1,
+        )
+        notes = []
+        self.assertEqual([], self.validate(prd, notes=notes))
+        self.assertEqual([], notes)
+
     def test_shape_row_vocabulary_failures(self) -> None:
         findings = self.validate(shaped_prd("track: platform; companion: none; console: none"))
         self.assertTrue(
