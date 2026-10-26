@@ -113,6 +113,9 @@ class ProductActivationSkillContractTests(unittest.TestCase):
         stage = self.read("references/stages/activation.md")
         for mapping in ("`store-listing` → `aso-and-store-launch`", "`directory` → `agent-directory`", "`geo-page` → `geo-readback`"):
             self.assertIn(mapping, stage)
+        scripts_dir = str(Path(__file__).resolve().parents[1])
+        if scripts_dir not in sys.path:
+            sys.path.insert(0, scripts_dir)
         from check_activation import KNOWN_PROFILES
 
         for profile in ("aso-and-store-launch", "agent-directory", "geo-readback"):

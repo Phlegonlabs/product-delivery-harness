@@ -566,6 +566,8 @@ class AppCompanionSeoTests(unittest.TestCase):
             "- SEO: required; indexing exceptions: none.",
             "- SEO: required, indexing exceptions: none.",
             "- " + "SEO required " * 20000 + "sitemap.",
+            "- SEO" + " " * 100000 + "required.",
+            "- SEO: required; AEO: none.",
         ):
             with self.subTest(seo_line=seo_line[:40]):
                 findings = self.validate(frontend_delivery_prd(APP_NONE_SHAPE, seo_line))

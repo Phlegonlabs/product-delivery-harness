@@ -464,13 +464,17 @@ AEO_SEO_RE = re.compile(r"\bAEO\b|\bSEO\b", re.IGNORECASE)
 EXCLUDED_OBLIGATION_RE = re.compile(
     r"not_required|not required|n/a|none", re.IGNORECASE
 )
-# An exclusion counts only when it is attached to the keyword itself, as a
-# status after it (`SEO: none`, `SEO obligations: n/a`, `SEO is not required`)
-# or a prefix before it (`Not required: SEO`). Bounded gaps keep the scan linear.
-EXCLUDED_AEO_SEO_RE = re.compile(
-    r"\b(?:AEO|SEO)\b(?:\s+obligations?)?\s*(?::|-|—|is|are)?\s*(?:not_required|not required|n/a|none)\b"
-    r"|\b(?:not_required|not required|no|n/a)\s*(?::|for)?\s*(?:AEO|SEO)\b",
+# An exclusion counts only when it is attached to the keyword occurrence it
+# excludes: as its status (`SEO: none`, `SEO obligations: n/a`, `SEO is not
+# required`) or as its prefix (`Not required: SEO`). Whitespace is collapsed
+# first and the windows are fixed, so the scan stays linear.
+AEO_SEO_WORD_RE = re.compile(r"\b(?:AEO|SEO)\b", re.IGNORECASE)
+EXCLUDED_STATUS_RE = re.compile(
+    r"^(?: obligations?)? ?(?::|-|—|is|are)? ?(?:not_required|not required|n/a|none)\b",
     re.IGNORECASE,
+)
+EXCLUDED_PREFIX_RE = re.compile(
+    r"(?:not_required|not required|no|n/a) ?(?::|for)? ?$", re.IGNORECASE
 )
 GROWTH_NORTH_STAR_HEADER = (
     "track",
@@ -1029,8 +1033,13 @@ def _prd_requires_aeo_seo(
     frontend = _section(prd_text, "## Frontend Delivery Requirements")
     if frontend is None:
         return False
-    for line in frontend.splitlines():
-        if AEO_SEO_RE.search(line) and not EXCLUDED_AEO_SEO_RE.search(line):
+    for raw in frontend.splitlines():
+        line = re.sub(r"\s+", " ", raw)
+        for match in AEO_SEO_WORD_RE.finditer(line):
+            after = line[match.end():match.end() + 40]
+            before = line[max(0, match.start() - 24):match.start()]
+            if EXCLUDED_STATUS_RE.search(after) or EXCLUDED_PREFIX_RE.search(before):
+                continue
             return True
     return False
 
