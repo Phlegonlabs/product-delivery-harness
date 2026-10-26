@@ -450,10 +450,10 @@ SHAPE_ROW_LABEL = "shape"
 SHAPE_FIELD_KEYS = ("track", "companion", "console")
 VALID_SHAPE_TRACKS = ("web", "app", "agent")
 VALID_SHAPE_CONSOLES = ("none", "config-only", "operations")
-COMPANION_URL_RE = re.compile(
-    r"://|^\s*www\.|[\w-]+\.(?:com|org|net|io|dev|app)(?:\s|$|/)",
-    re.IGNORECASE,
-)
+COMPANION_UI_ID_RE = re.compile(r"UI-[A-Z0-9-]+", re.IGNORECASE)
+COMPANION_RELEASE_TARGET_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)+")
+COMPANION_URL_TLDS = frozenset({"com", "org", "net", "io", "dev", "app"})
+MAX_COMPANION_LENGTH = 200
 CONSOLE_JOURNEY_KEYWORDS = (
     ("config", "configuration"),
     ("run", "run inspection"),
@@ -961,7 +961,20 @@ def _validate_ambition(prd_text: str, *, require_filled: bool, problems: list[st
             _add(problems, "prd", "Access must contain at least one row")
 
 
-def _parse_shape_row(value: str) -> dict[str, str] | None:
+def _companion_looks_like_url(value: str) -> bool:
+    if "://" in value:
+        return True
+    tokens = re.split(r"[\s/]+", value.strip())
+    if tokens[0].casefold().startswith("www."):
+        return True
+    for token in tokens:
+        head, _, tail = token.casefold().rpartition(".")
+        if head and tail in COMPANION_URL_TLDS:
+            return True
+    return False
+
+
+def _parse_shape_row(value: str, *, problems: list[str]) -> dict[str, str] | None:
     fields: dict[str, str] = {}
     for part in value.split(";"):
         part = part.strip()
@@ -971,7 +984,16 @@ def _parse_shape_row(value: str) -> dict[str, str] | None:
         key = key.strip().casefold()
         if not separator or not key or any(character.isspace() for character in key):
             return None
+        if key in fields:
+            _add(problems, "prd", f"At a Glance Shape row repeats the {key!r} value")
         fields[key] = cell.strip()
+    for key in sorted(set(fields) - set(SHAPE_FIELD_KEYS)):
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape row accepts only the track, companion and console "
+            f"keys, not {key!r}",
+        )
     return fields
 
 
@@ -1047,6 +1069,8 @@ def _validate_shape_row(
     prd_text: str,
     *,
     test_rows: list[tuple[str, ...]],
+    ui_surface_ids: set[str],
+    release_target_ids: set[str],
     require_filled: bool,
     problems: list[str],
 ) -> dict[str, str] | None:
@@ -1063,7 +1087,7 @@ def _validate_shape_row(
     )
     if shape_value is None:
         return None
-    fields = _parse_shape_row(shape_value)
+    fields = _parse_shape_row(shape_value, problems=problems)
     if fields is None:
         _add(
             problems,
@@ -1097,7 +1121,14 @@ def _validate_shape_row(
         if companion
         else None
     )
-    if companion and none_companion is None and COMPANION_URL_RE.search(companion):
+    if len(companion) > MAX_COMPANION_LENGTH:
+        _add(
+            problems,
+            "prd",
+            "At a Glance Shape companion must be at most "
+            f"{MAX_COMPANION_LENGTH} characters, not {len(companion)}",
+        )
+    elif companion and none_companion is None and _companion_looks_like_url(companion):
         _add(
             problems,
             "prd",
@@ -1125,7 +1156,7 @@ def _validate_shape_row(
                         "agent track with companion none requires a reason in parentheses",
                     )
             elif not (
-                re.fullmatch(r"UI-[A-Z0-9-]+", companion, re.IGNORECASE)
+                COMPANION_UI_ID_RE.fullmatch(companion)
                 or "doc" in companion.casefold()
             ):
                 _add(
@@ -1133,6 +1164,25 @@ def _validate_shape_row(
                     "prd",
                     f"agent track companion {companion!r} must name a docs surface",
                 )
+        if companion and none_companion is None:
+            if COMPANION_UI_ID_RE.fullmatch(companion):
+                if companion.upper() not in {
+                    surface.upper() for surface in ui_surface_ids
+                }:
+                    _add(
+                        problems,
+                        "prd",
+                        "At a Glance Shape companion names unknown UI surface "
+                        f"{companion!r}",
+                    )
+            elif COMPANION_RELEASE_TARGET_RE.fullmatch(companion):
+                if companion not in release_target_ids:
+                    _add(
+                        problems,
+                        "prd",
+                        "At a Glance Shape companion names unknown release target "
+                        f"{companion!r}",
+                    )
         if console == "operations":
             _validate_console_journeys(prd_text, test_rows, problems=problems)
     return fields
@@ -2867,6 +2917,8 @@ def validate_texts(
     shape_fields = _validate_shape_row(
         prd_text,
         test_rows=test_rows,
+        ui_surface_ids=set(ui_surfaces),
+        release_target_ids={target.target_id for target in release_contract.targets},
         require_filled=require_filled,
         problems=problems,
     )

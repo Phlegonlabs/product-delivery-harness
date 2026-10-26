@@ -600,5 +600,96 @@ class AppCompanionSeoTests(unittest.TestCase):
         )
 
 
+class CompanionValueTests(unittest.TestCase):
+    def validate(self, prd: str, *, architecture: str | None = None) -> list[str]:
+        return validate_shape_package(prd, architecture=architecture)
+
+    def test_companion_length_is_bounded(self) -> None:
+        findings = self.validate(
+            shaped_prd("track: web; companion: " + "A" * 201 + "; console: none")
+        )
+        self.assertTrue(any("200 characters" in item for item in findings), findings)
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: web; companion: " + "A" * 200 + "; console: none"))
+        )
+
+    def test_url_shaped_companions_are_still_rejected(self) -> None:
+        for companion in (
+            "https://fixture.example.com",
+            "www.fixture.com",
+            "Fixture page at example.com",
+            "docs.example.com/dev",
+            "see example.io/",
+            "Fixture.app suite",
+        ):
+            with self.subTest(companion=companion):
+                findings = self.validate(
+                    shaped_prd(f"track: web; companion: {companion}; console: none")
+                )
+                self.assertTrue(
+                    any("URL-free surface name" in item for item in findings), findings
+                )
+
+    def test_duplicate_shape_keys_are_rejected(self) -> None:
+        findings = self.validate(
+            shaped_prd(
+                "track: web; companion: Fixture landing page; "
+                "console: none; console: operations"
+            )
+        )
+        self.assertTrue(
+            any("repeats the 'console' value" in item for item in findings), findings
+        )
+
+    def test_unknown_shape_keys_are_rejected(self) -> None:
+        findings = self.validate(
+            shaped_prd(
+                "track: web; companion: Fixture landing page; "
+                "console: none; tone: playful"
+            )
+        )
+        self.assertTrue(
+            any(
+                "accepts only the track, companion and console keys" in item
+                for item in findings
+            ),
+            findings,
+        )
+
+    def test_companion_ui_surface_must_exist(self) -> None:
+        findings = self.validate(shaped_prd("track: web; companion: UI-009; console: none"))
+        self.assertTrue(
+            any("unknown UI surface 'UI-009'" in item for item in findings), findings
+        )
+        with_contract = shaped_prd(
+            "track: web; companion: UI-001; console: none"
+        ) + ui_contract()
+        self.assertFalse(
+            any("unknown UI surface" in item for item in self.validate(with_contract)),
+            self.validate(with_contract),
+        )
+
+    def test_companion_release_target_must_exist(self) -> None:
+        findings = self.validate(
+            shaped_prd("track: web; companion: web-production; console: none")
+        )
+        self.assertTrue(
+            any("unknown release target 'web-production'" in item for item in findings),
+            findings,
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                shaped_prd("track: web; companion: web-production; console: none"),
+                architecture=release_architecture(),
+            ),
+        )
+
+    def test_free_form_companion_names_need_no_registry(self) -> None:
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: web; companion: Fixture landing page; console: none"))
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
