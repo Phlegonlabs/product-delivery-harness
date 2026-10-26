@@ -253,6 +253,8 @@ The old candidate enters `integration.prior_head_shas`; mission/task completion 
 
 This recovery accepts a concrete `fix_required` or `retryable_failure` verifier result, or an integration review's `fix_required` result. A `contract_gap` or an unexplained `blocked` result is not a repair grant. An inactive routed integration review already marked `skipped` cannot carry an old candidate's tree proof forward; candidate reconciliation refuses that unsupported graph shape without changing RUN. Resolve it through the formal refinement boundary.
 
+After the targeted re-check, remaining findings enter the Isolated Repair Protocol in `verification-gates.md`: record each scoped review with `record-review-attempt --scoped` and bind each repair's path list with `reconcile-candidate-head --repair-path`; a scoped review does not consume the review node's attempts.
+
 ## Mid-Run Modification Recording
 
 The drift rules above fire at resume; the same duty applies while the run is live. Un-checkpointed work of an existing task is drift and stays with that task under the rules above; review-driven repair likewise stays inside the mission it repairs, as a new attempt on the same work. Everything else that appears during the run — an extra fix, a follow-up edit, or a change the user reports mid-run — is new content, never folded into a mission that happens to be nearby.

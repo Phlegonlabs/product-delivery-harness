@@ -18,7 +18,7 @@ Use the smallest reliable proof first:
 3. Run affected task and worker checks from parent-observed changed files.
 4. Integrate serially into the resolved integration branch; run the mission integration surface and only real cross-mission checks, with seam verifiers selected from the merge diff.
 5. Run one combined review on the unified head.
-6. Make one consolidated repair and one targeted re-check.
+6. Make one consolidated repair and one targeted re-check; after the re-check, remaining defects enter the Isolated Repair Protocol.
 7. Fix the candidate SHA, then run one planned broad regression, browser E2E, and visual/UI validation suite on that head.
 8. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
 9. If deterministic checks are impossible, use structured review and name residual risk.
@@ -36,7 +36,7 @@ One reviewer per candidate. Parallel reviewers on one candidate or surface group
 
 Finding triage. A reviewer separates blocking findings from non-blocking notes. A blocking finding is a defect against accepted scope, a TEST obligation, security, or correctness. A non-blocking note is style, decorative wording, a suggestion, or backlog. Only blocking findings produce `fix_required`; a PASS records notes through `record-review-attempt --note`, and the notes go to the backlog or the Epic. Security findings of severity critical/high are always blocking.
 
-Make one consolidated repair, then one targeted re-check on the new SHA. The security lens re-binds to the new SHA with full scope. A failed re-check stops at `blocked`.
+Each candidate stage gets at most two independent review passes: the initial review and one targeted re-check. Make one consolidated repair, then one targeted re-check on the new SHA. The security lens re-binds to the new SHA with full scope. After the re-check, every remaining or newly found defect enters the Isolated Repair Protocol; no owner decision opens another full review round.
 
 Re-check scope. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>` with its name-status list and diff. The reviewer returns a verdict per prior finding (resolved / unresolved / superseded) and inspects the repair range and its direct consumers. The security lens stays at full scope. Anything else is a note, unless it is a validated security finding or a correctness defect inside the repair range.
 
@@ -51,6 +51,22 @@ Security lens applicability. On the direct route, the security lens is required 
 Review count budget. Record the planned review points for the round: reviewer dispatches, not self-checks. Give the reason for each point beyond one combined review plus one re-check.
 
 `review_policy: per_mission`, which an absent field means on older plans, or an owner request or recorded high-impact risk, adds exact-head pre-integration reviews. Only then do the tree-identical and merge-chain skips below apply. Security never skips and never reuses.
+
+## Isolated Repair Protocol
+
+Each candidate stage gets one initial review and one targeted re-check. After the re-check, every remaining or newly found defect enters this protocol instead of another global review. No owner decision opens another full review round.
+
+Scope-bound carry-forward. When an isolated repair earns a scoped PASS, the prior candidate PASS carries forward for every path the repair did not touch, and the scoped PASS re-binds the candidate PASS for the repaired paths and their direct consumers. This extends the scope-disjoint rule above to code paths on both routes: the scoped PASS is the new evidence for the repaired paths. Record the origin PASS SHA, the repair path list, and the scoped PASS; never relabel the carried-forward PASS as a fresh full review.
+
+One finding family becomes one bounded repair task:
+
+1. The author fixes the family and runs the focused verifier selected from the changed files. The pre-review repair gate above applies to this evidence before any review.
+2. One scoped review covers the repair diff. The reviewer receives only the finding, the repair diff, and its direct consumers; the parent renders that packet with `render_review_packet.py --repair-scope`.
+3. The security lens joins the scoped review only when the diff touches a trust boundary named in the PRD Security Requirements, or an auth, session, secrets, data access, dependency, CI, or infrastructure path. Otherwise the scoped review records `security: not_applicable (scoped repair outside trust boundaries)` with the changed path list.
+4. A scoped PASS re-binds the candidate PASS under the scope-bound carry-forward above. Record the origin PASS SHA, the repair path list, and the scoped PASS.
+5. No full-scope re-review follows a scoped PASS. No Final UI Acceptance rerun happens unless the repair touches a UI surface, and then only that surface's matrix entries are recaptured and rechecked.
+6. A scoped review does not consume the review node's attempts. Managed runs record it with `record-review-attempt --scoped`.
+7. The broad regression and E2E suite runs once per candidate at the end. A failure there is an isolated repair; rerun only the failing suites plus the changed-file selection, never the whole suite.
 
 ## Gate Levels
 
@@ -115,7 +131,7 @@ Fresh integration review gate:
 - Under `per_mission`, skip the dispatch when the integration head's tree is byte-identical to a tree a pre-integration review of the same review type already passed: the head is literally that reviewed commit, or it is a merge commit whose recorded `integration.integration_tree_sha` equals that review's recorded `review_workers[].tree_sha`. Record the node as `skipped`; the validator rejects that phase unless the matching PASS exists on that exact SHA or an identical tree. Run `python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> skip-integration-review --node-id <id> --worker-id <id>` for the live-Git tree check and skip record. `record-review-attempt --tree-sha <sha>` persists the reviewed tree on PASS; the global `--repo-root <root>` before that subcommand can derive it from Git.
 - Under `per_mission`, a `frontend_code` or `backend_code` review also skips when the head is a merge chain of reviewed heads. Omit `--worker-id` from the same command; it walks first parents from the head and records `integration.reviewed_merge_chain`. Each link is a clean automatic merge of an exact mission head that passed every planned pre-integration review of its mission. That side changes only its mission's write scope, and the linked write scopes do not overlap. The walk ends at a reviewed head or at a base that every reviewed head contains. A conflict, a manual merge edit, an overlapping scope, an unreviewed head or commit, or a missing proof means the review runs. A `visual` review judges the rendered head, so only the tree-identical skip applies to it. Security review never skips.
 - Otherwise the review runs. Under `per_mission` the packet lists the already-reviewed mission heads and the pass focuses on what the combination changed; under `final_candidate` it reads the whole candidate diff.
-- A repair changes the candidate SHA and invalidates current integration-stage PASS coverage. Historical reviews keep their original SHA; never relabel an old PASS as new evidence.
+- A repair changes the candidate SHA and invalidates current integration-stage PASS coverage for the repaired paths; the Isolated Repair Protocol re-binds them with a scoped PASS. Historical reviews keep their original SHA; never relabel an old PASS as new evidence.
 
 Final/current-head gate:
 
@@ -123,7 +139,7 @@ Final/current-head gate:
 - Covers every `platform-delivery/1` TEST ID. Extra required shared-regression tests are allowed. Every annotated feature gate runs fresh on the exact integration head.
 - Binds every PASS to the exact integration head. Any later code or configuration change invalidates the affected proof.
 - Focused task, worker, and integration checks are not this broad suite. Plan the suite as cross-cutting checks that only the whole candidate can answer — build, browser E2E, migration, UI evidence — rather than a rerun of every focused suite already green on the same code. A gate that only re-executes a mission's own unit tests on an unchanged tree is repeated work; either give it changed-file selection against the plan write union, or drop it and rely on the task and worker gates that already covered it.
-- If the broad suite fails or a repair changes the candidate, run the one targeted re-check on the new candidate before rerunning it; do not claim an exactly-once history when the candidate changed.
+- The broad suite runs once per candidate. If it fails, that failure enters the Isolated Repair Protocol: rerun only the failing suites plus the changed-file selection, not the whole suite.
 - Delivery ends on this local evidence. The harness never waits for remote CI or remote review.
 - Harness 0.38+ closes this gate locally at candidate C and performs no RUN push. Archive and publication follow `branch-promotion-contract.md#managed-run-archive-before-promotion`.
 
@@ -307,7 +323,7 @@ Record accepted deviations in the RUN `deviation_ledger`. Every `deviation` diff
 
 Static screenshots never close a motion change. When a mission's diff touches transition, animation, duration, easing, or generated motion assets, its parity evidence adds a motion check row: the authority from `ui-design.md`'s Motion and Media Intent (plus its registered variant or approved target behavior), what the reviewer confirmed in normal and reduced motion, and the verdict. A motion change with no authority citation routes to `ui-design-builder` instead of passing on still images.
 
-Repair cycle: a missing element, a structural difference, or any difference outside the recorded tolerance is not a `pass`. Repair the surface, recapture the affected matrix entries, and rebind the evidence to the new integration head SHA. A parity repair is an ordinary candidate-changing repair: it invalidates the final-gate PASS and every integration-stage PASS whose scope intersects the repair diff. The loop uses the one repair and re-check from `gen-verify-correct.md`; it does not add attempts on top of that budget. After a failed re-check, report the remaining differences as-is; never widen the tolerance or relabel an unresolved difference to close the run. Screenshots from an older head or placeholder images never satisfy the loop.
+Repair cycle: a missing element, a structural difference, or any difference outside the recorded tolerance is not a `pass`. Repair the surface, recapture the affected matrix entries, and rebind the evidence to the new integration head SHA. A parity repair is an ordinary candidate-changing repair. The loop uses the one repair and re-check from `gen-verify-correct.md`; it does not add attempts on top of that budget. After a failed re-check, remaining differences enter the Isolated Repair Protocol: a scoped repair recaptures and rechecks only the affected surface's matrix entries, and no full-scope re-review follows; never widen the tolerance or relabel an unresolved difference to close the run. Screenshots from an older head or placeholder images never satisfy the loop.
 
 #### Final Page-Quality Pass
 
@@ -395,7 +411,7 @@ Early controls and negative tests are development evidence, not a substitute for
 
 The security reviewer is read-only, never delegates, and reports all validated findings in one pass. It receives no write scope, commit authority, scanner-install permission, network permission, or live-target penetration authority. Optional local scanners may add evidence; a required but unavailable scanner, advisory source, or independent reviewer blocks the gate rather than producing a partial PASS. Completion passes the result as `--security-result`; the transition validates and retains its exact review type, decision, SHA, base, scope, exclusions, trust boundaries, tools, coverage, findings, and evidence. A security PASS must have an empty `exclusions` list; the current contract does not allow a PASS with narrowed or omitted coverage.
 
-A security review is not eligible for `skip-integration-review`, even when a pre-integration code review covered a byte-identical tree. The unified security pass evaluates cross-mission trust boundaries and security-specific source-to-sink paths from a fresh context. PASS binds to the exact current integration SHA and declared scope. Any repair creates a new candidate and invalidates the security result and all downstream final-gate evidence. The one targeted re-check re-binds the security lens to the new SHA with full scope; no second security reviewer is dispatched before final validation.
+A security review is not eligible for `skip-integration-review`, even when a pre-integration code review covered a byte-identical tree. The unified security pass evaluates cross-mission trust boundaries and security-specific source-to-sink paths from a fresh context. PASS binds to the exact current integration SHA and declared scope. The one targeted re-check re-binds the security lens to the new SHA with full scope; no second security reviewer is dispatched before final validation. After the re-check, a repair follows the Isolated Repair Protocol: its scoped review joins the security lens only when the repair diff crosses a trust boundary; otherwise it records `security: not_applicable (scoped repair outside trust boundaries)`.
 
 Security reservation and completion recheck the live integration checkout before accepting the attempt: the exact integration branch and HEAD, clean status (allowing only the exact tracked RUN exception), and ancestry from the current batch base. A mismatch blocks the attempt. Required security nodes cannot be skipped, superseded, or replaced at closeout; a missing, skipped, stale, partial, blocked, or superseded security result prevents final PASS.
 
@@ -406,7 +422,7 @@ A covered parent-side repair uses the existing declared task and `reconcile-cand
 Alternatively, predeclare the [optional repair-only mission](graph-orchestration.md#optional-repair-only-mission) before execution.
 A first-review PASS leaves that untouched mission dormant; it does not block closeout.
 A `fix_required` activates its single bounded repair, followed by normal result recording, integration and one targeted recheck.
-A failed recheck stops; never reset attempts, hide the finding or dispatch another repair automatically.
+A failed recheck routes remaining findings into the Isolated Repair Protocol; never reset attempts or hide a finding.
 Both routes review the actual repaired unified SHA with complete security scope.
 
 ## Failure Handling
