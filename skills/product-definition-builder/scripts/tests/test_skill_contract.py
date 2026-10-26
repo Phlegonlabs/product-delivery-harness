@@ -287,6 +287,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("| Shape | track: web / app / agent; companion:", contract)
         self.assertIn("## Growth Contract", contract)
         self.assertIn("`Owner stage` is `delivery`, `activation`, `gtm` or `seo`", contract)
+        self.assertIn("within Day 0 to Day 7 inclusive", contract)
         stage = self.read(STAGE)
         self.assertIn("Record the At a Glance Shape row and the `## Growth Contract` before Product Definition Approval", stage)
         refinement = self.read("references/prd-refinement.md")

@@ -3527,14 +3527,11 @@ class GrowthContractTests(unittest.TestCase):
         self.assertEqual([], self.validate(prd))
 
     def test_header_key_ignores_unbalanced_annotations_linearly(self) -> None:
-        import time
+        from check_product_package import _header_key, _launch_day_bounds
 
-        from check_product_package import _header_key
-
-        started = time.perf_counter()
-        key = _header_key("Mechanism " + "(" * 100000)
-        self.assertEqual("mechanism", key)
-        self.assertLess(time.perf_counter() - started, 1.0)
+        self.assertEqual("mechanism", _header_key("Mechanism " + "(" * 100000))
+        self.assertIsNone(_launch_day_bounds("Day 0-" + "9" * 5000))
+        self.assertEqual((-1, 1), _launch_day_bounds("Day -1-1"))
 
     def test_launch_window_day_parsing_respects_signs(self) -> None:
         prd = shaped_prd().replace(

@@ -562,11 +562,19 @@ class AppCompanionSeoTests(unittest.TestCase):
                 )
 
     def test_unrelated_exclusion_words_do_not_cancel_a_seo_obligation(self) -> None:
-        seo_line = "- SEO: required; indexing exceptions: none."
-        findings = self.validate(frontend_delivery_prd(APP_NONE_SHAPE, seo_line))
-        self.assertTrue(
-            any("needs a companion public surface" in item for item in findings),
-            findings,
+        for seo_line in (
+            "- SEO: required; indexing exceptions: none.",
+            "- SEO: required, indexing exceptions: none.",
+            "- " + "SEO required " * 20000 + "sitemap.",
+        ):
+            with self.subTest(seo_line=seo_line[:40]):
+                findings = self.validate(frontend_delivery_prd(APP_NONE_SHAPE, seo_line))
+                self.assertTrue(
+                    any("needs a companion public surface" in item for item in findings),
+                    findings,
+                )
+        self.assertEqual(
+            [], self.validate(frontend_delivery_prd(APP_NONE_SHAPE, "- Not required: SEO."))
         )
 
     def test_frontend_seo_obligation_still_requires_a_companion(self) -> None:

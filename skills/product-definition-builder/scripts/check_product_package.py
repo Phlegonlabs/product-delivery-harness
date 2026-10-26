@@ -464,6 +464,14 @@ AEO_SEO_RE = re.compile(r"\bAEO\b|\bSEO\b", re.IGNORECASE)
 EXCLUDED_OBLIGATION_RE = re.compile(
     r"not_required|not required|n/a|none", re.IGNORECASE
 )
+# An exclusion counts only when it is attached to the keyword itself, as a
+# status after it (`SEO: none`, `SEO obligations: n/a`, `SEO is not required`)
+# or a prefix before it (`Not required: SEO`). Bounded gaps keep the scan linear.
+EXCLUDED_AEO_SEO_RE = re.compile(
+    r"\b(?:AEO|SEO)\b(?:\s+obligations?)?\s*(?::|-|—|is|are)?\s*(?:not_required|not required|n/a|none)\b"
+    r"|\b(?:not_required|not required|no|n/a)\s*(?::|for)?\s*(?:AEO|SEO)\b",
+    re.IGNORECASE,
+)
 GROWTH_NORTH_STAR_HEADER = (
     "track",
     "north star",
@@ -1022,12 +1030,8 @@ def _prd_requires_aeo_seo(
     if frontend is None:
         return False
     for line in frontend.splitlines():
-        for match in AEO_SEO_RE.finditer(line):
-            # The exclusion must sit in the obligation's own clause, which ends
-            # at the next semicolon or sentence stop, not anywhere on the line.
-            clause = re.split(r"[;.]", line[match.end():], maxsplit=1)[0]
-            if not EXCLUDED_OBLIGATION_RE.search(clause):
-                return True
+        if AEO_SEO_RE.search(line) and not EXCLUDED_AEO_SEO_RE.search(line):
+            return True
     return False
 
 
@@ -1216,8 +1220,11 @@ def _launch_day_bounds(cell: str) -> tuple[int, int] | None:
     match = LAUNCH_DAY_CELL_RE.fullmatch(cell.strip())
     if not match:
         return None
-    lower = int(match.group("lower"))
-    upper = int(match.group("upper")) if match.group("upper") is not None else lower
+    try:
+        lower = int(match.group("lower"))
+        upper = int(match.group("upper")) if match.group("upper") is not None else lower
+    except ValueError:
+        return None
     if upper < lower:
         return None
     return lower, upper
