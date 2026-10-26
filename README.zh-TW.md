@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.70.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.71.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -89,17 +89,17 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 | Skill | 負責範圍 |
 | --- | --- |
-| `product-definition-builder` | 含 `## Ambition` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
+| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html` |
 | `delivery-harness` | 範圍路由、授權、任務、整合、驗證，以及需要時的 PLAN/RUN |
 | `code-security-review` | 準確候選的安全維度：findings、工具、覆蓋與 exclusions |
-| `product-activation` | `docs/ACTIVATION.md`、外部設定、行為證明與量測交接 |
-| `seo-growth-review` | Production SEO 與自然流量證據；預設直接回覆，明確要求時才另存報告 |
+| `product-activation` | `docs/ACTIVATION.md`、外部設定、行為證明、量測交接與 `aso-and-store-launch`、`agent-directory`、`geo-readback` profile |
+| `seo-growth-review` | Production SEO 與自然流量證據；預設直接回覆，明確要求時才另存報告，另含 `pre_launch` 模式與 Day 7、Day 30 的 `growth_review` 讀回 |
 
 ## 獨立 skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗。[GTM Content](standalone-skills/gtm-content/SKILL.md) 準備各渠道草稿、素材與日曆。
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗，並草擬 Launch Reach Plan。[GTM Content](standalone-skills/gtm-content/SKILL.md) 準備各渠道草稿、素材、日曆與附兩個 hook 的各渠道變體。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 用實際展示編寫專案 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 驗證 release artifact 與使用者安裝路徑。
 
@@ -109,7 +109,7 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 ```mermaid
 flowchart LR
-  Product["Product Definition 與 Ambition、owner 批准"] --> UI["UI 方向與完整 HiFi"] --> Design["Visual Approval 與必要設計系統 pair"]
+  Product["Product Definition 與 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向與完整 HiFi"] --> Design["Visual Approval 與必要設計系統 pair"]
   Product -->|"無 UI，或限域增強或維護"| Harness["Direct 或 managed 交付"]
   Design --> Harness
   Harness --> Review["最終 SHA 的一次合併 review"] --> Tests["一次 broad final validation"] --> C["固定候選 C"]
@@ -136,7 +136,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 
 | 階段 | 預設 review 與停止條件 |
 | --- | --- |
-| Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。套件保有兩次 review 預算——一次初審與一次定向複查——之後的缺陷走隔離修復加 scoped review。 |
+| Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。At a Glance 的 `Shape` 列宣告 track、companion 介面與 console，交由 checker 驗證；`## Growth Contract` 記錄 north star、再觸及、discovery surfaces 與 launch window。套件保有兩次 review 預算——一次初審與一次定向複查——之後的缺陷走隔離修復加 scoped review。 |
 | 方向 | 原作者先檢查並修復已渲染的研究，再交 owner 選擇。三個研究；修改只新增一個所選方向的修訂研究與一次決定，拒絕才重做整組。 |
 | HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。一次診斷 wave、一批集中修復與一次受影響範圍複查。保留必要瀏覽器覆蓋、Impeccable `critique` **與** `audit`、四捨五入的 H1–H9 總平均 **至少 85** 及每項 **至少 80**，再取得 Visual Approval。未變證據連同身分沿用。此階段保有同樣的兩次 review 預算；之後的缺陷走隔離修復，並對修復差異做 scoped review。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），findings 分為 blocking 與 notes，另加一次定向複查。複查後每個剩餘或新缺陷各成一筆有界修復，附自己的聚焦 verifier，並只對修復差異做 scoped review（finding、修復差異、直接消費者）；差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑，scoped review 不佔用 attempt 預算。除非修復碰到 UI 頁面，否則不重跑 Final UI Acceptance，碰到時只重跑該頁面；broad final validation 每個候選於最後跑一次。環境受阻的 attempt 不佔用預算。 |
@@ -209,6 +209,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.71.0** — 每個專案都明確宣告自己的形狀：PRD At a Glance 新增 `Shape` 列，寫明 track、companion 公開介面與 console 類型，`## Growth Contract` 記錄 north star 與 Day 7、Day 30 目標、再觸及機制、discovery surfaces 與 launch window。各 track 的必要 UI 介面與交付基礎、`agentic-operations-console` 架構 profile，以及 store launch、agent directory 與 GEO 讀回的 activation profile，把流程從 web 延伸到 app 與 agent 產品。`seo-growth-review` 新增 `pre_launch` 模式與 Day 7、Day 30 的 `growth_review` 讀回並餵給下一輪 PRD delta，go-to-market 草擬 Launch Reach Plan，GTM Content 把一份源內容打包成各渠道變體並附兩個 hook。
+
 - **0.70.0** — 每個候選階段保有兩次 review 預算：一次初審與一次定向複查；須 owner 授權的額外輪次與後繼 review node 移除。複查後每個剩餘或新缺陷各成一筆隔離修復，附自己的聚焦 verifier，並只對修復差異做 scoped review——差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑、既有 PASS 沿用，broad final validation 每個候選於最後跑一次。managed 路線記錄修復範圍與 scoped PASS，owner 選擇的 `mvp` delivery profile 把小型專案或一週 MVP 壓縮到最多四個 owner gate。
 
 - **0.69.0** — Discovery 追加第四個 Ambition 段落，`PRD.md` 新增 `## Ambition` 與 Metrics 的 `Stretch` 欄，PRD 各輪不再累加到同一份檔案：每輪發布與其 Epic 對齊的 delta。Epic 紀錄其 delta 與 ambition rung，PLAN 凍結 `prd-delta` 來源，範圍檢查把 mission trace 綁到所屬 delta 的需求 ID。
@@ -216,7 +218,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.68.0** — review findings 分為 blocking 缺陷與非 blocking notes：只有 blocking findings 觸發修復，複查只在修復範圍內驗證原 findings，安全維度保持完整範圍。環境受阻的 review attempt 不再佔用 attempt 預算，修復須附作者的 verifier PASS 才會進複查，非可執行差異改記 `security: not_applicable` 而非 `UNVALIDATED`。範圍不相交而沿用的 PASS 保留原始 SHA，超出一次合併 review 加一次複查的 review 點須記錄理由。
 
 - **0.67.0** — 七個核心與四個獨立 skills 都改為明確呼叫才啟動。Harness 分流、文件同步與 Epic 紀錄只適用於已呼叫的工作。保留必要檢查與依賴，不自動啟動下一個頂層階段。
-
-- **0.66.0** — 從 PRD、UI 到交付減少重複 review 輪次，保留 85／80、Impeccable、Visual Approval 與精確 SHA 安全審查。Mission 以功能批次規劃，每個只派一位合併面向的 reviewer；只有證明乾淨的 merge chain 才略過程式整合審查。候選的所有 review 回來後一次修復，複查只看修復範圍。HiFi 複查限於修復清單並沿用未變紀錄，修改方向只新增一份研究，PRD 檢查提早擋下無法到達的畫面和沒有出口的狀態。每個 RUN 與設計輪固定一個 Harness 合約，未觀察身分每個 session 只記一次，改載入簡短入口清單。修正 retention 假缺陷與整合紀錄的 commit 邊界競態，並發布 AgentKiosk 的 compiler、狀態覆蓋、role-policy 與 ingestion 改動。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
