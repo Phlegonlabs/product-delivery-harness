@@ -32,7 +32,7 @@ Every final-phase question carries a skip rule, so ask only what remains applica
 
 ## Segmented Free-Text Sequence
 
-For a fresh package, use exactly four planned free-text turns. Ask only one segment per turn, end the turn, and wait for the reply. Before sending the next segment, remove prompts that the user's request, repository, existing package, or earlier replies already answer or make inapplicable. If a reply answers a later segment early, carry it forward instead of repeating it.
+For a fresh package, use four planned free-text turns. Under `Delivery profile: mvp`, an owner speed request compresses them into two turns: Segments 1+2, then 3+4. Ask only one segment per turn, end the turn, and wait for the reply. Before sending the next segment, remove prompts that the user's request, repository, existing package, or earlier replies already answer or make inapplicable. If a reply answers a later segment early, carry it forward instead of repeating it.
 
 The short prompts below are the user-facing interview. Do not paste the longer **Question Routing Reference** as a questionnaire; use it only to interpret answers, detect gaps, and prepare concise follow-ups. Segment 1 must tell the user that applicable multiple-choice decisions follow after the open-ended sequence. No `AskUserQuestion` call may interrupt these segments.
 
