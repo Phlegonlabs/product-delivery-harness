@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.69.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.70.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -124,7 +124,7 @@ Initial UI requires design and all applicable self-reviews before Harness execut
 
 The rules below apply within explicitly requested skill workflows.
 
-The delivery core makes one size decision: one writer and one coherent verification sequence stay direct. Independent writable missions, durable handoff or a bounded correction graph use PLAN/RUN. Missions are feature batches; fine tasks keep their own atomic commits.
+The delivery core makes one size decision: one writer and one coherent verification sequence stay direct. Independent writable missions, durable handoff or a bounded correction graph use PLAN/RUN. Missions are feature batches; fine tasks keep their own atomic commits. An owner-selected `Delivery profile: mvp` compresses a small project or one-week MVP: stack and product approval in one owner call, HiFi for required surfaces, one combined delivery review with Final UI Acceptance folded in, and at most four owner gates; evidence, security and data-safety rules stay unchanged.
 
 - [Entry and handoff](skills/delivery-harness/references/governance/task-and-handoff.md): inspect current instructions and sources; unknown loaded identity stays unknown.
 - [Delegation](skills/delivery-harness/references/delegation-contract.md): agent configuration and AGENTS choose executors, models, effort and fallback. One writer owns each checkout; assigned workers never delegate.
@@ -136,14 +136,14 @@ Before every handoff, check source hashes, the Epic record and document consiste
 
 | Stage | Default review and stop condition |
 | --- | --- |
-| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. Discovery asks an Ambition segment, `PRD.md` holds `## Ambition`, and each PRD round publishes a delta aligned with its Epic. |
+| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. Discovery asks an Ambition segment, `PRD.md` holds `## Ambition`, and each PRD round publishes a delta aligned with its Epic. The package holds a two-review budget — one initial review and one targeted re-check — and later defects become isolated repairs with a scoped review. |
 | Directions | The same author checks and repairs rendered studies before owner selection. Three studies; the owner chooses. A modification adds one revised selected study and decision; rejection starts a new set. |
-| HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. |
-| Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA (real browser for UI), triaged into blocking findings and notes. One repair gets one scoped re-check of prior findings and the repair range; security stays at full scope. Environment-blocked attempts do not spend the budget; a failed re-check stops at `blocked`. |
+| HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. The stage holds the same two-review budget; later defects become isolated repairs with a scoped review of the repair diff. |
+| Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA (real browser for UI), triaged into blocking findings and notes, plus one targeted re-check. After the re-check, each remaining or new defect becomes one bounded repair with its own focused verifier and a scoped review of the repair diff only (finding, repair diff, direct consumers); the security lens joins when the diff touches a trust boundary, a scoped PASS re-binds the repaired paths, and scoped reviews do not consume review attempts. No Final UI Acceptance rerun unless the repair touches a UI surface, then only that surface; the broad final validation runs once per candidate at the end. Environment-blocked attempts do not spend the budget. |
 | Release | One owner instruction may name several exact release actions. Archive-only A and tree-equal server main S inherit verified evidence under the rules below. A changed tree is a new candidate. |
 | Activation | Verify authorization, independent readback and applicable behavior for each release target; preparation and production readiness remain separate. |
 
-A missing `review_policy` retains legacy `per_mission` behavior. Preserve frozen PLAN/RUN pins and historical approvals; never reset consumed attempts by renaming a node. A further review attempt needs the recorded explicit owner decision. Security is mandatory for executable diffs; without it report `UNVALIDATED`, never PASS. A docs, copy, Epic, evidence or bookkeeping-only diff records `security: not_applicable (<reason>)` with the path list. A scope-disjoint carried PASS keeps its origin SHA and is never relabeled fresh. The first HiFi pass covers every audit axis. Its re-review repeats critique and audit on affected pages and states while retaining the full evidence matrix.
+A missing `review_policy` retains legacy `per_mission` behavior. Preserve frozen PLAN/RUN pins and historical approvals; never reset consumed attempts by renaming a node. Past the two-review budget, remaining defects get isolated repairs with a scoped review of each repair diff; there is no extra review round. Security is mandatory for executable diffs; without it report `UNVALIDATED`, never PASS. A docs, copy, Epic, evidence or bookkeeping-only diff records `security: not_applicable (<reason>)` with the path list. A scope-disjoint carried PASS keeps its origin SHA and is never relabeled fresh. The first HiFi pass covers every audit axis. Its re-review repeats critique and audit on affected pages and states while retaining the full evidence matrix.
 
 Impeccable remains mandatory for HiFi, but is not the default read-only implementation reviewer. Its workflow needs separate authorization for subagents, browser/server activity, snapshot writes and optional downloads. Product, stack, direction and Visual Approval decisions stay with their owners.
 
@@ -209,6 +209,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.70.0** — Each candidate stage keeps a two-review budget: one initial review and one targeted re-check; the owner-authorized extra round and successor review nodes are gone. After the re-check, each remaining or new defect becomes one isolated repair with its own focused verifier and a scoped review of the repair diff only — security joins at trust boundaries, a scoped PASS re-binds the repaired paths, prior PASSes carry forward, and the broad final validation runs once per candidate at the end. The managed route records repair scopes and scoped PASSes, and an owner-selected `mvp` delivery profile compresses a small project or one-week MVP to at most four owner gates.
+
 - **0.69.0** — Discovery asks a fourth Ambition segment, `PRD.md` gains `## Ambition` with a Metrics `Stretch` column, and PRD rounds stop stacking into one cumulative file: each round publishes a delta aligned with its Epic. The Epic records its delta and ambition rung, the PLAN freezes a `prd-delta` source, and a scope checker binds mission traces to the bound delta's requirement IDs.
 
 - **0.68.0** — Triage review findings into blocking defects and non-blocking notes: only blocking findings force repair, and the re-check verifies prior findings over the repair range with security at full scope. Environment-blocked review attempts no longer spend the attempt budget, repairs reach the reviewer only with the author's verifier PASS, and non-executable diffs record `security: not_applicable` instead of `UNVALIDATED`. A scope-disjoint carried PASS keeps its origin SHA, and review points beyond one combined review plus one re-check need a recorded reason.
@@ -216,7 +218,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.67.0** — Require an explicit request for all seven core skills and four standalone skills. Scope Harness routing, document sync and Epic records to requested workflows. Preserve required checks and dependencies without starting another top-level stage.
 
 - **0.66.0** — Cut repeated review rounds across PRD, UI and delivery while keeping 85/80, Impeccable, Visual Approval and exact-SHA security review. Plan missions as feature batches with one combined-lens reviewer each and skip a code integration review only on a proven clean merge chain. Repair once after all reviews of a candidate return and re-review only the repair. Scope HiFi re-review to the ledger with carried rows, revise a modified direction as one study, and catch unreachable surfaces and dead-end states in the PRD check. Keep one Harness contract per RUN and per design round, record unobserved identity once per session, and load a short entry checklist instead of the long contracts. Fix retention false defects, a commit-boundary race in integration recording, and release the AgentKiosk compiler, state-coverage, role-policy and ingestion work.
-
-- **0.65.3** — Use one design review wave and one implementation UI acceptance while retaining 85/80 and required evidence. Deliver complete visual inputs to authors and let agent configuration choose workers. Preserve frozen runs and repair diagnostic coverage, acceptance reuse, and staged Activation digests.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
