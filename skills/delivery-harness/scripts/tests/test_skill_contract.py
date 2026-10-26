@@ -2089,6 +2089,21 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         bounded = self.read("references/bounded-enhancement.md")
         self.assertIn("PRD-DELTA-<EPIC-ID>.md", bounded)
 
+    def test_growth_contract_foundations_are_documented_by_track(self) -> None:
+        foundations = self.read("references/initial-product-foundations.md")
+        self.assertIn("### Required Early Missions By Track", foundations)
+        self.assertIn("SEO cluster and internal-link skeleton", foundations)
+        self.assertIn("GEO/AEO structured data, `llms.txt`, and citeable pages", foundations)
+        self.assertIn("measurement events; the re-engagement hook", foundations)
+        self.assertIn("Deep links (Universal Links / App Links) joined to the companion surface", foundations)
+        self.assertIn("push and onboarding events; store listing assets; crash and analytics setup", foundations)
+        self.assertIn("Directory metadata; `llms.txt` and the public docs page", foundations)
+        self.assertIn("tool permission boundary; console health", foundations)
+        gates = self.read("references/verification-gates.md")
+        self.assertIn("Range crew may supply `domain:seo`, `domain:aso`, and `domain:growth`", gates)
+        contract = self.read("references/contract-and-traceability.md")
+        self.assertIn("Discovery Surfaces or Re-engagement row required, its TEST ID is a must-have trace", contract)
+
 
 if __name__ == "__main__":
     unittest.main()
