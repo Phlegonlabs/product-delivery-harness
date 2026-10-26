@@ -124,7 +124,7 @@ flowchart LR
 
 以下流程规则只适用于你明确调用的 skill 工作。
 
-Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。
+Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。owner 选择 `Delivery profile: mvp` 时，小型项目或一周 MVP 走压缩路线：stack 与产品批准一次合并调用、必要页面才做 HiFi、一次合并交付 review 并入 Final UI Acceptance，owner gate 最多四个；证据、安全与数据保护规则不变。
 
 - [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。
 - [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。
@@ -136,14 +136,14 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
-| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。 |
+| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。套件保有两次 review 预算——一次初审与一次定向复查——之后的缺陷走隔离修复加 scoped review。 |
 | 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
-| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。 |
-| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes。一批集中修复获得一次 scoped 复查，检查原 findings 与修复范围，安全维度保持完整范围。环境受阻的 attempt 不占用预算；复查失败停在 `blocked`。 |
+| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。此阶段保有同样的两次 review 预算；之后的缺陷走隔离修复，并对修复差异做 scoped review。 |
+| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes，另加一次定向复查。复查后每个剩余或新缺陷各成一笔有界修复，附自己的聚焦 verifier，并只对修复差异做 scoped review（finding、修复差异、直接消费者）；差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径，scoped review 不占用 attempt 预算。除非修复碰到 UI 页面，否则不重跑 Final UI Acceptance，碰到时只重跑该页面；broad final validation 每个候选于最后跑一次。环境受阻的 attempt 不占用预算。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
 | Activation | 逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |
 
-缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。额外 review attempt 须有已记录的明确 owner 决定。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审涵盖每个 audit 轴；复查只在受影响页面与状态重跑 critique 和 audit，仍保留完整证据矩阵。
+缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。预算用完后，剩余缺陷走隔离修复，并对每个修复差异做 scoped review；没有额外 review 轮次。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审涵盖每个 audit 轴；复查只在受影响页面与状态重跑 critique 和 audit，仍保留完整证据矩阵。
 
 HiFi 仍须使用 Impeccable，但它不是默认的只读实现 reviewer。其 workflow 的 subagent、浏览器／server、snapshot 写入与可选下载须另有授权。产品、stack、方向与 Visual Approval 决定仍属原 owner。
 
