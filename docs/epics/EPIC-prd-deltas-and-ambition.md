@@ -1,6 +1,6 @@
 # PRD Deltas And Ambition
 
-Status: candidate verified; publication pending
+Status: PR #158 open; alignment repair reviewed; final CI pending
 Design workflow: enhancement
 UI impact: none (discovery interview, PRD contract, Harness rules and documentation; no product UI changes).
 
@@ -51,6 +51,7 @@ Packages Q1-Q2: `skills/product-definition-builder/**` (interview, PRD template,
 | Consolidated repair | GLM-5.3 Flash workers `t3-0629f594` (PDB checker, five commits) and `t3-b951b44c` (scope checker, three commits); parent prose `e92c461b` | `f143715a`..`b6e66e2a`, `26abf900`..`d6723c02`, integrated `bcb0a9e6` and `3c642b28` | PDB suite 225 OK; `test_prd_delta_scope.py` 18 OK |
 | Targeted re-check at `3c642b28` | Three narrow scopes with the prior findings and repair range | runs `20261025-173252-d5c198a5` (PDB scripts PASS), `-8352adef` (Harness scripts `fix_required`), `-0d11fa95` (docs PASS) | All six prior findings resolved; one new finding inside the repair: the escape fixture wrote a fixed filename into the shared temp directory (CWE-377) |
 | Owner-authorized third round | Owner answer in chat 2026-10-25 to the explicit extra-round request; fixture moved inside the test-owned directory, Range `none` row and both wide-table exceptions documented | `9dfb1eac`, `ee685e85`; re-check run `20261025-174123-dae157a0` | PASS, no notes |
+| PR #158 alignment repair | GitHub review found valid Markdown alignment separators rejected by the scope checker; GLM-5.3 Flash repaired both table parsers | `2bd40262`; tree-equal main integration `a6fd7baa`; protected review `20261026-020616-97e04819` | Four new regressions failed before repair and passed afterward; full module 22 OK. Correctness and scoped security PASS at `a6fd7baa`; final CI pending |
 
 ## Verification
 
@@ -60,9 +61,11 @@ The final head `ee685e85` changes one test module and one reference after that r
 
 Independent review: `849dfec7` `fix_required` (four scopes), one consolidated repair, `3c642b28` re-check found one new defect in the repair, one owner-authorized extra round, `ee685e85` PASS. Security lenses passed on the scripts at `3c642b28` and on the test fixture at `ee685e85`. Two timed-out and no git-capable attempts were environment blocks under the 0.68.0 rule and did not count.
 
+PR #158's original candidate `4b46736d` passed the full CI matrix. That result does not cover the alignment repair. The repair's focused tests originated at `2bd40262`; its tree equals `a6fd7baa`. Protected review at `a6fd7baa` verified file hashes before and after inspection and found no blocking findings or notes. Git identity and ancestry were parent-verified; tests were not rerun by the reviewer. Any following bookkeeping-only change retains those origins, not a fresh review result.
+
 ## Remaining Work
 
 - Retrofit Jolvex, agentic-commons and AgentKiosk into a current `PRD.md` plus per-round deltas, one follow-up per project after this release.
-- Publication: PR from `feat/prd-deltas-and-ambition` to `main` after the 0.68.0 candidate lands, CI on the exact candidate, tag `v0.69.0`, consumer syncs. Nothing here authorizes a push, PR or installation.
+- Source publication: the owner requested commit, push and merge. PR #158 targets `main` after #157 landed at `8abcd645`. Run CI on the repaired final candidate before merging. Formal tags, installation and consumer syncs remain separate release work.
 - Backlog notes from review: `domain:<field>` labels accept control characters; a domain-only lens list leaves `review.type` unchecked; no successor-node shared-lineage refund-cap test; a PRD source location that is blank or a URL falls back to `docs/product/PRD.md` silently.
 - Task-owned checkouts under the task directory and the T3 worker worktrees are retained; removal is a separate action.

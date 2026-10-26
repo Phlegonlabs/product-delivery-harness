@@ -1,6 +1,6 @@
 # Review Recheck Convergence
 
-Status: candidate verified; publication pending
+Status: source merged through PR #157; formal release work pending
 Design workflow: enhancement
 UI impact: none (review contracts, attempt scripts and documentation; no product UI changes).
 
@@ -67,7 +67,7 @@ Independent review: `3fa44429` `fix_required` (two reviewers, scripts and rules)
 
 ## Remaining Work
 
-- Publication: PR from `fix/review-recheck-convergence` to `main`, CI on the exact candidate, tag `v0.68.0`, and consumer syncs. No push, PR or installation is authorized by this record.
+- Source publication completed under the owner's commit, push and merge instruction. PR #157's exact candidate `1b4d243f` passed every CI job. Merge `8abcd645` preserves its tree and ancestry. Prior review results retain their original SHA and scope; GitHub's extra Codex review failed to complete and supplied no actionable findings. Formal tags, installation and consumer syncs remain separate release work.
 - Backlog notes: repair-diff truncation can split a UTF-8 character (`render_review_packet.py`); the refund-cap test has no successor-node shared-lineage case; the closeout test removes the diagnostic but does not drive a full closeout.
 - The git-free reviewer identity protocol (`review-input/` diff, log and SHA-256 manifest) worked where the read-only sandbox cannot run git; consider adopting it in the reviewer packet so environment blocks stop recurring.
 - Task-owned checkouts under the task directory and the four T3 worktrees are retained; removal is a separate action.

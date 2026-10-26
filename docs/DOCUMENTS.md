@@ -6,8 +6,8 @@ Index of live documents. Only open Epics are indexed; closed Epics live in Git h
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior, installation and release instructions | Documentation of record |
 | `CHANGELOG.md` | Release history older than the newest README entries | Added with the 0.66.0 README diet |
-| `docs/epics/EPIC-prd-deltas-and-ambition.md` | Ambition discovery, the `## Ambition` PRD section and per-round PRD deltas aligned with the Epic | candidate `ee685e85` verified and review PASS; publication and consumer retrofits pending |
-| `docs/epics/EPIC-review-recheck-convergence.md` | Finding triage, scoped re-checks and budget refunds to cut delivery review rounds | candidate `d5e7a930` verified and review PASS; publication pending |
+| `docs/epics/EPIC-prd-deltas-and-ambition.md` | Ambition discovery, the `## Ambition` PRD section and per-round PRD deltas aligned with the Epic | PR #158 alignment repair reviewed at `a6fd7baa`; final CI and merge pending |
+| `docs/epics/EPIC-review-recheck-convergence.md` | Finding triage, scoped re-checks and budget refunds to cut delivery review rounds | PR #157 merged at `8abcd645`; full CI passed; formal release work pending |
 | `docs/epics/EPIC-release-0.66.0.md` | Fewer review rounds across PRD, UI and delivery | in_progress; C3 security passed, lifecycle fixture cutover integrated; exact-candidate and release outcomes follow the linked receipt |
 | `docs/epics/EPIC-review-batch-boundaries.md` | Feature-batch missions, one targeted repair per candidate and one Harness contract per RUN | complete; local source, release and installation not done |
 | `docs/epics/EPIC-release-0.65.3.md` | Publish the accepted UI workflow and agent-policy fixes through a reviewed PR | in_progress; the publication receipt records exact review, CI, main, tag and installation results |
