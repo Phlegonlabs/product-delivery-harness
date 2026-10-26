@@ -1331,6 +1331,25 @@ class ScopedPacketRenderTests(unittest.TestCase):
         )
         self.assertIsNone(contract["recheck"])
 
+    def test_prior_findings_come_from_the_same_review_node(self) -> None:
+        other = copy.deepcopy(self.run["review_workers"][0])
+        other.update(
+            {
+                "worker_id": "RW-OTHER",
+                "node_id": "N-OTHER-REVIEW",
+                "attempt_id": "ATT-OTHER",
+                "findings": ["repair.txt:1 finding from another lineage"],
+            }
+        )
+        self.run["review_workers"].append(other)
+
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+
+        self.assertIn(
+            "- F1: repair.txt:1 header misses the accepted copy", packet
+        )
+        self.assertNotIn("finding from another lineage", packet)
+
     def test_recorded_pathspec_magic_cannot_hide_the_scoped_diff(self) -> None:
         self.run["integration"]["repair_scopes"][0]["repair_paths"] = [
             "repair.txt",
