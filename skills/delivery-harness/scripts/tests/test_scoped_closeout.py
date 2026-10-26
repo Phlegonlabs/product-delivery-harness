@@ -321,6 +321,90 @@ class ScopedCloseoutChainTests(unittest.TestCase):
         # so the same run still closes; nothing claims the diff was verified.
         self.assertEqual([], self.chain_errors())
 
+    def secure_security_workers(self, *, anchor_decision: str) -> None:
+        batch_base = self.run["integration"]["batch_base_sha"]
+        bases = {
+            "RW-CHAIN-0": batch_base,
+            "RW-CHAIN-1": self.H0,
+            "RW-CHAIN-2": self.H1,
+        }
+        for worker in self.run["review_workers"]:
+            if worker.get("worker_id") not in bases:
+                continue
+            worker["base_sha"] = bases[worker["worker_id"]]
+            if worker.get("scoped") is True:
+                worker["security_scope"] = (
+                    harness_transition.SCOPED_REPAIR_SECURITY_SCOPE
+                )
+        anchor = next(
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("worker_id") == "RW-CHAIN-0"
+        )
+        result = valid_result(self.H0, batch_base)
+        result["decision"] = anchor_decision
+        result["scope"] = list(self.security_node()["review"]["scope"])
+        anchor["security_result"] = result
+
+    def test_fix_required_security_anchor_needs_a_trust_boundary_pass(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=False)
+            self.build_run(security=True)
+            self.secure_security_workers(anchor_decision="fix_required")
+
+            errors = self.chain_errors(repo_root=root)
+            security_errors = self.security_closeout_errors()
+
+            self.assertEqual(1, len(errors), errors)
+            self.assertIn(
+                "anchor security result is fix_required and no trust-boundary "
+                "scoped security pass covers it",
+                errors[0],
+            )
+            self.assertEqual(1, len(security_errors), security_errors)
+            self.assertIn(
+                "anchor security result is fix_required and no trust-boundary "
+                "scoped security pass covers it",
+                security_errors[0],
+            )
+
+    def test_passing_security_anchor_closes_through_non_boundary_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=False)
+            self.build_run(security=True)
+            self.secure_security_workers(anchor_decision="pass")
+
+            self.assertEqual([], self.chain_errors(repo_root=root))
+            self.assertEqual([], self.security_closeout_errors())
+
+    def test_non_scoped_security_pass_closeout_is_unchanged(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=False)
+            self.build_run(
+                workers=[(self.H2, False, None, "pass")],
+                scopes=self.chain_scopes(),
+                security=True,
+            )
+            batch_base = self.run["integration"]["batch_base_sha"]
+            state = self.run["graph_state"]["node_states"][self.review_node_id]
+            worker = next(
+                item
+                for item in self.run["review_workers"]
+                if item.get("node_id") == self.review_node_id
+                and item.get("worker_id") == state.get("bound_worker_id")
+                and item.get("attempt_id") == state.get("last_attempt_id")
+            )
+            worker["base_sha"] = batch_base
+            result = valid_result(self.H2, batch_base)
+            result["scope"] = list(self.security_node()["review"]["scope"])
+            worker["security_result"] = result
+
+            self.assertEqual([], self.security_closeout_errors())
+            self.assertEqual([], self.chain_errors(repo_root=root))
+
 
 if __name__ == "__main__":
     unittest.main()

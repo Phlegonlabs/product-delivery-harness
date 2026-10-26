@@ -6580,6 +6580,35 @@ def _scoped_chain_break_reason(
     if uncovered:
         return f"uncovered path {uncovered[0]}"
     if isinstance(node.get("review"), dict) and node["review"].get("type") == "security":
+        anchor_result = anchor_worker.get("security_result")
+        anchor_decision = (
+            anchor_result.get("decision")
+            if isinstance(anchor_result, dict)
+            else None
+        )
+        if (
+            anchor_worker.get("outcome") == "fix_required"
+            or anchor_decision == "fix_required"
+        ):
+            trust_boundary_secured = all(
+                entry.get("trust_boundary") is True
+                and isinstance(
+                    (scoped_passes.get(entry["candidate_sha"]) or {}).get(
+                        "security_result"
+                    ),
+                    dict,
+                )
+                and scoped_passes[entry["candidate_sha"]]["security_result"].get(
+                    "decision"
+                )
+                == "pass"
+                for entry in chain
+            )
+            if not trust_boundary_secured:
+                return (
+                    "anchor security result is fix_required and no "
+                    "trust-boundary scoped security pass covers it"
+                )
         for entry in chain:
             if entry.get("trust_boundary") is not True:
                 continue
