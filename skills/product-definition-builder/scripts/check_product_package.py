@@ -480,6 +480,8 @@ GROWTH_LAUNCH_WINDOW_HEADER = (
 VALID_DISCOVERY_KINDS = {"seo-cluster", "geo-page", "store-listing", "directory", "landing"}
 VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "seo"}
 VALID_LAUNCH_CHANNEL_CLASSES = {"owned", "earned", "search", "store"}
+GROWTH_TEST_ID_RE = re.compile(r"\bTEST-[A-Z0-9-]+\b", re.IGNORECASE)
+GROWTH_TRACE_ID_RE = re.compile(r"\b(?:TEST|MS)-[A-Z0-9-]+\b", re.IGNORECASE)
 LANDING_PATH_RE = re.compile(r"/\S*")
 UX_REQUIREMENTS_HEADER = (
     "id",
@@ -1346,16 +1348,40 @@ def _validate_growth_contract(
     trace_cells: list[str] = []
     for row in north_rows or []:
         if len(row) == len(GROWTH_NORTH_STAR_HEADER):
+            if not GROWTH_TRACE_ID_RE.search(row[5]):
+                _add(
+                    problems,
+                    "prd",
+                    "Growth Contract North Star row for "
+                    f"{row[0].strip()!r} needs a TEST or MS identifier "
+                    "in its Source cell",
+                )
             trace_cells.append(row[5])
     for row in reengagement_rows or []:
         if len(row) == len(GROWTH_REENGAGEMENT_HEADER):
+            if not _absent_cell(row[0]) and not GROWTH_TEST_ID_RE.search(row[2]):
+                _add(
+                    problems,
+                    "prd",
+                    "active Growth Contract Re-engagement row "
+                    f"{row[0].strip()!r} needs a TEST identifier "
+                    "in its TEST ID cell",
+                )
             trace_cells.append(row[2])
     for row in discovery_rows or []:
         if len(row) == len(GROWTH_DISCOVERY_HEADER):
+            if not GROWTH_TRACE_ID_RE.search(row[3]):
+                _add(
+                    problems,
+                    "prd",
+                    "Growth Contract Discovery Surfaces row for "
+                    f"{row[0].strip()!r} needs a TEST or MS identifier "
+                    "in its TEST or MS ID cell",
+                )
             trace_cells.append(row[3])
     unknown_tests: set[str] = set()
     for cell in trace_cells:
-        for match in re.finditer(r"\bTEST-[A-Z0-9-]+\b", cell, re.IGNORECASE):
+        for match in GROWTH_TEST_ID_RE.finditer(cell):
             test_id = match.group(0).upper()
             if test_id not in known_test_ids:
                 unknown_tests.add(test_id)

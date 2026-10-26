@@ -3358,6 +3358,48 @@ class GrowthContractTests(unittest.TestCase):
             any("none row with a reason" in item for item in findings), findings
         )
 
+    def test_growth_contract_active_rows_need_trace_identifiers(self) -> None:
+        findings = self.validate(
+            shaped_prd().replace(
+                "| email digest | Fixture digest surface on the home route | TEST-001 |",
+                "| email digest | Fixture digest surface on the home route | n/a |",
+                1,
+            )
+        )
+        self.assertTrue(
+            any("active Growth Contract Re-engagement row" in item for item in findings),
+            findings,
+        )
+        findings = self.validate(
+            shaped_prd().replace(
+                "| /launch | landing | gtm | MS-110 |",
+                "| /launch | landing | gtm | done |",
+                1,
+            )
+        )
+        self.assertTrue(
+            any(
+                "Discovery Surfaces row for '/launch' needs a TEST or MS identifier"
+                in item
+                for item in findings
+            ),
+            findings,
+        )
+        findings = self.validate(
+            shaped_prd().replace(
+                "55% return by day 30 | 70% return by day 30 | MS-100 |",
+                "55% return by day 30 | 70% return by day 30 | owner impression |",
+                1,
+            )
+        )
+        self.assertTrue(
+            any(
+                "North Star row for 'web' needs a TEST or MS identifier" in item
+                for item in findings
+            ),
+            findings,
+        )
+
     def test_discovery_surfaces_rules(self) -> None:
         prd = shaped_prd().replace(
             "| /launch | landing | gtm | MS-110 |",
