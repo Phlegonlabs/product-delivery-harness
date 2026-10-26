@@ -89,17 +89,17 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 | Skill | Owns |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` with `## Ambition`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval |
+| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
 | `delivery-harness` | Scope routing, authorization, tasks, integration, verification and PLAN/RUN when needed |
 | `code-security-review` | Security lens on the exact candidate; findings, tools, coverage and exclusions |
-| `product-activation` | `docs/ACTIVATION.md`, external setup, behavior proof and measurement handoff |
-| `seo-growth-review` | Production SEO and organic-growth evidence; inline review or an explicitly requested report |
+| `product-activation` | `docs/ACTIVATION.md`, external setup, behavior proof, measurement handoff and the `aso-and-store-launch`, `agent-directory` and `geo-readback` profiles |
+| `seo-growth-review` | Production SEO and organic-growth evidence; inline review or an explicitly requested report, plus `pre_launch` mode and Day 7 and Day 30 `growth_review` readbacks |
 
 ## Standalone skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepares channel-specific drafts, assets and calendars.
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selects channels and experiments and drafts the Launch Reach Plan. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepares channel-specific drafts, assets, calendars and per-channel variants with two hooks.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) prepares project READMEs with real demonstrations. [Release Packager](standalone-skills/release-packager/SKILL.md) verifies release artifacts and consumer installation paths.
 
@@ -109,7 +109,7 @@ These four complete skill directories require separate host registration; `insta
 
 ```mermaid
 flowchart LR
-  Product["Product Definition + Ambition + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
+  Product["Product Definition + Ambition + Growth Contract + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
   Product -->|"headless or scoped enhancement or maintenance"| Harness["Direct or managed delivery"]
   Design --> Harness
   Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
@@ -136,7 +136,7 @@ Before every handoff, check source hashes, the Epic record and document consiste
 
 | Stage | Default review and stop condition |
 | --- | --- |
-| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. Discovery asks an Ambition segment, `PRD.md` holds `## Ambition`, and each PRD round publishes a delta aligned with its Epic. The package holds a two-review budget — one initial review and one targeted re-check — and later defects become isolated repairs with a scoped review. |
+| Product Definition | One author self-review of the whole package after drafting and research reconciliation; recheck affected changes before owner approval. Discovery asks an Ambition segment, `PRD.md` holds `## Ambition`, and each PRD round publishes a delta aligned with its Epic. The At a Glance `Shape` row declares the track, companion surface and console; the checker validates it. `## Growth Contract` records the north star, re-engagement, discovery surfaces and launch window. The package holds a two-review budget — one initial review and one targeted re-check — and later defects become isolated repairs with a scoped review. |
 | Directions | The same author checks and repairs rendered studies before owner selection. Three studies; the owner chooses. A modification adds one revised selected study and decision; rejection starts a new set. |
 | HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. The stage holds the same two-review budget; later defects become isolated repairs with a scoped review of the repair diff. |
 | Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA (real browser for UI), triaged into blocking findings and notes, plus one targeted re-check. After the re-check, each remaining or new defect becomes one bounded repair with its own focused verifier and a scoped review of the repair diff only (finding, repair diff, direct consumers); the security lens joins when the diff touches a trust boundary, a scoped PASS re-binds the repaired paths, and scoped reviews do not consume review attempts. No Final UI Acceptance rerun unless the repair touches a UI surface, then only that surface; the broad final validation runs once per candidate at the end. Environment-blocked attempts do not spend the budget. |

@@ -89,17 +89,17 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 | Skill | 負責範圍 |
 | --- | --- |
-| `product-definition-builder` | 含 `## Ambition` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
+| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html` |
 | `delivery-harness` | 範圍路由、授權、任務、整合、驗證，以及需要時的 PLAN/RUN |
 | `code-security-review` | 準確候選的安全維度：findings、工具、覆蓋與 exclusions |
-| `product-activation` | `docs/ACTIVATION.md`、外部設定、行為證明與量測交接 |
-| `seo-growth-review` | Production SEO 與自然流量證據；預設直接回覆，明確要求時才另存報告 |
+| `product-activation` | `docs/ACTIVATION.md`、外部設定、行為證明、量測交接與 `aso-and-store-launch`、`agent-directory`、`geo-readback` profile |
+| `seo-growth-review` | Production SEO 與自然流量證據；預設直接回覆，明確要求時才另存報告，另含 `pre_launch` 模式與 Day 7、Day 30 的 `growth_review` 讀回 |
 
 ## 獨立 skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗。[GTM Content](standalone-skills/gtm-content/SKILL.md) 準備各渠道草稿、素材與日曆。
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗，並草擬 Launch Reach Plan。[GTM Content](standalone-skills/gtm-content/SKILL.md) 準備各渠道草稿、素材、日曆與附兩個 hook 的各渠道變體。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 用實際展示編寫專案 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 驗證 release artifact 與使用者安裝路徑。
 
@@ -109,7 +109,7 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 
 ```mermaid
 flowchart LR
-  Product["Product Definition 與 Ambition、owner 批准"] --> UI["UI 方向與完整 HiFi"] --> Design["Visual Approval 與必要設計系統 pair"]
+  Product["Product Definition 與 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向與完整 HiFi"] --> Design["Visual Approval 與必要設計系統 pair"]
   Product -->|"無 UI，或限域增強或維護"| Harness["Direct 或 managed 交付"]
   Design --> Harness
   Harness --> Review["最終 SHA 的一次合併 review"] --> Tests["一次 broad final validation"] --> C["固定候選 C"]
@@ -136,7 +136,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 
 | 階段 | 預設 review 與停止條件 |
 | --- | --- |
-| Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。套件保有兩次 review 預算——一次初審與一次定向複查——之後的缺陷走隔離修復加 scoped review。 |
+| Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。At a Glance 的 `Shape` 列宣告 track、companion 介面與 console，交由 checker 驗證；`## Growth Contract` 記錄 north star、再觸及、discovery surfaces 與 launch window。套件保有兩次 review 預算——一次初審與一次定向複查——之後的缺陷走隔離修復加 scoped review。 |
 | 方向 | 原作者先檢查並修復已渲染的研究，再交 owner 選擇。三個研究；修改只新增一個所選方向的修訂研究與一次決定，拒絕才重做整組。 |
 | HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。一次診斷 wave、一批集中修復與一次受影響範圍複查。保留必要瀏覽器覆蓋、Impeccable `critique` **與** `audit`、四捨五入的 H1–H9 總平均 **至少 85** 及每項 **至少 80**，再取得 Visual Approval。未變證據連同身分沿用。此階段保有同樣的兩次 review 預算；之後的缺陷走隔離修復，並對修復差異做 scoped review。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），findings 分為 blocking 與 notes，另加一次定向複查。複查後每個剩餘或新缺陷各成一筆有界修復，附自己的聚焦 verifier，並只對修復差異做 scoped review（finding、修復差異、直接消費者）；差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑，scoped review 不佔用 attempt 預算。除非修復碰到 UI 頁面，否則不重跑 Final UI Acceptance，碰到時只重跑該頁面；broad final validation 每個候選於最後跑一次。環境受阻的 attempt 不佔用預算。 |

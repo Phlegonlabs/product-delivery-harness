@@ -89,17 +89,17 @@ Usa $seo-growth-review para auditar este sitio en producción, reconciliar la vi
 
 | Skill | Responsabilidad |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` con `## Ambition`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
+| `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
 | `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación y PLAN/RUN cuando hace falta |
 | `code-security-review` | Lente de seguridad sobre el candidato exacto: hallazgos, herramientas, cobertura y exclusiones |
-| `product-activation` | `docs/ACTIVATION.md`, configuración externa, pruebas de comportamiento y handoff de medición |
-| `seo-growth-review` | Evidencia SEO y de crecimiento orgánico en producción; revisión inline o informe solicitado explícitamente |
+| `product-activation` | `docs/ACTIVATION.md`, configuración externa, pruebas de comportamiento, handoff de medición y los perfiles `aso-and-store-launch`, `agent-directory` y `geo-readback` |
+| `seo-growth-review` | Evidencia SEO y de crecimiento orgánico en producción; revisión inline o informe solicitado explícitamente, con modo `pre_launch` y readbacks `growth_review` de Day 7 y Day 30 |
 
 ## Skills independientes
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepara borradores, assets y calendarios por canal.
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos y redacta el Launch Reach Plan. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepara borradores, assets, calendarios y variantes por canal con dos hooks.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) redacta READMEs con demostraciones reales. [Release Packager](standalone-skills/release-packager/SKILL.md) verifica artifacts de release y rutas de instalación del consumidor.
 
@@ -109,7 +109,7 @@ Estos cuatro directorios completos requieren registro separado en el host; `inst
 
 ```mermaid
 flowchart LR
-  Product["Product Definition y Ambition con aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
+  Product["Product Definition, Ambition y Growth Contract con aprobación del owner"] --> UI["Direcciones UI y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
   Product -->|"sin UI o mejora o mantenimiento acotado"| Harness["Entrega Direct o gestionada"]
   Design --> Harness
   Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia"] --> C["Candidato fijo C"]
@@ -136,7 +136,7 @@ Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la 
 
 | Etapa | Revisión predeterminada y condición de parada |
 | --- | --- |
-| Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. Discovery pregunta un segmento Ambition, `PRD.md` lleva `## Ambition`, y cada ronda del PRD publica un delta alineado con su Epic. El paquete conserva un presupuesto de dos revisiones —una revisión inicial y un recheck acotado— y los defectos posteriores se vuelven reparaciones aisladas con revisión acotada. |
+| Product Definition | Una autorrevisión del paquete completo después de redactar y reconciliar la investigación; recheck de cambios afectados antes de la aprobación del owner. Discovery pregunta un segmento Ambition, `PRD.md` lleva `## Ambition`, y cada ronda del PRD publica un delta alineado con su Epic. La fila `Shape` del At a Glance declara el track, la superficie acompañante y la consola, y el checker la valida. `## Growth Contract` registra el north star, el re-engagement, las discovery surfaces y la launch window. El paquete conserva un presupuesto de dos revisiones —una revisión inicial y un recheck acotado— y los defectos posteriores se vuelven reparaciones aisladas con revisión acotada. |
 | Direcciones | El mismo autor comprueba y repara los estudios renderizados antes de la selección del owner. Tres estudios; modificar añade un estudio revisado de la dirección elegida y una decisión; rechazar inicia otro conjunto. |
 | HiFi | Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente. Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. La etapa conserva el mismo presupuesto de dos revisiones; los defectos posteriores se vuelven reparaciones aisladas con una revisión acotada del diff de reparación. |
 | Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo (navegador real para UI), con hallazgos triados en blocking y notes, más un recheck acotado. Tras el recheck, cada defecto restante o nuevo se vuelve una reparación acotada con su verifier enfocado y una revisión acotada solo del diff de reparación (hallazgo, diff de reparación, consumidores directos); la lente de seguridad se une cuando el diff toca un límite de confianza, un PASS acotado revincula las rutas reparadas y las revisiones acotadas no gastan intentos. Sin nueva Final UI Acceptance salvo que la reparación toque una superficie UI, y entonces solo esa superficie; la validación final amplia corre una vez por candidato al final. Los intentos bloqueados por entorno no gastan presupuesto. |
