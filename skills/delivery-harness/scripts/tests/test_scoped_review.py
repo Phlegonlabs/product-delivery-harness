@@ -546,6 +546,201 @@ class ScopedReviewPassTests(unittest.TestCase):
         self.assertEqual("pass", self.worker["security_result"]["decision"])
 
 
+class ScopedCoverageChainTests(unittest.TestCase):
+    """Closeout completeness for a review node whose latest PASS is scoped."""
+
+    H0 = "a" * 40
+    H1 = "b" * 40
+    H2 = "c" * 40
+
+    def build_run(self, *, security: bool = False) -> None:
+        self.plan = mf.valid_plan()
+        node = copy.deepcopy(self.plan["graph"]["nodes"][1])
+        node["id"] = "N-EXTRA-REVIEW"
+        node["allowed_outcomes"] = [
+            "pass",
+            "fix_required",
+            "retryable_failure",
+            "contract_gap",
+            "blocked",
+        ]
+        review = {
+            "stage": "integration",
+            "lineage_id": "RL-EXTRA",
+            "mission_ids": ["M1", "M2"],
+        }
+        if security:
+            review.update(type="security", lenses=["security"], scope=["src/**"])
+        node["review"].update(**review)
+        self.plan["graph"]["nodes"].append(node)
+        self.plan["graph"]["edges"].extend(
+            [
+                {
+                    "id": "E-EXTRA-READY",
+                    "kind": "dependency",
+                    "from": "N-M2",
+                    "to": node["id"],
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+                {
+                    "id": "E-EXTRA-PASS",
+                    "kind": "route",
+                    "from": node["id"],
+                    "to": "N-FINAL",
+                    "on_outcomes": ["pass"],
+                    "max_traversals": None,
+                },
+            ]
+        )
+        self.run = mf.valid_run(self.plan)
+        mf.mark_complete(self.plan, self.run)
+        self.run["integration"].update(
+            {
+                "integration_head_sha": self.H2,
+                "prior_head_shas": [self.H0, self.H1],
+                "repair_scopes": [
+                    {
+                        "candidate_sha": self.H1,
+                        "prior_head_sha": self.H0,
+                        "repair_paths": ["src/a/one.py"],
+                        "source": "isolated repair commit",
+                        "trust_boundary": False,
+                    },
+                    {
+                        "candidate_sha": self.H2,
+                        "prior_head_sha": self.H1,
+                        "repair_paths": ["src/a/two.py"],
+                        "source": "isolated repair commit",
+                        "trust_boundary": False,
+                    },
+                ],
+            }
+        )
+        for edge in self.plan["graph"]["edges"]:
+            self.run["graph_state"]["edge_states"].setdefault(
+                edge["id"],
+                {"status": "dormant", "traversals": 0, "source_attempt_id": None},
+            )
+        self.run["graph_state"]["edge_states"]["E-EXTRA-PASS"]["status"] = "traversed"
+        state = self.run["graph_state"]["node_states"][node["id"]]
+        state.update(
+            {
+                "phase": "succeeded",
+                "attempts": 3,
+                "last_attempt_id": "ATT-CHAIN-2",
+                "last_outcome": "pass",
+                "bound_worker_id": "RW-CHAIN-2",
+                "blockers": [],
+            }
+        )
+        for index, (head_sha, scoped, paths) in enumerate(
+            [
+                (self.H0, False, None),
+                (self.H1, True, ["src/a/one.py"]),
+                (self.H2, True, ["src/a/two.py"]),
+            ]
+        ):
+            attempt_id = f"ATT-CHAIN-{index}"
+            worker_id = f"RW-CHAIN-{index}"
+            worker = {
+                "worker_id": worker_id,
+                "node_id": node["id"],
+                "attempt_id": attempt_id,
+                "plan_revision": self.plan["revision"],
+                "plan_digest_sha256": self.run["plan"]["digest_sha256"],
+                "graph_revision": self.run["graph_state"]["graph_revision"],
+                "reviewed_sha": head_sha,
+                "review_path": "C:/repo",
+                "worker_runtime": "parent",
+                "completion_channel": "agent_result",
+                "runtime_binding": {},
+                "task_thread_id": None,
+                "report_path": None,
+                "phase": "worker_passed",
+                "outcome": "pass",
+                "findings": [],
+            }
+            if scoped:
+                worker["scoped"] = True
+                worker["repair_paths"] = list(paths)
+            self.run["review_workers"].append(worker)
+            attempt_entry = {
+                "attempt_id": attempt_id,
+                "mission_id": None,
+                "task_id": None,
+                "lease_id": None,
+                "kind": "review",
+                "result": "pass",
+                "evidence": [f"reviewed chain head {index}"],
+                "review_lineage_id": "RL-EXTRA",
+                "notes": [],
+            }
+            if scoped:
+                attempt_entry["scoped"] = True
+                attempt_entry["repair_paths"] = list(paths)
+            self.run["attempt_log"].append(attempt_entry)
+
+    def build_repo(self, root: Path, *, hidden_in_last_commit: bool) -> None:
+        mf.init_repo(root, "README.md", default_branch="codex/test")
+        one = root / "src" / "a" / "one.py"
+        one.parent.mkdir(parents=True, exist_ok=True)
+        one.write_text("VALUE = 0\n", encoding="utf-8")
+        mf.git(root, "add", "src/a/one.py")
+        mf.git(root, "commit", "-qm", "full-scope head")
+        self.H0 = mf.git(root, "rev-parse", "HEAD")
+        one.write_text("VALUE = 1\n", encoding="utf-8")
+        mf.git(root, "commit", "-qam", "first repair")
+        self.H1 = mf.git(root, "rev-parse", "HEAD")
+        two = root / "src" / "a" / "two.py"
+        two.write_text("TWO = 2\n", encoding="utf-8")
+        mf.git(root, "add", "src/a/two.py")
+        if hidden_in_last_commit:
+            hidden = root / "src" / "a" / "hidden.py"
+            hidden.write_text("HIDDEN = 3\n", encoding="utf-8")
+            mf.git(root, "add", "src/a/hidden.py")
+        mf.git(root, "commit", "-qm", "second repair")
+        self.H2 = mf.git(root, "rev-parse", "HEAD")
+
+    def chain_errors(self, **kwargs: object) -> list[str]:
+        return [
+            item
+            for item in validate_run(self.plan, self.run, **kwargs)
+            if "review coverage chain broken" in item
+        ]
+
+    def test_full_chain_covers_the_real_diff(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=False)
+            self.build_run()
+
+            self.assertEqual([], self.chain_errors(repo_root=root))
+
+    def test_uncovered_changed_path_breaks_the_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=True)
+            self.build_run()
+
+            errors = self.chain_errors(repo_root=root)
+
+            self.assertEqual(1, len(errors), errors)
+            self.assertIn("uncovered path src/a/hidden.py", errors[0])
+
+    def test_trust_boundary_scoped_pass_without_security_result_fails(self) -> None:
+        self.build_run(security=True)
+        self.run["integration"]["repair_scopes"][1]["trust_boundary"] = True
+
+        errors = self.chain_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            f"trust-boundary scoped PASS at {self.H2} has no security_result",
+            errors[0],
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
 
