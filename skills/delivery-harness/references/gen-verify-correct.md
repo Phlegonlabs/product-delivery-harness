@@ -73,7 +73,8 @@ Bind every PASS to the exact candidate SHA and declared inputs. A later change t
 covered source, configuration, contract, toolchain, or external state invalidates
 the affected result. Deterministic reuse follows `graph-orchestration.md`;
 security review never reuses a prior candidate, tree identity, or reviewer skip;
-the only exception is the direct-route scope-disjoint carry-forward in
+the exceptions are the direct-route scope-disjoint carry-forward and the
+scope-bound carry-forward of the Isolated Repair Protocol in
 `verification-gates.md#review-topology`.
 
 Feature Must traces use existing `acceptance_gate_ids` and canonical Required-Yes

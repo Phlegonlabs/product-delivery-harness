@@ -447,7 +447,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # After the re-check, defects enter the isolated protocol.
         self.assertIn("## Isolated Repair Protocol", gates)
         self.assertIn("One finding family becomes one bounded repair task", gates)
-        self.assertIn("render_review_packet.py --repair-scope", gates)
+        self.assertIn("## Scoped repair review", gates)
         self.assertIn(
             "security: not_applicable (scoped repair outside trust boundaries)", gates
         )
