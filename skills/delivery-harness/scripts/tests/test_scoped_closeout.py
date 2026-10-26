@@ -287,6 +287,68 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             errors[0],
         )
 
+    def test_anchor_serialised_behind_a_newer_attempt_breaks_the_chain(
+        self,
+    ) -> None:
+        self.build_run(
+            workers=[
+                (self.H0, False, None, "pass"),
+                (self.H2, False, None, "fix_required"),
+                (self.H2, True, ["src/a/one.py", "src/a/two.py"], "pass"),
+            ],
+            scopes=[
+                {
+                    "candidate_sha": self.H2,
+                    "prior_head_sha": self.H0,
+                    "repair_paths": ["src/a/one.py", "src/a/two.py"],
+                    "source": "isolated repair commit",
+                    "trust_boundary": False,
+                }
+            ],
+        )
+        # Serialised [A1, A0, A2] beside the attempt log's [A0, A1, A2]:
+        # the stale PASS at H0 must not anchor over the newer fix_required
+        # re-check at the integration head just because it is listed last.
+        node_workers = [
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("node_id") == self.review_node_id
+        ]
+        anchor_order = [0, 2, 1, 3]
+        self.run["review_workers"] = [
+            node_workers[index] for index in anchor_order
+        ]
+
+        errors = self.chain_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            "anchor order inconsistent with the attempt log",
+            errors[0],
+        )
+
+    def test_anchor_missing_from_the_attempt_log_breaks_the_chain(self) -> None:
+        self.build_run(
+            workers=[
+                (self.H0, False, None, "fix_required"),
+                (self.H1, True, ["src/a/one.py"], "pass"),
+                (self.H2, True, ["src/a/two.py"], "pass"),
+            ],
+        )
+        self.run["attempt_log"] = [
+            attempt
+            for attempt in self.run["attempt_log"]
+            if attempt.get("attempt_id") != "ATT-CHAIN-0"
+        ]
+
+        errors = self.chain_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            "anchor order inconsistent with the attempt log",
+            errors[0],
+        )
+
     def test_git_diff_failure_fails_the_chain_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

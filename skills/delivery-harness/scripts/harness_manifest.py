@@ -6480,7 +6480,12 @@ def _scoped_coverage_chain_errors(
         if not isinstance(bound_worker, dict) or bound_worker.get("scoped") is not True:
             continue
         reason = _scoped_chain_break_reason(
-            node, workers_by_node.get(node_id, []), scopes, head, repo_root
+            node,
+            workers_by_node.get(node_id, []),
+            scopes,
+            head,
+            repo_root,
+            run.get("attempt_log"),
         )
         if reason:
             _add(
@@ -6496,6 +6501,7 @@ def _scoped_chain_break_reason(
     scopes: list[Any],
     head: str,
     repo_root: str | Path | None,
+    attempt_log: Any,
 ) -> str | None:
     """Why the node's scoped latest PASS does not cover the integration head."""
 
@@ -6511,20 +6517,43 @@ def _scoped_chain_break_reason(
     # attempt order, whatever its outcome: a fix_required re-check
     # inspected every path, so the paths it did not flag carry forward
     # into the scoped repair chain. An older review never anchors behind
-    # a newer one.
-    anchor_worker = next(
-        (
-            worker
-            for worker in reversed(node_workers)
-            if isinstance(worker, dict)
-            and worker.get("outcome") in {"pass", "fix_required"}
-            and worker.get("scoped") is not True
-            and is_full_sha(worker.get("reviewed_sha"))
-        ),
-        None,
-    )
-    if anchor_worker is None:
+    # a newer one. The append-only attempt log owns that order, so the
+    # last eligible serialised worker anchors only when the log agrees:
+    # an anchor absent from the log, or a logged newer attempt behind it,
+    # breaks the chain instead of silently picking the stale review.
+    attempt_positions: dict[str, int] = {}
+    for index, attempt in enumerate(
+        attempt_log if isinstance(attempt_log, list) else []
+    ):
+        attempt_id = (
+            attempt.get("attempt_id") if isinstance(attempt, dict) else None
+        )
+        if isinstance(attempt_id, str):
+            attempt_positions.setdefault(attempt_id, index)
+    eligible_anchors = [
+        worker
+        for worker in node_workers
+        if isinstance(worker, dict)
+        and worker.get("outcome") in {"pass", "fix_required"}
+        and worker.get("scoped") is not True
+        and is_full_sha(worker.get("reviewed_sha"))
+    ]
+    if not eligible_anchors:
         return "no non-scoped review anchors a repair chain to the integration head"
+    anchor_worker = eligible_anchors[-1]
+    anchor_attempt = anchor_worker.get("attempt_id")
+    if not isinstance(anchor_attempt, str) or (
+        anchor_attempt not in attempt_positions
+    ):
+        return "anchor order inconsistent with the attempt log"
+    anchor_position = attempt_positions[anchor_attempt]
+    for worker in eligible_anchors:
+        attempt_id = worker.get("attempt_id")
+        if (
+            isinstance(attempt_id, str)
+            and attempt_positions.get(attempt_id, -1) > anchor_position
+        ):
+            return "anchor order inconsistent with the attempt log"
     anchor = anchor_worker["reviewed_sha"]
     entries_by_prior: dict[str, list[dict[str, Any]]] = {}
     for entry in scopes:
@@ -6731,6 +6760,7 @@ def _validate_required_security_closeout(
                     scopes,
                     integration_head,
                     repo_root,
+                    run.get("attempt_log"),
                 )
             else:
                 reason = "no repair scopes are recorded for the scoped PASS"
