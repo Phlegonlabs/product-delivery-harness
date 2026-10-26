@@ -474,6 +474,45 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             errors[0],
         )
 
+    def test_lineage_less_review_retained_by_another_node_is_not_an_orphan(
+        self,
+    ) -> None:
+        self.build_run()
+        # Another node's full PASS at the head, logged after this node's
+        # anchor without a lineage id, is attributable through its retained
+        # worker and must not break this node's chain.
+        other = copy.deepcopy(
+            next(
+                worker
+                for worker in self.run["review_workers"]
+                if worker.get("attempt_id") == "ATT-CHAIN-0"
+            )
+        )
+        other.update(
+            {
+                "worker_id": "RW-OTHER-NODE",
+                "node_id": "N-OTHER-REVIEW",
+                "attempt_id": "ATT-OTHER-0",
+                "reviewed_sha": self.H2,
+            }
+        )
+        self.run["review_workers"].append(other)
+        self.run["attempt_log"].append(
+            {
+                "attempt_id": "ATT-OTHER-0",
+                "mission_id": None,
+                "task_id": None,
+                "lease_id": None,
+                "kind": "review",
+                "result": "pass",
+                "evidence": ["other node full review"],
+                "review_lineage_id": None,
+                "notes": [],
+            }
+        )
+
+        self.assertEqual([], self.chain_errors())
+
     def test_git_diff_failure_fails_the_chain_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

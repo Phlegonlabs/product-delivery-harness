@@ -6486,6 +6486,7 @@ def _scoped_coverage_chain_errors(
             head,
             repo_root,
             run.get("attempt_log"),
+            run.get("review_workers"),
         )
         if reason:
             _add(
@@ -6502,6 +6503,7 @@ def _scoped_chain_break_reason(
     head: str,
     repo_root: str | Path | None,
     attempt_log: Any,
+    all_workers: Any = None,
 ) -> str | None:
     """Why the node's scoped latest PASS does not cover the integration head."""
 
@@ -6568,13 +6570,23 @@ def _scoped_chain_break_reason(
         for worker in node_workers
         if isinstance(worker, dict)
     }
+    # A lineage-less entry retained by another node's worker is that
+    # node's review, not this node's orphan.
+    attributed_elsewhere = {
+        worker.get("attempt_id")
+        for worker in (all_workers if isinstance(all_workers, list) else [])
+        if isinstance(worker, dict) and worker.get("node_id") != node.get("id")
+    }
     for index, attempt in enumerate(
         attempt_log if isinstance(attempt_log, list) else []
     ):
+        if not isinstance(attempt, dict) or attempt.get("kind") != "review":
+            continue
+        lineage = attempt.get("review_lineage_id")
+        if lineage is None and attempt.get("attempt_id") in attributed_elsewhere:
+            continue
         if (
-            isinstance(attempt, dict)
-            and attempt.get("kind") == "review"
-            and attempt.get("review_lineage_id") in {lineage_id, None}
+            lineage in {lineage_id, None}
             and attempt.get("scoped") is not True
             and attempt.get("result") in {"pass", "fix_required"}
             and index > anchor_position
@@ -6792,6 +6804,7 @@ def _validate_required_security_closeout(
                     integration_head,
                     repo_root,
                     run.get("attempt_log"),
+                    current_review_workers,
                 )
             else:
                 reason = "no repair scopes are recorded for the scoped PASS"
