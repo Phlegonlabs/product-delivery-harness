@@ -29,7 +29,7 @@ import harness_transition as harness_transition  # noqa: E402
 import manifest_fixtures as mf  # noqa: E402
 from harness_manifest import ManifestError, plan_digest, validate_run  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
-from select_ready_nodes import select_ready_nodes  # noqa: E402
+from select_ready_nodes import _pending_scoped_repair, select_ready_nodes  # noqa: E402
 from test_security_review_result import valid_result  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
 
@@ -335,13 +335,22 @@ class RepairScopeRecordingTests(unittest.TestCase):
         self.assertEqual(before, self.run)
         self.assertNotIn("repair_scopes", self.run["integration"])
 
+    def assert_refused_without_git(self, repair_path: list[str]) -> None:
+        before = copy.deepcopy(self.run)
+        with mock.patch.object(harness_transition, "run_git") as run_git:
+            with mock.patch.object(
+                harness_transition.subprocess, "run"
+            ) as subprocess_run:
+                with self.assertRaises(ManifestError):
+                    self.reconcile(repair_path=[repair_path])
+        self.assertFalse(run_git.called)
+        self.assertFalse(subprocess_run.called)
+        self.assertEqual(before, self.run)
+
     def test_invalid_repair_paths_are_refused_before_mutation(self) -> None:
         for bad in ("/abs/path", "../escape.py", "src\\win.py", ""):
             with self.subTest(bad=bad):
-                before = copy.deepcopy(self.run)
-                with self.assertRaises(ManifestError):
-                    self.reconcile(repair_path=[bad])
-                self.assertEqual(before, self.run)
+                self.assert_refused_without_git([bad])
 
     def test_pathspec_magic_globs_and_drives_are_refused_before_mutation(self) -> None:
         for bad in (
@@ -353,10 +362,7 @@ class RepairScopeRecordingTests(unittest.TestCase):
             "C:/src/a/one.py",
         ):
             with self.subTest(bad=bad):
-                before = copy.deepcopy(self.run)
-                with self.assertRaises(ManifestError):
-                    self.reconcile(repair_path=[bad])
-                self.assertEqual(before, self.run)
+                self.assert_refused_without_git([bad])
                 self.assertNotIn("repair_scopes", self.run["integration"])
 
     def test_repair_path_must_exist_in_the_candidate_diff_or_tree(self) -> None:
@@ -500,6 +506,7 @@ class ScopedRepairReserveAtCapTests(unittest.TestCase):
         *,
         scoped: bool = False,
         finding: list[str] | None = None,
+        blocker_class: str = "review",
     ) -> dict[str, object]:
         return harness_transition._record_review_attempt(
             self.plan,
@@ -513,7 +520,7 @@ class ScopedRepairReserveAtCapTests(unittest.TestCase):
                 evidence=[f"reviewed {suffix}"],
                 finding=finding,
                 note=None,
-                blocker_class="review",
+                blocker_class=blocker_class,
                 security_result=None,
                 tree_sha=None,
                 repo_root=None,
@@ -521,9 +528,8 @@ class ScopedRepairReserveAtCapTests(unittest.TestCase):
             ),
         )
 
-    def test_scoped_repair_round_trip_at_the_attempt_cap(self) -> None:
-        self.assertEqual([], validate_run(self.plan, self.run))
-
+    def _reach_scoped_repair_cap(self) -> None:
+        """Two full-scope fix_required rounds end in an isolated repair scope."""
         self.reserve("R1")
         self.record("R1", "fix_required", finding=["src/a/one.py:1 regression"])
         self.assertEqual(1, self.review_state["attempts"])
@@ -542,6 +548,11 @@ class ScopedRepairReserveAtCapTests(unittest.TestCase):
         self.assertEqual(
             [], validate_run(self.plan, self.run, repo_root=self.root)
         )
+
+    def test_scoped_repair_round_trip_at_the_attempt_cap(self) -> None:
+        self.assertEqual([], validate_run(self.plan, self.run))
+
+        self._reach_scoped_repair_cap()
 
         selection = select_ready_nodes(
             self.plan, self.run, manifest_already_validated=True
@@ -575,6 +586,66 @@ class ScopedRepairReserveAtCapTests(unittest.TestCase):
         self.assertEqual(
             [], validate_run(self.plan, self.run, repo_root=self.root)
         )
+
+    def test_environment_retry_keeps_the_repair_scope_pending(self) -> None:
+        self._reach_scoped_repair_cap()
+
+        self.reserve("E1")
+        worker = self.run["review_workers"][-1]
+        self.assertIs(True, worker["scoped"])
+        receipt = self.record(
+            "E1",
+            "blocked",
+            scoped=True,
+            blocker_class="environment",
+            finding=["reviewer sandbox denied git status before inspection"],
+        )
+        self.assertTrue(receipt["refunded"], receipt)
+        self.assertEqual("dormant", self.review_state["phase"])
+        self.assertEqual(1, self.review_state["attempts"])
+
+        # The environment-blocked scoped worker never reviewed the repair, so
+        # the scope stays pending and the retry reservation is scoped again.
+        self.reserve("E2")
+        retry = self.run["review_workers"][-1]
+        self.assertIs(True, retry["scoped"])
+        self.assertEqual(["src/a/one.py"], retry["repair_paths"])
+
+        with self.assertRaisesRegex(ManifestError, "record it with --scoped"):
+            self.record("E2", "pass")
+
+        receipt = self.record("E2", "pass", scoped=True)
+        self.assertTrue(receipt["refunded"], receipt)
+        self.assertEqual("succeeded", self.review_state["phase"])
+        self.assertEqual(
+            [], validate_run(self.plan, self.run, repo_root=self.root)
+        )
+
+    def test_scoped_fix_required_clears_the_pending_scope(self) -> None:
+        self._reach_scoped_repair_cap()
+
+        node = next(
+            item
+            for item in self.plan["graph"]["nodes"]
+            if item["id"] == "N-EXTRA-REVIEW"
+        )
+        self.assertIsNotNone(_pending_scoped_repair(node, self.run))
+
+        self.reserve("F1")
+        self.record(
+            "F1",
+            "fix_required",
+            scoped=True,
+            finding=["src/a/one.py:3 regression"],
+        )
+        self.assertEqual("failed", self.review_state["phase"])
+        self.assertEqual(2, self.review_state["attempts"])
+
+        # A terminal scoped outcome reviewed the repair diff, so the scope
+        # stops pending and the ordinary attempt cap applies again.
+        self.assertIsNone(_pending_scoped_repair(node, self.run))
+        with self.assertRaisesRegex(ManifestError, "attempts_exhausted"):
+            self.reserve("F2")
 
 
 class ScopedReviewPassTests(unittest.TestCase):
