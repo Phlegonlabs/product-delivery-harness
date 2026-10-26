@@ -6419,10 +6419,11 @@ def _scoped_coverage_chain_errors(
     """Closeout completeness for review nodes whose latest PASS is scoped.
 
     A scoped PASS accepts the repair diff only, so it covers the current
-    integration head only when a non-scoped PASS anchors the base head and
-    recorded repair_scopes entries chain it, through reviewed scoped PASSes,
-    to the current head with every changed path inside the declared repair
-    paths and a security_result behind every trust boundary.
+    integration head only when the latest full-scope review (PASS or
+    fix_required) anchors the base head and recorded repair_scopes entries
+    chain it, through reviewed scoped PASSes, to the current head with
+    every changed path inside the declared repair paths and a
+    security_result behind every trust boundary.
     """
 
     integration = run.get("integration")
@@ -6498,11 +6499,14 @@ def _scoped_chain_break_reason(
         and worker.get("scoped") is True
         and is_full_sha(worker.get("reviewed_sha"))
     }
+    # The anchor is the latest full-scope review of the candidate whatever
+    # its outcome: a fix_required re-check inspected every path, so the
+    # paths it did not flag carry forward into the scoped repair chain.
     anchor_heads = {
         worker["reviewed_sha"]
         for worker in node_workers
         if isinstance(worker, dict)
-        and worker.get("outcome") == "pass"
+        and worker.get("outcome") in {"pass", "fix_required"}
         and worker.get("scoped") is not True
         and is_full_sha(worker.get("reviewed_sha"))
     }
@@ -6533,8 +6537,8 @@ def _scoped_chain_break_reason(
                 queue.append((candidate, [*trail, entry]))
     if chain is None:
         if anchor_heads:
-            return "no reviewed scoped chain reaches the integration head from a non-scoped PASS"
-        return "no non-scoped PASS anchors a repair chain to the integration head"
+            return "no reviewed scoped chain reaches the integration head from a non-scoped review"
+        return "no non-scoped review anchors a repair chain to the integration head"
     covered_paths = {
         item
         for entry in chain

@@ -757,6 +757,46 @@ class ScopedCoverageChainTests(unittest.TestCase):
             self.assertEqual(1, len(errors), errors)
             self.assertIn("uncovered path src/a/hidden.py", errors[0])
 
+    def _fail_anchor(self) -> None:
+        anchor = next(
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("worker_id") == "RW-CHAIN-0"
+        )
+        anchor.update(
+            {
+                "phase": "worker_failed",
+                "outcome": "fix_required",
+                "findings": ["src/a/one.py:1 regression remains"],
+            }
+        )
+        attempt = next(
+            item
+            for item in self.run["attempt_log"]
+            if item.get("attempt_id") == "ATT-CHAIN-0"
+        )
+        attempt["result"] = "fix_required"
+
+    def test_fix_required_anchor_chains_and_still_demands_full_coverage(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=True)
+            self.build_run()
+            self._fail_anchor()
+
+            errors = self.chain_errors(repo_root=root)
+
+            self.assertEqual(1, len(errors), errors)
+            self.assertIn("uncovered path src/a/hidden.py", errors[0])
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=False)
+            self.build_run()
+            self._fail_anchor()
+
+            self.assertEqual([], self.chain_errors(repo_root=root))
+
     def test_trust_boundary_scoped_pass_without_security_result_fails(self) -> None:
         self.build_run(security=True)
         self.run["integration"]["repair_scopes"][1]["trust_boundary"] = True
