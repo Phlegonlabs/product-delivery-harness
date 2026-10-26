@@ -9,7 +9,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
-from ci_test_shards import CommandError, candidate_files, discover_files, run_suite, split_files
+from ci_test_shards import SERIAL_FILES, CommandError, candidate_files, discover_files, run_suite, split_files
 
 
 class CITestShardTests(unittest.TestCase):
@@ -96,3 +96,6 @@ class RunSuiteTests(unittest.TestCase):
 
         with self.assertRaises(CommandError):
             run_suite(Path("."), "seo", 0, Path("unused"))
+
+    def test_install_script_module_runs_serially(self) -> None:
+        self.assertIn("test_install_script.py", SERIAL_FILES)

@@ -46,6 +46,12 @@ NATIVE_FILES = (
 )
 
 
+# Modules that drive install.sh against the checkout and read its Git state
+# collide with concurrent modules; the local runner executes them after the
+# parallel batch, one at a time.
+SERIAL_FILES = ("test_install_script.py",)
+
+
 class CommandError(Exception):
     """A caller-visible input is invalid."""
 
@@ -115,8 +121,11 @@ def run_suite(root: Path, suite: str, workers: int, log_dir: Path, files: list[s
         raise CommandError("discovery found no tests")
     log_dir.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
+    parallel = [name for name in names if name not in SERIAL_FILES]
+    serial = [name for name in names if name in SERIAL_FILES]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda name: run_one(root, suite, name, log_dir), names))
+        results = list(pool.map(lambda name: run_one(root, suite, name, log_dir), parallel))
+    results.extend(run_one(root, suite, name, log_dir) for name in serial)
     failed = [result for result in results if result[1] != 0]
     for name, code, seconds, log_path in sorted(results, key=lambda item: -item[2]):
         print(f"{'FAIL' if code else 'ok  '} {seconds:7.1f}s {name} -> {log_path}")
