@@ -99,6 +99,45 @@ def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     return result.returncode == 0
 
 
+def _literal_pathspec_diff_paths(
+    root: Path, base_sha: str, head_sha: str, repair_paths: list[str]
+) -> set[str]:
+    """Changed paths Git itself reports under the repair paths as pathspecs.
+
+    Recorded scopes are replayed as pathspecs by the scoped review packet, so
+    the reconcile subset check re-reads the candidate diff through the same
+    ``--literal-pathspecs`` invocation: pathspec magic recorded by an older
+    run can never hide a changed path from the scoped review.
+    """
+
+    try:
+        reject_object_substitution(root)
+        result = run_git(
+            root,
+            "--literal-pathspecs",
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            f"{base_sha}..{head_sha}",
+            "--",
+            *repair_paths,
+            text=False,
+        )
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
+    if result.returncode != 0:
+        raise ManifestError("cannot observe the scoped repair diff from Git")
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ManifestError("scoped repair paths are not valid UTF-8") from exc
+    paths = output.split("\0")
+    if paths[-1:] == [""]:
+        paths.pop()
+    return set(paths)
+
+
 def _candidate_changed_paths(root: Path, base_sha: str, head_sha: str) -> list[str]:
     try:
         reject_object_substitution(root)
@@ -2731,15 +2770,15 @@ def _reconcile_candidate_head(
 
     declared_repair_paths = list(getattr(args, "repair_path", None) or [])
     for repair_path in declared_repair_paths:
-        if (
-            not repair_path
-            or repair_path.startswith(("/", "\\"))
-            or "\\" in repair_path
-            or ".." in repair_path.split("/")
-        ):
+        reason = validate_changed_path(repair_path)
+        if reason is None and repair_path.startswith(":"):
+            reason = "must not start with Git pathspec magic"
+        if reason is None and "[" in repair_path:
+            reason = "contains unsupported glob syntax"
+        if reason:
             raise ManifestError(
-                "--repair-path must be a repository-relative POSIX path "
-                f"without '..': {repair_path!r}"
+                "--repair-path must be a literal repository-relative file path: "
+                f"{repair_path!r} {reason}"
             )
     task_matches = [
         (mission, task)
@@ -2908,6 +2947,26 @@ def _reconcile_candidate_head(
                 "repair changed paths outside --repair-path scope: "
                 + ", ".join(outside_scopes)
             )
+        scoped_view = _literal_pathspec_diff_paths(
+            root, current_head, candidate_sha, declared_repair_paths
+        )
+        hidden = [path for path in changed_paths if path not in scoped_view]
+        if hidden:
+            raise ManifestError(
+                "--repair-path scope would hide changed candidate paths: "
+                + ", ".join(hidden)
+            )
+        for repair_path in declared_repair_paths:
+            if repair_path in changed_paths:
+                continue
+            probe = run_git(
+                root, "cat-file", "-e", f"{candidate_sha}:{repair_path}"
+            )
+            if probe.returncode != 0:
+                raise ManifestError(
+                    "--repair-path must name a file the candidate changes or "
+                    f"a file present in the candidate tree: {repair_path!r}"
+                )
     if not declared_repair_paths:
         # An isolated --repair-path repair re-arms the review node for a scoped
         # review whose PASS refunds the attempt, so only an ordinary repair

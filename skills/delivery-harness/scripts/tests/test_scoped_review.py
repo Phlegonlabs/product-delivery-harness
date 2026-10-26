@@ -89,7 +89,9 @@ class RepairScopeRecordingTests(unittest.TestCase):
         repair_file = self.root / "src" / "a" / "one.py"
         repair_file.parent.mkdir(parents=True, exist_ok=True)
         repair_file.write_text("VALUE = 0\n", encoding="utf-8")
-        mf.git(self.root, "add", "src/a/one.py")
+        existing = self.root / "src" / "a" / "existing.py"
+        existing.write_text("EXISTING = 0\n", encoding="utf-8")
+        mf.git(self.root, "add", "src/a/one.py", "src/a/existing.py")
         mf.git(self.root, "commit", "-qm", "integrated candidate")
         self.previous_head = mf.git(self.root, "rev-parse", "HEAD")
         repair_file.write_text("VALUE = 1\n", encoding="utf-8")
@@ -281,6 +283,36 @@ class RepairScopeRecordingTests(unittest.TestCase):
                 with self.assertRaises(ManifestError):
                     self.reconcile(repair_path=[bad])
                 self.assertEqual(before, self.run)
+
+    def test_pathspec_magic_globs_and_drives_are_refused_before_mutation(self) -> None:
+        for bad in (
+            ":(exclude)src/a/one.py",
+            ":(top)src/a/one.py",
+            "src/a/*.py",
+            "src/a/on?.py",
+            "src/a/on[e].py",
+            "C:/src/a/one.py",
+        ):
+            with self.subTest(bad=bad):
+                before = copy.deepcopy(self.run)
+                with self.assertRaises(ManifestError):
+                    self.reconcile(repair_path=[bad])
+                self.assertEqual(before, self.run)
+                self.assertNotIn("repair_scopes", self.run["integration"])
+
+    def test_repair_path_must_exist_in_the_candidate_diff_or_tree(self) -> None:
+        with self.assertRaisesRegex(ManifestError, "src/a/ghost.py"):
+            self.reconcile(repair_path=["src/a/one.py", "src/a/ghost.py"])
+
+        self.assertNotIn("repair_scopes", self.run["integration"])
+
+        self.reconcile(repair_path=["src/a/one.py", "src/a/existing.py"])
+
+        self.assertEqual(
+            ["src/a/one.py", "src/a/existing.py"],
+            self.run["integration"]["repair_scopes"][0]["repair_paths"],
+        )
+        self.assertEqual([], validate_run(self.plan, self.run))
 
     def test_without_repair_path_no_scope_is_recorded(self) -> None:
         self.reconcile()
@@ -953,6 +985,19 @@ class ScopedPacketRenderTests(unittest.TestCase):
             contract["scoped_repair"],
         )
         self.assertIsNone(contract["recheck"])
+
+    def test_recorded_pathspec_magic_cannot_hide_the_scoped_diff(self) -> None:
+        self.run["integration"]["repair_scopes"][0]["repair_paths"] = [
+            "repair.txt",
+            ":(exclude)repair.txt",
+            "*.txt",
+        ]
+
+        packet = render_packet(self.plan, self.run, "N-REVIEW-M1", self.root)
+
+        self.assertIn("## Scoped repair review", packet)
+        self.assertIn("A\trepair.txt", packet)
+        self.assertIn("+fix", packet)
 
     def test_no_scoped_section_without_a_recorded_entry(self) -> None:
         self.run["integration"]["repair_scopes"] = []
