@@ -391,7 +391,7 @@ def render_packet(
     scoped_contract = None
     if scoped_entry is not None:
         scoped_name_status = _git(
-            repo_root, "-c", "core.quotePath=true", "diff",
+            repo_root, "--literal-pathspecs", "-c", "core.quotePath=true", "diff",
             "--no-ext-diff", "--no-textconv", "--name-status",
             "--find-renames=50%", diff_range, *pathspec,
         )
@@ -401,8 +401,8 @@ def render_packet(
             "repair_paths": list(scoped_entry["repair_paths"]),
             "trust_boundary": scoped_entry.get("trust_boundary") is True,
         }
-    diff_args = ("diff", "--no-ext-diff", "--no-textconv", "--binary",
-                 "--full-index", "--no-color", "--find-renames=50%",
+    diff_args = ("--literal-pathspecs", "diff", "--no-ext-diff", "--no-textconv",
+                 "--binary", "--full-index", "--no-color", "--find-renames=50%",
                  "--src-prefix=a/", "--dst-prefix=b/", diff_range, *pathspec)
     result = run_git(repo_root, *diff_args, text=False, timeout=30)
     if result.returncode != 0:
@@ -417,7 +417,8 @@ def render_packet(
             "base_sha": scoped_prior or base,
             "head_sha": head, "sha256": hashlib.sha256(encoded).hexdigest(),
             "bytes": len(encoded),
-            "name_status": _git(repo_root, "-c", "core.quotePath=true", "diff",
+            "name_status": _git(repo_root, "--literal-pathspecs",
+                                "-c", "core.quotePath=true", "diff",
                                 "--no-ext-diff", "--no-textconv", "--name-status",
                                 "--find-renames=50%", diff_range,
                                 *pathspec),
@@ -428,6 +429,7 @@ def render_packet(
         diff = encoded[:max_diff_bytes].decode("utf-8", errors="replace")
         changed = _git(
             repo_root,
+            "--literal-pathspecs",
             "diff",
             "--name-only",
             diff_range,

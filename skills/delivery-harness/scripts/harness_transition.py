@@ -64,6 +64,7 @@ from harness_worker_result_transition import (
 )
 from select_ready_nodes import (
     GraphSelectionError,
+    _pending_scoped_repair,
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
@@ -97,6 +98,45 @@ def _git_is_ancestor(root: Path, ancestor: str, descendant: str) -> bool:
     except GitMetadataError as exc:
         raise ManifestError(str(exc)) from exc
     return result.returncode == 0
+
+
+def _literal_pathspec_diff_paths(
+    root: Path, base_sha: str, head_sha: str, repair_paths: list[str]
+) -> set[str]:
+    """Changed paths Git itself reports under the repair paths as pathspecs.
+
+    Recorded scopes are replayed as pathspecs by the scoped review packet, so
+    the reconcile subset check re-reads the candidate diff through the same
+    ``--literal-pathspecs`` invocation: pathspec magic recorded by an older
+    run can never hide a changed path from the scoped review.
+    """
+
+    try:
+        reject_object_substitution(root)
+        result = run_git(
+            root,
+            "--literal-pathspecs",
+            "diff",
+            "--name-only",
+            "-z",
+            "--no-renames",
+            f"{base_sha}..{head_sha}",
+            "--",
+            *repair_paths,
+            text=False,
+        )
+    except GitMetadataError as exc:
+        raise ManifestError(str(exc)) from exc
+    if result.returncode != 0:
+        raise ManifestError("cannot observe the scoped repair diff from Git")
+    try:
+        output = result.stdout.decode("utf-8")
+    except UnicodeDecodeError as exc:
+        raise ManifestError("scoped repair paths are not valid UTF-8") from exc
+    paths = output.split("\0")
+    if paths[-1:] == [""]:
+        paths.pop()
+    return set(paths)
 
 
 def _candidate_changed_paths(root: Path, base_sha: str, head_sha: str) -> list[str]:
@@ -2731,15 +2771,15 @@ def _reconcile_candidate_head(
 
     declared_repair_paths = list(getattr(args, "repair_path", None) or [])
     for repair_path in declared_repair_paths:
-        if (
-            not repair_path
-            or repair_path.startswith(("/", "\\"))
-            or "\\" in repair_path
-            or ".." in repair_path.split("/")
-        ):
+        reason = validate_changed_path(repair_path)
+        if reason is None and repair_path.startswith(":"):
+            reason = "must not start with Git pathspec magic"
+        if reason is None and "[" in repair_path:
+            reason = "contains unsupported glob syntax"
+        if reason:
             raise ManifestError(
-                "--repair-path must be a repository-relative POSIX path "
-                f"without '..': {repair_path!r}"
+                "--repair-path must be a literal repository-relative file path: "
+                f"{repair_path!r} {reason}"
             )
     task_matches = [
         (mission, task)
@@ -2908,6 +2948,26 @@ def _reconcile_candidate_head(
                 "repair changed paths outside --repair-path scope: "
                 + ", ".join(outside_scopes)
             )
+        scoped_view = _literal_pathspec_diff_paths(
+            root, current_head, candidate_sha, declared_repair_paths
+        )
+        hidden = [path for path in changed_paths if path not in scoped_view]
+        if hidden:
+            raise ManifestError(
+                "--repair-path scope would hide changed candidate paths: "
+                + ", ".join(hidden)
+            )
+        for repair_path in declared_repair_paths:
+            if repair_path in changed_paths:
+                continue
+            probe = run_git(
+                root, "cat-file", "-e", f"{candidate_sha}:{repair_path}"
+            )
+            if probe.returncode != 0:
+                raise ManifestError(
+                    "--repair-path must name a file the candidate changes or "
+                    f"a file present in the candidate tree: {repair_path!r}"
+                )
     if not declared_repair_paths:
         # An isolated --repair-path repair re-arms the review node for a scoped
         # review whose PASS refunds the attempt, so only an ordinary repair
@@ -3743,6 +3803,13 @@ def _reserve_review_dispatch(
         "findings": [],
         "notes": [],
     }
+    pending_scope = _pending_scoped_repair(node, run)
+    if pending_scope is not None:
+        # The reviewed head is a recorded isolated repair, so this reservation
+        # is the scoped review of that repair diff; the recorded PASS refunds
+        # the attempt, so the full-scope review budget is never exceeded.
+        review_worker["scoped"] = True
+        review_worker["repair_paths"] = list(pending_scope["repair_paths"])
     # Record the exact spawn receipt only after every guard has passed, as
     # _lease_worker does for mission workers.
     if directive["worker_runtime"] == "subagent":
@@ -3834,6 +3901,11 @@ def _record_review_attempt(
     if worker.get("phase") not in {"leased", "worker_running"}:
         raise ManifestError("review dispatch is not active")
     scoped = bool(getattr(args, "scoped", False))
+    if worker.get("scoped") is True and not scoped:
+        raise ManifestError(
+            "review dispatch was reserved as a scoped repair review; "
+            "record it with --scoped"
+        )
     repair_scope = (
         repair_scope_entry(run, worker.get("reviewed_sha")) if scoped else None
     )
