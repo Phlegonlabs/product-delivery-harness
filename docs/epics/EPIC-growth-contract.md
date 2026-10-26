@@ -48,6 +48,7 @@ Four sibling packages (G1-G4) own the canonical rules under `skills/**` and `sta
 | Review round 1 at `42ba2408` | Protected GPT-6.1 Sol xhigh; four scopes, then six narrower prose scopes rerun two at a time after load-induced timeouts | runs `20261026-144257-*`, `-15xxxx-*` | checker: 6 blocking (annotated headers, trace identifiers, per-journey console coverage, excluded SEO lines, quadratic companion regex, signed days); prose: Owner stage values and Day 0-7 rule, focused test pins, activation kind-to-profile mapping, SEO template Mode suffix; docs PASS after pins |
 | Consolidated repair | GLM-5.3 Flash workers for the checker (two sessions, disjoint functions), parent for prose and pins | `b75bd617`..`dce344fe`, `af3d9276`..`aaf47c19`, `92108c9a`, `dabd7c1e`, `e6a094d2`, `ff107754` | pdb suite 272 OK; activation, seo, ui, delivery contract suites OK |
 | Isolated repairs under the 0.70 protocol | Parent: annotation key, SEO exclusion scoping (three passes until per-occurrence fixed windows with word boundaries), day ranges, huge bounds, activation validator profile catalog, test path setup | `1cebd67b`, `e7ea6044`, `061c605b`; scoped reviews `20261026-15xxxx-*` | final scoped review of `061c605b` PASS; findings shrank 6 → 3 → 2 → 1 → 0 |
+| Parallel local test runner (0.72.0) | Parent; the 27-minute single-core delivery suite was the slowest step of every round | `6bf0c9ce`, `a7df67cc` | `test_ci_test_shards.py`, `test_cli_utf8_output.py`, `test_ci_candidate_gate.py` OK; timing recorded in the PR |
 
 ## Verification
 
@@ -62,4 +63,4 @@ Independent review: `42ba2408` `fix_required` across the checker and prose scope
 - Consumer retrofits: the three consumer projects' PRDs gain a `Shape` row and a `## Growth Contract`.
 - Publication: PR chain `feat/review-budget-and-mvp-profile` (0.70.0) then `feat/growth-contract` (0.71.0) to `main`, CI on each exact candidate, tags, consumer syncs. Nothing here authorizes a push, PR or installation.
 - Backlog notes from review: the Shape-row tests omit `n/a` prefix and longer-word exclusion variants; validator-level acceptance of the new activation profiles with architecture targets lacks a focused case; the growth_review cadence has no fallback example when no launch reach plan exists.
-- Test-suite sharding for speed.
+- Test-suite sharding: done in 0.72.0 (`ci_test_shards.py run`), see the Change Log row.
