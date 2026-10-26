@@ -288,6 +288,29 @@ class RepairScopeRecordingTests(unittest.TestCase):
         self.assertNotIn("repair_scopes", self.run["integration"])
         self.assertEqual([], validate_run(self.plan, self.run))
 
+    def test_scoped_repair_reconciles_past_the_exhausted_budget(self) -> None:
+        self.run["graph_state"]["node_states"]["N-FINAL"]["attempts"] = 2
+
+        with self.assertRaisesRegex(ManifestError, "attempt budget is exhausted"):
+            self.reconcile()
+
+        receipt = self.reconcile(repair_path=["src/a/one.py"])
+
+        self.assertEqual("reconcile-candidate-head", receipt["command"])
+        self.assertEqual(
+            [
+                {
+                    "candidate_sha": self.candidate,
+                    "prior_head_sha": self.previous_head,
+                    "repair_paths": ["src/a/one.py"],
+                    "source": "post-integration repair commit verified by the parent",
+                    "trust_boundary": False,
+                }
+            ],
+            self.run["integration"]["repair_scopes"],
+        )
+        self.assertEqual([], validate_run(self.plan, self.run))
+
 
 class ScopedReviewPassTests(unittest.TestCase):
     """record-review-attempt --scoped accepts the repair diff and refunds."""

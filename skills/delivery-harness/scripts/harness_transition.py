@@ -2908,7 +2908,11 @@ def _reconcile_candidate_head(
                 "repair changed paths outside --repair-path scope: "
                 + ", ".join(outside_scopes)
             )
-    _require_candidate_revalidation_budget(plan, run)
+    if not declared_repair_paths:
+        # An isolated --repair-path repair re-arms the review node for a scoped
+        # review whose PASS refunds the attempt, so only an ordinary repair
+        # stays bound by the revalidation budget here.
+        _require_candidate_revalidation_budget(plan, run)
 
     # The scope and budget checks above may take time.  Bind the mutation to a
     # second live Git observation so a concurrent commit, checkout, or product
