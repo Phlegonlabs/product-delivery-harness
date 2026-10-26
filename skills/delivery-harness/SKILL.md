@@ -60,6 +60,7 @@ Record:
 
 ```text
 Project size: small | large
+Delivery profile: standard | mvp
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 Host adapter: none | general (observed host identity or generic)
@@ -77,6 +78,10 @@ Classify each task's Gitignore impact with `references/gitignore-contract.md`; i
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker. For a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol, also read [Legacy Pins](references/legacy-pins.md).
 
 After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts using that RUN's exact pinned bundle. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
+
+### MVP Week
+
+The owner-selected `mvp` delivery profile targets one week from approved PRD to a verified release candidate for a small project or an MVP. It runs one combined review plus one re-check in delivery, folds Final UI Acceptance into the combined review, isolates every post-re-check defect, runs the broad suite once, and keeps at most four owner gates across the flow. Speed changes nothing else: the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding still apply.
 
 ## Non-Negotiable Boundaries
 
