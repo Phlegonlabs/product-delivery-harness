@@ -319,7 +319,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("Run Impeccable critique and audit again on the affected pages and states", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("it never grants another repair round", scope)
+        self.assertIn("it never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
         self.assertNotIn("and the full rubric once", rubric)
         self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",

@@ -145,7 +145,7 @@ Before human visual approval:
 1. Freeze the PRD, `ui-design.md`, and HiFi candidate paths and SHA-256 values. Pass the cheap completeness check on them.
 2. Run `impeccable critique` and `impeccable audit` against the exact connected candidate only with explicit workflow authorization. Impeccable may have side effects, so it needs that authorization, but it is required: Visual Approval and publication need both PASS records, and a declined authorization leaves the stage `blocked`. Keep its required internal workflow. Its native totals are diagnostic and never replace H1-H9. Record exact `PASS` when the run covered its required scope and every finding is in the ledger as closed, an advisory or a block.
 3. Run `ui-grading-rubric.md`'s Technical Hard Gate and complete `H1`–`H9` scoring. Readiness requires an overall score of at least 85 and every H1-H9 dimension at least 80, with no block or dispute.
-4. Consolidate every finding into one root-cause defect ledger. Let `frontend-design` make one repair batch, then re-review under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). A second failed review stops at `blocked` unless the owner explicitly approves one changed strategy and acceptance matrix.
+4. Consolidate every finding into one root-cause defect ledger. Let `frontend-design` make one repair batch, then re-review under [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). A defect after that re-review gets an isolated repair and one scoped re-review of the affected pages; no third wave, whole-HiFi re-grade, or owner-granted extra round exists.
 
 ## Browser And Human Visual Approval
 
