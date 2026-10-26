@@ -3,6 +3,13 @@
 Read selected channels only. These approaches are not guaranteed reach or a universal tone.
 The project's audience, voice and evidence take precedence.
 
+## Hook Variants For The Content Pipeline
+
+For a source piece with channel variants, write two opening hooks per variant and label them `hook-a` and `hook-b`.
+Both hooks carry the same fact, destination and availability claim; they differ only in angle.
+Keep each hook inside its channel's opening-line norms in the playbook below.
+A click-through comparison needs the published readback; drafting never declares the winner.
+
 ## X (Twitter)
 
 Name the intended founder or brand account, audience and post type before preparing execution-ready copy.
