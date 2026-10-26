@@ -22,8 +22,9 @@ An absent repository does not block a public baseline review. Missing target mar
 
 Choose one mode from the available evidence:
 
+- `pre_launch`: the product has an approved launch window and no production search evidence yet. Build query clusters, page responsibilities and the internal-link skeleton as hypotheses; mark every claim `estimated` or `hypothesis` until launch. Route new routes and metadata contracts to `product-definition-builder`, and implementation to `delivery-harness`.
 - `baseline`: the site is new or useful first-party search data is unavailable. Review production crawlability, indexability, information architecture, content coverage, trust signals, and measurement readiness. Mark keyword ideas as estimates or hypotheses.
-- `growth_review`: enough complete Search Console and GA4 data exists to compare queries, landing pages, engagement, and business outcomes. Rank current-page improvements before proposing new pages.
+- `growth_review`: enough complete Search Console and GA4 data exists to compare queries, landing pages, engagement, and business outcomes. Rank current-page improvements before proposing new pages. Run it as a cadence at the PRD Growth Contract's Day 7 and Day 30 readbacks; return next-round PRD delta candidates with the evidence.
 - `traffic_drop`: the user reports a material decline. Compare equal periods and segment by query, page, country, device, and search appearance before attributing a cause. Check demand and seasonality separately from site-specific changes.
 
 ## Workflow

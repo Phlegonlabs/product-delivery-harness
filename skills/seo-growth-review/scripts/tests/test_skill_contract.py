@@ -64,7 +64,7 @@ class SeoGrowthReviewSkillContractTests(unittest.TestCase):
         stage = self.read(SEO_STAGE)
         method = self.read("references/review-method.md")
 
-        for mode in ("`baseline`", "`growth_review`", "`traffic_drop`"):
+        for mode in ("`baseline`", "`pre_launch`", "`growth_review`", "`traffic_drop`"):
             self.assertIn(mode, stage)
         for route in (
             "`product_activation`",
@@ -75,6 +75,9 @@ class SeoGrowthReviewSkillContractTests(unittest.TestCase):
             "`owner`",
         ):
             self.assertIn(route, method)
+        self.assertIn("Day 7", stage)
+        self.assertIn("## Pre-Launch Planning Sequence", method)
+        self.assertIn("## Growth Review Cadence", method)
         self.assertIn("Return the result inline", method)
         self.assertIn("do not create a kanban board, standing dashboard", stage)
 
