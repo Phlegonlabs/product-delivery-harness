@@ -375,7 +375,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never make `fix_required`", graph)
         self.assertIn("Collect every required review result for the same candidate", skill)
         self.assertIn("it is not a fresh full review", skill)
-        self.assertIn("A failed re-review stops at `blocked` and returns to the owner", gen_verify)
+        self.assertIn("A failed re-check hands remaining defects to the Isolated Repair", gen_verify)
 
     def test_review_convergence_rules_are_documented(self) -> None:
         skill = self.read("SKILL.md")
