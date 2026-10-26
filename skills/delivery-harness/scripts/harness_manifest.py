@@ -6556,7 +6556,8 @@ def _scoped_chain_break_reason(
             return "anchor order inconsistent with the attempt log"
     # A logged full review newer than the anchor that kept no worker
     # record is still a newer full review: it cannot be skipped by
-    # dropping its worker entry.
+    # dropping its worker entry. An entry with no lineage is ambiguous
+    # history and breaks the chain the same way.
     lineage_id = (
         node.get("review", {}).get("lineage_id")
         if isinstance(node.get("review"), dict)
@@ -6573,7 +6574,7 @@ def _scoped_chain_break_reason(
         if (
             isinstance(attempt, dict)
             and attempt.get("kind") == "review"
-            and attempt.get("review_lineage_id") == lineage_id
+            and attempt.get("review_lineage_id") in {lineage_id, None}
             and attempt.get("scoped") is not True
             and attempt.get("result") in {"pass", "fix_required"}
             and index > anchor_position

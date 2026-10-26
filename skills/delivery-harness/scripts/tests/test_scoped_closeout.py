@@ -438,6 +438,42 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             errors[0],
         )
 
+    def test_orphaned_review_without_a_lineage_still_breaks_the_chain(
+        self,
+    ) -> None:
+        self.build_run(
+            workers=[
+                (self.H0, False, None, "pass"),
+                (self.H2, False, None, "fix_required"),
+                (self.H2, True, ["src/a/one.py", "src/a/two.py"], "pass"),
+            ],
+            scopes=[
+                {
+                    "candidate_sha": self.H2,
+                    "prior_head_sha": self.H0,
+                    "repair_paths": ["src/a/one.py", "src/a/two.py"],
+                    "source": "isolated repair commit",
+                    "trust_boundary": False,
+                }
+            ],
+        )
+        self.run["review_workers"] = [
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("attempt_id") != "ATT-CHAIN-1"
+        ]
+        for attempt in self.run["attempt_log"]:
+            if attempt.get("attempt_id") == "ATT-CHAIN-1":
+                attempt["review_lineage_id"] = None
+
+        errors = self.chain_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            "anchor order inconsistent with the attempt log",
+            errors[0],
+        )
+
     def test_git_diff_failure_fails_the_chain_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
