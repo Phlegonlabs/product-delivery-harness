@@ -76,11 +76,11 @@ Capture internally: scope and non-goals; architecture and build-versus-buy const
 Ask the unresolved parts of these short prompts:
 
 - After this works, what should happen next, which decision or ritual does it feed, and what would make it unnecessary?
-- Who does this best today, what instruments and raw material do they use, and can we get the same data, tools and machine access?
+- Who does this best today, what instruments and raw material do they use, and why would someone come back or open the app again?
 - Beyond the acceptable target, what is the unreasonable one, and what other than you and us would prove it worked?
-- Said as verbs, what is this work, and which other fields should be on the crew?
+- Said as verbs, what is this work and which fields join the crew, and where will people first see it — which of those places can we set up before launch?
 
-Capture internally: the three rungs with their outside judges, best practitioners, their instruments, rawest material, stretch targets, the work restated as verbs, other fields on the crew with their roles, and access gaps. Record them in the PRD's `## Ambition` section per `output-contract.md`.
+Capture internally: the three rungs with their outside judges, best practitioners, their instruments, rawest material, stretch targets, the work restated as verbs, other fields on the crew with their roles, access gaps, the delivery track with its companion surface and console type, a north star with Day 7 and Day 30 targets, at least one re-engagement mechanism for web or app tracks, discovery surfaces, and the launch window. Record the rungs in the PRD's `## Ambition` section and the growth answers in its `## Growth Contract` section per `output-contract.md`.
 
 After segment 4, compare the aggregate answers with **Completeness Criteria**. If a material item is still missing and the user did not authorize assumptions, ask one compact targeted free-text follow-up containing only the missing items. This follow-up is an exception, not a fifth planned segment. Begin the closed `AskUserQuestion` phase only after the coverage check passes.
 
@@ -191,6 +191,8 @@ Discovery is complete enough to draft when the agent can state:
 - The named human owner for the later `ui-design-builder` phase, or an explicit `not_required` result for a headless product. UI layout, visual, motion, media, wireframe, and token decisions remain deferred.
 - The success metrics and acceptance criteria, including baseline, target/guardrail, stretch, measurement window, source/method, and owner.
 - The Ambition ladder with an outside judge on every rung, at least one stretch target, the crew or an explicit `none`, and the access gaps.
+- The delivery Shape: track, companion surface, and console type.
+- The Growth Contract: a north star with Day 7 and Day 30 targets, at least one re-engagement mechanism for web or app tracks, discovery surfaces, and a launch window.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
 - The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
 
