@@ -362,7 +362,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A generic instruction to continue", skill)
         self.assertIn("## Root-Cause Repair Escalation", graph)
         self.assertIn("one review, one consolidated repair, and one targeted re-check", graph)
-        self.assertIn("the owner's quoted decision", graph)
+        self.assertIn("isolated repairs with scoped reviews", graph)
         self.assertIn("docs/goal/DECISIONS.md", graph)
         self.assertIn("stable mission + review surface + root-cause lineage", graph)
         self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
