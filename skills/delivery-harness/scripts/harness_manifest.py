@@ -6398,16 +6398,24 @@ def _validate_repair_scopes(errors: list[str], scopes: Any) -> None:
 
 def _git_changed_paths_between(
     repo_root: str | Path, base: str, head: str
-) -> set[str] | None:
-    """Changed repository-relative paths between two heads, or None on any Git failure."""
+) -> tuple[set[str] | None, str]:
+    """Changed paths between two heads, or ``(None, reason)`` on Git failure."""
 
     try:
         result = run_git(Path(repo_root), "diff", "--name-only", f"{base}..{head}")
-    except Exception:
-        return None
+    except Exception as error:
+        return None, str(error) or error.__class__.__name__
     if result.returncode != 0:
-        return None
-    return {line for line in result.stdout.splitlines() if line.strip()}
+        detail = ""
+        for stream in (result.stderr, result.stdout):
+            if isinstance(stream, str) and stream.strip():
+                detail = stream.strip().splitlines()[0]
+                break
+        reason = f"exit {result.returncode}"
+        if detail:
+            reason = f"{reason}: {detail}"
+        return None, reason
+    return {line for line in result.stdout.splitlines() if line.strip()}, ""
 
 
 def _scoped_coverage_chain_errors(
@@ -6499,17 +6507,25 @@ def _scoped_chain_break_reason(
         and worker.get("scoped") is True
         and is_full_sha(worker.get("reviewed_sha"))
     }
-    # The anchor is the latest full-scope review of the candidate whatever
-    # its outcome: a fix_required re-check inspected every path, so the
-    # paths it did not flag carry forward into the scoped repair chain.
-    anchor_heads = {
-        worker["reviewed_sha"]
-        for worker in node_workers
-        if isinstance(worker, dict)
-        and worker.get("outcome") in {"pass", "fix_required"}
-        and worker.get("scoped") is not True
-        and is_full_sha(worker.get("reviewed_sha"))
-    }
+    # The anchor is the latest full-scope review of the candidate by
+    # attempt order, whatever its outcome: a fix_required re-check
+    # inspected every path, so the paths it did not flag carry forward
+    # into the scoped repair chain. An older review never anchors behind
+    # a newer one.
+    anchor_worker = next(
+        (
+            worker
+            for worker in reversed(node_workers)
+            if isinstance(worker, dict)
+            and worker.get("outcome") in {"pass", "fix_required"}
+            and worker.get("scoped") is not True
+            and is_full_sha(worker.get("reviewed_sha"))
+        ),
+        None,
+    )
+    if anchor_worker is None:
+        return "no non-scoped review anchors a repair chain to the integration head"
+    anchor = anchor_worker["reviewed_sha"]
     entries_by_prior: dict[str, list[dict[str, Any]]] = {}
     for entry in scopes:
         if (
@@ -6519,9 +6535,7 @@ def _scoped_chain_break_reason(
         ):
             entries_by_prior.setdefault(entry["prior_head_sha"], []).append(entry)
     chain: list[dict[str, Any]] | None = None
-    queue: list[tuple[str, list[dict[str, Any]]]] = [
-        (anchor, []) for anchor in sorted(anchor_heads)
-    ]
+    queue: list[tuple[str, list[dict[str, Any]]]] = [(anchor, [])]
     visited: set[str] = set()
     while queue:
         current, trail = queue.pop(0)
@@ -6536,9 +6550,9 @@ def _scoped_chain_break_reason(
             if candidate in scoped_passes:
                 queue.append((candidate, [*trail, entry]))
     if chain is None:
-        if anchor_heads:
-            return "no reviewed scoped chain reaches the integration head from a non-scoped review"
-        return "no non-scoped review anchors a repair chain to the integration head"
+        return "no reviewed scoped chain reaches the integration head from a non-scoped review"
+    if not chain and anchor_worker.get("outcome") == "fix_required":
+        return "fix_required anchor at the integration head has no chained repair step"
     covered_paths = {
         item
         for entry in chain
@@ -6546,17 +6560,55 @@ def _scoped_chain_break_reason(
         for item in entry["repair_paths"]
         if isinstance(item, str)
     }
-    changed_paths = covered_paths
-    if repo_root is not None and chain:
-        observed = _git_changed_paths_between(
-            repo_root, chain[0]["prior_head_sha"], head
-        )
-        if observed is not None:
+    changed_paths: set[str] | None = None
+    if repo_root is not None:
+        if chain:
+            observed, git_reason = _git_changed_paths_between(
+                repo_root, chain[0]["prior_head_sha"], head
+            )
+            if observed is None:
+                return f"git diff unavailable ({git_reason})"
             changed_paths = observed
-    uncovered = sorted(changed_paths - covered_paths)
+        else:
+            changed_paths = set()
+    if changed_paths is None:
+        # No repo root: the stored repair paths stand in for the diff, so
+        # this basis is path-declared, never diff-verified.
+        uncovered: list[str] = []
+    else:
+        uncovered = sorted(changed_paths - covered_paths)
     if uncovered:
         return f"uncovered path {uncovered[0]}"
     if isinstance(node.get("review"), dict) and node["review"].get("type") == "security":
+        anchor_result = anchor_worker.get("security_result")
+        anchor_decision = (
+            anchor_result.get("decision")
+            if isinstance(anchor_result, dict)
+            else None
+        )
+        if (
+            anchor_worker.get("outcome") == "fix_required"
+            or anchor_decision == "fix_required"
+        ):
+            trust_boundary_secured = all(
+                entry.get("trust_boundary") is True
+                and isinstance(
+                    (scoped_passes.get(entry["candidate_sha"]) or {}).get(
+                        "security_result"
+                    ),
+                    dict,
+                )
+                and scoped_passes[entry["candidate_sha"]]["security_result"].get(
+                    "decision"
+                )
+                == "pass"
+                for entry in chain
+            )
+            if not trust_boundary_secured:
+                return (
+                    "anchor security result is fix_required and no "
+                    "trust-boundary scoped security pass covers it"
+                )
         for entry in chain:
             if entry.get("trust_boundary") is not True:
                 continue
