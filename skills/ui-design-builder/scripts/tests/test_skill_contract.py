@@ -345,9 +345,21 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("one direction study", stage)
         self.assertIn("required surfaces only", stage)
         self.assertIn("compile a design system only when the recorded Need Gate is `required`", stage)
+        self.assertIn("the gate may record `not_required` with its reason", stage)
+        self.assertIn("records `not_required` only under that mvp exception", stage)
+        self.assertIn("the approved UI target row then carries the conformance identity", stage)
+        self.assertIn("records `not_required` only under `Delivery profile: mvp`", pass_guide)
         self.assertIn("at most four owner gates", stage)
         self.assertIn("execution authorization, and release", stage)
         self.assertIn("do not change under `mvp`", stage)
+        for content in (stage, pass_guide):
+            self.assertIn("Direction mode: one recommended direction (mvp)", content)
+            self.assertIn("no separate direction approval turn", content)
+        self.assertIn("approves that direction and the HiFi together in the one Visual Approval", stage)
+        self.assertIn("the standard profile keeps its explicit direction approval turn before HiFi", stage)
+        self.assertIn("that approval is the one Visual Approval", stage)
+        self.assertIn("approves that direction and the connected HiFi together in the one Visual Approval", pass_guide)
+        self.assertIn("fold its approval into the one Visual Approval", pass_guide)
 
     def test_first_wave_axes_and_scoped_re_review(self):
         rubric = self.read("references/ui-grading-rubric.md")

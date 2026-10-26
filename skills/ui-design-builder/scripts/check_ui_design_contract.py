@@ -170,7 +170,7 @@ VALID_MOTION_STATUSES = {"approved", "deferred"}
 VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
 VALID_DIRECTION_DECISIONS = {"approved", "selected", "mixed-and-approved"}
-VALID_DIRECTION_MODES = {"one recommended direction", "three comparable directions"}
+VALID_DIRECTION_MODES = {"one recommended direction", "one recommended direction (mvp)", "three comparable directions"}
 STACK_SEMANTIC_KEYS = {
     "platform",
     "renderingModel",
@@ -283,6 +283,22 @@ def _section(text: str, heading: str) -> str | None:
         re.MULTILINE,
     )
     return match.group(1) if match else None
+
+
+def _prd_delivery_profile(prd_path: Path | None) -> str | None:
+    """The owner-selected `Delivery profile` row in the PRD's `## At a Glance`."""
+
+    if prd_path is None:
+        return None
+    try:
+        prd_text = prd_path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError):
+        return None
+    at_a_glance = _section(prd_text, "## At a Glance") or ""
+    for match in re.finditer(r"^\s*\|\s*([^|]+?)\s*\|\s*([^|]+?)\s*\|\s*$", at_a_glance, re.MULTILINE):
+        if match.group(1).casefold() == "delivery profile":
+            return match.group(2).strip().casefold() or None
+    return None
 
 
 def _field_values(section: str, name: str) -> list[str]:
@@ -2651,6 +2667,7 @@ def validate_text(
     require_visual_approved: bool = False,
     require_hifi_preflight: bool = False,
     allow_pending_design_system_pair: bool = False,
+    delivery_profile: str | None = None,
 ) -> list[str]:
     text = active_text(text)
     problems: list[str] = []
@@ -2740,6 +2757,8 @@ def validate_text(
             )
         if (v3 and (require_filled or require_visual_approved) and direction_mode == "one recommended direction"
                 and not (_human_owner(values.get("Decision owner")) and _date(values.get("Decided on")))):
+            # The (mvp) mode records its approval at Visual Approval, so only the
+            # explicit owner instruction needs an intake decision here.
             _add(problems, "ui-design/3 one recommended direction requires the owner's explicit intake decision: "
                            "human Decision owner and Decided on")
 
@@ -3082,6 +3101,7 @@ def validate_text(
             for finding in ui_design_v3.package_gate_findings(
                 gate_decision, _field_values(gate, "Package action"),
                 disposition_match.group("decision").casefold() if disposition_match else None,
+                delivery_profile=delivery_profile,
             ):
                 _add(problems, finding)
         if disposition_match is None:
@@ -3144,6 +3164,7 @@ def _validate_impl(
         require_visual_approved=require_visual_approved,
         require_hifi_preflight=require_hifi_preflight,
         allow_pending_design_system_pair=_allow_pending_design_system_pair,
+        delivery_profile=_prd_delivery_profile(prd_path),
     )
 
     active = active_text(text)

@@ -295,6 +295,55 @@ class UiDesignV3Tests(unittest.TestCase):
                     ui.write_text(text, encoding="utf-8")
                     self.assertIn(expected, "\n".join(preflight(ui, root, prd, hifi)))
 
+    def test_mvp_direction_mode_needs_no_separate_direction_approval_turn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            three = ui.read_text(encoding="utf-8")
+            others = [line for line in three.splitlines() if re.match(r"\| VD-R1-0[23] \|", line)]
+            one = three.replace("Direction mode: three comparable directions",
+                                "Direction mode: one recommended direction (mvp)")
+            for line in others:
+                one = one.replace(line + "\n", "")
+            ui.write_text(one, encoding="utf-8")
+            self.assertEqual([], preflight(ui, root, prd, hifi))
+            joined = "\n".join(checker.validate_text(one, require_filled=True, require_visual_approved=True,
+                                                     allow_pending_design_system_pair=True))
+            self.assertNotIn("Direction mode must be one of", joined)
+            self.assertNotIn("requires the owner's explicit intake decision", joined)
+
+    def test_mvp_profile_allows_a_not_required_design_system_gate(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            three = ui.read_text(encoding="utf-8")
+            others = [line for line in three.splitlines() if re.match(r"\| VD-R1-0[23] \|", line)]
+            mvp = three.replace("Direction mode: three comparable directions",
+                                "Direction mode: one recommended direction (mvp)")
+            for line in others:
+                mvp = mvp.replace(line + "\n", "")
+            target = re.search(r"^Approved target: (\S+ @ sha256:[0-9a-f]{64})", mvp, re.M).group(1)
+            prd_source = re.search(r"^PRD source: (\S+ @ sha256:[0-9a-f]{64})", mvp, re.M).group(1)
+            start = mvp.index("## Design System Need Gate")
+            tail = mvp[start:]
+            tail = tail.replace("Decision: required", "Decision: not_required", 1)
+            tail = re.sub(r"^Package action:.*$",
+                          "Replacement visual contract when_not_required: target=" + target
+                          + "; ui-design=docs/design/ui-design.md @ sha256:<canonical>; prd=" + prd_source,
+                          tail, flags=re.M)
+            tail = re.sub(r"^Compiled design system pair: .*\n", "", tail, flags=re.M)
+            mvp = mvp[:start] + tail
+            canonical = checker.canonical_ui_approval_sha256(mvp)
+            mvp = mvp.replace("ui-design=docs/design/ui-design.md @ sha256:<canonical>",
+                              "ui-design=docs/design/ui-design.md @ sha256:" + canonical, 1)
+            ui.write_text(mvp, encoding="utf-8")
+            self.assertEqual([], checker.validate_text(mvp, require_filled=True, require_visual_approved=True,
+                                                       delivery_profile="mvp"))
+            self.assertIn("ui-design/3 full UI package requires Design System Need Gate Decision: required",
+                          "\n".join(checker.validate_text(mvp, require_filled=True, require_visual_approved=True)))
+            self.assertIn("ui-design/3 full UI package requires Design System Need Gate Decision: required",
+                          "\n".join(checker.validate_text(mvp, require_filled=True, require_visual_approved=True,
+                                                          delivery_profile="standard")))
     def test_modified_direction_adds_one_revised_study_to_the_round(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
