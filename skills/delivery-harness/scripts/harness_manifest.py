@@ -6499,17 +6499,25 @@ def _scoped_chain_break_reason(
         and worker.get("scoped") is True
         and is_full_sha(worker.get("reviewed_sha"))
     }
-    # The anchor is the latest full-scope review of the candidate whatever
-    # its outcome: a fix_required re-check inspected every path, so the
-    # paths it did not flag carry forward into the scoped repair chain.
-    anchor_heads = {
-        worker["reviewed_sha"]
-        for worker in node_workers
-        if isinstance(worker, dict)
-        and worker.get("outcome") in {"pass", "fix_required"}
-        and worker.get("scoped") is not True
-        and is_full_sha(worker.get("reviewed_sha"))
-    }
+    # The anchor is the latest full-scope review of the candidate by
+    # attempt order, whatever its outcome: a fix_required re-check
+    # inspected every path, so the paths it did not flag carry forward
+    # into the scoped repair chain. An older review never anchors behind
+    # a newer one.
+    anchor_worker = next(
+        (
+            worker
+            for worker in reversed(node_workers)
+            if isinstance(worker, dict)
+            and worker.get("outcome") in {"pass", "fix_required"}
+            and worker.get("scoped") is not True
+            and is_full_sha(worker.get("reviewed_sha"))
+        ),
+        None,
+    )
+    if anchor_worker is None:
+        return "no non-scoped review anchors a repair chain to the integration head"
+    anchor = anchor_worker["reviewed_sha"]
     entries_by_prior: dict[str, list[dict[str, Any]]] = {}
     for entry in scopes:
         if (
@@ -6519,9 +6527,7 @@ def _scoped_chain_break_reason(
         ):
             entries_by_prior.setdefault(entry["prior_head_sha"], []).append(entry)
     chain: list[dict[str, Any]] | None = None
-    queue: list[tuple[str, list[dict[str, Any]]]] = [
-        (anchor, []) for anchor in sorted(anchor_heads)
-    ]
+    queue: list[tuple[str, list[dict[str, Any]]]] = [(anchor, [])]
     visited: set[str] = set()
     while queue:
         current, trail = queue.pop(0)
@@ -6536,9 +6542,9 @@ def _scoped_chain_break_reason(
             if candidate in scoped_passes:
                 queue.append((candidate, [*trail, entry]))
     if chain is None:
-        if anchor_heads:
-            return "no reviewed scoped chain reaches the integration head from a non-scoped review"
-        return "no non-scoped review anchors a repair chain to the integration head"
+        return "no reviewed scoped chain reaches the integration head from a non-scoped review"
+    if not chain and anchor_worker.get("outcome") == "fix_required":
+        return "fix_required anchor at the integration head has no chained repair step"
     covered_paths = {
         item
         for entry in chain
