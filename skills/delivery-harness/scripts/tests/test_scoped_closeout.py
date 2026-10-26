@@ -10,6 +10,8 @@ the scoped repair chain.
 from __future__ import annotations
 
 import copy
+import hashlib
+import json
 import subprocess
 import sys
 import tempfile
@@ -70,6 +72,7 @@ class ScopedCloseoutChainTests(unittest.TestCase):
         workers: list[tuple[str, bool, list[str] | None, str]] | None = None,
         scopes: list[dict[str, object]] | None = None,
         security: bool = False,
+        lenses: list[str] | None = None,
     ) -> None:
         workers = self.chain_workers() if workers is None else workers
         scopes = self.chain_scopes() if scopes is None else scopes
@@ -83,13 +86,18 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             "contract_gap",
             "blocked",
         ]
+        node["max_attempts"] = 3
         review = {
             "stage": "integration",
             "lineage_id": "RL-EXTRA",
             "mission_ids": ["M1", "M2"],
         }
         if security:
-            review.update(type="security", lenses=["security"], scope=["src/**"])
+            review.update(
+                type="security",
+                lenses=lenses or ["security"],
+                scope=["src/**"],
+            )
         node["review"].update(**review)
         self.plan["graph"]["nodes"].append(node)
         self.plan["graph"]["edges"].extend(
@@ -121,6 +129,7 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             }
         self.run = mf.valid_run(self.plan)
         mf.mark_complete(self.plan, self.run)
+        stale_head = self.run["integration"]["integration_head_sha"]
         self.run["integration"].update(
             {
                 "integration_head_sha": self.H2,
@@ -128,6 +137,48 @@ class ScopedCloseoutChainTests(unittest.TestCase):
                 "repair_scopes": scopes,
             }
         )
+        # mark_complete seeds a retained full-scope worker for every
+        # review node; this fixture serialises its own chain instead.
+        self.run["review_workers"] = [
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("node_id") != node["id"]
+        ]
+        for execution in self.run["verifier_executions"]:
+            if execution.get("layer") not in {"batch", "final"}:
+                continue
+            execution["context"]["head_sha"] = self.H2
+            execution["key_document"]["head_sha"] = self.H2
+            git_guard = execution["git_guard_attestation"]["git_guard"]
+            git_guard["expected_head_sha"] = self.H2
+            execution["git_guard_attestation"]["source_head_sha"] = self.H2
+            execution_key = hashlib.sha256(
+                json.dumps(
+                    execution["key_document"],
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=False,
+                ).encode("utf-8")
+            ).hexdigest()
+            execution["execution_key"] = execution_key
+            execution["evidence_key"] = execution_key
+        for layer, run_key in (
+            ("batch", "batch_gate_results"),
+            ("final", "final_gate_results"),
+        ):
+            gate_executions = [
+                execution
+                for execution in self.run["verifier_executions"]
+                if execution.get("layer") == layer
+            ]
+            for gate_result, execution in zip(
+                self.run[run_key], gate_executions
+            ):
+                gate_result["head_sha"] = self.H2
+                gate_result["evidence"] = [execution["evidence_key"]]
+        continuity = self.run["landing"]["continuity"]
+        if isinstance(continuity, dict) and continuity.get("head_sha") == stale_head:
+            continuity["head_sha"] = self.H2
         for edge in self.plan["graph"]["edges"]:
             self.run["graph_state"]["edge_states"].setdefault(
                 edge["id"],
@@ -139,13 +190,16 @@ class ScopedCloseoutChainTests(unittest.TestCase):
         state.update(
             {
                 "phase": "succeeded",
-                "attempts": 3,
+                "attempts": len(workers),
                 "last_attempt_id": f"ATT-CHAIN-{last_index}",
                 "last_outcome": "pass",
                 "bound_worker_id": f"RW-CHAIN-{last_index}",
                 "blockers": [],
             }
         )
+        self.run["graph_state"]["edge_states"]["E-EXTRA-PASS"][
+            "source_attempt_id"
+        ] = f"ATT-CHAIN-{last_index}"
         for index, (head_sha, scoped, paths, outcome) in enumerate(workers):
             attempt_id = f"ATT-CHAIN-{index}"
             worker_id = f"RW-CHAIN-{index}"
@@ -287,6 +341,68 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             errors[0],
         )
 
+    def test_anchor_serialised_behind_a_newer_attempt_breaks_the_chain(
+        self,
+    ) -> None:
+        self.build_run(
+            workers=[
+                (self.H0, False, None, "pass"),
+                (self.H2, False, None, "fix_required"),
+                (self.H2, True, ["src/a/one.py", "src/a/two.py"], "pass"),
+            ],
+            scopes=[
+                {
+                    "candidate_sha": self.H2,
+                    "prior_head_sha": self.H0,
+                    "repair_paths": ["src/a/one.py", "src/a/two.py"],
+                    "source": "isolated repair commit",
+                    "trust_boundary": False,
+                }
+            ],
+        )
+        # Serialised [A1, A0, A2] beside the attempt log's [A0, A1, A2]:
+        # the stale PASS at H0 must not anchor over the newer fix_required
+        # re-check at the integration head just because it is listed last.
+        node_workers = [
+            worker
+            for worker in self.run["review_workers"]
+            if worker.get("node_id") == self.review_node_id
+        ]
+        anchor_order = [1, 0, 2]
+        self.run["review_workers"] = [
+            node_workers[index] for index in anchor_order
+        ]
+
+        errors = self.chain_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            "anchor order inconsistent with the attempt log",
+            errors[0],
+        )
+
+    def test_anchor_missing_from_the_attempt_log_breaks_the_chain(self) -> None:
+        self.build_run(
+            workers=[
+                (self.H0, False, None, "fix_required"),
+                (self.H1, True, ["src/a/one.py"], "pass"),
+                (self.H2, True, ["src/a/two.py"], "pass"),
+            ],
+        )
+        self.run["attempt_log"] = [
+            attempt
+            for attempt in self.run["attempt_log"]
+            if attempt.get("attempt_id") != "ATT-CHAIN-0"
+        ]
+
+        errors = self.chain_errors()
+
+        self.assertEqual(1, len(errors), errors)
+        self.assertIn(
+            "anchor order inconsistent with the attempt log",
+            errors[0],
+        )
+
     def test_git_diff_failure_fails_the_chain_closed(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -344,7 +460,35 @@ class ScopedCloseoutChainTests(unittest.TestCase):
         result = valid_result(self.H0, batch_base)
         result["decision"] = anchor_decision
         result["scope"] = list(self.security_node()["review"]["scope"])
+        if anchor_decision != "pass":
+            result["findings"] = [
+                {
+                    "severity": "high",
+                    "confidence": "high",
+                    "cwe": "CWE-798",
+                    "location": "src/a/one.py:1",
+                    "summary": "hard-coded deployment credential",
+                    "source_to_sink": "constant feeds the client handshake",
+                    "preconditions": "repository checkout",
+                    "impact": "credential disclosure",
+                    "counterevidence": "none recorded",
+                    "remediation": "load the credential from a secret store",
+                    "remediation_test": "tests/test_no_embedded_secret.py",
+                }
+            ]
         anchor["security_result"] = result
+        anchor["outcome"] = anchor_decision
+        anchor["phase"] = (
+            "worker_passed" if anchor_decision == "pass" else "worker_failed"
+        )
+        if anchor_decision != "pass":
+            anchor["findings"] = [f"{self.H0} remaining finding"]
+        attempt = next(
+            item
+            for item in self.run["attempt_log"]
+            if item.get("attempt_id") == "ATT-CHAIN-0"
+        )
+        attempt["result"] = anchor_decision
 
     def test_fix_required_security_anchor_needs_a_trust_boundary_pass(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -353,21 +497,43 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             self.build_run(security=True)
             self.secure_security_workers(anchor_decision="fix_required")
 
-            errors = self.chain_errors(repo_root=root)
-            security_errors = self.security_closeout_errors()
+            errors = validate_run(self.plan, self.run, repo_root=root)
 
-            self.assertEqual(1, len(errors), errors)
-            self.assertIn(
-                "anchor security result is fix_required and no trust-boundary "
-                "scoped security pass covers it",
-                errors[0],
+            self.assertEqual(2, len(errors), errors)
+            for error in errors:
+                self.assertIn(
+                    "anchor security result is fix_required and no "
+                    "trust-boundary scoped security pass covers it",
+                    error,
+                )
+
+    def test_combined_anchor_failing_another_lens_keeps_its_security_pass(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=False)
+            self.build_run(
+                security=True,
+                lenses=["security", "backend_code"],
             )
-            self.assertEqual(1, len(security_errors), security_errors)
-            self.assertIn(
-                "anchor security result is fix_required and no trust-boundary "
-                "scoped security pass covers it",
-                security_errors[0],
+            self.secure_security_workers(anchor_decision="pass")
+            anchor = next(
+                worker
+                for worker in self.run["review_workers"]
+                if worker.get("worker_id") == "RW-CHAIN-0"
             )
+            anchor["outcome"] = "fix_required"
+            anchor["phase"] = "worker_failed"
+            anchor["findings"] = [f"{self.H0} backend finding"]
+            attempt = next(
+                item
+                for item in self.run["attempt_log"]
+                if item.get("attempt_id") == "ATT-CHAIN-0"
+            )
+            attempt["result"] = "fix_required"
+
+            self.assertEqual([], validate_run(self.plan, self.run, repo_root=root))
 
     def test_passing_security_anchor_closes_through_non_boundary_chain(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
