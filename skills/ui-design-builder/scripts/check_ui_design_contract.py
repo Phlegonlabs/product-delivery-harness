@@ -170,7 +170,7 @@ VALID_MOTION_STATUSES = {"approved", "deferred"}
 VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
 VALID_DIRECTION_DECISIONS = {"approved", "selected", "mixed-and-approved"}
-VALID_DIRECTION_MODES = {"one recommended direction", "three comparable directions"}
+VALID_DIRECTION_MODES = {"one recommended direction", "one recommended direction (mvp)", "three comparable directions"}
 STACK_SEMANTIC_KEYS = {
     "platform",
     "renderingModel",
@@ -2740,6 +2740,8 @@ def validate_text(
             )
         if (v3 and (require_filled or require_visual_approved) and direction_mode == "one recommended direction"
                 and not (_human_owner(values.get("Decision owner")) and _date(values.get("Decided on")))):
+            # The (mvp) mode records its approval at Visual Approval, so only the
+            # explicit owner instruction needs an intake decision here.
             _add(problems, "ui-design/3 one recommended direction requires the owner's explicit intake decision: "
                            "human Decision owner and Decided on")
 

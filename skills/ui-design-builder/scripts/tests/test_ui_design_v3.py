@@ -295,6 +295,23 @@ class UiDesignV3Tests(unittest.TestCase):
                     ui.write_text(text, encoding="utf-8")
                     self.assertIn(expected, "\n".join(preflight(ui, root, prd, hifi)))
 
+    def test_mvp_direction_mode_needs_no_separate_direction_approval_turn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            three = ui.read_text(encoding="utf-8")
+            others = [line for line in three.splitlines() if re.match(r"\| VD-R1-0[23] \|", line)]
+            one = three.replace("Direction mode: three comparable directions",
+                                "Direction mode: one recommended direction (mvp)")
+            for line in others:
+                one = one.replace(line + "\n", "")
+            ui.write_text(one, encoding="utf-8")
+            self.assertEqual([], preflight(ui, root, prd, hifi))
+            joined = "\n".join(checker.validate_text(one, require_filled=True, require_visual_approved=True,
+                                                     allow_pending_design_system_pair=True))
+            self.assertNotIn("Direction mode must be one of", joined)
+            self.assertNotIn("requires the owner's explicit intake decision", joined)
+
     def test_modified_direction_adds_one_revised_study_to_the_round(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

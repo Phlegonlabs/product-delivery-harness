@@ -348,6 +348,14 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("at most four owner gates", stage)
         self.assertIn("execution authorization, and release", stage)
         self.assertIn("do not change under `mvp`", stage)
+        for content in (stage, pass_guide):
+            self.assertIn("Direction mode: one recommended direction (mvp)", content)
+            self.assertIn("no separate direction approval turn", content)
+        self.assertIn("approves that direction and the HiFi together in the one Visual Approval", stage)
+        self.assertIn("the standard profile keeps its explicit direction approval turn before HiFi", stage)
+        self.assertIn("that approval is the one Visual Approval", stage)
+        self.assertIn("approves that direction and the connected HiFi together in the one Visual Approval", pass_guide)
+        self.assertIn("fold its approval into the one Visual Approval", pass_guide)
 
     def test_first_wave_axes_and_scoped_re_review(self):
         rubric = self.read("references/ui-grading-rubric.md")
