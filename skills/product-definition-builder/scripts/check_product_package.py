@@ -474,7 +474,7 @@ EXCLUDED_STATUS_RE = re.compile(
     re.IGNORECASE,
 )
 EXCLUDED_PREFIX_RE = re.compile(
-    r"(?:not_required|not required|no|n/a) ?(?::|for)? ?$", re.IGNORECASE
+    r"\b(?:not_required|not required|no|n/a) ?(?::|for)? ?$", re.IGNORECASE
 )
 GROWTH_NORTH_STAR_HEADER = (
     "track",
