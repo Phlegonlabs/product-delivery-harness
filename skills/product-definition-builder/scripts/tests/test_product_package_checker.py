@@ -3036,17 +3036,17 @@ def growth_contract_section(track: str = "web") -> str:
 | {track} | Weekly returning fixture users | 40% return by day 7 | 55% return by day 30 | 70% return by day 30 | MS-100 |
 
 ### Re-engagement
-| Mechanism | Surface or event | TEST ID |
+| Mechanism (email / push / subscription / deep link / return trigger) | Surface or event | TEST ID |
 | --- | --- | --- |
 | email digest | Fixture digest surface on the home route | TEST-001 |
 
 ### Discovery Surfaces
-| Surface | Kind | Owner stage | TEST or MS ID |
+| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | Owner stage | TEST or MS ID |
 | --- | --- | --- | --- |
 | /launch | landing | gtm | MS-110 |
 
 ### Launch Window
-| Day | Channel class | Action | Owner | Readback metric |
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
 | --- | --- | --- | --- | --- |
 | Day 0 | owned | Announce the fixture launch | Owner | Return visits |
 
@@ -3122,6 +3122,36 @@ class ShapeRowPackageTests(unittest.TestCase):
         self.assertEqual([], self.validate(valid_prd(), notes=notes))
         self.assertEqual(1, len(notes))
         self.assertIn("legacy", notes[0])
+
+    def test_growth_contract_presence_gates_the_skip_note(self) -> None:
+        prd = valid_prd().replace(
+            "- Reject incomplete authority before implementation starts.\n## Non-Goals",
+            "- Reject incomplete authority before implementation starts.\n"
+            + AMBITION_SECTION
+            + "## Non-Goals",
+            1,
+        ).replace(
+            "| Metric | Definition | Baseline | Target / guardrail | Measurement window | "
+            "Source / method | Owner |\n"
+            "| --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Completion | Completed runs | 0 | 90% | 30 days | Event count | Owner |",
+            "| Metric | Definition | Baseline | Target / guardrail | Stretch | "
+            "Measurement window | Source / method | Owner |\n"
+            "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+            "| Completion | Completed runs | 0 | 90% | 99% | 30 days | Event count | Owner |",
+            1,
+        )
+        notes: list[str] = []
+        self.assertEqual([], self.validate(prd, notes=notes))
+        self.assertIn("growth contract checks skipped", notes[0])
+        prd = prd.replace(
+            "## Problem Statement",
+            growth_contract_section() + "## Problem Statement",
+            1,
+        )
+        notes = []
+        self.assertEqual([], self.validate(prd, notes=notes))
+        self.assertEqual([], notes)
 
     def test_shape_row_vocabulary_failures(self) -> None:
         findings = self.validate(shaped_prd("track: platform; companion: none; console: none"))
@@ -3293,6 +3323,39 @@ class GrowthContractTests(unittest.TestCase):
             findings,
         )
 
+    def test_growth_contract_annotated_headers_are_canonical(self) -> None:
+        prd = shaped_prd().replace(
+            "| Mechanism (email / push / subscription / deep link / return trigger) | "
+            "Surface or event | TEST ID |",
+            "| Trigger (email / push / subscription / deep link / return trigger) | "
+            "Surface or event | TEST ID |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Re-engagement must use the Mechanism |" in item for item in findings),
+            findings,
+        )
+
+    def test_growth_contract_accepts_headers_without_annotations(self) -> None:
+        prd = shaped_prd().replace(
+            "| Mechanism (email / push / subscription / deep link / return trigger) | "
+            "Surface or event | TEST ID |",
+            "| Mechanism | Surface or event | TEST ID |",
+            1,
+        ).replace(
+            "| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | "
+            "Owner stage | TEST or MS ID |",
+            "| Surface | Kind | Owner stage | TEST or MS ID |",
+            1,
+        ).replace(
+            "| Day | Channel class (owned / earned / search / store) | Action | Owner | "
+            "Readback metric |",
+            "| Day | Channel class | Action | Owner | Readback metric |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
             "| email digest | Fixture digest surface on the home route | TEST-001 |",
@@ -3323,6 +3386,48 @@ class GrowthContractTests(unittest.TestCase):
         findings = self.validate(prd)
         self.assertTrue(
             any("none row with a reason" in item for item in findings), findings
+        )
+
+    def test_growth_contract_active_rows_need_trace_identifiers(self) -> None:
+        findings = self.validate(
+            shaped_prd().replace(
+                "| email digest | Fixture digest surface on the home route | TEST-001 |",
+                "| email digest | Fixture digest surface on the home route | n/a |",
+                1,
+            )
+        )
+        self.assertTrue(
+            any("active Growth Contract Re-engagement row" in item for item in findings),
+            findings,
+        )
+        findings = self.validate(
+            shaped_prd().replace(
+                "| /launch | landing | gtm | MS-110 |",
+                "| /launch | landing | gtm | done |",
+                1,
+            )
+        )
+        self.assertTrue(
+            any(
+                "Discovery Surfaces row for '/launch' needs a TEST or MS identifier"
+                in item
+                for item in findings
+            ),
+            findings,
+        )
+        findings = self.validate(
+            shaped_prd().replace(
+                "55% return by day 30 | 70% return by day 30 | MS-100 |",
+                "55% return by day 30 | 70% return by day 30 | owner impression |",
+                1,
+            )
+        )
+        self.assertTrue(
+            any(
+                "North Star row for 'web' needs a TEST or MS identifier" in item
+                for item in findings
+            ),
+            findings,
         )
 
     def test_discovery_surfaces_rules(self) -> None:
@@ -3400,6 +3505,38 @@ class GrowthContractTests(unittest.TestCase):
         self.assertTrue(
             any("Day 0 through Day 7" in item for item in findings), findings
         )
+
+    def test_launch_window_day_parsing_respects_signs(self) -> None:
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day -1 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Day 0 through Day 7" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| -1 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("Day 0 through Day 7" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day 0-2 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+        prd = shaped_prd().replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| 0-2 | owned | Announce the fixture launch | Owner | Return visits |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
 
     def test_growth_contract_placeholders_fail_require_filled(self) -> None:
         prd = shaped_prd().replace(

@@ -480,6 +480,12 @@ GROWTH_LAUNCH_WINDOW_HEADER = (
 VALID_DISCOVERY_KINDS = {"seo-cluster", "geo-page", "store-listing", "directory", "landing"}
 VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "seo"}
 VALID_LAUNCH_CHANNEL_CLASSES = {"owned", "earned", "search", "store"}
+GROWTH_TEST_ID_RE = re.compile(r"\bTEST-[A-Z0-9-]+\b", re.IGNORECASE)
+GROWTH_TRACE_ID_RE = re.compile(r"\b(?:TEST|MS)-[A-Z0-9-]+\b", re.IGNORECASE)
+LAUNCH_DAY_CELL_RE = re.compile(
+    r"(?:day\s*)?(?P<lower>[+-]?\d+)(?:\s*-\s*(?P<upper>[+-]?\d+))?",
+    re.IGNORECASE,
+)
 LANDING_PATH_RE = re.compile(r"/\S*")
 UX_REQUIREMENTS_HEADER = (
     "id",
@@ -700,14 +706,18 @@ def _validate_table_rows(
             _add(problems, path, f"{label} row contains an empty value or placeholder")
 
 
+def _header_key(cell: str) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"\([^)]*\)", " ", cell)).strip().casefold()
+
+
 def _find_table(
     text: str, expected_header: tuple[str, ...]
 ) -> list[tuple[str, ...]] | None:
     lines = active_text(text).splitlines()
-    expected = tuple(cell.casefold() for cell in expected_header)
+    expected = tuple(_header_key(cell) for cell in expected_header)
     for index, line in enumerate(lines):
         cells = _table_cells(line)
-        if cells is None or tuple(cell.casefold() for cell in cells) != expected:
+        if cells is None or tuple(_header_key(cell) for cell in cells) != expected:
             continue
         rows: list[tuple[str, ...]] = []
         for candidate in lines[index + 1 :]:
@@ -1133,6 +1143,11 @@ def _absent_cell(value: str) -> bool:
     )
 
 
+def _launch_day_lower(cell: str) -> int | None:
+    match = LAUNCH_DAY_CELL_RE.fullmatch(cell.strip())
+    return int(match.group("lower")) if match else None
+
+
 def _validate_growth_contract(
     prd_text: str,
     *,
@@ -1330,8 +1345,8 @@ def _validate_growth_contract(
                     "Launch Window channel class must be owned, earned, search or store, not "
                     f"{row[1].strip()!r}",
                 )
-            day_match = re.search(r"\d+", row[0])
-            if day_match is not None and 0 <= int(day_match.group(0)) <= 7:
+            lower = _launch_day_lower(row[0])
+            if lower is not None and 0 <= lower <= 7:
                 launch_day_seen = True
         if not launch_day_seen:
             _add(
@@ -1342,16 +1357,40 @@ def _validate_growth_contract(
     trace_cells: list[str] = []
     for row in north_rows or []:
         if len(row) == len(GROWTH_NORTH_STAR_HEADER):
+            if not GROWTH_TRACE_ID_RE.search(row[5]):
+                _add(
+                    problems,
+                    "prd",
+                    "Growth Contract North Star row for "
+                    f"{row[0].strip()!r} needs a TEST or MS identifier "
+                    "in its Source cell",
+                )
             trace_cells.append(row[5])
     for row in reengagement_rows or []:
         if len(row) == len(GROWTH_REENGAGEMENT_HEADER):
+            if not _absent_cell(row[0]) and not GROWTH_TEST_ID_RE.search(row[2]):
+                _add(
+                    problems,
+                    "prd",
+                    "active Growth Contract Re-engagement row "
+                    f"{row[0].strip()!r} needs a TEST identifier "
+                    "in its TEST ID cell",
+                )
             trace_cells.append(row[2])
     for row in discovery_rows or []:
         if len(row) == len(GROWTH_DISCOVERY_HEADER):
+            if not GROWTH_TRACE_ID_RE.search(row[3]):
+                _add(
+                    problems,
+                    "prd",
+                    "Growth Contract Discovery Surfaces row for "
+                    f"{row[0].strip()!r} needs a TEST or MS identifier "
+                    "in its TEST or MS ID cell",
+                )
             trace_cells.append(row[3])
     unknown_tests: set[str] = set()
     for cell in trace_cells:
-        for match in re.finditer(r"\bTEST-[A-Z0-9-]+\b", cell, re.IGNORECASE):
+        for match in GROWTH_TEST_ID_RE.finditer(cell):
             test_id = match.group(0).upper()
             if test_id not in known_test_ids:
                 unknown_tests.add(test_id)
@@ -3929,9 +3968,11 @@ def validate_texts(
             "section; delta and ambition checks skipped"
         )
     elif shape_fields is None and notes is not None:
-        notes.append(
-            "legacy package: no 'At a Glance' Shape row; growth contract checks skipped"
-        )
+        if _section(prd_text, "## Growth Contract") is None:
+            notes.append(
+                "legacy package: no 'At a Glance' Shape row; "
+                "growth contract checks skipped"
+            )
 
     stack_block = _extract_machine_block(
         stack_text,
