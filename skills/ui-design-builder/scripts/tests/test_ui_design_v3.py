@@ -396,6 +396,40 @@ class UiDesignV3Tests(unittest.TestCase):
             self.assertIn("ui-design/3 full UI package requires Design System Need Gate Decision: required",
                           "\n".join(checker.validate_text(mvp, require_filled=True, require_visual_approved=True,
                                                           delivery_profile="standard")))
+    def test_need_gate_reason_must_have_text_on_its_own_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            three = ui.read_text(encoding="utf-8")
+            target = re.search(r"^Approved target: (\S+ @ sha256:[0-9a-f]{64})", three, re.M).group(1)
+            prd_source = re.search(r"^PRD source: (\S+ @ sha256:[0-9a-f]{64})", three, re.M).group(1)
+            start = three.index("## Design System Need Gate")
+            tail = three[start:]
+            tail = tail.replace("Decision: required", "Decision: not_required", 1)
+            tail = re.sub(r"^Package action:.*$",
+                          "Replacement visual contract when_not_required: target=" + target
+                          + "; ui-design=docs/design/ui-design.md @ sha256:<canonical>; prd=" + prd_source,
+                          tail, flags=re.M)
+            tail = re.sub(r"^Compiled design system pair: .*\n", "", tail, flags=re.M)
+            tail = re.sub(r"^Reason: .*$", "Reason:", tail, count=1, flags=re.M)
+            mvp = three[:start] + tail
+            canonical = checker.canonical_ui_approval_sha256(mvp)
+            mvp = mvp.replace("ui-design=docs/design/ui-design.md @ sha256:<canonical>",
+                              "ui-design=docs/design/ui-design.md @ sha256:" + canonical, 1)
+            joined = "\n".join(checker.validate_text(mvp, require_filled=True, require_visual_approved=True,
+                                                     delivery_profile="mvp"))
+            self.assertIn("Design System Need Gate Reason must be filled on the Reason: line", joined)
+            filled = mvp.replace("Reason:\nExisting design-system pair disposition",
+                                 "Reason: One surface with a binding all-screens target\nExisting design-system pair disposition", 1)
+            refilled = filled.replace("ui-design=docs/design/ui-design.md @ sha256:" + canonical,
+                                      "ui-design=docs/design/ui-design.md @ sha256:<canonical>", 1)
+            canonical = checker.canonical_ui_approval_sha256(refilled)
+            filled = refilled.replace("ui-design=docs/design/ui-design.md @ sha256:<canonical>",
+                                      "ui-design=docs/design/ui-design.md @ sha256:" + canonical, 1)
+            self.assertNotIn("Reason",
+                             "\n".join(checker.validate_text(filled, require_filled=True, require_visual_approved=True,
+                                                             delivery_profile="mvp")))
+
     def test_modified_direction_adds_one_revised_study_to_the_round(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

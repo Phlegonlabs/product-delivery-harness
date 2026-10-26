@@ -318,6 +318,21 @@ def _field(section: str, name: str) -> str | None:
     return values[0] if values else None
 
 
+def _same_line_value(section: str, name: str) -> str | None:
+    """The field value only when it starts on the `name:` line itself.
+
+    `_field_values` lets its whitespace class cross the newline, so an
+    empty `name:` line captures the following line as the value.
+    """
+
+    match = re.search(
+        rf"^\s*{re.escape(name)}\s*:[ \t]*(\S.*)$",
+        section,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    return match.group(1).strip() if match else None
+
+
 def _filled(value: str | None) -> bool:
     if not value:
         return False
@@ -3062,6 +3077,8 @@ def validate_text(
             require_filled=True,
             problems=problems,
         )
+        if not _filled(_same_line_value(gate, "Reason")):
+            _add(problems, "Design System Need Gate Reason must be filled on the Reason: line")
         gate_decision = gate_values.get("Decision", "").casefold()
         if gate_decision not in {"required", "not_required"}:
             _add(problems, "Design System Need Gate must be required or not_required")
