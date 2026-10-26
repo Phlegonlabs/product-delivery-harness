@@ -219,6 +219,4 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 - **0.66.0** — Cut repeated review rounds across PRD, UI and delivery while keeping 85/80, Impeccable, Visual Approval and exact-SHA security review. Plan missions as feature batches with one combined-lens reviewer each and skip a code integration review only on a proven clean merge chain. Repair once after all reviews of a candidate return and re-review only the repair. Scope HiFi re-review to the ledger with carried rows, revise a modified direction as one study, and catch unreachable surfaces and dead-end states in the PRD check. Keep one Harness contract per RUN and per design round, record unobserved identity once per session, and load a short entry checklist instead of the long contracts. Fix retention false defects, a commit-boundary race in integration recording, and release the AgentKiosk compiler, state-coverage, role-policy and ingestion work.
 
-- **0.65.3** — Use one design review wave and one implementation UI acceptance while retaining 85/80 and required evidence. Deliver complete visual inputs to authors and let agent configuration choose workers. Preserve frozen runs and repair diagnostic coverage, acceptance reuse, and staged Activation digests.
-
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).

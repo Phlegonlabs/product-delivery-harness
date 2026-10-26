@@ -219,6 +219,4 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 - **0.66.0** — 從 PRD、UI 到交付減少重複 review 輪次，保留 85／80、Impeccable、Visual Approval 與精確 SHA 安全審查。Mission 以功能批次規劃，每個只派一位合併面向的 reviewer；只有證明乾淨的 merge chain 才略過程式整合審查。候選的所有 review 回來後一次修復，複查只看修復範圍。HiFi 複查限於修復清單並沿用未變紀錄，修改方向只新增一份研究，PRD 檢查提早擋下無法到達的畫面和沒有出口的狀態。每個 RUN 與設計輪固定一個 Harness 合約，未觀察身分每個 session 只記一次，改載入簡短入口清單。修正 retention 假缺陷與整合紀錄的 commit 邊界競態，並發布 AgentKiosk 的 compiler、狀態覆蓋、role-policy 與 ingestion 改動。
 
-- **0.65.3** — 設計端採用同輪審核與定向複查，實作端合併 UI 驗收，保留 85／80 與必要證據。向作者提供完整畫面、字體、素材及視覺特徵，worker 選擇交由 agent 設定。保留既有 RUN 契約，修正診斷覆蓋、驗收重用及 Activation 暫存動作摘要。
-
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
