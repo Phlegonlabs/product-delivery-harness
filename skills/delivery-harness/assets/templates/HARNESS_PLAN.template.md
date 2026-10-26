@@ -346,7 +346,7 @@ The single-mission example deliberately leaves `batch_verifiers` empty: a one-mi
 For an isolated repair author, predeclare the optional repair-only mission described in `references/graph-orchestration.md#optional-repair-only-mission`.
 Use one bounded failure route and pass route back, one repair attempt and at most two review attempts.
 Include its mission and scope in the final review before execution.
-First-pass approval leaves it dormant; a failed targeted recheck stops with no further automatic dispatch.
+First-pass approval leaves it dormant; after a failed targeted recheck, remaining findings continue as isolated scoped repairs.
 This uses existing graph fields, not an extra `repair_only` flag.
 
 For each `runtime_worker` node, record the actually allowed host identities in `allowed_providers`, with `preferred_provider` null unless explicitly chosen. The `generic` example is a placeholder for an unknown host, not a wildcard. Leave model and effort null to preserve installed defaults. Set explicit supported options only when selected; the agent observes native capability rather than applying provider-specific rules.
