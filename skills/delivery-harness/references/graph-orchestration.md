@@ -131,7 +131,7 @@ A PLAN without `review_policy` retains `per_mission` semantics; this initial-rev
 
 Use one review, one consolidated repair, and one targeted re-check (`gen-verify-correct.md`). Group the repair by root cause and freeze its acceptance matrix before writing. A scope or contract gap returns upstream.
 
-Carry consumed attempts across revisions by stable mission + review surface + root-cause lineage. Replacing a node never resets that budget. The scripts enforce each node's `max_attempts`; the parent retains the cross-revision history. A failed re-check stops at `blocked`. One third attempt needs the owner's quoted decision, changed strategy, and acceptance matrix recorded in `docs/goal/DECISIONS.md`. The successor node permits only that one attempt.
+Carry consumed attempts across revisions by stable mission + review surface + root-cause lineage. Replacing a node never resets that budget. The scripts enforce each node's `max_attempts`; the parent retains the cross-revision history. A failed re-check ends the review budget; remaining findings continue as isolated repairs with scoped reviews, recorded in `docs/goal/DECISIONS.md` without a successor node.
 
 ## Multi-Reviewer Fan-Out
 
