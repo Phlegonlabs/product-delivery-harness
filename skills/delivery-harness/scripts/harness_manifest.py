@@ -5051,6 +5051,7 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     integration_optional_keys.add("coordination_paths")
     integration_optional_keys.add("integration_tree_sha")
     integration_optional_keys.add("reviewed_merge_chain")
+    integration_optional_keys.add("repair_scopes")
     if _keys(
         errors,
         "run.integration",
@@ -5168,6 +5169,8 @@ def validate_run(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
         retention = integration.get("retention")
         if retention is not None and retention not in {"persistent", "ephemeral"}:
             _add(errors, "run.integration.retention", "must be null, persistent, or ephemeral")
+        if "repair_scopes" in integration:
+            _validate_repair_scopes(errors, integration.get("repair_scopes"))
 
     mission_ids = {mission["id"] for mission in plan.get("missions", []) if isinstance(mission, dict) and "id" in mission}
     task_ids = {
@@ -6272,6 +6275,55 @@ def _closeout_edge_terminal(
             and source.get("last_outcome") == "pass"
         )
     return _closeout_route_untaken(edge, source)
+
+
+def _validate_repair_scopes(errors: list[str], scopes: Any) -> None:
+    """Validate run.integration.repair_scopes, the recorded repair candidates."""
+
+    path = "run.integration.repair_scopes"
+    if not isinstance(scopes, list):
+        _add(errors, path, "must be a list")
+        return
+    for index, entry in enumerate(scopes):
+        entry_path = f"{path}[{index}]"
+        if not _keys(
+            errors,
+            entry_path,
+            entry,
+            {"candidate_sha", "prior_head_sha", "repair_paths", "source"},
+            {"trust_boundary"},
+        ):
+            continue
+        for key in ("candidate_sha", "prior_head_sha"):
+            if not is_full_sha(entry[key]):
+                _add(errors, f"{entry_path}.{key}", "must be a full lowercase Git SHA")
+        if not _nonempty_string(entry["source"]):
+            _add(errors, f"{entry_path}.source", "must be a non-empty string")
+        if "trust_boundary" in entry and not isinstance(entry["trust_boundary"], bool):
+            _add(errors, f"{entry_path}.trust_boundary", "must be a boolean")
+        paths = entry["repair_paths"]
+        if (
+            not isinstance(paths, list)
+            or not paths
+            or any(not isinstance(item, str) or not item for item in paths)
+        ):
+            _add(
+                errors,
+                f"{entry_path}.repair_paths",
+                "must be a non-empty list of non-empty strings",
+            )
+            continue
+        if any(
+            item.startswith(("/", "\\"))
+            or "\\" in item
+            or ".." in item.split("/")
+            for item in paths
+        ):
+            _add(
+                errors,
+                f"{entry_path}.repair_paths",
+                "must contain repository-relative POSIX paths without '..'",
+            )
 
 
 def _validate_required_security_closeout(

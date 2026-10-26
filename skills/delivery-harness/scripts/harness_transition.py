@@ -2728,6 +2728,18 @@ def _reconcile_candidate_head(
             "repair attempt does not match the batch/final verifier failure receipt"
         )
 
+    declared_repair_paths = list(getattr(args, "repair_path", None) or [])
+    for repair_path in declared_repair_paths:
+        if (
+            not repair_path
+            or repair_path.startswith(("/", "\\"))
+            or "\\" in repair_path
+            or ".." in repair_path.split("/")
+        ):
+            raise ManifestError(
+                "--repair-path must be a repository-relative POSIX path "
+                f"without '..': {repair_path!r}"
+            )
     task_matches = [
         (mission, task)
         for mission in plan.get("missions", [])
@@ -2885,6 +2897,16 @@ def _reconcile_candidate_head(
             candidate_sha,
             allowed_scopes=review_scopes,
         )
+    if declared_repair_paths:
+        changed_paths = _candidate_changed_paths(root, current_head, candidate_sha)
+        outside_scopes = [
+            path for path in changed_paths if path not in declared_repair_paths
+        ]
+        if outside_scopes:
+            raise ManifestError(
+                "repair changed paths outside --repair-path scope: "
+                + ", ".join(outside_scopes)
+            )
     _require_candidate_revalidation_budget(plan, run)
 
     # The scope and budget checks above may take time.  Bind the mutation to a
@@ -2913,6 +2935,16 @@ def _reconcile_candidate_head(
     prior_heads = integration.setdefault("prior_head_shas", [])
     if current_head not in prior_heads:
         prior_heads.append(current_head)
+    if declared_repair_paths:
+        integration.setdefault("repair_scopes", []).append(
+            {
+                "candidate_sha": candidate_sha,
+                "prior_head_sha": current_head,
+                "repair_paths": list(declared_repair_paths),
+                "source": args.source,
+                "trust_boundary": bool(getattr(args, "trust_boundary", False)),
+            }
+        )
     _invalidate_stale_current_projections(plan, run, current_head, candidate_sha)
     integration["integration_head_sha"] = candidate_sha
     continuity = run.get("landing", {}).get("continuity")
@@ -4284,6 +4316,18 @@ def build_parser() -> argparse.ArgumentParser:
     candidate.add_argument("--repair-node-id", required=True)
     candidate.add_argument("--repair-attempt-id", required=True)
     candidate.add_argument("--repair-task-id", required=True)
+    candidate.add_argument(
+        "--repair-path",
+        action="append",
+        help="repeatable repo-relative path repaired by this candidate; the "
+        "candidate diff must stay inside the declared repair paths",
+    )
+    candidate.add_argument(
+        "--trust-boundary",
+        action="store_true",
+        help="the repair touches a trust boundary; a scoped security re-check "
+        "keeps its full structured security result",
+    )
     coordination = subparsers.add_parser("reconcile-coordination-head")
     coordination.add_argument("--candidate-sha", required=True)
     coordination.add_argument("--source", required=True)
