@@ -178,6 +178,37 @@ Apply separately to `macos` and `windows` targets. Do not collapse them into one
 
 Native desktop availability is installability or downloadable artifact identity plus the release smoke check; a marketing-site URL check cannot substitute. Use current [Developer ID](https://developer.apple.com/developer-id/), [notarizing macOS software](https://developer.apple.com/help/account/reference/notary-service/), [Windows MSIX](https://learn.microsoft.com/windows/msix/), and [code signing](https://learn.microsoft.com/windows/security/threat-protection/code-signing/) documentation before acting.
 
+## Growth And Discovery Profiles
+
+Apply these profiles when the PRD Growth Contract requires the matching discovery surface. Each profile is preparation plus independent read-back. No profile submits, publishes, or spends automatically; the owner approves and performs each external submission. No profile promises a ranking, citation, install, or review outcome.
+
+### aso-and-store-launch
+
+Apply to an app track release target when the Growth Contract requires a store listing.
+
+- Keywords and metadata: the PRD keyword set, localized listing metadata, and category mapped to each store target.
+- Screenshots: the approved screenshot set per device class, joined to the designed store screenshot surfaces.
+- Pre-registration: the pre-registration listing when the store supports it, with its start and end states read back.
+- Feature submission: the draft feature or editorial submission with notes and assets; the owner submits it.
+- Review reply ownership: the named owner and response path for user reviews.
+- Read-back: the listing's live state per store target after each change and at release, including availability signal and visible assets.
+
+### agent-directory
+
+Apply to an agent track release target when the Growth Contract requires directory listings.
+
+- Directory list: only the directories the PRD owner-lists, each with its required metadata fields and verification method.
+- Registration state: per listed directory, the registration entry and submitted metadata, recorded as one read-back each.
+- Read-back: each directory's public entry read back after every change; a directory with no public read-back stays recorded as unverified.
+
+### geo-readback
+
+Apply to a web track release target when the Growth Contract requires GEO/AEO discovery.
+
+- Structured data validity: implemented public pages parsed against the approved structured-data contract, with errors and warnings recorded per URL.
+- Citation check: answer-engine citations checked for the PRD's citeable pages, recorded as observed evidence.
+- Scope: read-only. This profile changes no crawl control, submits nothing, and promises no citation.
+
 ## Responsibility Separation
 
 Use these responsibilities across profiles; never merge them into one vendor label:

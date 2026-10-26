@@ -101,8 +101,16 @@ class ProductActivationSkillContractTests(unittest.TestCase):
             "## Desktop",
             "## Browser Extension",
             "## Responsibility Separation",
+            "## Growth And Discovery Profiles",
+            "### aso-and-store-launch",
+            "### agent-directory",
+            "### geo-readback",
         ):
             self.assertIn(heading, profiles)
+        self.assertIn("No profile submits, publishes, or spends automatically", profiles)
+        for marker in ("`geo-readback`", "`aso-and-store-launch`", "`agent-directory`"):
+            self.assertIn(marker, stage)
+        self.assertIn("requires that discovery surface", stage)
         self.assertIn("verified `MS-*`", stage)
         self.assertIn("real measurement window closes", stage)
 
