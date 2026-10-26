@@ -289,7 +289,8 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         )
 
         self.assertIn("four bounded free-text turns", skill)
-        self.assertIn("exactly four planned free-text turns", interview)
+        self.assertIn("four planned free-text turns", interview)
+        self.assertIn("Segments 1+2, then 3+4", interview)
         self.assertEqual(4, sum(interview.count(heading) for heading in headings))
         self.assertLess(interview.index(headings[0]), interview.index(headings[1]))
         self.assertLess(interview.index(headings[1]), interview.index(headings[2]))
@@ -735,7 +736,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         # The assessment is its own workflow step, ordered between the
         # free-text interview and the first AskUserQuestion batch.
         self.assertIn("4. Run the research-first assessment", skill)
-        interview_at = skill.index("Conduct exactly four bounded free-text turns")
+        interview_at = skill.index("Conduct four bounded free-text turns")
         assessment_at = skill.index("4. Run the research-first assessment")
         first_batch_at = skill.index("5. After all applicable free-text segments")
         self.assertLess(interview_at, assessment_at)
