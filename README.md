@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.70.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.71.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 [MIT](LICENSE). Retain third-party licenses and attribution for reused source and assets.
 
 ## Version history
+
+- **0.71.0** — Every project declares its shape on purpose: the PRD At a Glance gains a `Shape` row naming the track, companion public surface and console type, and `## Growth Contract` records the north star with Day 7 and Day 30 targets, re-engagement mechanisms, discovery surfaces and a launch window. Track-specific required UI surfaces and delivery foundations, the `agentic-operations-console` architecture profile and activation profiles for store launch, agent directories and GEO read-back extend the flow from web to app and agent products. `seo-growth-review` gains a `pre_launch` mode and Day 7 and Day 30 `growth_review` readbacks that feed the next PRD delta, go-to-market drafts the Launch Reach Plan, and GTM Content packages one source piece into per-channel variants with two hooks.
 
 - **0.70.0** — Each candidate stage keeps a two-review budget: one initial review and one targeted re-check; the owner-authorized extra round and successor review nodes are gone. After the re-check, each remaining or new defect becomes one isolated repair with its own focused verifier and a scoped review of the repair diff only — security joins at trust boundaries, a scoped PASS re-binds the repaired paths, prior PASSes carry forward, and the broad final validation runs once per candidate at the end. The managed route records repair scopes and scoped PASSes, and an owner-selected `mvp` delivery profile compresses a small project or one-week MVP to at most four owner gates.
 
