@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.69.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.70.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 [MIT](LICENSE). Conserva licencias y atribución de código y assets de terceros.
 
 ## Historial de versiones
+
+- **0.70.0** — Cada etapa candidata conserva un presupuesto de dos revisiones: una revisión inicial y un recheck acotado; la ronda extra autorizada por el owner y los nodos de revisión sucesores desaparecen. Tras el recheck, cada defecto restante o nuevo se vuelve una reparación aislada con su verifier enfocado y una revisión acotada solo del diff de reparación: la lente de seguridad se une en los límites de confianza, un PASS acotado revincula las rutas reparadas, los PASS previos se arrastran y la validación final amplia corre una vez por candidato al final. La ruta gestionada registra alcances de reparación y PASS acotados, y el perfil de entrega `mvp` elegido por el owner comprime un proyecto pequeño o un MVP de una semana a como máximo cuatro gates del owner.
 
 - **0.69.0** — Discovery pregunta un cuarto segmento Ambition, `PRD.md` gana `## Ambition` con una columna `Stretch` en Metrics, y las rondas del PRD dejan de apilarse en un archivo acumulativo: cada ronda publica un delta alineado con su Epic. El Epic registra su delta y el rung de ambition, el PLAN congela una fuente `prd-delta`, y un verificador de alcance ata los traces de misión a los IDs de requerimientos del delta vinculado.
 
