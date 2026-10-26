@@ -286,6 +286,11 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("The delivery Shape: track, companion surface, and console type.", interview)
         self.assertIn("| Shape | track: web / app / agent; companion:", contract)
         self.assertIn("## Growth Contract", contract)
+        self.assertIn("`Owner stage` is `delivery`, `activation`, `gtm` or `seo`", contract)
+        stage = self.read(STAGE)
+        self.assertIn("Record the At a Glance Shape row and the `## Growth Contract` before Product Definition Approval", stage)
+        refinement = self.read("references/prd-refinement.md")
+        self.assertIn("growth review against the Growth Contract feeds a delta round", refinement)
         for heading in ("### North Star", "### Re-engagement", "### Discovery Surfaces", "### Launch Window"):
             self.assertIn(heading, contract)
 

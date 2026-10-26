@@ -99,9 +99,9 @@ For `traffic_drop`, test explanations in this order:
 
 When the PRD has a `## Growth Contract`, run `growth_review` at its Day 7 and Day 30 readbacks:
 
-1. Compare north-star results with the contract's Day 7 and Day 30 targets.
-2. Read back each discovery surface: what it earned in visibility and what visited it.
-3. Compare the launch window's channel classes with the readback metrics in the launch reach plan.
+1. Compare `### North Star` results with the contract's Day 7 and Day 30 targets.
+2. Read back each `### Discovery Surfaces` row: what it earned in visibility and what visited it.
+3. Compare the `### Launch Window` channel classes with their readback metrics, from the launch reach plan when one exists and from the PRD rows otherwise.
 4. Return next-round PRD delta candidates, each with its evidence and one owner route.
 
 The cadence is read-only. It reports evidence; the PRD owner accepts or rejects each candidate.

@@ -180,7 +180,7 @@ Native desktop availability is installability or downloadable artifact identity 
 
 ## Growth And Discovery Profiles
 
-Apply these profiles when the PRD Growth Contract requires the matching discovery surface. Each profile is preparation plus independent read-back. No profile submits, publishes, or spends automatically; the owner approves and performs each external submission. No profile promises a ranking, citation, install, or review outcome.
+Apply these profiles by the PRD Growth Contract `### Discovery Surfaces` kind: `store-listing` → `aso-and-store-launch`, `directory` → `agent-directory`, `geo-page` → `geo-readback`; `seo-cluster` and `landing` rows stay with the Web baseline and the SEO review. Each profile is preparation plus independent read-back. No profile submits, publishes, or spends automatically; the owner approves and performs each external submission. No profile promises a ranking, citation, install, or review outcome.
 
 ### aso-and-store-launch
 

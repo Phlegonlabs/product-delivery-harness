@@ -158,7 +158,7 @@ Rungs are better, not bigger. The outside judge is never the model or the owner'
 | Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
 | --- | --- | --- | --- | --- |
 
-Targets are hypotheses with a stated basis. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap. Each discovery surface maps to a UI surface or release target that exists in this PRD.
+Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `seo`; the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap. Each discovery surface maps to a UI surface or release target that exists in this PRD.
 
 ## Non-Goals
 - [Explicitly out of scope]
