@@ -10,10 +10,12 @@ the scoped repair chain.
 from __future__ import annotations
 
 import copy
+import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -284,6 +286,40 @@ class ScopedCloseoutChainTests(unittest.TestCase):
             "no reviewed scoped chain reaches the integration head from a non-scoped review",
             errors[0],
         )
+
+    def test_git_diff_failure_fails_the_chain_closed(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            self.build_repo(root, hidden_in_last_commit=True)
+            self.build_run()
+
+            failed = subprocess.CompletedProcess(
+                args=["git"],
+                returncode=128,
+                stdout="",
+                stderr=f"fatal: bad object {self.H0}",
+            )
+            with mock.patch("harness_manifest.run_git", return_value=failed):
+                errors = self.chain_errors(repo_root=root)
+
+            self.assertEqual(1, len(errors), errors)
+            self.assertIn(
+                f"git diff unavailable (exit 128: fatal: bad object {self.H0})",
+                errors[0],
+            )
+
+            def raise_timeout(*args: object, **kwargs: object) -> object:
+                raise subprocess.TimeoutExpired(cmd="git", timeout=30)
+
+            with mock.patch("harness_manifest.run_git", side_effect=raise_timeout):
+                timeout_errors = self.chain_errors(repo_root=root)
+
+            self.assertEqual(1, len(timeout_errors), timeout_errors)
+            self.assertIn("git diff unavailable (", timeout_errors[0])
+
+        # Without a repo root the stored repair paths stand in for the diff,
+        # so the same run still closes; nothing claims the diff was verified.
+        self.assertEqual([], self.chain_errors())
 
 
 if __name__ == "__main__":

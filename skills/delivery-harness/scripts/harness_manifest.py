@@ -6398,16 +6398,24 @@ def _validate_repair_scopes(errors: list[str], scopes: Any) -> None:
 
 def _git_changed_paths_between(
     repo_root: str | Path, base: str, head: str
-) -> set[str] | None:
-    """Changed repository-relative paths between two heads, or None on any Git failure."""
+) -> tuple[set[str] | None, str]:
+    """Changed paths between two heads, or ``(None, reason)`` on Git failure."""
 
     try:
         result = run_git(Path(repo_root), "diff", "--name-only", f"{base}..{head}")
-    except Exception:
-        return None
+    except Exception as error:
+        return None, str(error) or error.__class__.__name__
     if result.returncode != 0:
-        return None
-    return {line for line in result.stdout.splitlines() if line.strip()}
+        detail = ""
+        for stream in (result.stderr, result.stdout):
+            if isinstance(stream, str) and stream.strip():
+                detail = stream.strip().splitlines()[0]
+                break
+        reason = f"exit {result.returncode}"
+        if detail:
+            reason = f"{reason}: {detail}"
+        return None, reason
+    return {line for line in result.stdout.splitlines() if line.strip()}, ""
 
 
 def _scoped_coverage_chain_errors(
@@ -6552,14 +6560,23 @@ def _scoped_chain_break_reason(
         for item in entry["repair_paths"]
         if isinstance(item, str)
     }
-    changed_paths = covered_paths
-    if repo_root is not None and chain:
-        observed = _git_changed_paths_between(
-            repo_root, chain[0]["prior_head_sha"], head
-        )
-        if observed is not None:
+    changed_paths: set[str] | None = None
+    if repo_root is not None:
+        if chain:
+            observed, git_reason = _git_changed_paths_between(
+                repo_root, chain[0]["prior_head_sha"], head
+            )
+            if observed is None:
+                return f"git diff unavailable ({git_reason})"
             changed_paths = observed
-    uncovered = sorted(changed_paths - covered_paths)
+        else:
+            changed_paths = set()
+    if changed_paths is None:
+        # No repo root: the stored repair paths stand in for the diff, so
+        # this basis is path-declared, never diff-verified.
+        uncovered: list[str] = []
+    else:
+        uncovered = sorted(changed_paths - covered_paths)
     if uncovered:
         return f"uncovered path {uncovered[0]}"
     if isinstance(node.get("review"), dict) and node["review"].get("type") == "security":
