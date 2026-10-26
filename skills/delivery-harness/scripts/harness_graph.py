@@ -42,6 +42,26 @@ from harness_schema import (
 )
 
 
+def repair_scope_entry(run: dict[str, Any], reviewed_sha: Any) -> dict[str, Any] | None:
+    """Return the repair_scopes entry recorded for a reviewed candidate head."""
+
+    integration = run.get("integration") if isinstance(run, dict) else None
+    scopes = (
+        integration.get("repair_scopes")
+        if isinstance(integration, dict)
+        and isinstance(integration.get("repair_scopes"), list)
+        else None
+    )
+    if not scopes or not is_full_sha(reviewed_sha):
+        return None
+    matches = [
+        entry
+        for entry in scopes
+        if isinstance(entry, dict) and entry.get("candidate_sha") == reviewed_sha
+    ]
+    return matches[-1] if matches else None
+
+
 def validate_cleanup_lifecycle_targets(errors: list[str], graph: Any) -> None:
     """A cleanup lifecycle node must name the exact task, worktree, or branch.
 
