@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.72.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.72.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -208,6 +208,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 [MIT](LICENSE)。重用第三方代码与素材时保留许可与署名。
 
 ## 版本历史
+
+- **0.72.1** — 任务通过时 worker 返回 `WORKER_RESULT`；阻塞或失败的任务返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多个进程并行执行一个套件的测试模块并保留逐模块 log，本地的 Required Verification 矩阵从单核 27 分钟缩到几分钟。
 
