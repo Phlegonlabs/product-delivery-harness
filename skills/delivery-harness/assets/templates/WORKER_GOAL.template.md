@@ -82,13 +82,13 @@ Host verifiers execute fresh and serially per runner, with exact source/Git guar
 
 ## Return
 
-Read the supplied `references/worker-result-contract.md` only when preparing the terminal payload. Emit:
+Read the supplied `references/worker-result-contract.md` only when preparing the terminal payload. Return:
 
-- `WORKER_RESULT` when the assigned mission reaches `worker_passed`, `blocked`, or `worker_failed`;
-- `REFINEMENT_REQUEST` when the current task cannot remain one independently verifiable unit; or
-- the graph node wrapper when the parent requests it.
+- `worker_passed`: `WORKER_RESULT`, inside the graph node result when the parent requests it;
+- blocked or failed: the graph node result with `worker_result: null`;
+- `REFINEMENT_REQUEST` when the current task cannot remain one independently verifiable unit.
 
-Report `worker_passed`, never integrated. The parent validates live Git, runs its `review_policy` reviews, integrates, and updates RUN.
+Never report integrated. The parent validates live Git, runs its `review_policy` reviews, integrates, and updates RUN.
 
 ## No Nested Delegation
 
