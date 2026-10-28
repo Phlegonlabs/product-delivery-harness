@@ -219,6 +219,4 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 - **0.69.0** — Discovery 追加第四个 Ambition 段落，`PRD.md` 新增 `## Ambition` 与 Metrics 的 `Stretch` 列，PRD 各轮不再累加到同一份文件：每轮发布与其 Epic 对齐的 delta。Epic 记录其 delta 与 ambition rung，PLAN 冻结 `prd-delta` 来源，范围检查把 mission trace 绑到所属 delta 的需求 ID。
 
-- **0.68.0** — review findings 分为 blocking 缺陷与非 blocking notes：只有 blocking findings 触发修复，复查只在修复范围内验证原 findings，安全维度保持完整范围。环境受阻的 review attempt 不再占用 attempt 预算，修复须附作者的 verifier PASS 才会进复查，非可执行差异改记 `security: not_applicable` 而非 `UNVALIDATED`。范围不相交而沿用的 PASS 保留原始 SHA，超出一次合并 review 加一次复查的 review 点须记录理由。
-
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

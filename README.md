@@ -219,6 +219,4 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 - **0.69.0** — Discovery asks a fourth Ambition segment, `PRD.md` gains `## Ambition` with a Metrics `Stretch` column, and PRD rounds stop stacking into one cumulative file: each round publishes a delta aligned with its Epic. The Epic records its delta and ambition rung, the PLAN freezes a `prd-delta` source, and a scope checker binds mission traces to the bound delta's requirement IDs.
 
-- **0.68.0** — Triage review findings into blocking defects and non-blocking notes: only blocking findings force repair, and the re-check verifies prior findings over the repair range with security at full scope. Environment-blocked review attempts no longer spend the attempt budget, repairs reach the reviewer only with the author's verifier PASS, and non-executable diffs record `security: not_applicable` instead of `UNVALIDATED`. A scope-disjoint carried PASS keeps its origin SHA, and review points beyond one combined review plus one re-check need a recorded reason.
-
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
