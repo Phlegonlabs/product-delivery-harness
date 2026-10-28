@@ -1068,6 +1068,17 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("its `<title>` and meta description match the PRD record", gates)
         self.assertIn("A mismatch is a failing check, not a style preference", gates)
 
+    def test_worker_packet_returns_match_the_result_contract(self) -> None:
+        worker = self.read("assets/templates/WORKER_GOAL.template.md")
+        contract = self.read("references/worker-result-contract.md")
+        returns = worker.split("## Return", 1)[1].split("\n## ", 1)[0]
+
+        self.assertIn("A non-passing mission returns a graph node result with `worker_result: null`", contract)
+        self.assertIn("- `worker_passed`: `WORKER_RESULT`", returns)
+        self.assertIn("- blocked or failed: the graph node result with `worker_result: null`", returns)
+        self.assertIn("`REFINEMENT_REQUEST`", returns)
+        self.assertNotIn("`blocked`, or `worker_failed`", returns)
+
     def test_seo_stage_routing_is_conditional_and_targets_exist(self) -> None:
         seo = SKILL_ROOT.parent / "seo-growth-review"
         entry = (seo / "SKILL.md").read_text(encoding="utf-8")

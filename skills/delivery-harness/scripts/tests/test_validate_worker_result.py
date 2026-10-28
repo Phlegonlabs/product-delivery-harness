@@ -1085,6 +1085,15 @@ class ValidateWorkerResultTests(unittest.TestCase):
 
 
 
+    def test_blocked_or_failed_status_is_not_a_worker_result(self) -> None:
+        # Those missions return a graph node result with worker_result null.
+        for status in ("blocked", "worker_failed"):
+            with self.subTest(status=status):
+                result = copy.deepcopy(self.result)
+                result["status"] = status
+                errors = validate(self.plan, self.run, result)
+                self.assertIn("not_integration_candidate", error_codes(errors))
+
     def test_shared_loader_requires_exact_heading_and_wrapper(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "REPORT.md"

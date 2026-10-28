@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.72.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.72.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -160,7 +160,7 @@ create_local_commits, integrate_locally, push, archive_worker_tasks,
 remove_worktrees, delete_branches
 ```
 
-当前 RUN 在本地以 `local_only` 结束，`push` 为 false，`pushed_head_sha` 为 null。发布、受保护分支 landing、部署、安装、归档与清理保留各自授权。
+当前 RUN 在本地以 `local_only` 结束，`push` 为 false，`pushed_head_sha` 为 null。发布、受保护分支 landing、部署、安装、归档与清理保留各自授权。任务通过时 worker 返回 `WORKER_RESULT`，阻塞或失败时返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
 
 ## 仓库结构
 
@@ -209,6 +209,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.72.1** — 任务通过时 worker 返回 `WORKER_RESULT`；阻塞或失败的任务返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
+
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多个进程并行执行一个套件的测试模块并保留逐模块 log，本地的 Required Verification 矩阵从单核 27 分钟缩到几分钟。
 
 - **0.71.0** — 每个项目都明确声明自己的形状：PRD At a Glance 新增 `Shape` 行，写明 track、companion 公开界面与 console 类型，`## Growth Contract` 记录 north star 与 Day 7、Day 30 目标、再触达机制、discovery surfaces 与 launch window。各 track 的必要 UI 界面与交付基础、`agentic-operations-console` 架构 profile，以及 store launch、agent directory 与 GEO 回读的 activation profile，把流程从 web 延伸到 app 与 agent 产品。`seo-growth-review` 新增 `pre_launch` 模式与 Day 7、Day 30 的 `growth_review` 回读并喂给下一轮 PRD delta，go-to-market 起草 Launch Reach Plan，GTM Content 把一份源内容打包成各渠道变体并附两个 hook。
@@ -216,7 +218,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.70.0** — 每个候选阶段保有两次 review 预算：一次初审与一次定向复查；需要 owner 授权的额外轮次与后继 review node 移除。复查后每个剩余或新缺陷各成一笔隔离修复，附自己的聚焦 verifier，并只对修复差异做 scoped review——差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径、既有 PASS 沿用，broad final validation 每个候选于最后跑一次。managed 路线记录修复范围与 scoped PASS，owner 选择的 `mvp` delivery profile 把小型项目或一周 MVP 压缩到最多四个 owner gate。
 
 - **0.69.0** — Discovery 追加第四个 Ambition 段落，`PRD.md` 新增 `## Ambition` 与 Metrics 的 `Stretch` 列，PRD 各轮不再累加到同一份文件：每轮发布与其 Epic 对齐的 delta。Epic 记录其 delta 与 ambition rung，PLAN 冻结 `prd-delta` 来源，范围检查把 mission trace 绑到所属 delta 的需求 ID。
-
-- **0.68.0** — review findings 分为 blocking 缺陷与非 blocking notes：只有 blocking findings 触发修复，复查只在修复范围内验证原 findings，安全维度保持完整范围。环境受阻的 review attempt 不再占用 attempt 预算，修复须附作者的 verifier PASS 才会进复查，非可执行差异改记 `security: not_applicable` 而非 `UNVALIDATED`。范围不相交而沿用的 PASS 保留原始 SHA，超出一次合并 review 加一次复查的 review 点须记录理由。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
