@@ -32,7 +32,7 @@ Words here.
 | design_compilation | pair | `compiler-skill` | {compiler_pin} |
 | frontend_implementation | missions | {frontend} | {frontend_pin} |
 | ui_quality_verification | quality | {direction} | {direction_pin} |
-| code_security_verification | security | `compiler-skill` | {compiler_pin} |
+| code_security_verification | security | `delivery-harness/references/security-review.md` | {security_pin} |
 
 ## After
 """
@@ -40,9 +40,9 @@ Words here.
 
 class SkillBindingTests(unittest.TestCase):
     def test_stage_deferral_and_required_pin_drift(self) -> None:
-        pin = check_skill_bindings.hash_skill(self.skills / "compiler-skill" / "SKILL.md")
+        pin = check_skill_bindings.hash_reference(self.security_reference)
         text = "## Skill Bindings\n| Slot | Stage | Bound skill | Pinned SHA-256 |\n| --- | --- | --- | --- |\n"
-        text += f"| code_security_verification | security | compiler-skill | {pin} |\n"
+        text += f"| code_security_verification | security | `delivery-harness/references/security-review.md` | {pin} |\n"
         text += "| ui_design | later | pending | pending |\n"
         self.agents.write_text(text, encoding="utf-8")
         self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
@@ -51,7 +51,7 @@ class SkillBindingTests(unittest.TestCase):
         self.assertTrue(check_skill_bindings.check_bindings(self.agents, [self.skills])[0])
         self.agents.write_text(text.replace("pending | pending", "future-uninstalled | " + "f" * 64), encoding="utf-8")
         self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
-        (self.skills / "compiler-skill" / "SKILL.md").write_text("changed", encoding="utf-8")
+        self.security_reference.write_text("changed", encoding="utf-8")
         self.assertTrue(check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
 
     def test_deferred_stage_rejects_malformed_unknown_and_duplicate_rows(self) -> None:
@@ -76,6 +76,11 @@ class SkillBindingTests(unittest.TestCase):
             skill_dir = self.skills / name
             skill_dir.mkdir(parents=True)
             (skill_dir / "SKILL.md").write_text(body, encoding="utf-8", newline="\n")
+        self.security_reference = (
+            self.skills / "delivery-harness" / "references" / "security-review.md"
+        )
+        self.security_reference.parent.mkdir(parents=True)
+        self.security_reference.write_text("# Security review\n", encoding="utf-8", newline="\n")
         self.agents = self.root / "AGENTS.md"
 
     def tearDown(self) -> None:
@@ -88,6 +93,7 @@ class SkillBindingTests(unittest.TestCase):
         frontend: str,
         frontend_pin: str,
         compiler_pin: str | None = None,
+        security_pin: str | None = None,
     ) -> None:
         self.agents.write_text(
             AGENTS_TEMPLATE.format(
@@ -100,9 +106,45 @@ class SkillBindingTests(unittest.TestCase):
                 ),
                 frontend=frontend,
                 frontend_pin=frontend_pin,
+                security_pin=security_pin
+                or check_skill_bindings.hash_reference(self.security_reference),
             ),
             encoding="utf-8",
         )
+
+    def test_security_slot_binds_the_harness_reference(self) -> None:
+        pin = check_skill_bindings.hash_reference(self.security_reference)
+        base = "## Skill Bindings\n| Slot | Stage | Bound skill | Pinned SHA-256 |\n| --- | --- | --- | --- |\n"
+        self.agents.write_text(
+            base + f"| code_security_verification | security | `code-security-review` | {pin} |\n",
+            encoding="utf-8",
+        )
+        findings, hashes = check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")
+        joined = "\n".join(findings)
+        self.assertIn("must bind `delivery-harness/references/security-review.md`", joined)
+        self.assertIn("re-point", joined)
+        self.assertEqual({}, hashes)
+
+        self.agents.write_text(
+            base + f"| code_security_verification | security | `delivery-harness/references/security-review.md` | {pin} |\n",
+            encoding="utf-8",
+        )
+        findings, hashes = check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")
+        self.assertEqual([], findings)
+        self.assertEqual(pin, hashes[check_skill_bindings.SECURITY_REFERENCE])
+
+        unpinned = base + "| code_security_verification | security | `delivery-harness/references/security-review.md` | pending |\n"
+        self.agents.write_text(unpinned, encoding="utf-8")
+        findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")
+        self.assertIn("bound without a pinned hash", "\n".join(findings))
+
+        self.security_reference.write_text("drifted", encoding="utf-8", newline="\n")
+        self.agents.write_text(
+            base + f"| code_security_verification | security | `delivery-harness/references/security-review.md` | {pin} |\n",
+            encoding="utf-8",
+        )
+        findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")
+        self.assertIn("does not match the installed reference", "\n".join(findings))
 
     def test_taste_cannot_replace_frontend_design_in_ui_stage(self) -> None:
         self.write_agents("taste-skill", check_skill_bindings.hash_skill(self.skills / "taste-skill" / "SKILL.md"),
@@ -180,6 +222,7 @@ class SkillBindingTests(unittest.TestCase):
             compiler_pin=check_skill_bindings.hash_skill(self.skills / "compiler-skill"),
             frontend="`front-skill`",
             frontend_pin=check_skill_bindings.hash_skill(self.skills / "front-skill"),
+            security_pin=check_skill_bindings.hash_reference(self.security_reference),
         )
         compact = valid.replace("\n\n", "\n")
         cases = {

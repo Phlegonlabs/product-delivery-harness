@@ -274,28 +274,22 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Final readiness, measurement handoff, outcome review and live SEO review retain their applicable release and production verification; no RUN grant authorizes them.", delivery)
         self.assertIn("preparation may start at a fixed initial build before dependent features, under separate authorization.", delivery)
 
-    def test_security_reviewer_reads_full_stage_and_returns_evidence_only(self) -> None:
-        entry = self.read("code-security-review/SKILL.md")
-        stage = self.read("code-security-review/references/stages/security-review.md")
-        contract = self.read("code-security-review/references/review-contract.md")
+    def test_security_reviewer_reads_one_reference_and_returns_evidence_only(self) -> None:
+        reference = self.read("delivery-harness/references/security-review.md")
 
-        self.assertIn("read both complete files", entry)
-        self.assertIn("references/stages/security-review.md", entry)
-        self.assertIn("references/review-contract.md", entry)
-        self.assertIn("consult `../delivery-harness/references/reference-selection.md`", stage)
-        self.assertIn(
-            "`../delivery-harness/references/option-library/security.md`",
-            stage,
-        )
-        self.assertNotIn("`../../../delivery-harness/", stage)
-        self.assertIn("source to sink", stage)
-        self.assertIn("A reviewer child never starts a nested scan", contract)
-        self.assertIn("does not edit PLAN or RUN or start nested agents", contract)
-        self.assertIn("Do not change code", stage)
-        self.assertIn("source_to_sink", contract)
-        self.assertIn("coverage.status", contract)
-        self.assertIn("never eligible for the byte-identical-tree skip", contract)
-        self.assertIn("The reviewer never delegates", entry)
+        self.assertIn("read-only review authority only", reference)
+        self.assertIn("[reference-selection.md](reference-selection.md)", reference)
+        self.assertIn("[option-library/security.md](option-library/security.md)", reference)
+        self.assertIn("source to sink", reference)
+        self.assertIn("not a second PASS standard", reference)
+        self.assertIn("never starts a nested scan", reference)
+        self.assertIn("or change PLAN or RUN", reference)
+        self.assertIn("Do not change code", reference)
+        self.assertIn("source_to_sink", reference)
+        self.assertIn("coverage.status", reference)
+        self.assertIn("never eligible for the byte-identical-tree skip", reference)
+        self.assertIn("The reviewer never delegates", reference)
+        self.assertIn("verification-gates.md#unified-code-security-review", reference)
 
     def test_downstream_skills_always_run_the_full_product_gate_with_repo_root(self) -> None:
         sources = {

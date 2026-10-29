@@ -26,7 +26,7 @@ Use PLAN/RUN only when coordination requires it. Preserve upstream ownership:
 - `product-definition-builder` owns approved `PRD.md`, `architecture.md`, and `stack-decisions.md`, including complete frontend/backend architecture and technology decisions.
 - `ui-design-builder` owns UI Design Intake, PRD-led direction studies, HiFi checks, Visual Approval and the HiFi target. `design-system-compiler` owns a required design-system pair.
 - Implement current approved product/stack and applicable UI sources. Every must-have `UX-*` trace still needs objective evidence. `Recommended` and `Provisional` stack rows are proposals. Do not invent product, copy, stack or design decisions.
-- `code-security-review` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
+- The security lens in `references/security-review.md` owns read-only review of the fixed integrated SHA; it neither remediates nor probes live targets.
 
 ## Project Size Gate
 
@@ -113,7 +113,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 3. Run the focused checks selected from changed files, including security tests.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `code-security-review` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling or data access; a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
+6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling or data access; a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
 8. Perform only remaining authorized Git actions.
 

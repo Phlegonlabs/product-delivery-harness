@@ -46,14 +46,14 @@
 
 - 採納前：版本已鎖定（採用具名版本，不能混用不同版本 ID）；適用等級與排除項經負責人確認並寫入 PRD。
 - 實作後：每個採納條目有具體測試或審查證據；拒絕案例至少涵蓋跨帳號、跨租戶、屬性篡改與重放。
-- 宣稱管理：本參考不產生任何「已合規」結論；code-security-review 仍以實際程式版本為準。
+- 宣稱管理：本參考不產生任何「已合規」結論；`security-review.md` 的安全審查仍以實際程式版本為準。
 
 ## 採納記錄落點（沿用既有文件，不新增關卡）
 
 - PRD：記錄資產、威脅情境與接受水準。
 - architecture 文件：記錄控制執行位置與拒絕行為。
 - testing-acceptance 文件：承接對應測試證據。
-- code-security-review 與 delivery-acceptance-contract：繼續持有審查與最終驗收結論。Reference 本身不是第二套 PASS 系統。
+- `security-review.md` 與 delivery-acceptance-contract：繼續持有審查與最終驗收結論。Reference 本身不是第二套 PASS 系統。
 
 ## 未解決事項
 

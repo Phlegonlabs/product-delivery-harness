@@ -39,7 +39,6 @@ SKILL_FILES = {
     "ui-design-builder",
     "design-system-compiler",
     "delivery-harness",
-    "code-security-review",
     "product-activation",
     "seo-growth-review",
 }
@@ -124,11 +123,6 @@ class ReferenceLibraryTests(unittest.TestCase):
                 selection_pointer = "../delivery-harness/references/reference-selection.md"
                 library_pointer = "../delivery-harness/references/option-library/"
                 pointer_root = ROOT / "skills/product-activation"
-            elif name == "code-security-review":
-                path = ROOT / "skills" / name / "references/stages/security-review.md"
-                selection_pointer = "../delivery-harness/references/reference-selection.md"
-                library_pointer = "../delivery-harness/references/option-library/"
-                pointer_root = ROOT / "skills"
             else:
                 path = ROOT / "skills" / name / "SKILL.md"
             text = path.read_text(encoding="utf-8")
@@ -136,7 +130,7 @@ class ReferenceLibraryTests(unittest.TestCase):
                 selection_pointer = "references/reference-selection.md"
                 library_pointer = "references/option-library/"
                 pointer_root = ROOT / "skills/delivery-harness/references"
-            elif name not in {"product-definition-builder", "design-system-compiler", "code-security-review"}:
+            elif name not in {"product-definition-builder", "design-system-compiler"}:
                 selection_pointer = "../delivery-harness/references/reference-selection.md"
                 library_pointer = (
                     "../delivery-harness/references/option-library/"
@@ -180,7 +174,7 @@ class ReferenceLibraryTests(unittest.TestCase):
         harness = SELECTION.read_text(encoding="utf-8")
         self.assertIn("product runtime, product agent runtime, and the current development runtime", harness)
 
-        security = (ROOT / "skills/code-security-review/references/stages/security-review.md").read_text(encoding="utf-8")
+        security = (ROOT / "skills/delivery-harness/references/security-review.md").read_text(encoding="utf-8")
         self.assertIn("not a second PASS standard", security)
 
         activation = (ROOT / "skills/product-activation/references/stages/activation.md").read_text(encoding="utf-8")
