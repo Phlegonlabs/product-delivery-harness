@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.72.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.73.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -37,7 +37,7 @@ python -m pip install -r skills/delivery-harness/requirements-test.txt
 
 更新沿用同一安装器，不能用 raw-copy 覆盖。先取得授权、暂停相关 skill session 并保留备份；验证成功后才开启新的宿主会话。安装失败会 rollback；后续验证失败时，从前一个 release tag 重跑安装器。
 
-从 0.23 或更早版本升级时，在同一份备份中用原 ID 保存各旧目录：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。
+从 0.23 或更早版本升级时，在同一份备份中用原 ID 保存各旧目录：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。自 0.73.0 起安装器也会退役 `code-security-review`（改为 `delivery-harness/references/security-review.md`）、`product-activation`（改为 deployment record 与 `references/external-setup.md`）与 `seo-growth-review`（改为 `growth-review`）。
 
 UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-skill-dependencies.json) 固定的完整 `frontend-design` 与 `impeccable` tree。按记录的路径安装，再运行 `check_external_skill_dependencies.py`。更新 full-tree pin 前须审查变更；项目 Skill Bindings 保留 owner 已确认的选择，不可静默替换 skill。
 
@@ -49,11 +49,9 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 已批准且包含 UI 的 Product Definition | `ui-design-builder` | 方向、完整 HiFi、浏览器证据与 Visual Approval |
 | 已批准且需要设计系统的 HiFi | `design-system-compiler` | 冻结的 pair 与来源绑定派生 HTML |
 | 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN |
-| 固定且已集成的代码候选 | `code-security-review` | 只读 exact-SHA 安全结果与覆盖缺口 |
-| 外部设置或 release readiness | `product-activation` | 逐 target 的授权动作、回读与 readiness |
-| Production 公开网站 | `seo-growth-review` | 只读搜索与测量 review，以及已路由后续工作 |
+| 已发布且有任何可被发现 surface 的产品 | `growth-review` | 逐 surface 的只读增长 review，以及已路由后续工作 |
 
-七个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
+五个核心 skills 与三个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
 
 相关选择尚未解决，或现有决定需要参考背景时，使用[参考选择规则](skills/delivery-harness/references/reference-selection.md)与[可选目录](skills/delivery-harness/references/option-library/README.md)。两者都不是前置条件，也不授予执行权限；现有决定与批准仍有效。
 
@@ -78,11 +76,11 @@ Use $delivery-harness to implement the approved plan. Create a branch and commit
 ```
 
 ```text
-The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
+The delivery is complete. Use $delivery-harness to perform the external setup rows in docs/DEPLOYMENT.md for the production release targets, configure only the exact actions I approve, verify each result by read-back, and record the Measurement Sources status.
 ```
 
 ```text
-Use $seo-growth-review to audit this production website, reconcile Search Console visibility with GA4 on-site outcomes, prioritize evidence-backed keyword and page opportunities, and route every proposed change without modifying the site or external accounts.
+Use $growth-review to read back every surface of this released product with its own lens, reconcile the verified measurement sources against the Growth Contract, prioritize evidence-backed opportunities per surface, and route every proposed change without modifying the product or external accounts.
 ```
 
 ## 包含的内容
@@ -92,18 +90,16 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包 |
 | `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html` |
-| `delivery-harness` | 范围路由、授权、任务、集成、验证，以及需要时的 PLAN/RUN |
-| `code-security-review` | 准确候选的安全维度：findings、工具、覆盖与 exclusions |
-| `product-activation` | `docs/ACTIVATION.md`、外部设置、行为证明、测量交接与 `aso-and-store-launch`、`agent-directory`、`geo-readback` profile |
-| `seo-growth-review` | Production SEO 与自然流量证据；默认直接回复，明确要求时才另存报告，另含 `pre_launch` 模式与 Day 7、Day 30 的 `growth_review` 回读 |
+| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源，以及需要时的 PLAN/RUN |
+| `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复 |
 
 ## 独立 skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) 选择渠道与实验，并起草 Launch Reach Plan。[GTM Content](standalone-skills/gtm-content/SKILL.md) 准备各渠道草稿、素材、日历与附两个 hook 的各渠道变体。
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 选择渠道与实验、延伸 PRD 的 Launch Window，并准备各渠道草稿、素材、日历与附两个 hook 的各渠道变体。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。
 
-这四个完整 skill 目录须另行向宿主注册；`install.sh` 只安装七个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
+这三个完整 skill 目录须另行向宿主注册；`install.sh` 只安装五个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
 
 ## 系统如何协同
 
@@ -166,7 +162,7 @@ remove_worktrees, delete_branches
 
 | 路径 | 用途 |
 | --- | --- |
-| `skills/` | 七个 canonical skills、references、assets、templates 与源码测试 |
+| `skills/` | 五个 canonical skills、references、assets、templates 与源码测试 |
 | `standalone-skills/` | 另行注册的可选 skills |
 | `assets/` | README 封面素材 |
 | `docs/` | 当前索引与任务记录 |
@@ -201,13 +197,15 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 安全与数据保护
 
-凭证与用户数据不得进入仓库。保留无关文件、worktree 与备份，删除或替换须有准确 owner 授权。只读安全审查不会擅自安装 scanner、改代码或探测线上 target。详见[安全审查](skills/code-security-review/SKILL.md)与[数据保护](skills/delivery-harness/references/governance/development-rules.md#protect-local-data)。
+凭证与用户数据不得进入仓库。保留无关文件、worktree 与备份，删除或替换须有准确 owner 授权。只读安全审查不会擅自安装 scanner、改代码或探测线上 target。详见[安全审查](skills/delivery-harness/references/security-review.md)与[数据保护](skills/delivery-harness/references/governance/development-rules.md#protect-local-data)。
 
 ## 许可
 
 [MIT](LICENSE)。重用第三方代码与素材时保留许可与署名。
 
 ## 版本历史
+
+- **0.73.0** — 一个项目就是一组 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 种发布面（新增 MCP server、skill 与 plugin、library、messaging bot、marketplace app、assistant listing、container 与 internal service）和五种存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 写在 PRD Growth Contract；Shape 行新增 `tool` 与 `content` track，Launch Window 新增 Destination 列。bundle 从七个 skills 缩成五个：`code-security-review` 成为 harness 的安全 lens（`references/security-review.md`），`product-activation` 收进 deployment record（External Console Setup 行加上 Measurement Sources 表，设置目录在 `references/external-setup.md`），`seo-growth-review` 改为 `growth-review`，逐一 surface 用各自的 lens 回读，并从项目自己的 stack decisions 解析供应商。`gtm-content` 并入 `go-to-market`，未使用的 templates、死代码与重复的 validator CLI 一并移除。
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多个进程并行执行一个套件的测试模块并保留逐模块 log，本地的 Required Verification 矩阵从单核 27 分钟缩到几分钟。
 

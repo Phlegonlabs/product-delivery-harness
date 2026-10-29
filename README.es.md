@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.72.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.73.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -37,7 +37,7 @@ python -m pip install -r skills/delivery-harness/requirements-test.txt
 
 Actualiza con el mismo instalador, nunca mediante copia directa. Obtén autorización, detén las sesiones relevantes y conserva los backups; abre una sesión nueva tras verificar el éxito. Una instalación fallida se revierte. Si falla la verificación posterior, ejecuta el instalador desde el tag de la versión anterior.
 
-Al actualizar desde 0.23 o anterior, el instalador archiva los directorios heredados bajo sus IDs originales en el mismo backup: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, `product-design-builder` → `design-system-compiler`.
+Al actualizar desde 0.23 o anterior, el instalador archiva los directorios heredados bajo sus IDs originales en el mismo backup: `full-harness` → `delivery-harness`, `prd-builder` → `product-definition-builder`, `product-design-builder` → `design-system-compiler`. Desde 0.73.0 el instalador también retira `code-security-review` (ahora `delivery-harness/references/security-review.md`), `product-activation` (ahora el registro de despliegue y `references/external-setup.md`) y `seo-growth-review` (ahora `growth-review`).
 
 El trabajo UI también necesita los árboles externos exactos de `frontend-design` e `impeccable` fijados en el [manifest de dependencias](skills/delivery-harness/assets/external-skill-dependencies.json). Sigue las rutas de instalación registradas y ejecuta `check_external_skill_dependencies.py`. Revisa los cambios antes de actualizar los hashes del árbol completo. Los Skill Bindings conservan las elecciones del owner; nunca sustituyas un skill silenciosamente.
 
@@ -49,11 +49,9 @@ El trabajo UI también necesita los árboles externos exactos de `frontend-desig
 | Product Definition aprobada con UI | `ui-design-builder` | Direcciones, HiFi completo, evidencia de navegador y Visual Approval |
 | HiFi aprobado que requiere design system | `design-system-compiler` | Par congelado y HTML derivado vinculado al origen |
 | Implementación o mantenimiento acotado | `delivery-harness` | Trabajo Direct o PLAN/RUN gestionado |
-| Candidato de código fijo e integrado | `code-security-review` | Resultado de seguridad exact-SHA de solo lectura y brechas de cobertura |
-| Configuración externa o release readiness | `product-activation` | Acciones autorizadas, readback y readiness por target |
-| Sitio público en producción | `seo-growth-review` | Revisión de búsqueda y medición de solo lectura y seguimientos asignados |
+| Producto publicado con alguna superficie descubrible | `growth-review` | Revisión de crecimiento por superficie, de solo lectura, con seguimientos asignados |
 
-Los siete skills centrales y los cuatro independientes requieren una petición explícita que nombre el skill, como `$delivery-harness`. Se permite continuar un flujo ya solicitado. Las tareas ordinarias no inician rutas Harness, sincronización documental, registros Epic ni PLAN/RUN. La instalación y los documentos existentes no activan el flujo. El skill solicitado conserva sus controles y dependencias; una nueva etapa principal requiere una petición explícita. Codex usa `allow_implicit_invocation: false`; los demás hosts respetan el mismo límite.
+Los cinco skills centrales y los tres independientes requieren una petición explícita que nombre el skill, como `$delivery-harness`. Se permite continuar un flujo ya solicitado. Las tareas ordinarias no inician rutas Harness, sincronización documental, registros Epic ni PLAN/RUN. La instalación y los documentos existentes no activan el flujo. El skill solicitado conserva sus controles y dependencias; una nueva etapa principal requiere una petición explícita. Codex usa `allow_implicit_invocation: false`; los demás hosts respetan el mismo límite.
 
 Usa la [selección de referencias](skills/delivery-harness/references/reference-selection.md) y el [catálogo opcional](skills/delivery-harness/references/option-library/README.md) para decisiones pertinentes sin resolver o contexto de decisiones adoptadas. No son requisitos previos ni conceden autoridad para ejecutar; las decisiones y aprobaciones existentes siguen vigentes.
 
@@ -78,11 +76,11 @@ Usa $delivery-harness para implementar el plan aprobado. Crea una branch y haz c
 ```
 
 ```text
-La entrega está completa. Usa $product-activation para los targets de release de producción, configura solo las acciones externas exactas que apruebo, verifica cada resultado por read-back, y detente después de registrar el readiness de activación y el handoff de la ventana de medición.
+La entrega está completa. Usa $delivery-harness para ejecutar las filas de configuración externa de docs/DEPLOYMENT.md para los targets de producción, configura solo las acciones exactas que apruebo, verifica cada resultado por read-back y registra el estado de Measurement Sources.
 ```
 
 ```text
-Usa $seo-growth-review para auditar este sitio en producción, reconciliar la visibilidad de Search Console con los resultados on-site de GA4, priorizar oportunidades de keyword y página basadas en evidencia y enrutar cada cambio propuesto sin modificar el sitio ni las cuentas externas.
+Usa $growth-review para leer cada superficie de este producto publicado con su propia lente, reconciliar las fuentes de medición verificadas con el Growth Contract, priorizar oportunidades basadas en evidencia por superficie y enrutar cada cambio propuesto sin modificar el producto ni las cuentas externas.
 ```
 
 ## Qué incluye
@@ -92,18 +90,16 @@ Usa $seo-growth-review para auditar este sitio en producción, reconciliar la vi
 | `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
-| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación y PLAN/RUN cuando hace falta |
-| `code-security-review` | Lente de seguridad sobre el candidato exacto: hallazgos, herramientas, cobertura y exclusiones |
-| `product-activation` | `docs/ACTIVATION.md`, configuración externa, pruebas de comportamiento, handoff de medición y los perfiles `aso-and-store-launch`, `agent-directory` y `geo-readback` |
-| `seo-growth-review` | Evidencia SEO y de crecimiento orgánico en producción; revisión inline o informe solicitado explícitamente, con modo `pre_launch` y readbacks `growth_review` de Day 7 y Day 30 |
+| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md`, y PLAN/RUN cuando hace falta |
+| `growth-review` | Una lente por superficie según el Surface Catalog: motores de búsqueda y de respuestas, listados de tiendas, registries y directorios, plataformas de bots y las cuentas que gestiona el equipo; modos `pre_launch`, `baseline`, `growth_review` de Day 7 y Day 30 y `traffic_drop`, salida inline |
 
 ## Skills independientes
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos y redacta el Launch Reach Plan. [GTM Content](standalone-skills/gtm-content/SKILL.md) prepara borradores, assets, calendarios y variantes por canal con dos hooks.
+[Go To Market](standalone-skills/go-to-market/SKILL.md) selecciona canales y experimentos, amplía la Launch Window del PRD y prepara borradores, assets, calendarios y variantes por canal con dos hooks.
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) redacta READMEs con demostraciones reales. [Release Packager](standalone-skills/release-packager/SKILL.md) verifica artifacts de release y rutas de instalación del consumidor.
 
-Estos cuatro directorios completos requieren registro separado en el host; `install.sh` instala solo los siete skills centrales. Registro, builds, descargas, firmas, publicación, programación y cambios de cuenta conservan su autorización. Reutiliza los registros de producto y medición; no añadas una ronda de revisión.
+Estos tres directorios completos requieren registro separado en el host; `install.sh` instala solo los cinco skills centrales. Registro, builds, descargas, firmas, publicación, programación y cambios de cuenta conservan su autorización. Reutiliza los registros de producto y medición; no añadas una ronda de revisión.
 
 ## Cómo encaja el sistema
 
@@ -166,7 +162,7 @@ Los RUN actuales cierran en `local_only`, con `push` false y `pushed_head_sha` n
 
 | Ruta | Propósito |
 | --- | --- |
-| `skills/` | Siete skills canónicos, referencias, assets, plantillas y tests de origen |
+| `skills/` | Cinco skills canónicos, referencias, assets, plantillas y tests de origen |
 | `standalone-skills/` | Skills opcionales registrados por separado |
 | `assets/` | Portadas del README |
 | `docs/` | Índice vigente y registros de tareas |
@@ -201,13 +197,15 @@ Publicar exige el SHA y la rama exactos autorizados por el owner, push sin force
 
 ## Seguridad y protección de datos
 
-Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos ajenos, worktrees y backups; borrar o sustituir requiere autorización exacta del owner. La revisión de solo lectura no instala scanners, cambia código ni sondea targets vivos sin otro alcance. Consulta [seguridad](skills/code-security-review/SKILL.md) y [protección de datos](skills/delivery-harness/references/governance/development-rules.md#protect-local-data).
+Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos ajenos, worktrees y backups; borrar o sustituir requiere autorización exacta del owner. La revisión de solo lectura no instala scanners, cambia código ni sondea targets vivos sin otro alcance. Consulta [seguridad](skills/delivery-harness/references/security-review.md) y [protección de datos](skills/delivery-harness/references/governance/development-rules.md#protect-local-data).
 
 ## Licencia
 
 [MIT](LICENSE). Conserva licencias y atribución de código y assets de terceros.
 
 ## Historial de versiones
+
+- **0.73.0** — Un proyecto es un conjunto de superficies. El nuevo [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) lista 22 clases de superficie de build (añade servidores MCP, skills y plugins, librerías, bots de mensajería, apps de marketplace, listados de asistentes, contenedores y servicios internos) y cinco tipos de presencia (social, canal de vídeo, newsletter, comunidad, sitio de docs) que viven en el Growth Contract del PRD como `platform:handle`; la fila Shape gana los tracks `tool` y `content` y la Launch Window una columna Destination. El bundle pasa de siete skills a cinco: `code-security-review` se convierte en la lente de seguridad del harness (`references/security-review.md`), `product-activation` se pliega en el registro de despliegue (filas de External Console Setup más una tabla Measurement Sources, con el catálogo de configuración en `references/external-setup.md`) y `seo-growth-review` pasa a ser `growth-review`, que lee cada superficie con su propia lente y resuelve proveedores desde las stack decisions del proyecto. `gtm-content` se integra en `go-to-market`, y desaparecen plantillas sin uso, helpers muertos y las CLIs de validación duplicadas.
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` ejecuta los módulos de prueba de una suite en procesos paralelos con logs por módulo, así la matriz local de Required Verification termina en minutos en lugar de 27 en un solo núcleo.
 
