@@ -127,9 +127,8 @@ Keep each project's accounts, sources and conversion definitions separate.
 When available, use these owners:
 
 - `product-definition-builder`: changed product decisions.
-- `delivery-harness`: approved implementation gaps.
-- `product-activation`: external measurement setup.
-- `seo-growth-review`: public-site search analysis.
+- `delivery-harness`: approved implementation gaps and external setup in the deployment record.
+- `growth-review`: public-site search analysis.
 
 Otherwise name the equivalent owner and expected handoff; these skills are optional dependencies.
 
