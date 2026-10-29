@@ -60,4 +60,4 @@ Independent review: `c7cbaafb` `fix_required`, one consolidated repair, `cf0ec8a
 
 - Publication: PR from `feat/review-budget-and-mvp-profile` to `main`, CI on the exact candidate, tag `v0.70.0`, consumer syncs. Nothing here authorizes a push, PR or installation.
 - Backlog notes from review: declared-path coverage has no success-channel receipt; the cross-node attribution test uses an unregistered node and a filtered error list; no regression for foreign attribution with the current node's lineage; the delivery test suite needs sharding (27 minutes per full run).
-- The growth skills review (go-to-market, gtm-content, product-activation, seo-growth-review) for reach and clicks is a separate follow-up.
+- The growth skills review (go-to-market, product-activation, seo-growth-review) for reach and clicks is a separate follow-up.
