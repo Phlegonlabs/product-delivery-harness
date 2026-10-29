@@ -172,7 +172,7 @@ class GovernanceEntryRouteTests(unittest.TestCase):
         lines = table.splitlines()
         managed_line = next(line for line in lines if line.startswith("| Managed PLAN/RUN"))
         deployment_line = next(line for line in lines if line.startswith("| Deployment "))
-        activation_line = next(line for line in lines if line.startswith("| Post-delivery activation"))
+        setup_line = next(line for line in lines if line.startswith("| External setup and measurement sources"))
 
         self.assertIn(
             "delivery-harness/references/governance/managed-delivery.md"
@@ -184,7 +184,7 @@ class GovernanceEntryRouteTests(unittest.TestCase):
             "#managed-product-delivery-harness-runs",
             managed_line,
         )
-        self.assertNotIn("#post-delivery-activation", managed_line)
+        self.assertNotIn("#external-setup", managed_line)
         self.assertNotIn("#monetization-and-partner-channels", managed_line)
         self.assertIn(
             "delivery-harness/references/deployment-contract.md#deployment-contract",
@@ -194,11 +194,11 @@ class GovernanceEntryRouteTests(unittest.TestCase):
         self.assertNotIn("project-operating-rules.md", deployment_line)
         self.assertIn(
             "delivery-harness/references/project-operating-rules.md"
-            "#post-delivery-activation",
-            activation_line,
+            "#external-setup",
+            setup_line,
         )
-        self.assertNotIn("managed-delivery.md", activation_line)
-        self.assertNotIn("#monetization-and-partner-channels", activation_line)
+        self.assertNotIn("managed-delivery.md", setup_line)
+        self.assertNotIn("#monetization-and-partner-channels", setup_line)
         self.assertNotIn("Managed PLAN/RUN, deployment", table)
 
     def test_owner_links_resolve_from_each_owner_file(self) -> None:
