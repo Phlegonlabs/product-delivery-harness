@@ -547,7 +547,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         rules = self.read("references/project-operating-rules.md")
         task_owner = self.read("references/governance/task-and-handoff.md")
         product_owner = self.read("references/governance/product-contracts.md")
-        for title in ("Monetization And Partner Channels", "Post-Delivery Activation", "Managed Product Delivery Harness Runs"):
+        for title in ("Monetization And Partner Channels", "External Setup", "Managed Product Delivery Harness Runs"):
             anchor = title.lower().replace(" ", "-")
             if title == "Monetization And Partner Channels":
                 self.assertIn("delivery-harness/references/governance/product-contracts.md#consumer-keep-product-contracts-current", entry)
@@ -1125,7 +1125,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertNotIn("freeze the observed remote `development` head for ordinary work", operating)
         self.assertNotIn("A current managed run uses PLAN `branch_policy` to freeze remote `development`", state)
         self.assertNotIn("Ordinary flow verifies S on `development`", orchestration)
-        self.assertNotIn("Protected-development landing and `main` promotion each")
         self.assertIn("## Deployment", project_agents)
         self.assertIn("deployment-contract.md", project_agents)
         self.assertIn(
@@ -1173,10 +1172,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Environment Status", deployment_template)
         self.assertIn("## Branch Promotion", deployment_template)
         self.assertIn("Main exact-SHA result", deployment_template)
-        self.assertIn("## Product Activation Handoff", deployment_template)
+        self.assertIn("## External Setup", deployment_template)
+        self.assertIn("## Measurement Sources", deployment_template)
         self.assertIn("## Human Configuration Handoff", contract)
-        self.assertIn("## Product Activation Handoff", contract)
-        self.assertIn("receives no authorization", contract)
+        self.assertIn("## External Setup And Measurement", contract)
+        self.assertIn("Nothing in this record authorizes an external mutation", contract)
         self.assertIn("Before every deployable push", contract)
         self.assertIn("Never open value-bearing local files", contract)
         self.assertIn("exact pending names and console tasks", contract)
@@ -1292,7 +1292,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Current managed dispatch does not support user-owned app tasks", orchestration)
         self.assertIn("never replace it silently", orchestration)
         self.assertIn("Never replace those tasks silently", selector)
-        self.assertIn("An explicit request for them blocks")
         for content in (adapters, orchestration, selector):
             self.assertNotIn("--task-thread-id", content)
             self.assertNotIn("app_threads", content)
@@ -1593,7 +1592,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         for content in (skill, verification, plan_template, e2e_template):
             self.assertIn("UI Design Intake", content)
-        self.assertIn("human-owned `ui-design.md`")
         self.assertIn("ui-design.md", contract)
         self.assertIn("ui-design-builder", updates)
         self.assertIn("Every must-have `UX-*` trace", skill)

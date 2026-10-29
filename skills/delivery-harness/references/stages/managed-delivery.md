@@ -81,7 +81,7 @@ Map active `platform-delivery/1` stages in architecture order. Use pass-only dep
 For initial website/app work, read [Initial Product Foundations](../initial-product-foundations.md).
 Order approved discovery, deployment and measurement prerequisites before their dependent features using existing dependencies and TEST obligations.
 Keep code tasks separate from parent-coordinated, separately authorized external setup; neither workers nor RUN gain deployment or console-write authority.
-Use evidence for each prerequisite, not global Activation readiness, to unblock its dependent work. Preserve independent work during external blockers.
+Use evidence for each prerequisite, not a global setup readiness, to unblock its dependent work. Preserve independent work during external blockers.
 
 ### 3. Pass Plan Readiness
 

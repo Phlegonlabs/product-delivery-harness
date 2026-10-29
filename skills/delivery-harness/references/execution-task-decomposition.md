@@ -100,7 +100,7 @@ Select engineering checks from approved NFRs and TEST obligations, according to 
 
 Keep check owners, workloads, environments and exact SHA/artifact bindings in existing task acceptance and evidence.
 Record expected and observed results separately.
-Keep operational setup and readback in Deployment/Activation records under their separate grants.
+Keep operational setup and read-back in the deployment record under their separate grants.
 Plan checks before dependent work. Run them at the existing task, integration or operational checkpoint that provides their prerequisites.
 Missing prerequisites block the dependent claim; planned checks and configuration alone are not observed behavior.
 Use the product's accepted targets and explicit non-applicability; do not impose universal load, cost or recovery thresholds.

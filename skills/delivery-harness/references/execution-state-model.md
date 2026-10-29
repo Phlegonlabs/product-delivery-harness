@@ -264,7 +264,7 @@ Record each such modification as its own mission: open it through a plan revisio
 
 A mid-run modification is done when it is recorded in RUN and visible in the tasks view, not when the edit lands. Nothing stays only in the working tree or only in the conversation.
 
-Before the completed coordination set is archived, append every owner or agent update not already reflected in `docs/product/PRD.md` to the preserved `docs/tasks.md` Update Log. Product-affecting changes also update the PRD in the same change. Archive candidate A then freezes that log with the RUN; the PRD remains the persistent product record. Activation, outcome review, and SEO happen only after A reaches `main` and production is verified, so their findings belong to their own operational records or a later enhancement, never a reopened archived RUN.
+Before the completed coordination set is archived, append every owner or agent update not already reflected in `docs/product/PRD.md` to the preserved `docs/tasks.md` Update Log. Product-affecting changes also update the PRD in the same change. Archive candidate A then freezes that log with the RUN; the PRD remains the persistent product record. External setup read-back, the outcome review and the growth review happen only after A reaches `main` and production is verified, so their findings belong to their own operational records or a later enhancement, never a reopened archived RUN.
 
 ## Typed Graph State
 

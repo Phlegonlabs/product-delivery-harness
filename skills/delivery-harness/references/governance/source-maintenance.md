@@ -33,7 +33,7 @@ These rules own skill-source reading, Git, release verification, installation, a
 
 ## Required Verification
 
-Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks selected from changed files and their negative cases. The candidate's one full run is the required matrix below, from the repository root. CI on the candidate SHA is that run; a local full run happens only when CI is unavailable. Source maintenance does not create a consumer Product Definition, UI approval, Activation pass or managed archive merely to edit a skill. Preserve all suites.
+Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks selected from changed files and their negative cases. The candidate's one full run is the required matrix below, from the repository root. CI on the candidate SHA is that run; a local full run happens only when CI is unavailable. Source maintenance does not create a consumer Product Definition, UI approval, external setup pass or managed archive merely to edit a skill. Preserve all suites.
 
 For required UI browser checks, prepare dependencies with `npm ci` and `npx playwright install chromium` when missing or changed, then set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`. Reuse only an observed installation matching the current lockfile and Playwright browser revision; do not reinstall it for every task. Linux CI installs Chromium with `--with-deps`. Missing prerequisites must fail required browser verification. Python test dependencies follow the current requirements file.
 

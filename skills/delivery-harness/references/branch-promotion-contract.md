@@ -94,8 +94,8 @@ Never relabel inherited candidate, security or CI results as fresh executions at
 A different tree is a new candidate and needs fresh applicable checks and exact-SHA security review.
 Repair a failed landing through a new candidate and reviewed PR; never force-push or rewrite protected history.
 Hosted-browser production verifies deployed SHA and smoke; parity capture there is optional. Native, extension and desktop targets use their platform evidence.
-Activation readiness, outcome review and SEO keep their separate post-production gates and authorization.
-Separately authorized Activation preparation cannot claim release readiness.
+External setup read-back, the growth review and the outcome review keep their separate post-production gates and authorization.
+Separately authorized fixed-build external setup cannot claim release readiness.
 
 ## Protected Branches
 
@@ -112,7 +112,7 @@ For a managed RUN, candidate A remains the archive-only child of C. Report:
 - delivery kind, temporary branch, protocol, frozen base and candidate SHA;
 - local checks, independent review and Preview deployment identity, URL, SHA and acceptance;
 - main pre-state, authorization, ancestry, landing SHA and read-back;
-- production build/SHA, smoke and any activation or outcome handoff.
+- production build/SHA, smoke and any external setup or outcome handoff.
 
 Unexpected remote movement, divergence, failed gates or mismatched deployments stop dependent operations.
 Preserve evidence and reconcile explicitly; never force-push or silently rewrite history.
