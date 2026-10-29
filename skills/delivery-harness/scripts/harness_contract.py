@@ -20,7 +20,6 @@ SKILL_NAMES = (
     "product-definition-builder",
     "ui-design-builder",
     "design-system-compiler",
-    "code-security-review",
     "product-activation",
     "seo-growth-review",
 )

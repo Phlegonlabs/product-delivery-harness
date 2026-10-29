@@ -502,6 +502,8 @@ def render_packet(
             "", "## Security coverage", "",
             "Perform a fresh full-scope review at the reviewed head. Prior mission"
             " reviews do not reduce security scope or replace required checks.",
+            "Security lens method and result contract:"
+            " `delivery-harness/references/security-review.md`.",
         ]
     elif review.get("stage") == "integration" and review_policy(plan) == "per_mission":
         # A final_candidate review has no earlier mission review to lean on.
