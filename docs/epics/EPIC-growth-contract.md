@@ -62,5 +62,5 @@ Independent review: `42ba2408` `fix_required` across the checker and prose scope
 
 - Consumer retrofits: the three consumer projects' PRDs gain a `Shape` row and a `## Growth Contract`.
 - Publication: PR chain `feat/review-budget-and-mvp-profile` (0.70.0) then `feat/growth-contract` (0.71.0) to `main`, CI on each exact candidate, tags, consumer syncs. Nothing here authorizes a push, PR or installation.
-- Backlog notes from review: the Shape-row tests omit `n/a` prefix and longer-word exclusion variants; validator-level acceptance of the new activation profiles with architecture targets lacks a focused case; the growth_review cadence has no fallback example when no launch reach plan exists.
+- Backlog notes from review: the Shape-row tests omit `n/a` prefix and longer-word exclusion variants; validator-level acceptance of the new activation profiles with architecture targets lacks a focused case; the growth_review cadence has no fallback example when a PRD has no launch window rows.
 - Test-suite sharding: done in 0.72.0 (`ci_test_shards.py run`), see the Change Log row.
