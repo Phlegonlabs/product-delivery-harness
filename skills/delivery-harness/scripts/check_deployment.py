@@ -294,7 +294,19 @@ def _endpoint_findings(
         return ["endpoint/domain is missing"]
     if re.search(r"https?://[^\s/:]+:[^\s/@]+@", value, re.I):
         return ["endpoint/domain must not contain credentials"]
-    native_classes = {"ios", "android", "macos", "windows", "browser_extension"}
+    native_classes = {
+        "ios",
+        "android",
+        "macos",
+        "windows",
+        "browser_extension",
+        "marketplace_app",
+        "assistant_listing",
+        "skill_or_plugin",
+        "library_or_sdk",
+        "mcp_server",
+        "container_or_self_hosted",
+    }
     if surface_class in native_classes:
         if lowered.startswith("https://"):
             parsed = urlparse(value)
@@ -347,7 +359,16 @@ def _endpoint_findings(
         if not loopback and not HOST_RE.fullmatch(parsed.hostname.rstrip(".").casefold()):
             return ["hosted endpoint hostname is invalid"]
         return []
-    if surface_class in {"worker", "job", "webhook", "realtime", "cli", "agent"}:
+    if surface_class in {
+        "worker",
+        "job",
+        "webhook",
+        "realtime",
+        "cli",
+        "agent",
+        "messaging_bot",
+        "internal_service",
+    }:
         if not is_substantive_identity(value):
             return ["typed endpoint/resource identity is not substantive"]
         return []
@@ -846,6 +867,12 @@ def _validate_release_target_status(
                 "macos",
                 "windows",
                 "browser_extension",
+                "marketplace_app",
+                "assistant_listing",
+                "skill_or_plugin",
+                "library_or_sdk",
+                "mcp_server",
+                "container_or_self_hosted",
             }
             availability_terms = (
                 ("install", "download", "artifact", "build")
