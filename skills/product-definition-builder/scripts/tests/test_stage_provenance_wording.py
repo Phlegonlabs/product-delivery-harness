@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bind the activation seed's readiness and coverage distinction."""
+"""Bind the measurement-source seed's planned-status and pending-binding distinction."""
 
 from __future__ import annotations
 
@@ -16,14 +16,22 @@ STAGE = (
 
 
 class StageProvenanceWordingTests(unittest.TestCase):
-    def test_readiness_is_target_complete_and_coverage_is_separate(self) -> None:
+    def test_seed_rows_are_planned_with_pending_bindings_and_staged_check(self) -> None:
         text = STAGE.read_text(encoding="utf-8")
         self.assertIn(
-            "Target Readiness must cover every architecture release target",
+            "one row per PRD metric and each required `TEST-*` expected signal",
             text,
         )
         self.assertIn(
-            "Outcome Coverage is a signal subset",
+            "Status `planned`",
+            text,
+        )
+        self.assertIn(
+            "`@pending#pending` release bindings",
+            text,
+        )
+        self.assertIn(
+            'check_deployment.py" --deployment <staged DEPLOYMENT.md> --architecture <staged architecture.md>',
             text,
         )
 

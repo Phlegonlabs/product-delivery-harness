@@ -39,11 +39,6 @@ def product_identity(text: str, *, kind: str) -> str:
     return normalize_identity(match.group(1)) if match else ""
 
 
-def activation_product_identity(text: str) -> str:
-    match = re.search(r"^-\s*Product:\s*(.*?)\s*$", active_text(text), re.I | re.M)
-    return normalize_identity(match.group(1)) if match else ""
-
-
 def release_area_requirements(targets: Iterable[object]) -> set[str]:
     """Map every shipped release class to its executable technology areas."""
 

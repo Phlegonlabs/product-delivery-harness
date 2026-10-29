@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import subprocess
 import sys
 import tempfile
@@ -10,29 +9,115 @@ from pathlib import Path
 
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-SKILLS_ROOT = SCRIPTS_DIR.parents[1]
-ACTIVATION_TEST_PATH = (
-    SKILLS_ROOT / "product-activation" / "scripts" / "tests" / "test_check_activation.py"
-)
 if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_outcome_review  # noqa: E402
 
 
-spec = importlib.util.spec_from_file_location("activation_fixtures", ACTIVATION_TEST_PATH)
-activation_fixtures = importlib.util.module_from_spec(spec)
-assert spec.loader is not None
-spec.loader.exec_module(activation_fixtures)
+SHA = "a" * 40
+ARTIFACT = "web-build-1"
+BINDING = f"web-prod@{SHA}#{ARTIFACT}"
+MS_TARGET = "google_analytics/account-1/property-2/stream-3"
+MS_RETRIEVAL = "bounded GA4 Data API query for the verified stream"
+MS_OWNER = "Analytics owner"
+MS_VERIFIED_AT = "2026-09-07T18:02:00Z"
+MS_EVIDENCE = "GA4 property 2 stream 3 returned the setup event count for web-build-1"
+
+ARCHITECTURE = """# Architecture
+
+## Release Targets
+
+Expected deployable surfaces: web-app
+
+### Release Target: web-dev
+- Surface: web-app
+- Surface class: hosted_web
+- Public discoverability: yes
+- Surface suffix: web
+- Release name: fixture-web-dev
+- Provider: Cloudflare
+- Stage: development
+- Source policy: stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha
+- Artifact kind: static development bundle
+- Signing requirement: not required
+- Exact channel / track: fixture-development-route
+- Submission / promotion / review / manual approval path: candidate checks and owner approval
+- Availability signal: route answers the smoke check
+- Rollout: all development testers
+- Rollback / forward-fix: deploy the prior development bundle
+
+### Release Target: web-prod
+- Surface: web-app
+- Surface class: hosted_web
+- Public discoverability: yes
+- Surface suffix: web
+- Release name: fixture-web
+- Provider: Cloudflare
+- Stage: production
+- Source policy: stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha
+- Artifact kind: static production bundle
+- Signing requirement: not required
+- Exact channel / track: fixture-production-route
+- Submission / promotion / review / manual approval path: candidate checks, main promotion, owner approval
+- Availability signal: route answers the smoke check
+- Rollout: all users after smoke passes
+- Rollback / forward-fix: deploy the prior bundle or corrected forward-fix
+"""
+
+PRD = """# PRD: Example
+
+## Metrics
+| Metric | Definition | Target |
+| --- | --- | --- |
+| Activation rate | Users completing setup | 70% in 14 days |
+
+## Test Obligations
+| TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
+| --- | --- | --- | --- | --- | --- |
+| TEST-001 | Setup succeeds | operational | Yes | PRD-001 | One verified setup event |
+| TEST-002 | Nice to have | unit | No | PRD-002 | Optional signal |
+"""
 
 
-PRD = activation_fixtures.VALID_PRD
-ARCHITECTURE = activation_fixtures.ARCHITECTURE
-DEPLOYMENT = activation_fixtures.DEPLOYMENT
-ACTIVATION = activation_fixtures.valid_record()
-SHA = activation_fixtures.SHA
-ARTIFACT = activation_fixtures.ARTIFACT
-ACTIVATION_SHA256 = hashlib.sha256(ACTIVATION.encode("utf-8")).hexdigest()
+def measurement_sources_row(
+    *,
+    source_id: str = "MS-001",
+    binding: str = BINDING,
+    role: str = "ga4",
+    owner: str = MS_OWNER,
+    status: str = "verified",
+    verified_at: str = MS_VERIFIED_AT,
+    evidence: str = MS_EVIDENCE,
+) -> str:
+    return (
+        f"| {source_id} | Activation rate, TEST-001 | {MS_TARGET} | production "
+        f"| {MS_RETRIEVAL} | {role} | {binding} | {owner} | {status} | {verified_at} | {evidence} |"
+    )
+
+
+def deployment_record(row: str | None = None) -> str:
+    if row is None:
+        row = measurement_sources_row()
+    return f"""# Deployment
+
+## Release Target Status
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| web-dev | web-app | development | Cloudflare;fixture-development-route | pending | pending | pending | pending | pending | pending | pending |
+| web-prod | web-app | production | Cloudflare;fixture-production-route | https://example.com | {SHA} | {SHA} | {ARTIFACT} | production route answered the smoke check | 2026-09-07T18:04:00Z | PASS |
+
+## Measurement Sources
+
+| MS ID | Signals | Target | Environment | Retrieval | Source role | Release bindings | Owner | Status | Verified at | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+{row}
+"""
+
+
+DEPLOYMENT = deployment_record()
+DEPLOYMENT_SHA256 = hashlib.sha256(DEPLOYMENT.encode("utf-8")).hexdigest()
 
 
 def valid_outcome(*, verdict: str = "no_change", schema: str = "outcome-review/1") -> str:
@@ -55,15 +140,15 @@ def valid_outcome(*, verdict: str = "no_change", schema: str = "outcome-review/1
 - Deployment identity: fixture-web;fixture-production-route;{ARTIFACT}
 - Deployment checked: 2026-09-07T18:04:00Z
 - Deployment status: PASS
-- Activation record: docs/ACTIVATION.md
-- Activation sha256: {ACTIVATION_SHA256}
+- Measurement record: docs/DEPLOYMENT.md
+- Deployment sha256: {DEPLOYMENT_SHA256}
 - Reviewed on: 2026-09-10
 - Verdict: {verdict}
 
 ## Activation Sources
 | MS ID | Release binding | Owner | Verified at | Evidence |
 | --- | --- | --- | --- | --- |
-| MS-001 | web-prod@{SHA}#{ARTIFACT} | analytics owner | 2026-09-07T18:02:00Z | EVID-004 bounded verified query |
+| MS-001 | web-prod@{SHA}#{ARTIFACT} | {MS_OWNER} | {MS_VERIFIED_AT} | {MS_EVIDENCE} |
 
 ## Measurements
 | Signal | Baseline | Target | Window start | Window end | Actual | Source ID |
@@ -90,13 +175,12 @@ Verdict: {verdict} — measured outcomes met the reviewed target
 
 
 class OutcomeReviewTests(unittest.TestCase):
-    def check(self, outcome: str) -> list[str]:
+    def check(self, outcome: str, *, deployment: str = DEPLOYMENT) -> list[str]:
         return check_outcome_review.check_outcome_review_text(
             outcome,
             prd_text=PRD,
             architecture_text=ARCHITECTURE,
-            deployment_text=DEPLOYMENT,
-            activation_text=ACTIVATION,
+            deployment_text=deployment,
         )
 
     def test_valid_outcome_is_bound_to_verified_release(self) -> None:
@@ -138,10 +222,10 @@ class OutcomeReviewTests(unittest.TestCase):
             "window must elapse after deployment", "\n".join(self.check(before_deployment))
         )
 
-    def test_stale_activation_hash_is_rejected(self) -> None:
-        outcome = valid_outcome().replace(ACTIVATION_SHA256, "b" * 64)
+    def test_stale_deployment_hash_is_rejected(self) -> None:
+        outcome = valid_outcome().replace(DEPLOYMENT_SHA256, "b" * 64)
         self.assertIn(
-            "Activation sha256 does not match",
+            "Deployment sha256 does not match",
             "\n".join(self.check(outcome)),
         )
 
@@ -152,8 +236,57 @@ class OutcomeReviewTests(unittest.TestCase):
             1,
         )
         findings = "\n".join(self.check(outcome))
-        self.assertIn("MS-002 is not a matching verified Activation source", findings)
+        self.assertIn("MS-002 is not a matching verified measurement source", findings)
         self.assertIn("every matching verified MS source", findings)
+
+    def test_review_row_must_copy_the_deployment_row(self) -> None:
+        stale_time = valid_outcome().replace(MS_VERIFIED_AT, "2026-09-08T09:00:00Z", 1)
+        self.assertIn(
+            "verified time must equal the deployment row Verified at",
+            "\n".join(self.check(stale_time)),
+        )
+        other_evidence = valid_outcome().replace(MS_EVIDENCE, "unrelated screenshot", 1)
+        self.assertIn(
+            "evidence must equal the deployment row Evidence",
+            "\n".join(self.check(other_evidence)),
+        )
+        other_owner = valid_outcome().replace(
+            f"| MS-001 | web-prod@{SHA}#{ARTIFACT} | {MS_OWNER} |",
+            f"| MS-001 | web-prod@{SHA}#{ARTIFACT} | Growth owner |",
+            1,
+        )
+        self.assertIn(
+            "owner differs from the deployment row",
+            "\n".join(self.check(other_owner)),
+        )
+
+    def test_unverified_deployment_source_is_rejected(self) -> None:
+        planned = deployment_record(
+            measurement_sources_row(
+                binding="web-prod@pending#pending",
+                status="planned",
+                verified_at="pending",
+            )
+        )
+        findings = "\n".join(self.check(valid_outcome(), deployment=planned))
+        self.assertIn("MS-001 is not a matching verified measurement source", findings)
+        self.assertIn("every matching verified MS source", findings)
+
+    def test_invalid_verified_deployment_row_is_flagged(self) -> None:
+        broken = deployment_record(
+            measurement_sources_row(role="assumed_vendor", verified_at="pending", evidence="pending")
+        )
+        findings = "\n".join(self.check(valid_outcome(), deployment=broken))
+        self.assertIn("has invalid source role", findings)
+        self.assertIn("Verified at must be an RFC3339 timestamp", findings)
+        self.assertIn("MS-001 needs evidence", findings)
+
+    def test_missing_or_malformed_measurement_sources_table_is_rejected(self) -> None:
+        no_table = DEPLOYMENT.split("## Measurement Sources", 1)[0]
+        self.assertIn(
+            "Measurement Sources table is missing or invalid",
+            "\n".join(self.check(valid_outcome(), deployment=no_table)),
+        )
 
     def test_mismatched_release_or_deployment_identity_is_rejected(self) -> None:
         stale_sha = valid_outcome().replace(f"- Release SHA: {SHA}", f"- Release SHA: {'b' * 40}")
@@ -215,7 +348,6 @@ class OutcomeReviewTests(unittest.TestCase):
             "PRD.md": PRD,
             "architecture.md": ARCHITECTURE,
             "DEPLOYMENT.md": DEPLOYMENT,
-            "ACTIVATION.md": ACTIVATION,
         }.items():
             (root / name).write_text(content, encoding="utf-8")
         return subprocess.run(
@@ -226,7 +358,6 @@ class OutcomeReviewTests(unittest.TestCase):
                 "--prd", str(root / "PRD.md"),
                 "--architecture", str(root / "architecture.md"),
                 "--deployment", str(root / "DEPLOYMENT.md"),
-                "--activation", str(root / "ACTIVATION.md"),
                 *extra,
             ],
             text=True,
@@ -243,11 +374,11 @@ class OutcomeReviewTests(unittest.TestCase):
             accepted = self.run_cli(root, outcome)
             self.assertEqual(0, accepted.returncode, accepted.stdout + accepted.stderr)
             outcome.write_text(
-                valid_outcome().replace(ACTIVATION_SHA256, "b" * 64), encoding="utf-8"
+                valid_outcome().replace(DEPLOYMENT_SHA256, "b" * 64), encoding="utf-8"
             )
             rejected = self.run_cli(root, outcome)
             self.assertEqual(1, rejected.returncode)
-            self.assertIn("Activation sha256 does not match", rejected.stdout)
+            self.assertIn("Deployment sha256 does not match", rejected.stdout)
 
     def test_lifecycle_cli_requires_dated_path_and_schema2(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
