@@ -62,13 +62,17 @@ Record every non-code task required in another system, especially auth setup: cr
 Before external trials, include one scoped feedback intake route: a support inbox, form, or named interview route. Name its owner and applicable privacy controls.
 Keep one test report joined to the tested build and context. No feedback vendor or new tracker is required.
 
-From a fixed initial build, the sibling `product-activation` skill may convert applicable rows into exact `ACT-*` preparation actions.
-Complete authorized prerequisites before dependent feature work; keep final release verification pending in the same Activation record.
-The row itself grants no external-write permission. Keep deployment placement here and detailed action, capability, authorization and evidence state in Activation.
-
 | Service | Setting | Preview / non-production | Production | Owner | Status |
 | --- | --- | --- | --- | --- | --- |
 | <service> | <setting or account task> | <fill> | <fill> | <fill> | pending |
+
+## Measurement Sources
+
+One row per `MS-*` source. Signals lists the PRD metric names and required `TEST-*` IDs the source measures. Source role is one of the roles in `delivery-harness/references/surface-catalog.md`. Release bindings use `<release-target-id>@<full-lowercase-sha>#<artifact-or-n/a>`. A row is `verified` only after a read-back returned data for that exact binding; record the RFC3339 time and a non-secret reference. Status is one of `planned`, `available`, `verified`, `blocked`, `superseded`, or `n/a`. An absent section is valid for legacy records; `check_deployment.py --require-measurement-sources` requires it.
+
+| MS ID | Signals | Target | Environment | Retrieval | Source role | Release bindings | Owner | Status | Verified at | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | <metric or TEST-ID, comma-separated> | <exact provider target> | <preview / production / store channel> | <bounded query or read-back definition> | <role> | <release-target-id>@pending#pending | <human owner> | planned | pending | pending |
 
 ## Adding A Binding
 
@@ -193,10 +197,9 @@ Keep this legacy table for repositories and reviewers that inspect environment U
 
 Verification is read-only: record what deployed, compare it to the expected head, and route any mismatch to the owner or a new mission — never redeploy from here.
 
-## Product Activation Handoff
+## External Setup
 
-- Activation record: `docs/ACTIVATION.md` when the product has post-delivery setup or measurable outcome sources; absent is valid for legacy or non-applicable products.
-- Handoff timing: after required candidate verification, `main` promotion, and deployment verification complete, never as another RUN node or authorization.
-- Handoff content: exact delivered/deployed SHA, release target IDs and URLs, deployment evidence, implemented hooks, and pending name-only configuration or console rows.
-- Execution: `product-activation` probes connector/API/CLI/Browser/Computer Use routes and performs only exact authorized actions.
-- Completion: an Activation target is ready only after read-back and behavior evidence; pending activation never keeps the delivery RUN open.
+- Catalog: `delivery-harness/references/external-setup.md` selects the setup sections per surface class and owns the authorization and read-back rules for every non-code action.
+- One action per row: every External Console Setup row is one action against one exact target, with status `pending`, `configured`, `verified`, or `n/a`.
+- Authorization: a row grants no external-write permission by itself; capability, a signed-in session, or a deployment PASS is not permission.
+- Consumption: growth and outcome reviews read only `verified` Measurement Sources rows for the release they review.
