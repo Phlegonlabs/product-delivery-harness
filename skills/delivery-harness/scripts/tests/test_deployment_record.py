@@ -361,6 +361,140 @@ NATIVE_DEPLOYMENT = NATIVE_BASE + f"""
 | ios-prod | ios-app | production | App Store;production store | n/a — artifact-only:appstore-build-9; no network endpoint | {"b" * 40} | {"b" * 40} | appstore-build-9 | URL returned HTTP 200 | 2026-09-03T12:00:00Z | PASS |
 """
 
+TYPED_ARCHITECTURE = """# Architecture
+
+## Release Targets
+
+Expected deployable surfaces: mcp-server, assistant-listing, messaging-bot
+
+### Release Target: mcp-dev
+- Surface: mcp-server
+- Surface class: mcp_server
+- Public discoverability: yes
+- Surface suffix: mcp
+- Release name: example-mcp-dev
+- Provider: PyPI
+- Stage: development
+- Source policy: stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha
+- Artifact kind: wheel
+- Signing requirement: not required
+- Exact channel / track: test index
+- Submission / promotion / review / manual approval path: candidate checks and owner approval
+- Availability signal: package install passes smoke
+- Rollout: test index users
+- Rollback / forward-fix: publish a corrected wheel
+
+### Release Target: mcp-prod
+- Surface: mcp-server
+- Surface class: mcp_server
+- Public discoverability: yes
+- Surface suffix: mcp
+- Release name: example-mcp
+- Provider: PyPI
+- Stage: production
+- Source policy: stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha
+- Artifact kind: wheel
+- Signing requirement: not required
+- Exact channel / track: production index
+- Submission / promotion / review / manual approval path: publish and owner approval
+- Availability signal: package install passes smoke
+- Rollout: all users after smoke passes
+- Rollback / forward-fix: publish a corrected wheel
+
+### Release Target: listing-dev
+- Surface: assistant-listing
+- Surface class: assistant_listing
+- Public discoverability: yes
+- Surface suffix: listing
+- Release name: example-listing-dev
+- Provider: Assistant Store
+- Stage: development
+- Source policy: stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha
+- Artifact kind: no independent artifact
+- Signing requirement: store managed
+- Exact channel / track: staging placement
+- Submission / promotion / review / manual approval path: store review and owner approval
+- Availability signal: listing review passes acceptance
+- Rollout: staged store rollout
+- Rollback / forward-fix: unpublish the listing revision
+
+### Release Target: listing-prod
+- Surface: assistant-listing
+- Surface class: assistant_listing
+- Public discoverability: yes
+- Surface suffix: listing
+- Release name: example-listing
+- Provider: Assistant Store
+- Stage: production
+- Source policy: stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha
+- Artifact kind: no independent artifact
+- Signing requirement: store managed
+- Exact channel / track: featured placement
+- Submission / promotion / review / manual approval path: store review and owner promotion
+- Availability signal: listing review passes acceptance
+- Rollout: phased store rollout
+- Rollback / forward-fix: unpublish the listing revision
+
+### Release Target: bot-dev
+- Surface: messaging-bot
+- Surface class: messaging_bot
+- Public discoverability: no
+- Surface suffix: bot
+- Release name: example-bot-dev
+- Provider: Bot Grid
+- Stage: development
+- Source policy: stage=development; ref=run.integration.branch; sha=run.integration.integration_head_sha
+- Artifact kind: service deployment
+- Signing requirement: not required
+- Exact channel / track: staging workspace
+- Submission / promotion / review / manual approval path: candidate checks and owner approval
+- Availability signal: webhook smoke check answers
+- Rollout: staging workspace
+- Rollback / forward-fix: redeploy the prior service revision
+
+### Release Target: bot-prod
+- Surface: messaging-bot
+- Surface class: messaging_bot
+- Public discoverability: no
+- Surface suffix: bot
+- Release name: example-bot
+- Provider: Bot Grid
+- Stage: production
+- Source policy: stage=production; ref=refs/heads/main; sha=promotion.verified_main_sha
+- Artifact kind: service deployment
+- Signing requirement: not required
+- Exact channel / track: production workspace
+- Submission / promotion / review / manual approval path: candidate checks, promotion, owner approval
+- Availability signal: webhook smoke check answers
+- Rollout: all workspaces after smoke passes
+- Rollback / forward-fix: redeploy the prior service revision
+"""
+
+TYPED_BASE = CI_CONNECTED_DEPLOYMENT.replace(
+    """| Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
+| --- | --- | --- | --- | --- | --- |
+| browser-extension | extension | example-extension | example-extension-dev | Chrome Web Store;production | Chrome Web Store;test |""",
+    """| Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
+| --- | --- | --- | --- | --- | --- |
+| mcp-server | mcp | example-mcp | example-mcp-dev | PyPI;production index | PyPI;test index |
+| assistant-listing | listing | example-listing | example-listing-dev | Assistant Store;featured placement | Assistant Store;staging placement |
+| messaging-bot | bot | example-bot | example-bot-dev | Bot Grid;production workspace | Bot Grid;staging workspace |""",
+)
+
+TYPED_DEPLOYMENT = TYPED_BASE + f"""
+
+## Release Target Status
+
+| Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| mcp-dev | mcp-server | development | PyPI;test index | pending | pending | pending | pending | pending | pending | pending |
+| mcp-prod | mcp-server | production | PyPI;production index | https://pypi.org/project/example-mcp/ | {"c" * 40} | {"c" * 40} | wheel-9 | wheel installed and passed smoke | 2026-09-03T12:00:00Z | PASS |
+| listing-dev | assistant-listing | development | Assistant Store;staging placement | pending | pending | pending | pending | pending | pending | pending |
+| listing-prod | assistant-listing | production | Assistant Store;featured placement | n/a — channel-only:Assistant Store;featured placement; no network endpoint | {"c" * 40} | {"c" * 40} | n/a | listing approved and installable on the store | 2026-09-03T12:01:00Z | PASS |
+| bot-dev | messaging-bot | development | Bot Grid;staging workspace | pending | pending | pending | pending | pending | pending | pending |
+| bot-prod | messaging-bot | production | Bot Grid;production workspace | https://bot-gateway.example.com | {"c" * 40} | {"c" * 40} | bot-deployment-7 | webhook answered the smoke check | 2026-09-03T12:02:00Z | PASS |
+"""
+
 
 class DeploymentRecordTests(unittest.TestCase):
     def test_a_resolved_record_with_one_verified_row_passes(self) -> None:
@@ -549,6 +683,97 @@ class DeploymentRecordTests(unittest.TestCase):
         self.assertIn(
             "install/download or artifact/build proof",
             findings,
+        )
+
+    def test_typed_listing_and_resource_targets_pass(self) -> None:
+        findings = check_deployment.check_deployment_text(
+            TYPED_DEPLOYMENT, architecture_text=TYPED_ARCHITECTURE
+        )
+        self.assertEqual([], findings)
+
+    def test_listing_target_needs_listing_url_or_exact_artifact_disposition(self) -> None:
+        bad_url = TYPED_DEPLOYMENT.replace(
+            "https://pypi.org/project/example-mcp/",
+            "https://pypi.org/project/example-mcp/?utm=x",
+            1,
+        )
+        self.assertIn(
+            "native/store endpoint must be a credential-free canonical https listing/download URL",
+            "\n".join(
+                check_deployment.check_deployment_text(
+                    bad_url, architecture_text=TYPED_ARCHITECTURE
+                )
+            ),
+        )
+        artifact_only = TYPED_DEPLOYMENT.replace(
+            "https://pypi.org/project/example-mcp/",
+            "n/a — artifact-only:wheel-9; no network endpoint",
+            1,
+        )
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                artifact_only, architecture_text=TYPED_ARCHITECTURE
+            ),
+        )
+        bad_artifact_disposition = artifact_only.replace(
+            "n/a — artifact-only:wheel-9; no network endpoint", "x", 1
+        )
+        self.assertIn(
+            "native/store artifact-only disposition must exactly match the artifact/build identity",
+            "\n".join(
+                check_deployment.check_deployment_text(
+                    bad_artifact_disposition, architecture_text=TYPED_ARCHITECTURE
+                )
+            ),
+        )
+        bad_channel_disposition = TYPED_DEPLOYMENT.replace(
+            "n/a — channel-only:Assistant Store;featured placement; no network endpoint",
+            "n/a — channel-only:Other Store;featured placement; no network endpoint",
+            1,
+        )
+        self.assertIn(
+            "native/store channel-only disposition must exactly match Provider;channel and artifact n/a",
+            "\n".join(
+                check_deployment.check_deployment_text(
+                    bad_channel_disposition, architecture_text=TYPED_ARCHITECTURE
+                )
+            ),
+        )
+
+    def test_listing_target_availability_requires_install_or_artifact_evidence(self) -> None:
+        findings = "\n".join(
+            check_deployment.check_deployment_text(
+                TYPED_DEPLOYMENT.replace(
+                    "wheel installed and passed smoke", "URL returned HTTP 200", 1
+                ),
+                architecture_text=TYPED_ARCHITECTURE,
+            )
+        )
+        self.assertIn("install/download or artifact/build proof", findings)
+
+    def test_resource_target_needs_substantive_typed_identity(self) -> None:
+        absent = TYPED_DEPLOYMENT.replace(
+            "https://bot-gateway.example.com", "n/a", 1
+        )
+        self.assertIn(
+            "endpoint/domain is missing",
+            "\n".join(
+                check_deployment.check_deployment_text(
+                    absent, architecture_text=TYPED_ARCHITECTURE
+                )
+            ),
+        )
+        nonsubstantive = TYPED_DEPLOYMENT.replace(
+            "https://bot-gateway.example.com", "n/a — maintenance window", 1
+        )
+        self.assertIn(
+            "typed endpoint/resource identity is not substantive",
+            "\n".join(
+                check_deployment.check_deployment_text(
+                    nonsubstantive, architecture_text=TYPED_ARCHITECTURE
+                )
+            ),
         )
 
     def test_a_ci_connected_record_passes_the_same_checks(self) -> None:
