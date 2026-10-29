@@ -90,7 +90,7 @@ tree diff rejects mode, type, content or existence changes in those paths.
 Changes or additions after H1
 require a new candidate and full runs. No transitive trace exemption is added.
 
-Deliver `EVAL_RUNBOOK.template.md` filled with setup/full/quick commands, versions,
+Deliver `docs/verification/EVAL_RUNBOOK.md` filled with setup/full/quick commands, versions,
 credential variable names, limits, readbacks, heldout protection, failure replay,
 cleanup authority/exact owned IDs, and candidate/policy change rules. A quick
 subset is diagnostic only. Independent handoff captures setup and full command
