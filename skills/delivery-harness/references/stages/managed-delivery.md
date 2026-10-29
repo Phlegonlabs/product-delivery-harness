@@ -112,5 +112,5 @@ UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the i
 
 RUNs close `local_only` at C after all gates and security pass, and a current RUN never pushes. Archive, publication, Preview gates and exact-SHA `main` promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
 
-`product-activation` preparation may start at a fixed initial build before dependent features, under separate authorization.
-Final readiness, measurement handoff, outcome review and live SEO review retain their applicable release and production verification; no RUN grant authorizes them.
+Fixed-build external setup from `external-setup.md` may start before dependent features, under separate action grants recorded in `docs/DEPLOYMENT.md`.
+Final readiness, measurement sources, outcome review and the growth review retain their applicable release and production verification; no RUN grant authorizes them.

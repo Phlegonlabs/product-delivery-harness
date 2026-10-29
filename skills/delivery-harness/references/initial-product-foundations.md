@@ -35,7 +35,7 @@ Search Console property verification belongs to public discovery setup when appl
 See [GA4 setup](https://support.google.com/analytics/answer/9304153) and [Firebase event validation](https://firebase.google.com/docs/analytics/debugview).
 
 Pre-build work is planning plus observed local facts. External provisioning needed to create the first artifact is a separately authorized operator/provider prerequisite outside Harness/RUN.
-Keep authorized non-secret operator observations in the existing Deployment/operator evidence. They do not establish fixed-build Activation readiness or verified measurement; rebind and reverify them against the actual first build.
+Keep authorized non-secret operator observations in the existing Deployment/operator evidence. They do not establish fixed-build setup readiness or verified measurement; rebind and reverify them against the actual first build.
 The prerequisite does not require paid distribution membership for every local experiment.
 
 ### Required Early Missions By Surface
@@ -49,7 +49,7 @@ A catalog row names required missions, not extra gates. Keep an existing explici
 1. Reuse approved product, stack and applicable design inputs. Implement the smallest usable scaffold, metadata, configuration declarations and measurement hooks.
 2. Commit and identify its actual SHA and platform artifact/build. Respect the approved platform order and mandatory frontend ownership.
 3. Reconcile `docs/DEPLOYMENT.md` from tracked declarations. Keep names, placements, isolation and console prerequisites there, without secret values or duplicate action authority.
-4. Separately invoke `product-activation` preparation for that fixed build. It owns account probes, `ACT-*` grants, setup, independent read-back and behavior evidence.
+4. Perform the fixed-build external setup rows from [External Setup](external-setup.md) under their own action grants; record them in `docs/DEPLOYMENT.md`.
 5. Perform deployment/bootstrap only through its separately authorized operator/provider route under [Deployment Contract](deployment-contract.md). Harness and RUN gain no deployment authority.
 6. Resume each dependent feature when its own required setup has verified evidence. Continue independent work during access, DNS or unavailable-platform blockers.
 
@@ -66,15 +66,15 @@ See [Workers Preview setup](https://developers.cloudflare.com/workers/previews/g
 
 Property creation is only configuration. Verify implemented hooks in the appropriate debug/realtime view and exercise the approved collection controls.
 Keep final feature events, production measurement and search availability pending until their implementation and release can be observed.
-Record setup progress in existing Activation tasks and deployment evidence; no second setup checklist or review wave is required.
+Record setup progress in `docs/DEPLOYMENT.md` and deployment evidence; no second setup checklist or review wave is required.
 
 Before external trials, use one scoped support inbox, form, or named interview route and name its owner.
 Keep one test report joined to the tested build and context, with the product's privacy controls applied. No feedback vendor or new tracker is required.
 
 ## Preserve Incomplete Preparation
 
-Early setup never becomes `handoff_ready` by renaming a preparation result.
-Run the existing Activation checks and terminal closeout; retain actual findings and blocked status while final obligations remain.
+Early setup never becomes verified readiness by renaming a preparation result.
+Run `check_deployment.py` and terminal closeout; retain actual findings and blocked status while final obligations remain.
 A required final-release verification action stays concretely blocked when its prerequisites are absent; a blocker row alone cannot replace that action.
 Use only real available build bindings. In a Web-first hybrid, keep unavailable native artifacts pending instead of borrowing the Web artifact.
 Pending future bindings can prevent filled validation or closeout. Report that preparation as incomplete and preserve the same staged record for resumption.
@@ -82,6 +82,6 @@ This blocks only work that needs those missing prerequisites, not independent pr
 
 At release, read back existing objects before creating anything. Reuse their identities, then rebind and reverify the actual released SHA/artifact.
 Earlier behavior evidence and action digests do not transfer to a changed build.
-Activation alone verifies final readiness and measurement sources; later SEO and outcome reviews consume their applicable live evidence.
+Read-back against the actual release alone verifies final readiness and measurement sources; the later growth and outcome reviews consume their applicable live evidence.
 
 Official provider guidance checked on 2026-10-18; refresh relevant documentation when executing provider setup.
