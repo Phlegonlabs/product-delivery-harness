@@ -27,15 +27,8 @@ from platform_delivery_contract import validate_feature_acceptance, validate_pla
 
 FROZEN_SOURCE_STATUSES = {"frozen", "delta_accepted", "delta accepted"}
 PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
-UI_DESIGN_SOURCE_KINDS = {"ui design", "ui design contract", "approved ui design"}
 WIREFRAME_SOURCE_KINDS = {"wireframe", "wireframes", "approved wireframe"}
 ARCHITECTURE_SOURCE_KINDS = {"architecture", "product architecture"}
-STACK_DECISION_SOURCE_KINDS = {
-    "stack decision",
-    "stack decisions",
-    "technology decision",
-    "technology decisions",
-}
 DESIGN_SYSTEM_JSON_SOURCE_KINDS = {
     "design system json",
     "design system machine",
@@ -44,7 +37,6 @@ DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS = {
     "design system",
     "design system markdown",
 }
-APPROVED_UI_TARGET_SOURCE_KINDS = {"approved ui target"}
 JOINED_CONTRACT_FILENAMES = {
     "prd.md",
     "architecture.md",
@@ -330,7 +322,6 @@ def normalized_responsive(
     return kind, normalized, None
 
 
-UI_DESIGN_CONTRACT_REQUIRED_VERSION = (0, 37, 0)
 # 0.55.1 is the release that adds the UI checker's dated current-HiFi rule
 # to the UI and pair joins. A RUN frozen under 0.55.0 keeps its old meaning.
 CURRENT_HIFI_EVIDENCE_VERSION = (0, 55, 1)
@@ -1148,92 +1139,6 @@ def validate_plan_wireframe_data(
                 f"{sorted(plan_breakpoints)} differ from the wireframe responsive "
                 f"targets {responsive_kind} {sorted(responsive_targets)}"
             )
-    return errors
-
-
-def validate_prd_wireframe_data(prd_text: str, data: dict[str, Any]) -> list[str]:
-    prd_surfaces, errors = parse_prd_ui_contract(prd_text)
-    screens, screen_errors = _wireframe_screens(data)
-    errors.extend(screen_errors)
-    responsive_kind = "viewports" if "viewports" in data else "sizeClasses"
-    responsive_targets = [
-        str(int(value)) if isinstance(value, float) and value.is_integer() else str(value)
-        for value in (data.get(responsive_kind) or [])
-    ]
-    prd_ids = set(prd_surfaces)
-    screen_ids = set(screens)
-    missing = sorted(prd_ids - screen_ids)
-    extra = sorted(screen_ids - prd_ids)
-    if missing:
-        errors.append("prd: UI surfaces absent from the wireframe: " + ", ".join(missing))
-    if extra:
-        errors.append(
-            "wireframes: screens absent from the PRD UI surface contract: "
-            + ", ".join(extra)
-        )
-    for surface_id in sorted(prd_ids & screen_ids):
-        routes = prd_surfaces[surface_id]["routes"]
-        if len(routes) == 1 and routes[0] != screens[surface_id].get("route"):
-            errors.append(
-                f"wireframes: screen {surface_id} route {screens[surface_id].get('route')!r} "
-                f"differs from the PRD route {routes[0]!r}"
-            )
-        prd_states = set(prd_surfaces[surface_id]["states"])
-        wireframe_states = _screen_states(screens[surface_id])
-        if prd_states != wireframe_states:
-            errors.append(
-                f"wireframes: screen {surface_id} states {sorted(wireframe_states)} "
-                f"differ from the PRD states {sorted(prd_states)}"
-            )
-        prd_kind = prd_surfaces[surface_id]["responsiveKind"]
-        prd_targets = prd_surfaces[surface_id]["responsiveTargets"]
-        if prd_kind and (
-            prd_kind != responsive_kind or prd_targets != responsive_targets
-        ):
-            errors.append(
-                f"wireframes: screen {surface_id} responsive set "
-                f"{responsive_kind} {responsive_targets} differs from the PRD "
-                f"{prd_kind} {prd_targets}"
-            )
-    return errors
-
-
-def required_contract_source_errors(plan: dict[str, Any]) -> list[str]:
-    """Require the source families needed by an executable current PLAN."""
-
-    if plan.get("schema_version") != 6:
-        return []
-    errors: list[str] = []
-    has_ui = bool(plan.get("ui_surfaces"))
-    platform_mapping = plan.get("platform_delivery") is not None
-    declared_acceptance = any(
-        isinstance(trace, dict) and "acceptance_gate_ids" in trace
-        for trace in plan.get("traces", [])
-    )
-    prd_sources = frozen_sources(
-        plan, kinds=PRD_SOURCE_KINDS, filenames={"prd.md"}
-    )
-    wireframe_sources = frozen_sources(
-        plan, kinds=WIREFRAME_SOURCE_KINDS, filenames={"wireframes.html"}
-    )
-    architecture_sources = frozen_sources(
-        plan, kinds=ARCHITECTURE_SOURCE_KINDS, filenames={"architecture.md"}
-    )
-    if (has_ui or prd_sources or platform_mapping or declared_acceptance) and len(prd_sources) != 1:
-        errors.append(
-            "plan.sources: a joined current PLAN requires exactly one frozen PRD source"
-        )
-    if architecture_sources and len(architecture_sources) != 1:
-        errors.append(
-            "plan.sources: a declared frozen architecture requires exactly one "
-            "frozen architecture.md source"
-        )
-    if (has_ui or wireframe_sources) and len(wireframe_sources) != 1:
-        errors.append(
-            "plan.sources: UI-bearing or wireframe-backed current PLAN requires exactly "
-            "one frozen wireframes.html source"
-        )
-    errors.extend(required_design_system_source_errors(plan))
     return errors
 
 
