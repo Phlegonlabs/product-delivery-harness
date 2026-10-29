@@ -164,7 +164,7 @@ class DocsWeightTests(unittest.TestCase):
         skills = {key.split("/", 2)[1] for key in now}
         self.assertIn("product-definition-builder", skills)
         self.assertIn("ui-design-builder", skills)
-        self.assertIn("product-activation", skills)
+        self.assertIn("growth-review", skills)
 
     def test_baseline_uses_two_git_calls_and_matches_per_file_reads(self) -> None:
         self.write("skills/demo/SKILL.md", "one two")

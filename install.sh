@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the seven Product Delivery Harness skills into a user skills directory.
+# Install the five Product Delivery Harness skills into a user skills directory.
 # Test suites (scripts/tests) are not installed; run them in the source checkout.
 # The source is staged and verified before mutation. Existing managed copies are
 # moved to one timestamped backup, and any failure restores that backup. The
@@ -21,14 +21,15 @@ skills=(
   product-definition-builder
   ui-design-builder
   design-system-compiler
-  code-security-review
-  product-activation
-  seo-growth-review
+  growth-review
 )
 legacy_skills=(
   full-harness
   prd-builder
   product-design-builder
+  code-security-review
+  product-activation
+  seo-growth-review
 )
 managed_skills=("${skills[@]}" "${legacy_skills[@]}")
 required_commands=(

@@ -33,12 +33,10 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "check_color_contrast.py", "check_design_system_pair.py",
         "check_type_scale.py", "render_design_system_preview.py",
     },
-    "product-activation": {"check_activation.py"},
     "product-definition-builder": {
         "check_outcome_review.py", "check_product_package.py",
         "check_review_translations.py",
     },
-    "seo-growth-review": {"check_seo_review.py"},
     "ui-design-builder": {
         "assemble_ui_review.py", "check_ui_design_contract.py",
         "check_wireframe_html.py", "design_workflow.py", "review_evidence.py",
@@ -94,23 +92,20 @@ class CliUtf8OutputTests(unittest.TestCase):
     def test_cjk_findings_survive_non_utf8_stdout(self) -> None:
         root = _repo_root()
         template = (
-            root / "skills/product-activation/assets/templates/ACTIVATION.template.md"
+            root / "skills/delivery-harness/assets/templates/DEPLOYMENT.template.md"
         ).read_text(encoding="utf-8")
-        self.assertIn("- Status: seeded", template)
+        self.assertIn("<stable surface id>", template)
         with tempfile.TemporaryDirectory() as temporary_directory:
-            activation = Path(temporary_directory) / "ACTIVATION.md"
-            activation.write_text(
-                template.replace("- Status: seeded", "- Status: 準備中", 1),
-                encoding="utf-8",
-            )
+            deployment = Path(temporary_directory) / "DEPLOYMENT.md"
+            deployment.write_text(template.replace("<stable surface id>", "網址", 1), encoding="utf-8")
             environment = dict(os.environ)
             environment["PYTHONIOENCODING"] = "cp1252"
             result = subprocess.run(
                 [
                     sys.executable,
-                    str(root / "skills/product-activation/scripts/check_activation.py"),
-                    "--activation",
-                    str(activation),
+                    str(root / "skills/delivery-harness/scripts/check_deployment.py"),
+                    "--deployment",
+                    str(deployment),
                 ],
                 capture_output=True,
                 timeout=120,
@@ -119,7 +114,7 @@ class CliUtf8OutputTests(unittest.TestCase):
             )
         self.assertEqual(1, result.returncode)
         self.assertNotIn(b"Traceback", result.stderr)
-        self.assertIn("準備中", result.stdout.decode("utf-8"))
+        self.assertIn("網址", result.stdout.decode("utf-8"))
 
     def test_repo_script_subprocess_calls_decode_utf8(self) -> None:
         """Text-mode subprocess calls running repo scripts must set encoding=."""

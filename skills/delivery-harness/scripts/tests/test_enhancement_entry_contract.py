@@ -11,8 +11,7 @@ REPO = SKILLS.parent
 GOVERNANCE = SKILLS / "delivery-harness/references/governance"
 NAMES = (
     "delivery-harness", "product-definition-builder", "ui-design-builder",
-    "design-system-compiler", "product-activation",
-    "seo-growth-review",
+    "design-system-compiler", "growth-review",
 )
 
 
