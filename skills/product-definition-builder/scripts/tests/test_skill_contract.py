@@ -259,7 +259,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             "Bullets marked `(AskUserQuestion)` are a closed, enumerable set", interview
         )
         for marked_bullet in (
-            "or a hybrid? (AskUserQuestion)",
+            "or a combination? Name every surface, then the primary one. (AskUserQuestion)",
             "[AQ-DEPLOYMENT-PLATFORM] For a deployable web, API, or hosted backend target",
             "recurring usability benchmarking? (AskUserQuestion)",
         ):
@@ -1072,7 +1072,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "browser extension, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)",
+            "browser extension, API, agent or bot, MCP server, library or plugin, internal tool, a content channel, or a combination? Name every surface, then the primary one. (AskUserQuestion)",
             interview,
         )
         self.assertIn(
