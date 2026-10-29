@@ -63,7 +63,7 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 | Branch, commit, integration, archive, publication, cleanup, or protected-branch landing | `delivery-harness/references/governance/managed-delivery.md#git-safety` and `delivery-harness/references/commit-convention.md` |
 | Managed PLAN/RUN | `delivery-harness/SKILL.md`, `delivery-harness/references/governance/managed-delivery.md#managed-product-delivery-harness-runs`, and `delivery-harness/references/project-operating-rules.md#managed-product-delivery-harness-runs` |
 | Deployment model, verification, or platform move | `delivery-harness/references/deployment-contract.md#deployment-contract` |
-| Post-delivery activation | `delivery-harness/references/project-operating-rules.md#post-delivery-activation` |
+| External setup and measurement sources | `delivery-harness/references/project-operating-rules.md#external-setup` |
 | Review or acceptance claim | `delivery-harness/references/governance/managed-delivery.md#review-guidelines` |
 
 The Epic and index record observed work; neither record grants product approval, marks a test PASS without evidence, or authorizes a commit, branch, install, push, deployment, cleanup, publication, or external action.
