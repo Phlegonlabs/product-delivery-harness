@@ -101,7 +101,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What starts each workflow?
    - What is the successful end state?
 4. Product surface
-   - [AQ-ARCHETYPE] Should this be web, mobile app, desktop app, browser extension, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)
+   - [AQ-ARCHETYPE] Should this be web, mobile app, desktop app, browser extension, API, agent or bot, MCP server, library or plugin, internal tool, a content channel, or a combination? Name every surface, then the primary one. (AskUserQuestion)
    - [AQ-MOBILE-TARGETS] If the answer includes a mobile app, which operating systems ship in v1: iOS, Android, both, or another explicit set? (AskUserQuestion, final phase) This decides destinations, not framework. Skip it when the prompt, package, or repository already names the complete v1 target set.
    - For a mobile product, carry its public showcase/authenticated Web scope from discovery into the existing archetype decision and release inventory. Resolve only missing scope; keep included surfaces in one PRD using `mobile-stack-selection.md#app-and-companion-web-contract`. Reuse settled client-strategy decisions, but never treat a framework reference as a selection; the Web stack remains a separate applicable decision.
    - [AQ-DESKTOP-TARGETS] If the answer includes a desktop app, which operating systems ship in v1: macOS, Windows, both, or another explicit set? (AskUserQuestion, final phase) This decides destinations, not toolkit. Skip it when the complete target set is already named.
@@ -192,7 +192,7 @@ Discovery is complete enough to draft when the agent can state:
 - The success metrics and acceptance criteria, including baseline, target/guardrail, stretch, measurement window, source/method, and owner.
 - The Ambition ladder with an outside judge on every rung, at least one stretch target, the crew or an explicit `none`, and the access gaps.
 - The delivery Shape: track, companion surface, and console type.
-- The Growth Contract: a north star with Day 7 and Day 30 targets, at least one re-engagement mechanism for web or app tracks, discovery surfaces, and a launch window.
+- The Growth Contract: a north star with Day 7 and Day 30 targets, at least one re-engagement mechanism for web or app tracks, discovery surfaces including the social, video, newsletter or community accounts the team actually runs, and a launch window with a destination per row.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
 - The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
 

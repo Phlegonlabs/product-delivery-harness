@@ -86,11 +86,11 @@ Use this structure:
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
 | Delivery profile | standard / mvp |
-| Shape | track: web / app / agent; companion: <public surface or none>; console: none / config-only / operations |
+| Shape | track: web / app / agent / tool / content; companion: <public surface or none>; console: none / config-only / operations |
 
 [One paragraph describing the product, user, and outcome.]
 
-The Shape row declares the delivery track on purpose. `track` is `web`, `app`, or `agent`; `companion` names the public companion surface or `none`; `console` is `none`, `config-only`, or `operations`. Keep the row consistent with the User Journeys, UI surfaces and release targets. An app track needs a companion public surface when AEO/SEO is required. An agent track needs a public docs surface or an explicit `none` with its reason. `console: operations` needs the console journeys in the Agentic Operations Console Pattern. A legacy package without the Shape row stays valid.
+The Shape row names the primary surface family; every surface still routes on its own through the [Surface Catalog](../../delivery-harness/references/surface-catalog.md). `track` is `web`, `app`, `agent`, `tool`, or `content`; `companion` names the public companion surface or `none`; `console` is `none`, `config-only`, or `operations`. Keep the row consistent with the User Journeys, UI surfaces and release targets. An app track needs a companion public surface when AEO/SEO is required. An agent or tool track needs a public docs surface or an explicit `none` with its reason. A content track may have no release target when the architecture records that `none` with its reason. `console: operations` needs the console journeys in the Agentic Operations Console Pattern. A legacy package without the Shape row stays valid.
 
 ## Enhancement Impact Record
 Include this section only in enhancement mode for a package without `docs/product/deltas/`; with deltas, this record lives in the PRD delta, not in `PRD.md`.
@@ -151,14 +151,14 @@ Rungs are better, not bigger. The outside judge is never the model or the owner'
 | --- | --- | --- |
 
 ### Discovery Surfaces
-| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | Owner stage | TEST or MS ID |
+| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing / social / video_channel / newsletter / community / docs_site) | Owner stage | TEST or MS ID |
 | --- | --- | --- | --- |
 
 ### Launch Window
-| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
-| --- | --- | --- | --- | --- |
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
+| --- | --- | --- | --- | --- | --- |
 
-Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `seo`; the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap. Each discovery surface maps to a UI surface or release target that exists in this PRD.
+Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `growth` (`seo` remains a legacy alias of `growth`); the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive, and each row names one real destination: a path, listing, account or `none (reason)`. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap; an agent, tool or content track records a mechanism or a `none` row with its reason. A discovery surface of kind seo-cluster, geo-page, store-listing, directory or landing maps to a UI surface, release target or landing path that exists in this PRD. A presence surface (social, video_channel, newsletter, community, docs_site) is written as `<platform>:<handle-or-url>`, such as `instagram:@handle` or `docs:https://docs.example.com`; it names the account the team runs, not a build. Kinds and their default sources are listed in the [Surface Catalog](../../delivery-harness/references/surface-catalog.md). Channel classes: `owned` is an account, list or product surface the team controls; `earned` is a community, directory or press that decides independently; `search` is public pages and listing text that reach search and answer engines; `store` is store, registry or marketplace assets.
 
 ## Non-Goals
 - [Explicitly out of scope]
@@ -642,7 +642,7 @@ Expected deployable surfaces: [stable surface IDs, for example `web-app`, `publi
 
 ### Release Target: [stable-target-id]
 - Surface: [Stable expected surface ID]
-- Surface class: [hosted_web / hosted_api / browser_extension / ios / android / macos / windows / worker / job / webhook / realtime / cli / agent / other_nonpublic]
+- Surface class: [one class from the Surface Catalog: hosted_web / hosted_api / browser_extension / ios / android / macos / windows / worker / job / webhook / realtime / cli / agent / mcp_server / skill_or_plugin / library_or_sdk / messaging_bot / marketplace_app / assistant_listing / container_or_self_hosted / internal_service / other_nonpublic]
 - Public discoverability: [yes / no]
 - Surface suffix: [Lowercase kebab-case suffix for this independently released unit]
 - Release name: [Production `<product-slug>-<surface-suffix>` or that exact name plus `-dev` for development]
@@ -791,7 +791,7 @@ A product may add this section in a later revision after Frontend Technology Dec
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
 ## CLI and Toolchain Decision
-Use this section for `cli` and `other_nonpublic` release surfaces. Both map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. A hybrid containing both classes still declares the area once. Keep activation profile names separate from stack areas.
+Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `container_or_self_hosted`, `internal_service` and `other_nonpublic` release surfaces. All map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. A hybrid containing several of these classes still declares the area once. Keep activation profile names separate from stack areas.
 
 ### Decision Drivers
 - [Target platforms, command/interface contract, packaging, distribution, upgrade policy, and team constraints.]

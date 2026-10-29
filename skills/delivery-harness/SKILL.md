@@ -102,7 +102,7 @@ These rules apply to both routes:
 
 For small work:
 
-For initial website/app implementation, read [Initial Product Foundations](references/initial-product-foundations.md) and order prerequisites before dependent features.
+For initial product implementation, read [Initial Product Foundations](references/initial-product-foundations.md) and order prerequisites before dependent features; the [Surface Catalog](references/surface-catalog.md) lists every surface class and its required early missions.
 Implement local hooks first; route fixed-build external setup to separately authorized Activation preparation and deployment operations.
 
 For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](references/execution-task-decomposition.md#early-journey-and-engineering-evidence) within existing tasks and checks.

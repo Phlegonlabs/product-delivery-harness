@@ -10,7 +10,7 @@ Apply `references/bilingual-review.md` throughout, including its same-directory 
 
 At authorized session entry, entry bootstrap is the first source task for a new or existing target. Create a missing context file or review the existing AGENTS merge proposal before package processing; its merge rules preserve local authority and leave unresolved semantic conflicts explicit.
 
-For website and app packages, read [Initial Product Foundations](../../../delivery-harness/references/initial-product-foundations.md) before drafting.
+Read the [Surface Catalog](../../../delivery-harness/references/surface-catalog.md) before choosing the Shape track and release targets; for website and app packages, also read [Initial Product Foundations](../../../delivery-harness/references/initial-product-foundations.md) before drafting.
 Plan AEO/public discovery, applicable deployment setup and Google Analytics in existing requirements, architecture, stack decisions and TEST obligations.
 Product Definition plans these prerequisites; authorized implementation and fixed-build Activation preparation execute them before dependent features.
 

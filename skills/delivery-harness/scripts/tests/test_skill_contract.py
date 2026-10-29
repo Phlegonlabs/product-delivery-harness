@@ -2089,16 +2089,23 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         bounded = self.read("references/bounded-enhancement.md")
         self.assertIn("PRD-DELTA-<EPIC-ID>.md", bounded)
 
-    def test_growth_contract_foundations_are_documented_by_track(self) -> None:
+    def test_growth_contract_foundations_are_documented_by_surface(self) -> None:
         foundations = self.read("references/initial-product-foundations.md")
-        self.assertIn("### Required Early Missions By Track", foundations)
-        self.assertIn("SEO cluster and internal-link skeleton", foundations)
-        self.assertIn("GEO/AEO structured data, `llms.txt`, and citeable pages", foundations)
-        self.assertIn("measurement events; the re-engagement hook", foundations)
-        self.assertIn("Deep links (Universal Links / App Links) joined to the companion surface", foundations)
-        self.assertIn("push and onboarding events; store listing assets; crash and analytics setup", foundations)
-        self.assertIn("Directory metadata; `llms.txt` and the public docs page", foundations)
-        self.assertIn("tool permission boundary; console health", foundations)
+        self.assertIn("### Required Early Missions By Surface", foundations)
+        self.assertIn("[Surface Catalog](surface-catalog.md)", foundations)
+        catalog = self.read("references/surface-catalog.md")
+        for surface_class in (
+            "hosted_web", "ios", "android", "agent", "mcp_server", "skill_or_plugin",
+            "library_or_sdk", "messaging_bot", "marketplace_app", "assistant_listing",
+            "container_or_self_hosted", "internal_service",
+        ):
+            self.assertIn(f"| {surface_class} |", catalog)
+        for kind in ("social", "video_channel", "newsletter", "community", "docs_site"):
+            self.assertIn(f"| {kind} |", catalog)
+        self.assertIn("SEO cluster and internal-link skeleton", catalog)
+        self.assertIn("Deep links joined to the companion surface", catalog)
+        self.assertIn("tool permission boundary; console health", catalog)
+        self.assertIn("## Source Roles", catalog)
         gates = self.read("references/verification-gates.md")
         self.assertIn("Range crew may supply `domain:seo`, `domain:aso`, and `domain:growth`", gates)
         contract = self.read("references/contract-and-traceability.md")

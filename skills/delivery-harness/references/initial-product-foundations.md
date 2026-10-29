@@ -38,17 +38,11 @@ Pre-build work is planning plus observed local facts. External provisioning need
 Keep authorized non-secret operator observations in the existing Deployment/operator evidence. They do not establish fixed-build Activation readiness or verified measurement; rebind and reverify them against the actual first build.
 The prerequisite does not require paid distribution membership for every local experiment.
 
-### Required Early Missions By Track
+### Required Early Missions By Surface
 
-The PRD `Shape` row names the product track. Plan that track's required early missions with the table above, and give each one a `TEST-*` obligation and an owner in Product Definition.
+Every release target and presence surface in the product carries the required early missions listed for its class in the [Surface Catalog](surface-catalog.md). Plan them with the table above and give each one a `TEST-*` obligation and an owner in Product Definition. A project with several surfaces takes the union; the Shape track adds nothing on its own.
 
-| Track | Required early missions |
-| --- | --- |
-| web | SEO cluster and internal-link skeleton; GEO/AEO structured data, `llms.txt`, and citeable pages; measurement events; the re-engagement hook from the Growth Contract |
-| app | Deep links (Universal Links / App Links) joined to the companion surface; push and onboarding events; store listing assets; crash and analytics setup |
-| agent | Directory metadata; `llms.txt` and the public docs page; usage events; the tool permission boundary; console health when `console: operations` |
-
-A track row names required missions, not extra gates. Keep an existing explicit non-applicability record for anything the product genuinely does not need.
+A catalog row names required missions, not extra gates. Keep an existing explicit non-applicability record for anything the product genuinely does not need.
 
 ## Execute From A Fixed Initial Build
 
