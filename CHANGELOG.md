@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.67.0. Current releases are in [README.md](README.md#version-history).
+English release history through 0.68.0. Current releases are in [README.md](README.md#version-history).
+
+- **0.68.0** — Triage review findings into blocking defects and non-blocking notes: only blocking findings force repair, and the re-check verifies prior findings over the repair range with security at full scope. Environment-blocked review attempts no longer spend the attempt budget, repairs reach the reviewer only with the author's verifier PASS, and non-executable diffs record `security: not_applicable` instead of `UNVALIDATED`. A scope-disjoint carried PASS keeps its origin SHA, and review points beyond one combined review plus one re-check need a recorded reason.
 
 - **0.67.0** — Require an explicit request for all seven core skills and four standalone skills. Scope Harness routing, document sync and Epic records to requested workflows. Preserve required checks and dependencies without starting another top-level stage.
 
