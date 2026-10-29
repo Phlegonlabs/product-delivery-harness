@@ -14,10 +14,11 @@ from harness_core import ManifestError, _normalized_branch, is_full_sha
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_manifest import (
     _verifier_owners,
+    load_worker_result,
     validate_current_plan_run,
 )
 from validate_node_result import validate_node_result
-from validate_worker_result import load_worker_result, validate_worker_result_data
+from validate_worker_result import validate_worker_result_data
 
 
 def _load_json(path: Path, wrapper: str | None = None) -> Any:

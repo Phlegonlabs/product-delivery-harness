@@ -33,7 +33,6 @@ READBACK_FIELDS = {"kind", "request", "status", "output"}
 OUTPUT_FIELDS = {"repository", "ref", "sha", "artifact"}
 MAX_OBSERVATION_BYTES = 1024 * 1024
 SHA40_RE = re.compile(r"^[0-9a-f]{40}$")
-SHA64_RE = re.compile(r"^[0-9a-f]{64}$")
 RFC3339_RE = re.compile(
     r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$"
 )

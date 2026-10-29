@@ -15,7 +15,6 @@ from harness_schema import parse_harness_version, run_required_harness_version
 MAIN_PREVIEW_PROTOCOL = "main-preview/1"
 MAIN_PREVIEW_VERSION = (0, 63, 0)
 RELEASE_MARKER_LINE_RE = re.compile(r"^Release source policy:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
-REMOTE_RE = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 
 
 def branch_policy_required(run: dict[str, Any] | None) -> bool:

@@ -608,17 +608,6 @@ def observe_plan_host_runtimes(
     return observations, sorted(set(errors))
 
 
-def probe_plan_host_runtimes(
-    plan: Mapping[str, Any],
-    checkout_root: Path,
-    environment: Mapping[str, str] | None = None,
-) -> list[str]:
-    """Read-only host executable preflight."""
-
-    _observations, errors = observe_plan_host_runtimes(plan, checkout_root, environment)
-    return errors
-
-
 def _validated_inputs(
     verifier: dict[str, Any],
     context: dict[str, Any],
