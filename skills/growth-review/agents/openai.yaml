@@ -1,0 +1,6 @@
+interface:
+  display_name: "Growth Review"
+  short_description: "Review how each product surface is found and retained"
+  default_prompt: "Use $growth-review to read back every surface of this released product with its own lens and prioritize evidence-backed growth opportunities."
+policy:
+  allow_implicit_invocation: false
