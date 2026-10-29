@@ -38,5 +38,5 @@ Paid media, partner outreach and direct messages require a separately scoped pla
 
 ## Primary Sources
 
-Dated platform sources live in `gtm-content/references/channel-playbooks.md`. Do not cite unseen contents as verified instructions.
+Dated platform sources live in [channel playbooks](channel-playbooks.md). Do not cite unseen contents as verified instructions.
 Limits, API permissions and regional availability stay unverified until the execution-readiness check.

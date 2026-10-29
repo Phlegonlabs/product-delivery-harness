@@ -34,7 +34,7 @@ Kept unchanged: no publishing, scheduling or ad spend by the skills; no ranking 
 
 ## Document Impact
 
-Four sibling packages (G1-G4) own the canonical rules under `skills/**` and `standalone-skills/**` except the version surfaces: product-definition-builder (the `Shape` row, `## Growth Contract`, interview prompts and the package checker), ui-design-builder (track-specific required surfaces and the console archetype), delivery-harness (the `agentic-operations-console` profile and per-track delivery foundations) and the growth skills product-activation, go-to-market, gtm-content and seo-growth-review (activation profiles, Launch Reach Plan, content pipeline and growth-review cadence). This package owns `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md`, `CHANGELOG.md`, this Epic, `docs/DOCUMENTS.md`, `package.json`, `package-lock.json`, `skills/delivery-harness/VERSION` and the `MISSION_RUNBOOK.template.md` `required_harness_version` default.
+Four sibling packages (G1-G4) own the canonical rules under `skills/**` and `standalone-skills/**` except the version surfaces: product-definition-builder (the `Shape` row, `## Growth Contract`, interview prompts and the package checker), ui-design-builder (track-specific required surfaces and the console archetype), delivery-harness (the `agentic-operations-console` profile and per-track delivery foundations) and the growth skills product-activation, go-to-market and seo-growth-review (activation profiles, channel and content strategy, content pipeline and growth-review cadence). This package owns `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md`, `CHANGELOG.md`, this Epic, `docs/DOCUMENTS.md`, `package.json`, `package-lock.json`, `skills/delivery-harness/VERSION` and the `MISSION_RUNBOOK.template.md` `required_harness_version` default.
 
 ## Change Log
 
@@ -62,5 +62,5 @@ Independent review: `42ba2408` `fix_required` across the checker and prose scope
 
 - Consumer retrofits: the three consumer projects' PRDs gain a `Shape` row and a `## Growth Contract`.
 - Publication: PR chain `feat/review-budget-and-mvp-profile` (0.70.0) then `feat/growth-contract` (0.71.0) to `main`, CI on each exact candidate, tags, consumer syncs. Nothing here authorizes a push, PR or installation.
-- Backlog notes from review: the Shape-row tests omit `n/a` prefix and longer-word exclusion variants; validator-level acceptance of the new activation profiles with architecture targets lacks a focused case; the growth_review cadence has no fallback example when no launch reach plan exists.
+- Backlog notes from review: the Shape-row tests omit `n/a` prefix and longer-word exclusion variants; validator-level acceptance of the new activation profiles with architecture targets lacks a focused case; the growth_review cadence has no fallback example when a PRD has no launch window rows.
 - Test-suite sharding: done in 0.72.0 (`ci_test_shards.py run`), see the Change Log row.
