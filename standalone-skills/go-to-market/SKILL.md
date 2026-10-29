@@ -14,7 +14,7 @@ Choose channels from audience evidence and operating capacity. X, Threads and Fa
 
 ## Ground The Strategy
 
-Read effective project instructions, PRD `## Metrics`, the PRD `## Growth Contract` when present, and surface or operation IDs, the latest release record and its availability state, the brand or voice source, `docs/ACTIVATION.md` `MS-*` rows when present, and the existing campaign record.
+Read effective project instructions, PRD `## Metrics`, the PRD `## Growth Contract` when present, and surface or operation IDs, the latest release record and its availability state, the brand or voice source, `docs/DEPLOYMENT.md` Measurement Sources rows when present, and the existing campaign record.
 A repository or Harness installation is not required. Preserve existing document conventions and accepted decisions.
 Ask only for consequential gaps that the available sources cannot answer.
 

@@ -61,7 +61,7 @@ Sentry 本次主文件抓取受限，舊官方 PDF 只支持錯誤追蹤的方�
 
 ## 採納紀錄（對應既有專案文件，不新增閘門）
 
-- 可靠性設計 → 既有 architecture 文件章節；發佈與恢復 → 既有 DEPLOYMENT 流程；實際設定與 read-back → 既有 ACTIVATION 紀錄；來源狀態 → 既有 sources.md。
+- 可靠性設計 → 既有 architecture 文件章節；發佈與恢復 → 既有 DEPLOYMENT 流程；實際設定與 read-back → 既有 DEPLOYMENT 紀錄的 External Console Setup 與 Measurement Sources；來源狀態 → 既有 sources.md。
 - 本文件不新增審批閘門、不自動觸發安裝或購買、不變更任何 skill 或 workflow 流程。
 
 ## 恢復與成本的具體選擇

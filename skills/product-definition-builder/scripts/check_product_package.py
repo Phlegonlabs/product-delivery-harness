@@ -434,7 +434,7 @@ STACK_SELECTED_EVIDENCE_RE = re.compile(
 )
 ENHANCEMENT_ARTIFACT_RE = re.compile(
     r"\b(?:(?:PRD|architecture|stack-decisions|wireframes|ui-design|design-system|"
-    r"DEPLOYMENT|ACTIVATION|OUTCOME_REVIEW|SEO_REVIEW)\.(?:md|json|html)|HiFi)\b",
+    r"DEPLOYMENT|OUTCOME_REVIEW)\.(?:md|json|html)|HiFi)\b",
     re.IGNORECASE,
 )
 AT_A_GLANCE_HEADER = ("", "")

@@ -23,7 +23,7 @@ do not hide sibling pages or evidence behind a directory link or â€œother filesâ
   evidence, and the required design-system Markdown/JSON/HTML outputs.
   Include retained wireframes or design-system sources only when this round
   uses them; identify their historical status without renewing approval.
-- Include applicable `DOCUMENTS.md`, Deployment, Activation, context files and
+- Include applicable `DOCUMENTS.md`, Deployment, context files and
   the current Epic/task record. Separate superseded/archive paths from current
   review inputs. Exclude credentials, caches and unrelated historical packages.
 

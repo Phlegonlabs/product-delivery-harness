@@ -1,6 +1,0 @@
-interface:
-  display_name: "Product Activation"
-  short_description: "Prepare initial setup and verify released products"
-  default_prompt: "Use $product-activation from a fixed initial build to prepare exact authorized prerequisites before dependent features. Reuse existing resources after release, read back the actual build and behavior, and hand only verified measurement sources to outcome review. Keep incomplete preparation explicit."
-policy:
-  allow_implicit_invocation: false
