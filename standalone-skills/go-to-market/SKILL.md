@@ -70,6 +70,7 @@ State each hypothesis, audience, channel, message, effort limit, owner, window, 
 Include a response to weak or inconclusive evidence.
 Propose cadence from capacity and account evidence, preserving an existing one; never import another project's schedule or a universal best time.
 Include replies and moderation in the workload. A calendar is a proposal, not an active scheduler.
+When the project has a launch window, the PRD Growth Contract Launch Window (Day, Channel class, Action, Owner, Readback metric, Destination) is the launch distribution list; extend its rows and never publish.
 
 ## Draft For Each Channel
 
@@ -115,16 +116,6 @@ A signed-in session or plan is not a publishing grant.
 The publisher reads back the post or scheduled item and records its ID, URL, status and observed time. After an uncertain write, inspect remote state before retrying to avoid duplicates.
 Missing access or connectors remain handoff gaps; do not build or install a client to bypass them.
 Distinguish prepared, approved, scheduled and published results.
-
-## Launch Reach Plan
-
-Read [the launch reach plan](references/launch-reach-plan.md) when the project has a launch window to plan.
-Derive the plan from the PRD Growth Contract's launch window, not from a generic launch calendar.
-List Day 0 to Day 7 and Day 30 distribution in four classes: owned, earned, search and store.
-Give each item an owner, a date, a real destination and one readback metric.
-Sequence search and store assets before Day 0, earned distribution on Day 0 to Day 2, and owned items every day.
-Hold the Day 7 and Day 30 readbacks against the contract's north-star targets.
-Every item stays a proposal. This skill does not publish, schedule, buy placement or submit to a store.
 
 ## Deliver For Review
 
