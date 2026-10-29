@@ -1,10 +1,9 @@
-"""One synthetic release carried through UI, Harness, Activation, and SEO."""
+"""One synthetic release carried through UI, Harness and the deployment record."""
 
 from __future__ import annotations
 
 import hashlib
 import json
-import re
 import subprocess
 import sys
 import tempfile
@@ -19,10 +18,6 @@ UI_TESTS_DIR = SKILLS_ROOT / "ui-design-builder" / "scripts" / "tests"
 PDB_TESTS_DIR = SKILLS_ROOT / "product-definition-builder" / "scripts" / "tests"
 DS_SCRIPTS_DIR = SKILLS_ROOT / "design-system-compiler" / "scripts"
 DS_TESTS_DIR = DS_SCRIPTS_DIR / "tests"
-ACTIVATION_SCRIPTS_DIR = SKILLS_ROOT / "product-activation" / "scripts"
-ACTIVATION_TESTS_DIR = ACTIVATION_SCRIPTS_DIR / "tests"
-SEO_SCRIPTS_DIR = SKILLS_ROOT / "seo-growth-review" / "scripts"
-SEO_TESTS_DIR = SEO_SCRIPTS_DIR / "tests"
 
 _ORIGINAL_SYS_PATH = list(sys.path)
 for candidate in (
@@ -32,10 +27,6 @@ for candidate in (
     PDB_TESTS_DIR,
     DS_SCRIPTS_DIR,
     DS_TESTS_DIR,
-    ACTIVATION_SCRIPTS_DIR,
-    ACTIVATION_TESTS_DIR,
-    SEO_SCRIPTS_DIR,
-    SEO_TESTS_DIR,
 ):
     if str(candidate) not in sys.path:
         sys.path.insert(0, str(candidate))
@@ -49,9 +40,6 @@ from manifest_fixtures import (  # noqa: E402
 import contract_package_fixture  # noqa: E402
 if str(UI_TESTS_DIR) not in sys.path:
     sys.path.insert(0, str(UI_TESTS_DIR))
-from test_check_activation import task_block, task_fields, valid_record_v2  # noqa: E402
-from test_check_seo_review import valid_review_v2  # noqa: E402
-import check_activation  # noqa: E402
 import check_deployment  # noqa: E402
 from release_targets import parse_release_targets, parse_source_policy  # noqa: E402
 from test_deployment_record import GOOD_DEPLOYMENT  # noqa: E402
@@ -120,11 +108,22 @@ def retained_observation(
     )
 
 
+def first_prd_signal(prd: str) -> str:
+    """Return the first PRD metric name so the fixture source measures a real signal."""
+    metrics = prd.split("## Metrics", 1)[1] if "## Metrics" in prd else prd
+    for line in metrics.splitlines():
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if len(cells) >= 2 and cells[0] and not set(cells[0]) <= {"-", " "} and cells[0].casefold() != "metric":
+            return cells[0]
+    raise AssertionError("fixture PRD has no metric row")
+
+
 def deployment_record(
     architecture: str,
     sha: str,
     artifact: str,
     repo_root: Path,
+    signal: str = "TEST-001",
 ) -> str:
     contract, errors = parse_release_targets(architecture)
     if errors:
@@ -190,119 +189,18 @@ def deployment_record(
 | --- | --- | --- | --- |
 | {development.target_id} | {development_authority.ref} | pending | pending |
 | {production.target_id} | {production_authority.ref} | {sha} | {retained_observation(repo_root, production.target_id, production_authority.ref, production_authority.ref, sha, artifact)} |
+
+## Measurement Sources
+
+| MS ID | Signals | Target | Environment | Retrieval | Source role | Release bindings | Owner | Status | Verified at | Evidence |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| MS-001 | {signal} | GA4 property 123456789 stream 987654321 | production | organic sessions by landing page, complete days only | ga4 | {production.target_id}@{sha}#{artifact} | Jane Doe | verified | 2026-09-07T18:10:00Z | GA4 Data API read-back returned rows for the exact release binding |
 """
     return text
 
 
-def activation_record(
-    prd: str,
-    architecture: str,
-    deployment: str,
-    sha: str,
-    artifact: str,
-    repo_root: Path,
-    expected_repository: str,
-    candidate_ref: str,
-) -> tuple[str, str]:
-    contract, errors = parse_release_targets(architecture)
-    if errors:
-        raise AssertionError("fixture architecture is invalid: " + "; ".join(errors))
-    production = next(target for target in contract.targets if target.stage == "production")
-    development = next(target for target in contract.targets if target.stage == "development")
-    product_match = re.search(r"^# PRD:\s*(.+)$", prd, re.MULTILINE)
-    if product_match is None:
-        raise AssertionError("fixture PRD has no product title")
-    product = product_match.group(1).strip()
-    binding = f"{production.target_id}@{sha}#{artifact}"
-
-    fields = task_fields()
-    fields["Release bindings"] = binding
-    digest = check_activation.action_digest(
-        "ACT-001",
-        fields,
-        {"CAP-001": fields["Target"], "CAP-002": fields["Target"]},
-    )
-    fields["Action digest"] = digest
-    fields["Authorized digest"] = digest
-    text = valid_record_v2(task_blocks=[task_block("ACT-001", fields)])
-    text = text.replace("Product: Example", f"Product: {product}", 1)
-    text = re.sub(r"\bweb-prod\b", production.target_id, text)
-    text = re.sub(r"\bweb-dev\b", development.target_id, text)
-    text = text.replace("Cloudflare", production.provider)
-    text = text.replace("fixture-production-route", production.channel)
-    text = text.replace("fixture-development-route", development.channel)
-    text = text.replace("a" * 40, sha)
-    text = re.sub(r"(?<!fixture-)web-build-1", artifact, text)
-
-    signals, signal_errors = check_activation._prd_signals(prd)
-    if signal_errors:
-        raise AssertionError("fixture PRD outcome rows are invalid: " + "; ".join(signal_errors))
-    rows = [
-        "| Signal | Release targets | Source ID | Status |",
-        "| --- | --- | --- | --- |",
-    ]
-    for signal in sorted(signals):
-        rows.append(f"| {signal} | {production.target_id} | MS-001 | verified |")
-    start = text.index("## Outcome Coverage")
-    end = text.index("## Measurement Sources", start)
-    prefix = text[:start]
-    suffix = text[end:]
-    text = prefix + "## Outcome Coverage\n" + "\n".join(rows) + "\n\n" + suffix
-
-    # Source fields in the activation fixture are a non-secret synthetic GA4
-    # property; release bindings use the exact architecture-backed target.
-    deployment_errors = check_deployment.check_deployment_text(
-        deployment,
-        architecture_text=architecture,
-        repo_root=repo_root,
-        expected_repository=expected_repository,
-        candidate_ref=candidate_ref,
-    )
-    if deployment_errors:
-        raise AssertionError("fixture Deployment is invalid: " + "; ".join(deployment_errors))
-    return text, production.target_id
-
-
-def seo_review(
-    activation: str,
-    product: str,
-    architecture: str,
-    production_target: str,
-    sha: str,
-    artifact: str,
-) -> str:
-    contract, errors = parse_release_targets(architecture)
-    if errors:
-        raise AssertionError("fixture architecture is invalid: " + "; ".join(errors))
-    production = next(target for target in contract.targets if target.stage == "production")
-    text = valid_review_v2()
-    text = text.replace("Product: Example", f"Product: {product}")
-    text = re.sub(r"\bweb-prod\b", production_target, text)
-    text = text.replace("a" * 40, sha)
-    text = re.sub(r"(?<=#)web-build-1", artifact, text)
-    text = re.sub(
-        r"^- Artifact / build identity:.*$",
-        f"- Artifact / build identity: {artifact}",
-        text,
-        flags=re.MULTILINE,
-    )
-    text = re.sub(
-        r"^- Deployment identity:.*$",
-        f"- Deployment identity: {production.release_name};{production.channel};{artifact}",
-        text,
-        flags=re.MULTILINE,
-    )
-    text = re.sub(
-        r"^- Activation sha256:.*$",
-        "- Activation sha256: " + hashlib.sha256(activation.encode("utf-8")).hexdigest(),
-        text,
-        flags=re.MULTILINE,
-    )
-    return text
-
-
 class SharedLifecycleGoldenPathTests(unittest.TestCase):
-    def test_current_release_keeps_one_identity_through_harness_activation_and_seo(self) -> None:
+    def test_current_release_keeps_one_identity_through_harness_and_deployment(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with eval_exempt_product_fixture():
@@ -424,22 +322,22 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
                 release_sha,
                 artifact,
                 root,
+                signal=first_prd_signal(paths["prd"].read_text(encoding="utf-8")),
             )
             deployment_path = root / "docs/DEPLOYMENT.md"
             deployment_path.parent.mkdir(parents=True, exist_ok=True)
             deployment_path.write_text(deployment, encoding="utf-8")
-            activation, activation_target = activation_record(
-                paths["prd"].read_text(encoding="utf-8"),
-                paths["architecture"].read_text(encoding="utf-8"),
+            deployment_errors = check_deployment.check_deployment_text(
                 deployment,
-                release_sha,
-                artifact,
-                root,
-                "synthetic/lifecycle-fixture",
-                "refs/heads/run/lifecycle",
+                architecture_text=paths["architecture"].read_text(encoding="utf-8"),
+                repo_root=root,
+                expected_repository="synthetic/lifecycle-fixture",
+                candidate_ref="refs/heads/run/lifecycle",
+                require_source_provenance=True,
+                require_measurement_sources=True,
+                strict_target_subset=(production.target_id,),
             )
-            activation_path = root / "docs/ACTIVATION.md"
-            activation_path.write_text(activation, encoding="utf-8")
+            self.assertEqual([], deployment_errors)
             production_evidence_path = (
                 root / "docs/deployment-evidence" / f"{production.target_id}.json"
             )
@@ -447,19 +345,15 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
             production_evidence_path.write_bytes(
                 production_evidence_bytes.replace(release_sha.encode(), ("f" * 40).encode(), 1)
             )
-            mismatched_check = run_cli(
-                str(ACTIVATION_SCRIPTS_DIR / "check_activation.py"),
-                "--activation", str(activation_path),
-                "--prd", str(paths["prd"]),
-                "--architecture", str(paths["architecture"]),
+            common = (
                 "--deployment", str(deployment_path),
-                "--stack-decisions", str(paths["stack"]),
+                "--architecture", str(paths["architecture"]),
                 "--repo-root", str(root),
-                "--require-verified-sources",
-                "--require-ready", activation_target,
                 "--expected-repository", "synthetic/lifecycle-fixture",
                 "--candidate-ref", "refs/heads/run/lifecycle",
+                "--require-measurement-sources",
             )
+            mismatched_check = run_cli(str(SCRIPTS_DIR / "check_deployment.py"), *common)
             self.assertNotEqual(
                 0,
                 mismatched_check.returncode,
@@ -470,52 +364,8 @@ class SharedLifecycleGoldenPathTests(unittest.TestCase):
                 mismatched_check.stdout + mismatched_check.stderr,
             )
             production_evidence_path.write_bytes(production_evidence_bytes)
-            deployment_path.write_text(deployment, encoding="utf-8")
-            activation_check = run_cli(
-                str(ACTIVATION_SCRIPTS_DIR / "check_activation.py"),
-                "--activation", str(activation_path),
-                "--prd", str(paths["prd"]),
-                "--architecture", str(paths["architecture"]),
-                "--deployment", str(deployment_path),
-                "--stack-decisions", str(paths["stack"]),
-                "--repo-root", str(root),
-                "--require-verified-sources",
-                "--require-ready", activation_target,
-                "--expected-repository", "synthetic/lifecycle-fixture",
-                "--candidate-ref", "refs/heads/run/lifecycle",
-            )
-            self.assertEqual(0, activation_check.returncode, activation_check.stdout + activation_check.stderr)
-
-            product_match = re.search(
-                r"^# PRD:\s*(.+)$", paths["prd"].read_text(encoding="utf-8"), re.MULTILINE
-            )
-            assert product_match is not None
-            review_text = seo_review(
-                activation,
-                product_match.group(1).strip(),
-                paths["architecture"].read_text(encoding="utf-8"),
-                production.target_id,
-                release_sha,
-                artifact,
-            )
-            review_path = root / "docs/seo/reviews/2026-09-10-lifecycle.md"
-            review_path.parent.mkdir(parents=True, exist_ok=True)
-            review_path.write_text(review_text, encoding="utf-8")
-            seo_check = run_cli(
-                str(SEO_SCRIPTS_DIR / "check_seo_review.py"),
-                "--review", str(review_path),
-                "--prd", str(paths["prd"]),
-                "--architecture", str(paths["architecture"]),
-                "--stack-decisions", str(paths["stack"]),
-                "--deployment", str(deployment_path),
-                "--activation", str(activation_path),
-                "--repo-root", str(root),
-                "--expected-repository", "synthetic/lifecycle-fixture",
-                "--candidate-ref", "refs/heads/run/lifecycle",
-                "--require-lifecycle",
-            )
-            self.assertEqual(0, seo_check.returncode, seo_check.stdout + seo_check.stderr)
-
+            deployment_check = run_cli(str(SCRIPTS_DIR / "check_deployment.py"), *common)
+            self.assertEqual(0, deployment_check.returncode, deployment_check.stdout + deployment_check.stderr)
 
 if __name__ == "__main__":
     unittest.main()
