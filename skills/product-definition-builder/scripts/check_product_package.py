@@ -450,7 +450,7 @@ AT_A_GLANCE_OPTIONAL_ROWS = {"delivery profile": {"standard", "mvp"}}
 PERSONAS_HEADER = ("persona", "need", "key workflow", "success signal")
 SHAPE_ROW_LABEL = "shape"
 SHAPE_FIELD_KEYS = ("track", "companion", "console")
-VALID_SHAPE_TRACKS = ("web", "app", "agent")
+VALID_SHAPE_TRACKS = ("web", "app", "agent", "tool", "content")
 VALID_SHAPE_CONSOLES = ("none", "config-only", "operations")
 COMPANION_UI_ID_RE = re.compile(r"UI-[A-Z0-9-]+", re.IGNORECASE)
 COMPANION_RELEASE_TARGET_RE = re.compile(r"[a-z0-9]+(?:-[a-z0-9]+)+")
@@ -495,8 +495,29 @@ GROWTH_LAUNCH_WINDOW_HEADER = (
     "owner",
     "readback metric",
 )
-VALID_DISCOVERY_KINDS = {"seo-cluster", "geo-page", "store-listing", "directory", "landing"}
-VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "seo"}
+GROWTH_LAUNCH_WINDOW_HEADER_V2 = GROWTH_LAUNCH_WINDOW_HEADER + ("destination",)
+VALID_DISCOVERY_KINDS = {
+    "seo-cluster",
+    "geo-page",
+    "store-listing",
+    "directory",
+    "landing",
+    "social",
+    "video_channel",
+    "newsletter",
+    "community",
+    "docs_site",
+}
+# Presence kinds record an off-product presence as platform:handle-or-url.
+PRESENCE_DISCOVERY_KINDS = {
+    "social",
+    "video_channel",
+    "newsletter",
+    "community",
+    "docs_site",
+}
+PRESENCE_SURFACE_RE = re.compile(r"[a-z0-9][a-z0-9-]*:\S+")
+VALID_DISCOVERY_OWNER_STAGES = {"delivery", "activation", "gtm", "growth", "seo"}
 VALID_LAUNCH_CHANNEL_CLASSES = {"owned", "earned", "search", "store"}
 GROWTH_TEST_ID_RE = re.compile(r"\bTEST-[A-Z0-9-]+\b", re.IGNORECASE)
 GROWTH_TRACE_ID_RE = re.compile(r"\b(?:TEST|MS)-[A-Z0-9-]+\b", re.IGNORECASE)
@@ -1136,7 +1157,7 @@ def _validate_shape_row(
         _add(
             problems,
             "prd",
-            "At a Glance Shape track must be web, app or agent, not "
+            "At a Glance Shape track must be web, app, agent, tool or content, not "
             f"{fields['track'].strip()!r}",
         )
     console = fields.get("console", "").strip().casefold()
@@ -1179,13 +1200,13 @@ def _validate_shape_row(
                 "app track with a required AEO or SEO obligation needs a "
                 "companion public surface, not none",
             )
-        if track == "agent":
+        if track in {"agent", "tool"}:
             if none_companion is not None:
                 if not (none_companion.group(1) or "").strip():
                     _add(
                         problems,
                         "prd",
-                        "agent track with companion none requires a reason in parentheses",
+                        f"{track} track with companion none requires a reason in parentheses",
                     )
             elif not (
                 COMPANION_UI_ID_RE.fullmatch(companion)
@@ -1194,7 +1215,7 @@ def _validate_shape_row(
                 _add(
                     problems,
                     "prd",
-                    f"agent track companion {companion!r} must name a docs surface",
+                    f"{track} track companion {companion!r} must name a docs surface",
                 )
         if companion and none_companion is None:
             if COMPANION_UI_ID_RE.fullmatch(companion):
@@ -1291,8 +1312,8 @@ def _validate_growth_contract(
                 _add(
                     problems,
                     "prd",
-                    "Growth Contract North Star track must be web, app or agent, not "
-                    f"{row[0].strip()!r}",
+                    "Growth Contract North Star track must be web, app, agent, tool "
+                    f"or content, not {row[0].strip()!r}",
                 )
         if track and not any(
             len(row) == len(GROWTH_NORTH_STAR_HEADER)
@@ -1341,11 +1362,11 @@ def _validate_growth_contract(
                 f"{track} track requires at least one Re-engagement mechanism; "
                 "a missing mechanism is a blocking gap",
             )
-        if track == "agent" and not mechanism_rows and not reasoned_none:
+        if track in {"agent", "tool", "content"} and not mechanism_rows and not reasoned_none:
             _add(
                 problems,
                 "prd",
-                "agent track requires a Re-engagement mechanism or a none row with a reason",
+                f"{track} track requires a Re-engagement mechanism or a none row with a reason",
             )
     discovery_rows = _find_table(
         _subsection(section, "### Discovery Surfaces") or "", GROWTH_DISCOVERY_HEADER
@@ -1381,18 +1402,28 @@ def _validate_growth_contract(
                     problems,
                     "prd",
                     "Discovery Surfaces kind must be seo-cluster, geo-page, store-listing, "
-                    f"directory or landing, not {row[1].strip()!r}",
+                    "directory, landing, social, video_channel, newsletter, community or "
+                    f"docs_site, not {row[1].strip()!r}",
                 )
             stage = row[2].strip().casefold()
             if stage not in VALID_DISCOVERY_OWNER_STAGES:
                 _add(
                     problems,
                     "prd",
-                    "Discovery Surfaces owner stage must be delivery, activation, gtm or seo, "
-                    f"not {row[2].strip()!r}",
+                    "Discovery Surfaces owner stage must be delivery, activation, gtm, "
+                    f"growth or seo, not {row[2].strip()!r}",
                 )
             surface = row[0].strip()
-            if re.fullmatch(r"UI-[A-Z0-9-]+", surface, re.IGNORECASE):
+            if kind in PRESENCE_DISCOVERY_KINDS:
+                if not PRESENCE_SURFACE_RE.fullmatch(surface):
+                    _add(
+                        problems,
+                        "prd",
+                        f"Discovery Surfaces presence kind {kind!r} surface {surface!r} "
+                        "must use the platform:handle-or-url form, for example "
+                        "instagram:@ticketradar or docs:https://docs.example.com",
+                    )
+            elif re.fullmatch(r"UI-[A-Z0-9-]+", surface, re.IGNORECASE):
                 if surface.upper() not in known_surface_ids:
                     _add(
                         problems,
@@ -1406,20 +1437,23 @@ def _validate_growth_contract(
                     f"Discovery Surfaces surface {surface!r} must name an existing UI surface "
                     "ID, a release target ID or a landing path",
                 )
-    launch_rows = _find_table(
-        _subsection(section, "### Launch Window") or "", GROWTH_LAUNCH_WINDOW_HEADER
-    )
+    launch_section = _subsection(section, "### Launch Window") or ""
+    launch_rows = _find_table(launch_section, GROWTH_LAUNCH_WINDOW_HEADER)
+    launch_width = len(GROWTH_LAUNCH_WINDOW_HEADER)
+    if launch_rows is None:
+        launch_rows = _find_table(launch_section, GROWTH_LAUNCH_WINDOW_HEADER_V2)
+        launch_width = len(GROWTH_LAUNCH_WINDOW_HEADER_V2)
     if launch_rows is None:
         _add(
             problems,
             "prd",
             "Growth Contract Launch Window must use the Day | Channel class | Action | Owner | "
-            "Readback metric table",
+            "Readback metric table, or the same table with a trailing Destination column",
         )
     else:
         _validate_table_rows(
             launch_rows,
-            len(GROWTH_LAUNCH_WINDOW_HEADER),
+            launch_width,
             label="Growth Contract Launch Window",
             require_filled=require_filled,
             problems=problems,
@@ -1428,7 +1462,7 @@ def _validate_growth_contract(
             _add(problems, "prd", "Growth Contract Launch Window must contain at least one row")
         launch_day_seen = False
         for row in launch_rows:
-            if len(row) != len(GROWTH_LAUNCH_WINDOW_HEADER):
+            if len(row) != launch_width:
                 continue
             channel = row[1].strip().casefold()
             if channel not in VALID_LAUNCH_CHANNEL_CLASSES:
