@@ -12,7 +12,10 @@ development uses that exact name plus ``-dev``. Also validates the Resource
 Isolation table: no binding class may list the same resource ID in both the
 production and development columns. When architecture.md is supplied, validates
 an exact architecture-backed Release Target Status table through the shared
-release-target parser while retaining the legacy environment inspection.
+release-target parser while retaining the legacy environment inspection. Also
+validates the optional Measurement Sources table: its closed source-role and
+status vocabularies, its release bindings against architecture targets, and
+the stricter evidence demands on verified rows.
 Executing the platform's deployed-commit check command stays with the parent
 or operator — this tool never runs recorded commands, reads secret values, or
 touches the platform.
@@ -122,6 +125,51 @@ RELEASE_SOURCE_PROVENANCE_HEADERS = (
     "source ref",
     "source sha",
     "authority evidence",
+)
+MEASUREMENT_SOURCE_HEADERS = (
+    "ms id",
+    "signals",
+    "target",
+    "environment",
+    "retrieval",
+    "source role",
+    "release bindings",
+    "owner",
+    "status",
+    "verified at",
+    "evidence",
+)
+MEASUREMENT_SOURCE_ROLES = (
+    "search_console",
+    "ga4",
+    "production_page",
+    "google_trends",
+    "keyword_planner",
+    "public_serp",
+    "first_party",
+    "app_store_connect",
+    "play_console",
+    "revenuecat",
+    "auth_provider",
+    "crash",
+    "registry",
+    "bot_platform",
+    "platform_insights",
+    "service_health",
+)
+MEASUREMENT_SOURCE_STATUSES = {
+    "planned",
+    "available",
+    "verified",
+    "blocked",
+    "superseded",
+    "n/a",
+}
+MEASUREMENT_SOURCE_ID_RE = re.compile(r"^MS-\d{3}$")
+MEASUREMENT_BINDING_RE = re.compile(
+    r"^(?P<target>[a-z0-9]+(?:-[a-z0-9]+)*)"
+    r"@(?P<sha>pending|[0-9a-f]{40})"
+    r"#(?P<artifact>\S+)$"
 )
 PROVENANCE_RE = re.compile(
     r"^repo=(?P<repo>[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)+);"
@@ -273,6 +321,10 @@ def _timestamp(value: str) -> datetime | None:
 
 def _human(value: str) -> bool:
     return is_human_owner(value)
+
+
+def _is_placeholder(value: str) -> bool:
+    return any(marker in value for marker in PLACEHOLDER_MARKERS)
 
 
 def _endpoint_findings(
@@ -464,6 +516,22 @@ def release_source_provenance_duplicates(text: str) -> set[str]:
     return {
         identity for identity, count in Counter(identities).items() if count > 1
     }
+
+
+def parse_measurement_sources(text: str) -> list[dict[str, str]]:
+    """Return Measurement Sources rows keyed by lowercased header names."""
+
+    header, rows = parse_section_table(text, "## Measurement Sources")
+    if tuple(header) != MEASUREMENT_SOURCE_HEADERS:
+        return []
+    return [
+        {
+            name: value
+            for name, value in zip(MEASUREMENT_SOURCE_HEADERS, row, strict=True)
+        }
+        for row in rows
+        if len(row) == len(MEASUREMENT_SOURCE_HEADERS)
+    ]
 
 
 def _retained_proof_findings(
@@ -1004,11 +1072,120 @@ def strict_provenance_findings(
     )
 
 
+def _validate_measurement_sources(
+    text: str,
+    architecture_targets_or_none: dict[str, object] | None,
+    require: bool,
+) -> list[str]:
+    label = "Measurement Sources"
+    header, rows = parse_section_table(text, "## Measurement Sources")
+    if not header:
+        return [f"{label} section is required"] if require else []
+    if tuple(header) != MEASUREMENT_SOURCE_HEADERS:
+        return [
+            f"{label}: expected columns {' | '.join(MEASUREMENT_SOURCE_HEADERS)}"
+        ]
+    findings: list[str] = []
+    seen_ids: set[str] = set()
+    for row in rows:
+        if len(row) != len(MEASUREMENT_SOURCE_HEADERS):
+            findings.append(
+                f"{label}: each row must have {len(MEASUREMENT_SOURCE_HEADERS)} columns"
+            )
+            continue
+        (
+            ms_id,
+            signals,
+            _target,
+            _environment,
+            _retrieval,
+            source_role,
+            release_bindings,
+            owner,
+            status,
+            verified_at,
+            evidence,
+        ) = row
+        if MEASUREMENT_SOURCE_ID_RE.fullmatch(ms_id) is None:
+            findings.append(
+                f"{label}: {ms_id!r} is not a Measurement Source ID (expected MS-NNN)"
+            )
+            continue
+        if ms_id.casefold() in seen_ids:
+            findings.append(f"{label}: duplicate measurement source {ms_id!r}")
+            continue
+        seen_ids.add(ms_id.casefold())
+        if not signals.strip() or _is_placeholder(signals):
+            findings.append(f"{label}: {ms_id} needs concrete signals")
+        elif signals.casefold() == "n/a" and status.casefold() != "n/a":
+            findings.append(
+                f"{label}: {ms_id} may use signals n/a only when status is n/a"
+            )
+        if source_role.casefold() not in MEASUREMENT_SOURCE_ROLES:
+            findings.append(
+                f"{label}: {ms_id} has invalid source role {source_role!r}"
+            )
+        if status.casefold() not in MEASUREMENT_SOURCE_STATUSES:
+            findings.append(f"{label}: {ms_id} has invalid status {status!r}")
+        binding_entries = [
+            entry.strip()
+            for entry in release_bindings.split(",")
+            if entry.strip()
+        ]
+        if not binding_entries:
+            findings.append(f"{label}: {ms_id} needs release bindings")
+        parsed_bindings: list[re.Match[str]] = []
+        for entry in binding_entries:
+            match = MEASUREMENT_BINDING_RE.fullmatch(entry)
+            if match is None:
+                findings.append(
+                    f"{label}: {ms_id} release binding {entry!r} must be "
+                    "<target>@<sha>#<artifact>"
+                )
+                continue
+            parsed_bindings.append(match)
+            if (
+                architecture_targets_or_none is not None
+                and match.group("target") not in architecture_targets_or_none
+            ):
+                findings.append(
+                    f"{label}: {ms_id} release binding target "
+                    f"{match.group('target')!r} is not an architecture release target"
+                )
+        if not owner.strip():
+            findings.append(f"{label}: {ms_id} has no owner")
+        elif status.casefold() == "verified" and not _human(owner):
+            findings.append(f"{label}: verified {ms_id} owner must name a human")
+        if status.casefold() == "verified":
+            for match in parsed_bindings:
+                if not FULL_SHA_RE.fullmatch(match.group("sha")):
+                    findings.append(
+                        f"{label}: verified {ms_id} release binding "
+                        f"{match.group('target')}@{match.group('sha')} needs a full lowercase SHA"
+                    )
+                if match.group("artifact") == "pending":
+                    findings.append(
+                        f"{label}: verified {ms_id} release binding needs an exact artifact"
+                    )
+            if verified_at.casefold() == "pending" or _timestamp(verified_at) is None:
+                findings.append(
+                    f"{label}: verified {ms_id} verified-at must be RFC3339 with a real timezone"
+                )
+            if (
+                not evidence.strip()
+                or evidence.casefold() == "pending"
+                or _is_placeholder(evidence)
+            ):
+                findings.append(f"{label}: verified {ms_id} needs evidence")
+    return findings
+
+
 def check_deployment_text(
     text: str,
     *,
     architecture_text: str | None = None,
     require_source_provenance: bool = False,
+    require_measurement_sources: bool = False,
     strict_target_subset: tuple[str, ...] | None = None,
     repo_root: Path | None = None,
     expected_repository: str | None = None,
@@ -1036,6 +1213,16 @@ def check_deployment_text(
                 candidate_ref=candidate_ref,
             )
         )
+    measurement_targets: dict[str, object] | None = None
+    if architecture_text is not None:
+        measurement_targets = parse_release_targets(architecture_text)[0].by_id()
+    findings.extend(
+        _validate_measurement_sources(
+            text,
+            measurement_targets,
+            require=require_measurement_sources,
+        )
+    )
     for number, line in enumerate(active_text(text).splitlines(), start=1):
         for marker in PLACEHOLDER_MARKERS:
             if marker in line:
@@ -1314,6 +1501,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--deployment", type=Path, default=Path("docs/DEPLOYMENT.md"))
     parser.add_argument("--architecture", type=Path)
     parser.add_argument("--require-source-provenance", action="store_true")
+    parser.add_argument("--require-measurement-sources", action="store_true")
     parser.add_argument("--repo-root", type=Path)
     parser.add_argument("--expected-repository")
     parser.add_argument("--candidate-ref")
@@ -1347,6 +1535,7 @@ def main(argv: list[str] | None = None) -> int:
         deployment_text,
         architecture_text=architecture_text,
         require_source_provenance=args.require_source_provenance,
+        require_measurement_sources=args.require_measurement_sources,
         repo_root=args.repo_root,
         expected_repository=args.expected_repository,
         candidate_ref=args.candidate_ref,
