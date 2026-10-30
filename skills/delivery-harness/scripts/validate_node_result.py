@@ -194,19 +194,19 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # validate_result imports this module's validator at its module level;
+    # import the shared payload writer here so the module graph stays acyclic.
+    from validate_result import _unwrap, emit_result
+
     args = build_parser().parse_args(argv)
     try:
-        result = json.loads(args.result.read_text(encoding="utf-8"))
-        if isinstance(result, dict) and set(result) == {"node_result"}:
-            result = result["node_result"]
+        result = _unwrap(json.loads(args.result.read_text(encoding="utf-8")), "node_result")
         errors = validate_node_result(
             load_plan(args.plan), load_run(args.run), result, repo_root=args.repo_root
         )
     except (ManifestError, OSError, json.JSONDecodeError) as exc:
         errors = [str(exc)]
-    payload = {"status": "PASS" if not errors else "ERROR", "errors": errors}
-    print(json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False))
-    return 0 if not errors else 2
+    return emit_result(errors)
 
 
 if __name__ == "__main__":

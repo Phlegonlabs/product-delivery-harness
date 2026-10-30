@@ -431,7 +431,7 @@ def shaped_prd(
     if growth:
         track_match = re.search(r"track:\s*(\w+)", shape_value)
         track = track_match.group(1) if track_match else "web"
-        if track not in ("web", "app", "agent"):
+        if track not in ("web", "app", "agent", "tool", "content"):
             track = "web"
         prd = prd.replace(
             "## Problem Statement",
@@ -707,6 +707,49 @@ class CompanionValueTests(unittest.TestCase):
     def test_free_form_companion_names_need_no_registry(self) -> None:
         self.assertEqual(
             [], self.validate(shaped_prd("track: web; companion: Fixture landing page; console: none"))
+        )
+
+
+class TrackVocabularyTests(unittest.TestCase):
+    def validate(self, prd: str, *, architecture: str | None = None) -> list[str]:
+        return validate_shape_package(prd, architecture=architecture)
+
+    def test_tool_companion_follows_the_agent_rule(self) -> None:
+        findings = self.validate(shaped_prd("track: tool; companion: none; console: none"))
+        self.assertTrue(
+            any("requires a reason in parentheses" in item for item in findings), findings
+        )
+        findings = self.validate(
+            shaped_prd("track: tool; companion: Marketing homepage; console: none")
+        )
+        self.assertTrue(
+            any("must name a docs surface" in item for item in findings), findings
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                shaped_prd("track: tool; companion: Docs portal; console: none")
+            ),
+        )
+
+    def test_content_companion_allows_plain_none(self) -> None:
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: content; companion: none; console: none"))
+        )
+        findings = self.validate(
+            shaped_prd("track: content; companion: https://fixture.example.com; console: none")
+        )
+        self.assertTrue(
+            any("URL-free surface name" in item for item in findings), findings
+        )
+
+    def test_unknown_tracks_are_rejected(self) -> None:
+        findings = self.validate(
+            shaped_prd("track: platform; companion: none; console: none")
+        )
+        self.assertTrue(
+            any("Shape track must be web, app, agent, tool or content" in item for item in findings),
+            findings,
         )
 
 

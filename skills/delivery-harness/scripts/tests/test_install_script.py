@@ -130,11 +130,16 @@ class InstallScriptTests(unittest.TestCase):
         "product-definition-builder",
         "ui-design-builder",
         "design-system-compiler",
+        "growth-review",
+    )
+    LEGACY_SKILLS = (
+        "full-harness",
+        "prd-builder",
+        "product-design-builder",
         "code-security-review",
         "product-activation",
         "seo-growth-review",
     )
-    LEGACY_SKILLS = ("full-harness", "prd-builder", "product-design-builder")
     MANAGED_SKILLS = SKILLS + LEGACY_SKILLS
 
     def setUp(self) -> None:
@@ -337,8 +342,6 @@ class InstallScriptTests(unittest.TestCase):
             ("product-definition-builder", "check_product_package.py"),
             ("ui-design-builder", "check_ui_design_contract.py"),
             ("design-system-compiler", "check_design_system_pair.py"),
-            ("product-activation", "check_activation.py"),
-            ("seo-growth-review", "check_seo_review.py"),
         ):
             result = subprocess.run([sys.executable, str(self.destination / skill / "scripts" / script), "--help"],
                                     cwd=target, capture_output=True, text=True, encoding="utf-8")

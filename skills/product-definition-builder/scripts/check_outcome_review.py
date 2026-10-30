@@ -13,13 +13,10 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).resolve().parent
 SIBLING_SCRIPTS_ROOT = SCRIPTS_DIR.parents[1]
-ACTIVATION_SCRIPTS = SIBLING_SCRIPTS_ROOT / "product-activation" / "scripts"
 DELIVERY_SCRIPTS = SIBLING_SCRIPTS_ROOT / "delivery-harness" / "scripts"
-for sibling_scripts in (ACTIVATION_SCRIPTS, DELIVERY_SCRIPTS):
-    if str(sibling_scripts) not in sys.path:
-        sys.path.insert(0, str(sibling_scripts))
+if str(DELIVERY_SCRIPTS) not in sys.path:
+    sys.path.insert(0, str(DELIVERY_SCRIPTS))
 
-from check_activation import _table  # noqa: E402
 from check_deployment import parse_release_target_status  # noqa: E402
 from markdown_contract import active_text, is_human_owner  # noqa: E402
 from release_targets import allows_no_independent_artifact, parse_release_targets  # noqa: E402
@@ -52,8 +49,8 @@ RECORD_FIELDS = (
     "Deployment identity",
     "Deployment checked",
     "Deployment status",
-    "Activation record",
-    "Activation sha256",
+    "Measurement record",
+    "Deployment sha256",
     "Reviewed on",
     "Verdict",
 )
@@ -102,6 +99,15 @@ SOURCE_ROLES = {
     "keyword_planner",
     "public_serp",
     "first_party",
+    "app_store_connect",
+    "play_console",
+    "revenuecat",
+    "auth_provider",
+    "crash",
+    "registry",
+    "bot_platform",
+    "platform_insights",
+    "service_health",
 }
 
 
@@ -140,16 +146,21 @@ def _duplicate_fields(lines: list[str]) -> list[str]:
     return sorted(name for name, count in Counter(names).items() if count > 1)
 
 
-def _rows(text: str, heading: str, expected: tuple[str, ...]) -> tuple[list[list[str]], bool]:
+def _table(text: str, heading: str) -> tuple[list[str], list[list[str]]]:
     section = _section(text, heading)
     if section is None:
-        return [], False
+        return [], []
     table = [line for line in section if line.strip().startswith("|")]
     if not table:
-        return [], False
+        return [], []
     cells = [[cell.strip() for cell in line.strip().strip("|").split("|")] for line in table]
     header = [cell.lower() for cell in cells[0]]
     data = [row for row in cells[1:] if not all(set(cell) <= {"-", ":", " "} for cell in row)]
+    return header, data
+
+
+def _rows(text: str, heading: str, expected: tuple[str, ...]) -> tuple[list[list[str]], bool]:
+    header, data = _table(text, heading)
     return data, tuple(header) == expected
 
 
@@ -184,92 +195,53 @@ def _duration_days(value: str) -> int | None:
     return int(match.group(1)) * (7 if match.group(2).casefold().startswith("week") else 1)
 
 
-def _activation_sources(
-    activation_text: str,
+MEASUREMENT_SOURCE_HEADERS = [
+    "ms id",
+    "signals",
+    "target",
+    "environment",
+    "retrieval",
+    "source role",
+    "release bindings",
+    "owner",
+    "status",
+    "verified at",
+    "evidence",
+]
+
+
+def _measurement_sources(
+    deployment_text: str,
     target: str,
     sha: str,
     artifact: str,
 ) -> tuple[dict[str, dict[str, object]], list[str]]:
-    header, rows = _table(activation_text, "## Measurement Sources")
+    header, rows = _table(deployment_text, "## Measurement Sources")
     findings: list[str] = []
-    expected_header = [
-        "ms id",
-        "target",
-        "environment",
-        "retrieval",
-        "source role",
-        "route / capability",
-        "release bindings",
-        "owner",
-        "status",
-        "evidence ids",
-    ]
-    if header != expected_header:
-        return {}, ["Activation: Measurement Sources table is missing or invalid"]
-    evidence_header, evidence_rows = _table(activation_text, "## Verification Evidence")
-    expected_evidence_header = [
-        "evidence id",
-        "item id",
-        "kind",
-        "route / action / release binding",
-        "checked",
-        "result",
-        "reference",
-    ]
-    if evidence_header != expected_evidence_header:
-        return {}, ["Activation: Verification Evidence table is missing or invalid"]
-    evidence_by_id: dict[str, dict[str, object]] = {}
-    for row in evidence_rows:
-        if len(row) != len(expected_evidence_header):
-            continue
-        evidence_id, item_id, kind, binding_text, checked, result, _reference = row
-        parts = [part.strip() for part in binding_text.split(";")]
-        if len(parts) != 3:
-            continue
-        evidence_by_id[evidence_id] = {
-            "item_id": item_id,
-            "kind": kind,
-            "binding": parts[2],
-            "checked": checked,
-            "checked_at": _timestamp(checked),
-            "result": result,
-        }
+    if header != MEASUREMENT_SOURCE_HEADERS:
+        return {}, ["Deployment: Measurement Sources table is missing or invalid"]
     result: dict[str, dict[str, object]] = {}
     expected_binding = f"{target}@{sha}#{artifact}"
     for row in rows:
-        if len(row) != 10:
+        if len(row) != len(MEASUREMENT_SOURCE_HEADERS):
             continue
-        source_id, source_target, _environment, _retrieval, source_role, _route_capability, bindings, owner, status, evidence_ids = row
+        source_id, _signals, _ms_target, _environment, _retrieval, source_role, bindings, owner, status, verified_at, evidence = row
         if status != "verified" or expected_binding not in {
             item.strip() for item in bindings.split(",")
         }:
             continue
         if source_role not in SOURCE_ROLES:
-            findings.append(f"Activation: {source_id} has invalid source role {source_role!r}")
-        parsed_evidence_ids = [item.strip() for item in evidence_ids.split(",") if item.strip()]
-        pass_evidence: list[dict[str, object]] = []
-        for evidence_id in parsed_evidence_ids:
-            item = evidence_by_id.get(evidence_id)
-            if item is None:
-                findings.append(f"Activation: {source_id} references missing evidence {evidence_id}")
-                continue
-            if item["item_id"] != source_id:
-                findings.append(f"Activation: {source_id} evidence {evidence_id} belongs to another item")
-            if item["binding"] != expected_binding:
-                findings.append(f"Activation: {source_id} evidence {evidence_id} has a mismatched release binding")
-            if item["result"] == "PASS" and item["kind"] in {"readback", "behavior"}:
-                pass_evidence.append(item)
-        latest_pass = max(
-            (item["checked_at"] for item in pass_evidence if isinstance(item["checked_at"], datetime)),
-            default=None,
-        )
-        if latest_pass is None:
-            findings.append(f"Activation: {source_id} needs a latest PASS readback or behavior evidence")
+            findings.append(f"Deployment: {source_id} has invalid source role {source_role!r}")
+        verified_instant = _timestamp(verified_at)
+        if verified_instant is None:
+            findings.append(f"Deployment: {source_id} Verified at must be an RFC3339 timestamp")
+        if evidence.casefold() in ABSENT:
+            findings.append(f"Deployment: {source_id} needs evidence")
         result[source_id] = {
             "owner": owner,
             "source_role": source_role,
-            "evidence_ids": tuple(parsed_evidence_ids),
-            "latest_pass": latest_pass,
+            "verified_at": verified_instant,
+            "evidence": evidence,
             "binding": expected_binding,
         }
     return result, findings
@@ -379,11 +351,10 @@ def check_outcome_review_text(
     prd_text: str,
     architecture_text: str,
     deployment_text: str,
-    activation_text: str,
 ) -> list[str]:
-    """Join one outcome record to its PRD, deployment and Activation bytes.
+    """Join one outcome record to its PRD and deployment bytes.
 
-    The product, deployment and Activation checkers run on their own inputs;
+    The product and deployment checkers run on their own inputs;
     this check binds the record to the exact release they describe.
     """
 
@@ -458,11 +429,11 @@ def check_outcome_review_text(
     if deployment_checked is not None and _valid_date(reviewed_on):
         if reviewed_on < deployment_checked.astimezone(timezone.utc).date().isoformat():
             findings.append("Record: Reviewed on cannot precede Deployment checked")
-    if record.get("Activation record") != "docs/ACTIVATION.md":
-        findings.append("Record: Activation record must be docs/ACTIVATION.md")
-    activation_digest = hashlib.sha256(activation_text.encode("utf-8")).hexdigest()
-    if record.get("Activation sha256") != activation_digest:
-        findings.append("Record: Activation sha256 does not match the current document bytes")
+    if record.get("Measurement record") != "docs/DEPLOYMENT.md":
+        findings.append("Record: Measurement record must be docs/DEPLOYMENT.md")
+    deployment_digest = hashlib.sha256(deployment_text.encode("utf-8")).hexdigest()
+    if record.get("Deployment sha256") != deployment_digest:
+        findings.append("Record: Deployment sha256 does not match the current document bytes")
 
     deployment_rows = parse_release_target_status(deployment_text)
     deployment = deployment_rows.get(target_id)
@@ -483,8 +454,8 @@ def check_outcome_review_text(
                 f"Record: Deployment identity must be {expected_identity!r}"
             )
 
-    matching_sources, source_findings = _activation_sources(
-        activation_text, target_id, sha, artifact
+    matching_sources, source_findings = _measurement_sources(
+        deployment_text, target_id, sha, artifact
     )
     findings.extend(source_findings)
 
@@ -505,14 +476,16 @@ def check_outcome_review_text(
         listed_sources.add(source_id)
         if source_id not in matching_sources:
             findings.append(
-                f"Activation Sources: {source_id} is not a matching verified Activation source"
+                f"Activation Sources: {source_id} is not a matching verified measurement source"
             )
         if binding != f"{target_id}@{sha}#{artifact}":
             findings.append(f"Activation Sources: {source_id} has a mismatched release binding")
         activation_source = matching_sources.get(source_id)
         if activation_source is not None:
             if owner != activation_source["owner"]:
-                findings.append(f"Activation Sources: {source_id} owner differs from Activation")
+                findings.append(
+                    f"Activation Sources: {source_id} owner differs from the deployment row"
+                )
         if not _human(owner):
             findings.append(f"Activation Sources: {source_id} owner must name a human")
         verified_instant = _timestamp(verified_at)
@@ -521,24 +494,17 @@ def check_outcome_review_text(
         elif not _not_future(verified_instant):
             findings.append(f"Activation Sources: {source_id} verified time cannot be in the future")
         elif activation_source is not None:
-            latest_pass = activation_source["latest_pass"]
-            if isinstance(latest_pass, datetime) and verified_instant != latest_pass:
+            source_verified = activation_source["verified_at"]
+            if isinstance(source_verified, datetime) and verified_instant != source_verified:
                 findings.append(
-                    f"Activation Sources: {source_id} verified time must equal the latest PASS evidence timestamp"
+                    f"Activation Sources: {source_id} verified time must equal the deployment row Verified at"
                 )
         if evidence.lower() in ABSENT:
             findings.append(f"Activation Sources: {source_id} needs evidence")
-        elif activation_source is not None:
-            missing_evidence_ids = [
-                evidence_id
-                for evidence_id in activation_source["evidence_ids"]
-                if evidence_id not in evidence
-            ]
-            if missing_evidence_ids:
-                findings.append(
-                    f"Activation Sources: {source_id} evidence must name "
-                    + ", ".join(missing_evidence_ids)
-                )
+        elif activation_source is not None and evidence != activation_source["evidence"]:
+            findings.append(
+                f"Activation Sources: {source_id} evidence must equal the deployment row Evidence"
+            )
     if listed_sources != set(matching_sources):
         findings.append(
             "Activation Sources: every matching verified MS source must be listed exactly once"
@@ -701,7 +667,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prd", type=Path, required=True)
     parser.add_argument("--architecture", type=Path, required=True)
     parser.add_argument("--deployment", type=Path, required=True)
-    parser.add_argument("--activation", type=Path, required=True)
     parser.add_argument("--require-lifecycle", action="store_true")
     parser.add_argument("--repo-root", type=Path, default=Path("."))
     args = parser.parse_args(argv)
@@ -718,7 +683,6 @@ def main(argv: list[str] | None = None) -> int:
         "prd": args.prd,
         "architecture": args.architecture,
         "deployment": args.deployment,
-        "activation": args.activation,
     }
     if any(not path.is_file() for path in paths.values()):
         print("one or more input files do not exist", file=sys.stderr)
@@ -740,7 +704,6 @@ def main(argv: list[str] | None = None) -> int:
         prd_text=loaded["prd"],
         architecture_text=loaded["architecture"],
         deployment_text=loaded["deployment"],
-        activation_text=loaded["activation"],
     )
     for finding in findings:
         print(f"{args.outcome}: {finding}")

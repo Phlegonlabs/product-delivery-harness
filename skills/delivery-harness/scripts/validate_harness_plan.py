@@ -26,7 +26,6 @@ from harness_contract_join import (
     DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS,
     frozen_sources as shared_frozen_sources,
     full_wireframe_checker_errors,
-    parse_prd_ui_contract as shared_parse_prd_ui_contract,
     parse_wireframe_data,
     prd_web_viewport_floor_errors,
     registry_web_viewport_floor_errors,
@@ -125,10 +124,6 @@ def _validate_bound_artifact(
             f"source content hash {expected_hash}"
         ]
     return []
-
-
-def _parse_prd_ui_contract(prd_text: str) -> tuple[dict[str, dict[str, object]], list[str]]:
-    return shared_parse_prd_ui_contract(prd_text)
 
 
 def validate_ui_surface_prd_coverage(

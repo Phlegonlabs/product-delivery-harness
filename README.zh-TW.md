@@ -8,12 +8,12 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.72.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.73.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
 
-這套技能讓 Codex、Claude Code、Pi 或其他支援 skills 的 host，把產品構想與變更需求轉成經過驗證的軟體。產品定義、設計、實作、安全與啟用各自保留來源、證據及 owner 決定。
+這套技能讓 Codex、Claude Code、Pi 或其他支援 skills 的 host，把產品構想與變更需求轉成經過驗證的軟體。產品定義、設計、實作、安全與外部設定各自保留來源、證據及 owner 決定。
 
 ## 安裝
 
@@ -37,7 +37,7 @@ python -m pip install -r skills/delivery-harness/requirements-test.txt
 
 更新沿用同一安裝器，不能用 raw-copy 覆蓋。先取得授權、暫停相關 skill session 並保留備份；驗證成功後才開啟新的 host session。安裝失敗會 rollback；後續驗證失敗時，從前一個 release tag 重跑安裝器。
 
-從 0.23 或更早版本升級時，在同一份備份中用原 ID 保存各舊目錄：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。
+從 0.23 或更早版本升級時，在同一份備份中用原 ID 保存各舊目錄：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。自 0.73.0 起安裝器也會退役 `code-security-review`（改為 `delivery-harness/references/security-review.md`）、`product-activation`（改為 deployment record 與 `references/external-setup.md`）與 `seo-growth-review`（改為 `growth-review`）。
 
 UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-skill-dependencies.json) 固定的完整 `frontend-design` 與 `impeccable` tree。依紀錄的路徑安裝，再執行 `check_external_skill_dependencies.py`。更新 full-tree pin 前須審查變更；專案 Skill Bindings 保留 owner 已確認的選擇，不可悄悄換 skill。
 
@@ -49,11 +49,9 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 已批准且包含 UI 的 Product Definition | `ui-design-builder` | 方向、完整 HiFi、瀏覽器證據與 Visual Approval |
 | 已批准且需要設計系統的 HiFi | `design-system-compiler` | 凍結的 pair 與來源綁定衍生 HTML |
 | 有界實作或維護 | `delivery-harness` | Direct 工作或 managed PLAN/RUN |
-| 固定且已整合的程式候選 | `code-security-review` | 唯讀 exact-SHA 安全結果與覆蓋缺口 |
-| 外部設定或 release readiness | `product-activation` | 逐 target 的授權動作、讀回與 readiness |
-| Production 公開網站 | `seo-growth-review` | 唯讀搜尋與量測 review，以及已路由後續工作 |
+| 已發布且有任何可被發現 surface 的產品 | `growth-review` | 逐 surface 的唯讀增長 review，以及已路由後續工作 |
 
-七個核心 skills 與四個獨立 skills 都只在你明確點名呼叫時啟動，例如 `$delivery-harness`；亦可繼續已呼叫的工作。一般任務不會自動跑 Harness 分流、文件同步、Epic 紀錄或 PLAN/RUN。安裝、專案指令與既有文件都不代表呼叫。被呼叫的 skill 保留必要檢查與依賴；新的頂層階段需要明確要求。Codex 設定為 `allow_implicit_invocation: false`，其他 host 依同一指令邊界執行。
+五個核心 skills 與三個獨立 skills 都只在你明確點名呼叫時啟動，例如 `$delivery-harness`；亦可繼續已呼叫的工作。一般任務不會自動跑 Harness 分流、文件同步、Epic 紀錄或 PLAN/RUN。安裝、專案指令與既有文件都不代表呼叫。被呼叫的 skill 保留必要檢查與依賴；新的頂層階段需要明確要求。Codex 設定為 `allow_implicit_invocation: false`，其他 host 依同一指令邊界執行。
 
 相關選擇尚未解決，或既有決定需要參考背景時，使用[參考選擇規則](skills/delivery-harness/references/reference-selection.md)與[可選目錄](skills/delivery-harness/references/option-library/README.md)。兩者都不是前置條件，也不授予執行權限；既有決定與批准仍有效。
 
@@ -78,11 +76,11 @@ Use $delivery-harness to implement the approved plan. Create a branch and commit
 ```
 
 ```text
-The delivery is complete. Use $product-activation for the production release targets, configure only the exact external actions I approve, verify each result by read-back, and stop after recording activation readiness and the measurement-window handoff.
+The delivery is complete. Use $delivery-harness to perform the external setup rows in docs/DEPLOYMENT.md for the production release targets, configure only the exact actions I approve, verify each result by read-back, and record the Measurement Sources status.
 ```
 
 ```text
-Use $seo-growth-review to audit this production website, reconcile Search Console visibility with GA4 on-site outcomes, prioritize evidence-backed keyword and page opportunities, and route every proposed change without modifying the site or external accounts.
+Use $growth-review to read back every surface of this released product with its own lens, reconcile the verified measurement sources against the Growth Contract, prioritize evidence-backed opportunities per surface, and route every proposed change without modifying the product or external accounts.
 ```
 
 ## 包含的內容
@@ -92,18 +90,16 @@ Use $seo-growth-review to audit this production website, reconcile Search Consol
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html` |
-| `delivery-harness` | 範圍路由、授權、任務、整合、驗證，以及需要時的 PLAN/RUN |
-| `code-security-review` | 準確候選的安全維度：findings、工具、覆蓋與 exclusions |
-| `product-activation` | `docs/ACTIVATION.md`、外部設定、行為證明、量測交接與 `aso-and-store-launch`、`agent-directory`、`geo-readback` profile |
-| `seo-growth-review` | Production SEO 與自然流量證據；預設直接回覆，明確要求時才另存報告，另含 `pre_launch` 模式與 Day 7、Day 30 的 `growth_review` 讀回 |
+| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源，以及需要時的 PLAN/RUN |
+| `growth-review` | 依 Surface Catalog 逐 surface 各用一個 lens：搜尋與答案引擎、商店列表、registry 與目錄、bot 平台，以及團隊經營的帳號；含 `pre_launch`、`baseline`、Day 7 與 Day 30 `growth_review` 與 `traffic_drop` 模式，直接回覆 |
 
 ## 獨立 skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗，並草擬 Launch Reach Plan。[GTM Content](standalone-skills/gtm-content/SKILL.md) 準備各渠道草稿、素材、日曆與附兩個 hook 的各渠道變體。
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗、延伸 PRD 的 Launch Window，並準備各渠道草稿、素材、日曆與附兩個 hook 的各渠道變體。
 
 [README Studio](standalone-skills/readme-studio/SKILL.md) 用實際展示編寫專案 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 驗證 release artifact 與使用者安裝路徑。
 
-這四個完整 skill 目錄須另行向 host 註冊；`install.sh` 只安裝七個核心 skills。註冊、build、下載、簽章、發佈、排程與帳戶變更保留各自授權。沿用既有產品與量測紀錄，不新增 review wave。
+這三個完整 skill 目錄須另行向 host 註冊；`install.sh` 只安裝五個核心 skills。註冊、build、下載、簽章、發佈、排程與帳戶變更保留各自授權。沿用既有產品與量測紀錄，不新增 review wave。
 
 ## 各部分如何組合在一起
 
@@ -115,7 +111,7 @@ flowchart LR
   Harness --> Review["最終 SHA 的一次合併 review"] --> Tests["一次 broad final validation"] --> C["固定候選 C"]
   C -->|managed| A["僅 managed：archive-only A"] --> Publish["已授權候選發佈與適用 Preview"]
   C -->|direct| Publish
-  Publish --> Main["另行授權 exact-SHA main landing"] --> Activate["逐 target Activation"] --> Outcome["量測成效與可選 SEO review"]
+  Publish --> Main["另行授權 exact-SHA main landing"] --> Setup["逐 target 外部設定讀回"] --> Outcome["量測成效與可選 growth review"]
 ```
 
 初次 UI 交付須先完成設計與所有適用自查，才能進入 Harness 執行。依[作者自查](skills/delivery-harness/references/pre-delivery-self-review.md)，在下表的 Product、方向與 HiFi 既有出口完成檢查。
@@ -141,7 +137,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 | HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。一次診斷 wave、一批集中修復與一次受影響範圍複查。保留必要瀏覽器覆蓋、Impeccable `critique` **與** `audit`、四捨五入的 H1–H9 總平均 **至少 85** 及每項 **至少 80**，再取得 Visual Approval。未變證據連同身分沿用。此階段保有同樣的兩次 review 預算；之後的缺陷走隔離修復，並對修復差異做 scoped review。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），findings 分為 blocking 與 notes，另加一次定向複查。複查後每個剩餘或新缺陷各成一筆有界修復，附自己的聚焦 verifier，並只對修復差異做 scoped review（finding、修復差異、直接消費者）；差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑，scoped review 不佔用 attempt 預算。除非修復碰到 UI 頁面，否則不重跑 Final UI Acceptance，碰到時只重跑該頁面；broad final validation 每個候選於最後跑一次。環境受阻的 attempt 不佔用預算。 |
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
-| Activation | 逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。 |
+| 外部設定 | `docs/DEPLOYMENT.md` 每個動作一列 External Console Setup，另有 Measurement Sources 表。逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。 |
 
 缺少 `review_policy` 時保留舊版 `per_mission` 行為。保留凍結 PLAN/RUN pin 與歷史批准，不可改 node 名稱重設已用 attempts。預算用完後，剩餘缺陷走隔離修復，並對每個修復差異做 scoped review；沒有額外 review 輪次。可執行差異必須有安全審查，缺少時報 `UNVALIDATED`，不能報 PASS。僅含 docs、copy、Epic、證據或簿記的差異改記 `security: not_applicable (<reason>)` 並列出路徑。範圍不相交而沿用的 PASS 保留原始 SHA，不得改稱全新。 HiFi 初審涵蓋每個 audit 軸；複查只在受影響頁面與狀態重跑 critique 和 audit，仍保留完整證據矩陣。
 
@@ -166,7 +162,7 @@ remove_worktrees, delete_branches
 
 | 路徑 | 用途 |
 | --- | --- |
-| `skills/` | 七個 canonical skills、references、assets、templates 與來源測試 |
+| `skills/` | 五個 canonical skills、references、assets、templates 與來源測試 |
 | `standalone-skills/` | 另行註冊的可選 skills |
 | `assets/` | README 封面素材 |
 | `docs/` | 現行索引與任務紀錄 |
@@ -201,13 +197,15 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 安全與資料保護
 
-憑證與使用者資料不得進入儲存庫。保留無關檔案、worktree 與備份，刪除或替換須有準確 owner 授權。唯讀安全審查不會擅自安裝 scanner、改程式或探測線上 target。詳見[安全審查](skills/code-security-review/SKILL.md)與[資料保護](skills/delivery-harness/references/governance/development-rules.md#protect-local-data)。
+憑證與使用者資料不得進入儲存庫。保留無關檔案、worktree 與備份，刪除或替換須有準確 owner 授權。唯讀安全審查不會擅自安裝 scanner、改程式或探測線上 target。詳見[安全審查](skills/delivery-harness/references/security-review.md)與[資料保護](skills/delivery-harness/references/governance/development-rules.md#protect-local-data)。
 
 ## 授權
 
 [MIT](LICENSE)。重用第三方程式與素材時保留授權與署名。
 
 ## 版本紀錄
+
+- **0.73.0** — 一個專案就是一組 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 種發布面（新增 MCP server、skill 與 plugin、library、messaging bot、marketplace app、assistant listing、container 與 internal service）和五種存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 寫在 PRD Growth Contract；Shape 列新增 `tool` 與 `content` track，Launch Window 新增 Destination 欄。bundle 從七個 skills 縮成五個：`code-security-review` 成為 harness 的安全 lens（`references/security-review.md`），`product-activation` 收進 deployment record（External Console Setup 列加上 Measurement Sources 表，設定目錄在 `references/external-setup.md`），`seo-growth-review` 改為 `growth-review`，逐一 surface 用各自的 lens 讀回，並從專案自己的 stack decisions 解析供應商。`gtm-content` 併入 `go-to-market`，未使用的 templates、死碼與重複的 validator CLI 一併移除。
 
 - **0.72.1** — 任務通過時 worker 回傳 `WORKER_RESULT`；阻塞或失敗的任務回傳 `worker_result: null` 的 graph node result，驗證、review 與整合權保留在 parent。
 
@@ -216,7 +214,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.71.0** — 每個專案都明確宣告自己的形狀：PRD At a Glance 新增 `Shape` 列，寫明 track、companion 公開介面與 console 類型，`## Growth Contract` 記錄 north star 與 Day 7、Day 30 目標、再觸及機制、discovery surfaces 與 launch window。各 track 的必要 UI 介面與交付基礎、`agentic-operations-console` 架構 profile，以及 store launch、agent directory 與 GEO 讀回的 activation profile，把流程從 web 延伸到 app 與 agent 產品。`seo-growth-review` 新增 `pre_launch` 模式與 Day 7、Day 30 的 `growth_review` 讀回並餵給下一輪 PRD delta，go-to-market 草擬 Launch Reach Plan，GTM Content 把一份源內容打包成各渠道變體並附兩個 hook。
 
 - **0.70.0** — 每個候選階段保有兩次 review 預算：一次初審與一次定向複查；須 owner 授權的額外輪次與後繼 review node 移除。複查後每個剩餘或新缺陷各成一筆隔離修復，附自己的聚焦 verifier，並只對修復差異做 scoped review——差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑、既有 PASS 沿用，broad final validation 每個候選於最後跑一次。managed 路線記錄修復範圍與 scoped PASS，owner 選擇的 `mvp` delivery profile 把小型專案或一週 MVP 壓縮到最多四個 owner gate。
-
-- **0.69.0** — Discovery 追加第四個 Ambition 段落，`PRD.md` 新增 `## Ambition` 與 Metrics 的 `Stretch` 欄，PRD 各輪不再累加到同一份檔案：每輪發布與其 Epic 對齊的 delta。Epic 紀錄其 delta 與 ambition rung，PLAN 凍結 `prd-delta` 來源，範圍檢查把 mission trace 綁到所屬 delta 的需求 ID。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

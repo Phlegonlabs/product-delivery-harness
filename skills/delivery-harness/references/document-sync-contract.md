@@ -1,6 +1,6 @@
 # Shared Invocation Document Check
 
-Use this check at the first invocation of an explicitly requested skill workflow and when [Project Entry](governance/task-and-handoff.md#project-entry-and-current-work) says to rerun it. It is read-only by default and does not launch another skill, probe another host, install software, fetch a public latest version, or grant permission. A public-only SEO review with no repository records the repository portion as not applicable.
+Use this check at the first invocation of an explicitly requested skill workflow and when [Project Entry](governance/task-and-handoff.md#project-entry-and-current-work) says to rerun it. It is read-only by default and does not launch another skill, probe another host, install software, fetch a public latest version, or grant permission. A public-only growth review with no repository records the repository portion as not applicable.
 
 ## Inventory And Observe
 

@@ -104,7 +104,6 @@ EXPIRY_BOUNDARIES = {"wave_closed", "run_complete", "explicit_revocation"}
 # blocked/complete run can retain historical authorization, but must not be
 # resumed by a selector until its parent explicitly transitions it back.
 RUN_DISPATCH_STATUSES = {"ready", "running"}
-SUPPORTED_RUN_SCHEMA_VERSIONS = {11}
 CURRENT_PLAN_SCHEMA_VERSION = 6
 CURRENT_RUN_SCHEMA_VERSION = 11
 CURRENT_SCHEMA_PAIR = (CURRENT_PLAN_SCHEMA_VERSION, CURRENT_RUN_SCHEMA_VERSION)

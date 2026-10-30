@@ -18,7 +18,7 @@ DEFAULT_PATHS = (
     "AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "docs/DOCUMENTS.md",
     "docs/product/PRD.md", "docs/product/architecture.md",
     "docs/product/stack-decisions.md", "docs/design/ui-design.md",
-    "docs/DEPLOYMENT.md", "docs/ACTIVATION.md", "docs/goal/PLAN.md",
+    "docs/DEPLOYMENT.md", "docs/goal/PLAN.md",
     "docs/goal/RUN.md",
 )
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
@@ -97,7 +97,7 @@ def impact_for(name, reason):
         artifacts, stages, checks = ["bound Epic scope", "PRD baseline"], ["intake", "product", "delivery"], ["delta requirement IDs and TEST obligations", "Epic and PLAN delta binding"]
     elif name.startswith("docs/design/"):
         artifacts, stages, checks = ["HiFi", "legacy wireframes when pinned", "conditional design-system pair", "implementation"], ["design", "delivery"], ["UI contract", "product interactions", "visual and accessibility evidence"]
-    elif filename in {"DEPLOYMENT.md", "ACTIVATION.md"}:
+    elif filename == "DEPLOYMENT.md":
         artifacts, stages, checks = ["release evidence", "operational readiness"], ["deployment", "activation"], ["environment isolation", "build readback", "recovery and readiness"]
     elif name.startswith("docs/epics/"):
         artifacts, stages, checks = ["referenced PRD requirements", "affected live artifacts"], ["intake", "delivery"], ["Epic references and baseline", "accepted scope and outcomes"]

@@ -2,10 +2,12 @@
 """Verify that a project's Skill Bindings pin the skills they bind.
 
 Reads the one active Skill Bindings table in a project's AGENTS.md. Every slot
-must bind one exact skill name and carry a pinned SHA-256 of the complete skill
-tree. The checker recomputes the hash and fails on prose or a
-compound binding, a mismatch, an unpinned binding, or a skill it cannot locate.
-Changing a bound skill's content therefore requires an explicit pin update,
+must bind one exact target and carry a pinned SHA-256 digest: stage slots bind
+installed skill trees; the `code_security_verification` slot binds the Harness
+security reference `delivery-harness/references/security-review.md` by file
+digest. The checker recomputes each hash and fails on prose or a
+compound binding, a mismatch, an unpinned binding, or a target it cannot
+locate. Changing bound content therefore requires an explicit pin update,
 which is the review moment: a skill update is a code change to the instruction
 path.
 
@@ -225,6 +227,60 @@ def bound_skill_name(cell: str) -> str | None:
     return value
 
 
+SECURITY_REFERENCE = "delivery-harness/references/security-review.md"
+
+
+def locate_reference(reference: str, skill_dirs: list[Path]) -> Path | None:
+    for directory in skill_dirs:
+        candidate = directory / reference
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def hash_reference(path: Path) -> str:
+    content = path.read_bytes()
+    if path.suffix.casefold() in TEXT_SUFFIXES:
+        content = content.replace(b"\r\n", b"\n")
+    return hashlib.sha256(content).hexdigest()
+
+
+def check_security_reference_binding(
+    cell: str, pin: str, number: int, skill_dirs: list[Path], hashes: dict[str, str]
+) -> list[str]:
+    value = cell.strip().strip("`")
+    if value != SECURITY_REFERENCE:
+        return [
+            f"line {number}: slot 'code_security_verification' must bind "
+            f"`{SECURITY_REFERENCE}` with its pinned SHA-256; the former "
+            "code-security-review skill is folded into delivery-harness, so "
+            f"re-point this binding and update the pin (got {cell!r})"
+        ]
+    located = locate_reference(value, skill_dirs)
+    if located is None:
+        return [
+            f"line {number}: bound reference {value!r} for slot "
+            f"'code_security_verification' not found under any skill directory"
+        ]
+    try:
+        current = hash_reference(located)
+    except OSError as exc:
+        return [f"line {number}: cannot hash bound reference {value!r}: {exc}"]
+    hashes[SECURITY_REFERENCE] = current
+    if not PIN_RE.match(pin):
+        return [
+            f"line {number}: {SECURITY_REFERENCE} is bound without a pinned "
+            f"hash (current: {current})"
+        ]
+    if pin != current:
+        return [
+            f"line {number}: pinned hash for {SECURITY_REFERENCE} does not match "
+            f"the installed reference (pinned {pin[:12]}..., installed "
+            f"{current[:12]}...); review the change, then update the pin deliberately"
+        ]
+    return []
+
+
 def locate_skill(name: str, skill_dirs: list[Path]) -> Path | None:
     for directory in skill_dirs:
         candidate = directory / name / "SKILL.md"
@@ -274,6 +330,19 @@ def check_bindings(
     findings.extend(parse_findings)
     for slot, cell, pin, number in rows:
         if slot not in STAGE_SLOTS[stage] and cell.strip("`") == pin == "pending":
+            continue
+        if slot == "code_security_verification" and slot in STAGE_SLOTS[stage]:
+            findings.extend(
+                check_security_reference_binding(cell, pin, number, skill_dirs, hashes)
+            )
+            continue
+        if (
+            slot == "code_security_verification"
+            and slot not in STAGE_SLOTS[stage]
+            and cell.strip().strip("`") == SECURITY_REFERENCE
+        ):
+            if not PIN_RE.fullmatch(pin):
+                findings.append(f"line {number}: deferred binding must use a full-tree pin or pending/pending")
             continue
         name = bound_skill_name(cell)
         if slot == "style_integration" and slot in STAGE_SLOTS[stage] and name != "frontend-design":

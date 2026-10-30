@@ -11,8 +11,7 @@ REPO = SKILLS.parent
 GOVERNANCE = SKILLS / "delivery-harness/references/governance"
 NAMES = (
     "delivery-harness", "product-definition-builder", "ui-design-builder",
-    "design-system-compiler", "code-security-review", "product-activation",
-    "seo-growth-review",
+    "design-system-compiler", "growth-review",
 )
 
 
@@ -57,7 +56,7 @@ class EnhancementEntryContractTests(unittest.TestCase):
         core = sorted(SKILLS.glob("*/SKILL.md"))
         standalone = sorted((REPO / "standalone-skills").glob("*/SKILL.md"))
         self.assertEqual(len(core), len(NAMES))
-        self.assertEqual(len(standalone), 4)
+        self.assertEqual(len(standalone), 3)
         for path in core + standalone:
             with self.subTest(skill=path.parent.name):
                 metadata = yaml.safe_load(

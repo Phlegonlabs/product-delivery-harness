@@ -28,19 +28,19 @@ These rules own skill-source reading, Git, release verification, installation, a
 
 ## Update Local Skills
 
-- After a verified formal release, compare its seven-skill bundle digest with the observed installed digest. When different, complete one local update at a quiescent boundary in the release handoff; a feature or development push does not replace the installed release. An explicitly requested development installation is a separate channel and never becomes the official release by implication. Quiesce only relevant active skill-using sessions, then run `./install.sh` (in Git Bash on Windows) against `~/.agents/skills/`. It installs `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, `code-security-review`, `product-activation`, and `seo-growth-review`; retires `full-harness`, `prd-builder`, and `product-design-builder`; and writes prior copies under `~/.agents/skill-backups/product-delivery-harness/`. Never replace the installer with manual move/copy commands; never overwrite or delete prior copies or backups. A failed install rolls itself back. If post-install verification fails, rerun the installer from the previous release tag so it backs up the bad copy first. Restart the relevant host only after successful verification and when needed to load changed skills. If installation cannot finish, report it pending; do not claim the release handoff fully complete.
+- After a verified formal release, compare its five-skill bundle digest with the observed installed digest. When different, complete one local update at a quiescent boundary in the release handoff; a feature or development push does not replace the installed release. An explicitly requested development installation is a separate channel and never becomes the official release by implication. Quiesce only relevant active skill-using sessions, then run `./install.sh` (in Git Bash on Windows) against `~/.agents/skills/`. It installs `delivery-harness`, `product-definition-builder`, `ui-design-builder`, `design-system-compiler`, and `growth-review`; retires `full-harness`, `prd-builder`, `product-design-builder`, `code-security-review`, `product-activation`, and `seo-growth-review`; and writes prior copies under `~/.agents/skill-backups/product-delivery-harness/`. Never replace the installer with manual move/copy commands; never overwrite or delete prior copies or backups. A failed install rolls itself back. If post-install verification fails, rerun the installer from the previous release tag so it backs up the bad copy first. Restart the relevant host only after successful verification and when needed to load changed skills. If installation cannot finish, report it pending; do not claim the release handoff fully complete.
 - Per-runtime copies (Codex plugin, Claude plugin, Pi extension) stay retired. Do not install, update, or reinstall them.
 
 ## Required Verification
 
-Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks selected from changed files and their negative cases. The candidate's one full run is the required matrix below, from the repository root. CI on the candidate SHA is that run; a local full run happens only when CI is unavailable. Source maintenance does not create a consumer Product Definition, UI approval, Activation pass or managed archive merely to edit a skill. Preserve all suites.
+Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks selected from changed files and their negative cases. The candidate's one full run is the required matrix below, from the repository root. CI on the candidate SHA is that run; a local full run happens only when CI is unavailable. Source maintenance does not create a consumer Product Definition, UI approval, external setup pass or managed archive merely to edit a skill. Preserve all suites.
 
 For required UI browser checks, prepare dependencies with `npm ci` and `npx playwright install chromium` when missing or changed, then set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`. Reuse only an observed installation matching the current lockfile and Playwright browser revision; do not reinstall it for every task. Linux CI installs Chromium with `--with-deps`. Missing prerequisites must fail required browser verification. Python test dependencies follow the current requirements file.
 
 ```text
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts skills/product-activation/scripts skills/seo-growth-review/scripts
+python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts
 python skills/delivery-harness/scripts/docs_weight.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -v
 # or, in parallel with per-module logs: python skills/delivery-harness/scripts/ci_test_shards.py run --suite harness --workers 8
@@ -51,8 +51,6 @@ $env:HARNESS_GOLDEN_PATH='1'; python -m unittest discover -s skills/delivery-har
 python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
 python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
 python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
-python -m unittest discover -s skills/product-activation/scripts/tests -v
-python -m unittest discover -s skills/seo-growth-review/scripts/tests -v
 git diff --check
 ```
 

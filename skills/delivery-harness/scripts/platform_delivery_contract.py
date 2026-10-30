@@ -90,20 +90,6 @@ def platform_delivery_shape_errors(plan: dict[str, Any]) -> list[str]:
     return errors
 
 
-def planned_prd_must_ids(plan: dict[str, Any]) -> set[str]:
-    """Return planned must-have PRD feature trace IDs declared by the PLAN."""
-
-    return {
-        trace["id"]
-        for trace in plan.get("traces", [])
-        if isinstance(trace, dict)
-        and isinstance(trace.get("id"), str)
-        and trace["id"].startswith("PRD-")
-        and trace.get("priority") == "must"
-        and trace.get("disposition") == "planned"
-    }
-
-
 def _acceptance_test_ids(value: Any, path: str, errors: list[str]) -> list[str]:
     ids = _strings(errors, path, value)
     if any(not item.startswith("TEST-") for item in ids):

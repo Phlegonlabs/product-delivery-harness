@@ -54,6 +54,25 @@ SURFACE_CLASSES = {
     "cli",
     "agent",
     "other_nonpublic",
+    "mcp_server",
+    "skill_or_plugin",
+    "library_or_sdk",
+    "messaging_bot",
+    "marketplace_app",
+    "assistant_listing",
+    "container_or_self_hosted",
+    "internal_service",
+}
+# Surface classes a Public discoverability=yes target may use.
+DISCOVERABLE_SURFACE_CLASSES = {
+    "hosted_web",
+    "mcp_server",
+    "skill_or_plugin",
+    "library_or_sdk",
+    "messaging_bot",
+    "marketplace_app",
+    "assistant_listing",
+    "container_or_self_hosted",
 }
 DISCOVERABILITY_VALUES = {"yes", "no"}
 NO_INDEPENDENT_ARTIFACT = "no independent artifact"
@@ -342,9 +361,12 @@ def parse_release_targets(
             findings.append(
                 f"architecture: release target {target_id!r} has invalid Public discoverability {fields['public discoverability']!r}"
             )
-        elif public_discoverability == "yes" and surface_class != "hosted_web":
+        elif (
+            public_discoverability == "yes"
+            and surface_class not in DISCOVERABLE_SURFACE_CLASSES
+        ):
             findings.append(
-                f"architecture: release target {target_id!r} Public discoverability=yes requires Surface class hosted_web"
+                f"architecture: release target {target_id!r} Public discoverability=yes requires a discoverable Surface class, not {fields['surface class']!r}"
             )
         if expected and surface not in expected:
             findings.append(

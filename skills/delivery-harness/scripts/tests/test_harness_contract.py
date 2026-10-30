@@ -112,7 +112,7 @@ class ContractDigestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             create_required_skills(root)
-            missing = root / "skills" / "product-activation"
+            missing = root / "skills" / "growth-review"
             shutil.rmtree(missing)
             with self.assertRaises(FileNotFoundError) as raised:
                 contract_digest(root / "skills")

@@ -19,10 +19,11 @@ new retry budget.
 
 The generating owner repairs accepted-scope defects. A contract defect returns to
 `product-definition-builder`; a design-source defect returns to
-`ui-design-builder`; a missing external action returns to `product-activation`.
+`ui-design-builder`; a missing external action returns to the External Console Setup rows in `docs/DEPLOYMENT.md`.
 A repair that changes code or approved inputs creates a new candidate.
 
-Security, SEO, Activation, and Final UI Acceptance reviews stay read-only. They
+Security, growth, and Final UI Acceptance reviews stay read-only; external setup
+rows mutate only under their own grant. They
 never become the author, remediator, or external-target mutator. Return concrete
 findings to the owning flow above.
 

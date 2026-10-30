@@ -46,8 +46,7 @@ class CrossSkillPipelineTests(unittest.TestCase):
         self.assertIn("Unknown outcome blocks that operation until reconciled", acceptance)
         self.assertIn("rollback trigger", deployment)
         self.assertIn("actual build/artifact", deployment)
-        self.assertIn("cost alerts", self.read("product-activation/SKILL.md"))
-        self.assertIn("publicly discoverable surfaces", self.read("seo-growth-review/SKILL.md"))
+        self.assertIn("one lens per surface", self.read("growth-review/SKILL.md"))
 
     def read(self, relative_path: str) -> str:
         return (SKILLS_ROOT / relative_path).read_text(encoding="utf-8")
@@ -249,8 +248,6 @@ class CrossSkillPipelineTests(unittest.TestCase):
             self.assertIn(boundary, publication)
         self.assertIn("A post-A failure preserves A and its archived RUN", harness)
         self.assertIn("on the same non-default run branch, create a fresh PLAN/RUN from exact A", promotion)
-        self.assertIn("Activation readiness, outcome review and SEO keep their separate post-production gates and authorization", promotion)
-        self.assertIn("Separately authorized Activation preparation cannot claim release readiness", promotion)
         self.assertLess(
             promotion.index("## Managed RUN Archive Before Promotion"),
             promotion.index("## Candidate Gate"),
@@ -260,49 +257,28 @@ class CrossSkillPipelineTests(unittest.TestCase):
             promotion.index("## Promote To Main"),
         )
 
-    def test_activation_is_create_once_post_delivery_and_outcome_bound(self) -> None:
-        product = self.read("product-definition-builder/references/stages/product-definition.md")
-        lifecycle = self.read("product-definition-builder/references/artifact-lifecycle.md")
-        activation = self.read("product-activation/SKILL.md")
-        activation_stage = self.read("product-activation/references/stages/activation.md")
-        delivery = self.read("delivery-harness/references/stages/managed-delivery.md")
+    def test_security_reviewer_reads_one_reference_and_returns_evidence_only(self) -> None:
+        reference = self.read("delivery-harness/references/security-review.md")
 
-        self.assertIn("does not already exist", product)
-        self.assertIn("docs/ACTIVATION.md", lifecycle)
-        self.assertIn("Never create, edit, reopen, or extend `docs/goal/PLAN.md`", activation)
-        self.assertIn("verified `MS-*` measurement sources", activation_stage)
-        self.assertIn("Final readiness, measurement handoff, outcome review and live SEO review retain their applicable release and production verification; no RUN grant authorizes them.", delivery)
-        self.assertIn("preparation may start at a fixed initial build before dependent features, under separate authorization.", delivery)
-
-    def test_security_reviewer_reads_full_stage_and_returns_evidence_only(self) -> None:
-        entry = self.read("code-security-review/SKILL.md")
-        stage = self.read("code-security-review/references/stages/security-review.md")
-        contract = self.read("code-security-review/references/review-contract.md")
-
-        self.assertIn("read both complete files", entry)
-        self.assertIn("references/stages/security-review.md", entry)
-        self.assertIn("references/review-contract.md", entry)
-        self.assertIn("consult `../delivery-harness/references/reference-selection.md`", stage)
-        self.assertIn(
-            "`../delivery-harness/references/option-library/security.md`",
-            stage,
-        )
-        self.assertNotIn("`../../../delivery-harness/", stage)
-        self.assertIn("source to sink", stage)
-        self.assertIn("A reviewer child never starts a nested scan", contract)
-        self.assertIn("does not edit PLAN or RUN or start nested agents", contract)
-        self.assertIn("Do not change code", stage)
-        self.assertIn("source_to_sink", contract)
-        self.assertIn("coverage.status", contract)
-        self.assertIn("never eligible for the byte-identical-tree skip", contract)
-        self.assertIn("The reviewer never delegates", entry)
+        self.assertIn("read-only review authority only", reference)
+        self.assertIn("[reference-selection.md](reference-selection.md)", reference)
+        self.assertIn("[option-library/security.md](option-library/security.md)", reference)
+        self.assertIn("source to sink", reference)
+        self.assertIn("not a second PASS standard", reference)
+        self.assertIn("never starts a nested scan", reference)
+        self.assertIn("or change PLAN or RUN", reference)
+        self.assertIn("Do not change code", reference)
+        self.assertIn("source_to_sink", reference)
+        self.assertIn("coverage.status", reference)
+        self.assertIn("never eligible for the byte-identical-tree skip", reference)
+        self.assertIn("The reviewer never delegates", reference)
+        self.assertIn("verification-gates.md#unified-code-security-review", reference)
 
     def test_downstream_skills_always_run_the_full_product_gate_with_repo_root(self) -> None:
         sources = {
             "ui design": self.read("ui-design-builder/references/stages/ui-design.md"),
             "wireframes": self.read("ui-design-builder/references/wireframe-guide.md"),
             "design system": self.read("design-system-compiler/references/stages/design-compilation.md"),
-            "activation": self.read("product-activation/references/stages/activation.md"),
         }
         required = (
             "check_product_package.py",
@@ -317,11 +293,6 @@ class CrossSkillPipelineTests(unittest.TestCase):
             with self.subTest(label=label):
                 for marker in required:
                     self.assertIn(marker, source)
-        self.assertIn("always run", sources["activation"])
-        self.assertNotIn(
-            "When the PRD carries the Product Definition approval marker",
-            sources["activation"],
-        )
 
     def test_ui_entry_selects_new_and_retained_contracts_consistently(self) -> None:
         entry = self.read("ui-design-builder/SKILL.md")

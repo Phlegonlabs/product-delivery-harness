@@ -24,9 +24,6 @@ from harness_manifest import (
     is_current_pair,
     is_full_sha,
     execution_covers,
-    load_plan,
-    load_run,
-    load_worker_result,
     parent_owned_path,
     path_in_scopes,
     plan_digest,
@@ -1377,28 +1374,13 @@ def _result_document(status: str, errors: list[dict[str, str]], result: dict[str
 
 
 def _parser() -> argparse.ArgumentParser:
+    from validate_result import add_observation_arguments
+
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", required=True, help="Path to canonical PLAN.md")
     parser.add_argument("--run", required=True, help="Path to canonical RUN.md")
     parser.add_argument("--result", required=True, help="Path to worker-result Markdown")
-    parser.add_argument("--observed-head-sha", help="Legacy parent-observed worker head SHA")
-    parser.add_argument(
-        "--observed-changed-file",
-        action="append",
-        default=None,
-        help="Parent-observed changed file; repeat for every path",
-    )
-    parser.add_argument(
-        "--ancestry-confirmed",
-        action="store_true",
-        help="Assert the parent observed base as an ancestor of the worker head",
-    )
-    parser.add_argument(
-        "--verifier-result",
-        action="append",
-        default=[],
-        help="Parent-retained verifier_runtime.py JSON result; repeat for each verifier",
-    )
+    add_observation_arguments(parser, help_texts=True)
     parser.add_argument(
         "--repo-root",
         type=Path,
@@ -1408,36 +1390,30 @@ def _parser() -> argparse.ArgumentParser:
 
 
 def main(argv: list[str] | None = None) -> int:
+    # validate_result imports this module's validators at its module level;
+    # import the shared dispatch here so the module graph stays acyclic.
+    from validate_result import (
+        load_validation_inputs,
+        worker_observation_kwargs,
+        worker_repo_root_required,
+    )
+
     args = _parser().parse_args(argv)
     errors: list[dict[str, str]] = []
-    result: dict[str, Any] | None = None
-    try:
-        plan = load_plan(args.plan)
-        run = load_run(args.run)
-        result = load_worker_result(args.result)
-        retained_verifier_results = [
-            json.loads(Path(path).read_text(encoding="utf-8"))
-            for path in args.verifier_result
-        ]
-    except (ManifestError, OSError, ValueError) as exc:
-        _issue(errors, "manifest_load_failed", "input", str(exc))
+    loaded = load_validation_inputs(
+        args.plan,
+        args.run,
+        worker_path=args.result,
+        verifier_paths=args.verifier_result,
+    )
+    if isinstance(loaded, str):
+        _issue(errors, "manifest_load_failed", "input", loaded)
         print(json.dumps(_result_document("FAIL", errors), sort_keys=True, separators=(",", ":")))
         return 1
 
+    plan, run, _, result, retained_verifier_results = loaded
     live_observation: dict[str, Any] | None = None
     if is_current_pair(plan, run):
-        worker_path = None
-        if isinstance(result, dict):
-            worker_path = next(
-                (
-                    worker.get("worktree_path")
-                    for worker in run.get("workers", [])
-                    if isinstance(worker, dict)
-                    and worker.get("mission_id") == result.get("mission_id")
-                    and worker.get("lease_id") == result.get("lease_id")
-                ),
-                None,
-            )
         if args.repo_root is not None:
             try:
                 live_observation = _observe_git_worker(run, result, args.repo_root)
@@ -1450,7 +1426,7 @@ def main(argv: list[str] | None = None) -> int:
                     )
             except ManifestError as exc:
                 _issue(errors, "live_observation_failed", "--repo-root", str(exc))
-        elif isinstance(worker_path, str) and Path(worker_path).is_dir():
+        elif worker_repo_root_required(run, result):
             _issue(
                 errors,
                 "repo_root_required",
@@ -1472,41 +1448,12 @@ def main(argv: list[str] | None = None) -> int:
         for message in validate_run(plan, run):
             _issue(errors, "invalid_run", "harness_run", message)
     if not errors:
-        observed_head = (
-            live_observation["head_sha"]
-            if live_observation is not None
-            else args.observed_head_sha
-        )
-        observed_changed = (
-            live_observation["changed_files"]
-            if live_observation is not None
-            else args.observed_changed_file
-        )
-        ancestry = (
-            live_observation["ancestry_confirmed"]
-            if live_observation is not None
-            else args.ancestry_confirmed
-        )
         errors.extend(
             validate_worker_result_data(
                 plan,
                 run,
                 result,
-                observed_head_sha=observed_head,
-                observed_changed_files=observed_changed,
-                ancestry_confirmed=ancestry,
-                retained_verifier_results=retained_verifier_results,
-                observed_commit_order=(
-                    live_observation["commit_order"]
-                    if live_observation is not None
-                    else None
-                ),
-                observed_task_changed_files=(
-                    live_observation["task_changed_files"]
-                    if live_observation is not None
-                    else None
-                ),
-                manifest_already_validated=True,
+                **worker_observation_kwargs(live_observation, args, retained_verifier_results),
             )
         )
 

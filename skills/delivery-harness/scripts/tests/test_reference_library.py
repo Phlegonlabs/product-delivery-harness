@@ -39,9 +39,7 @@ SKILL_FILES = {
     "ui-design-builder",
     "design-system-compiler",
     "delivery-harness",
-    "code-security-review",
-    "product-activation",
-    "seo-growth-review",
+    "growth-review",
 }
 
 
@@ -119,16 +117,6 @@ class ReferenceLibraryTests(unittest.TestCase):
                 selection_pointer = "../../../delivery-harness/references/reference-selection.md"
                 library_pointer = "../../../delivery-harness/references/option-library/"
                 pointer_root = ROOT / "skills"
-            elif name == "product-activation":
-                path = ROOT / "skills" / name / "references/stages/activation.md"
-                selection_pointer = "../delivery-harness/references/reference-selection.md"
-                library_pointer = "../delivery-harness/references/option-library/"
-                pointer_root = ROOT / "skills/product-activation"
-            elif name == "code-security-review":
-                path = ROOT / "skills" / name / "references/stages/security-review.md"
-                selection_pointer = "../delivery-harness/references/reference-selection.md"
-                library_pointer = "../delivery-harness/references/option-library/"
-                pointer_root = ROOT / "skills"
             else:
                 path = ROOT / "skills" / name / "SKILL.md"
             text = path.read_text(encoding="utf-8")
@@ -136,11 +124,11 @@ class ReferenceLibraryTests(unittest.TestCase):
                 selection_pointer = "references/reference-selection.md"
                 library_pointer = "references/option-library/"
                 pointer_root = ROOT / "skills/delivery-harness/references"
-            elif name not in {"product-definition-builder", "design-system-compiler", "code-security-review"}:
+            elif name not in {"product-definition-builder", "design-system-compiler"}:
                 selection_pointer = "../delivery-harness/references/reference-selection.md"
                 library_pointer = (
                     "../delivery-harness/references/option-library/"
-                    if name != "seo-growth-review"
+                    if name != "growth-review"
                     else None
                 )
                 pointer_root = ROOT / "skills"
@@ -180,20 +168,12 @@ class ReferenceLibraryTests(unittest.TestCase):
         harness = SELECTION.read_text(encoding="utf-8")
         self.assertIn("product runtime, product agent runtime, and the current development runtime", harness)
 
-        security = (ROOT / "skills/code-security-review/references/stages/security-review.md").read_text(encoding="utf-8")
+        security = (ROOT / "skills/delivery-harness/references/security-review.md").read_text(encoding="utf-8")
         self.assertIn("not a second PASS standard", security)
 
-        activation = (ROOT / "skills/product-activation/references/stages/activation.md").read_text(encoding="utf-8")
-        self.assertIn("adopted deployment, operations, or integration choice", activation)
-
-        seo_entry = (ROOT / "skills/seo-growth-review/SKILL.md").read_text(encoding="utf-8")
-        seo_stage = (ROOT / "skills/seo-growth-review/references/stages/seo-review.md").read_text(encoding="utf-8")
-        self.assertIn("[Workflow](references/stages/seo-review.md#workflow)", seo_entry)
-        workflow_start = seo_stage.index("## Workflow")
-        workflow_end = seo_stage.find("\n## ", workflow_start + 1)
-        seo_workflow = seo_stage[workflow_start:workflow_end if workflow_end != -1 else None]
-        self.assertIn("public, discoverable surface", seo_workflow)
-        self.assertIn("existing public-surface scope", seo_workflow)
+        growth_entry = (ROOT / "skills/growth-review/SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("[Workflow](references/stages/growth-review.md#workflow)", growth_entry)
+        self.assertIn("only when material to a finding", growth_entry)
 
     def test_readmes_describe_the_optional_catalog_in_each_language(self):
         for name in ("README.md", "README.zh-TW.md", "README.zh-CN.md", "README.es.md"):

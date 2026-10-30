@@ -60,7 +60,7 @@
 
 - 選型結論與理由 → 既有 architecture 文件章節。
 - 發佈與環境設定 → 既有 DEPLOYMENT 流程。
-- 實際設定與 read-back 證據 → 既有 ACTIVATION 紀錄。
+- 實際設定與 read-back 證據 → 既有 DEPLOYMENT 紀錄的 External Console Setup 與 Measurement Sources。
 - 各來源「已驗證／待驗證」狀態 → 既有 sources.md。
 本文件不觸發安裝、不觸發採購、不變更任何 skill 或 workflow 流程。
 

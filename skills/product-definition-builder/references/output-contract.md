@@ -12,7 +12,7 @@ This contract covers the owner-approved product, architecture, technology stack,
 
 It also publishes `docs/product/market-research.md` when the post-draft market-research gap pass ran and returned findings. That pass runs before Stack Decision and Product Definition approval so its findings and Platform Optimization Recommendations cannot silently stale an accepted package. Every recommendation gets an explicit owner decision before any accepted change is applied. When the user declined it, no web tool was available, confidential context prevented a safe query, or the role returned blocked, the package records that state explicitly. See `market-research-guide.md`.
 
-For a product with any deployable web, API/backend, mobile, desktop, or browser-extension release target, it also creates a one-time operational seed at `docs/ACTIVATION.md` from the sibling `product-activation` template when that path is absent. The seed maps release targets, every PRD metric, and every required `TEST-*` signal, but it contains no external authorization, account guess, secret value, or claim that a source is verified. An existing Activation record is owned by `product-activation` and is preserved byte-for-byte during product enhancement.
+For a product with any deployable web, API/backend, mobile, desktop, or browser-extension release target, it also seeds the `## Measurement Sources` table in `docs/DEPLOYMENT.md`: one row per PRD metric and each required `TEST-*` expected signal, with planned statuses and `@pending#pending` release bindings. The seed contains no external authorization, account guess, secret value, or claim that a source is verified; `delivery-harness` verifies each source against a real release.
 
 It specifies what each UI surface must show and do. It does not decide how the surface is composed or styled and creates no HTML reviewer.
 
@@ -43,8 +43,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `market-research.md` | Anyone questioning a product claim in `PRD.md` | What already exists out there, and what the evidence is |
 | `research-assessment.md` | Anyone deciding whether this product should have been drafted | What the pre-draft evidence supported, and what the gate decided |
 | `outcomes/YYYY-MM-DD-<release-set>.md` | The owner deciding what happens after a release | Immutable post-deployment measurements and the verdict |
-| `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, and what actually deployed |
-| `docs/ACTIVATION.md` | The owner or operator activating a delivered release | Which external actions and measurement sources are pending, configured, verified, blocked, or stale |
+| `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, which measurement sources are planned or verified, and what actually deployed |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 
 Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and its HiFi target are later downstream inputs; pinned legacy packages also retain `docs/design/wireframes.html`. Optional UI/design-system and operational records never override Product Definition. Research artifacts hold evidence behind cited `RA-*` and `MR-*` findings.
@@ -86,11 +85,11 @@ Use this structure:
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
 | Delivery profile | standard / mvp |
-| Shape | track: web / app / agent; companion: <public surface or none>; console: none / config-only / operations |
+| Shape | track: web / app / agent / tool / content; companion: <public surface or none>; console: none / config-only / operations |
 
 [One paragraph describing the product, user, and outcome.]
 
-The Shape row declares the delivery track on purpose. `track` is `web`, `app`, or `agent`; `companion` names the public companion surface or `none`; `console` is `none`, `config-only`, or `operations`. Keep the row consistent with the User Journeys, UI surfaces and release targets. An app track needs a companion public surface when AEO/SEO is required. An agent track needs a public docs surface or an explicit `none` with its reason. `console: operations` needs the console journeys in the Agentic Operations Console Pattern. A legacy package without the Shape row stays valid.
+The Shape row names the primary surface family; every surface still routes on its own through the [Surface Catalog](../../delivery-harness/references/surface-catalog.md). `track` is `web`, `app`, `agent`, `tool`, or `content`; `companion` names the public companion surface or `none`; `console` is `none`, `config-only`, or `operations`. Keep the row consistent with the User Journeys, UI surfaces and release targets. An app track needs a companion public surface when AEO/SEO is required. An agent or tool track needs a public docs surface or an explicit `none` with its reason. A content track may have no release target when the architecture records that `none` with its reason. `console: operations` needs the console journeys in the Agentic Operations Console Pattern. A legacy package without the Shape row stays valid.
 
 ## Enhancement Impact Record
 Include this section only in enhancement mode for a package without `docs/product/deltas/`; with deltas, this record lives in the PRD delta, not in `PRD.md`.
@@ -151,14 +150,14 @@ Rungs are better, not bigger. The outside judge is never the model or the owner'
 | --- | --- | --- |
 
 ### Discovery Surfaces
-| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing) | Owner stage | TEST or MS ID |
+| Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing / social / video_channel / newsletter / community / docs_site) | Owner stage | TEST or MS ID |
 | --- | --- | --- | --- |
 
 ### Launch Window
-| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
-| --- | --- | --- | --- | --- |
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
+| --- | --- | --- | --- | --- | --- |
 
-Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `seo`; the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap. Each discovery surface maps to a UI surface or release target that exists in this PRD.
+Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `growth` (`seo` remains a legacy alias of `growth`); the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive, and each row names one real destination: a path, listing, account or `none (reason)`. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap; an agent, tool or content track records a mechanism or a `none` row with its reason. A discovery surface of kind seo-cluster, geo-page, store-listing, directory or landing maps to a UI surface, release target or landing path that exists in this PRD. A presence surface (social, video_channel, newsletter, community, docs_site) is written as `<platform>:<handle-or-url>`, such as `instagram:@handle` or `docs:https://docs.example.com`; it names the account the team runs, not a build. Kinds and their default sources are listed in the [Surface Catalog](../../delivery-harness/references/surface-catalog.md). Channel classes: `owned` is an account, list or product surface the team controls; `earned` is a community, directory or press that decides independently; `search` is public pages and listing text that reach search and answer engines; `store` is store, registry or marketplace assets.
 
 ## Non-Goals
 - [Explicitly out of scope]
@@ -388,7 +387,7 @@ The owner receives one concise package review: product scope and non-goals; Must
 
 #### Human Review Presentation
 
-Before asking for Product Definition Approval, send a user-visible response with verified absolute Markdown links to the complete current PRD, architecture, and stack source; include every produced market/research artifact, its Platform Optimization Recommendations and decision statuses, and the applicable staged Deployment, Documents, and Activation seeds. Link the staging location while the candidate remains staged and canonical locations after publication. The response names what is ready and the review focus and requests an explicit approval decision. A summary, screenshot, tool-only output, panel-only open, or plain path cannot replace those links. Opening a viewer is convenience evidence only. If a linked file is missing, stale, or cannot be opened, report the blockage and do not claim approval readiness.
+Before asking for Product Definition Approval, send a user-visible response with verified absolute Markdown links to the complete current PRD, architecture, and stack source; include every produced market/research artifact, its Platform Optimization Recommendations and decision statuses, and the applicable staged Deployment and Documents seeds. Link the staging location while the candidate remains staged and canonical locations after publication. The response names what is ready and the review focus and requests an explicit approval decision. A summary, screenshot, tool-only output, panel-only open, or plain path cannot replace those links. Opening a viewer is convenience evidence only. If a linked file is missing, stale, or cannot be opened, report the blockage and do not claim approval readiness.
 
 ### Downstream UI Design
 
@@ -480,32 +479,27 @@ Produced by the pre-draft research-first assessment. `research-first-guide.md` o
 
 Every factual row follows `market-research-guide.md`'s source rules: a source ID, or `UNVALIDATED` with what was searched. The post-draft `market-research.md` reconciles against this file rather than researching the same ground twice. The gate itself is recorded in `PRD.md`'s `### Research Gate`; this file holds the evidence behind it. A `stop` gate leaves this file in the staging directory with no drafted package.
 
-## `docs/ACTIVATION.md`
+## `docs/DEPLOYMENT.md` Measurement Sources
 
-Create this operational seed only for a package with a deployable release target and only when the final path does not already exist. In short, `product-definition-builder` creates it only when absent. Resolve the template and checker from the sibling `product-activation` skill. If that sibling is unavailable, publish the core product package without an Activation file and report the missing optional handoff; do not invent a local substitute template.
+When the package has a deployable release target, seed the `## Measurement Sources` table of `docs/DEPLOYMENT.md` in the same approved move as the product package. The seed must:
 
-The seed must:
+- add exactly one row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, with a unique `MS-\d{3}` ID and the metric or expected-signal identity in `Signals`;
+- take each row's `Source role` from the Surface Catalog default for the release target's surface class, never from an assumed vendor;
+- record the owner when known; `Target`, `Environment`, and `Retrieval` carry names and destinations only, never values, and the seed holds no secret value;
+- bind every row to the real release-target ID with `@pending#pending` in place of the SHA and artifact, Status `planned`, and `Verified at` `pending`; no seed row claims a verified source, external authorization, or account access; and
+- pass `python "<delivery-harness-skill-root>/scripts/check_deployment.py" --deployment <staged DEPLOYMENT.md> --architecture <staged architecture.md>` before publication; the approved package and full Deployment record are one joined authority and must be staged together.
 
-- retain the template's exact headings, table headers, task boundary comments, and English machine anchors;
-- fill the product name and every known owner;
-- select `core` plus every known surface profile, recording rejected expected profiles as `n/a` with a reason;
-- list every stable release-target ID from `architecture.md`, including API/backend, Android, macOS, Windows, and other hybrid targets, without inventing a SHA or deployed identity; record a concrete Activation `n/a` disposition for a target that provably has no operational activation scope;
-- add exactly one Outcome Coverage row for every `## Metrics` metric and every `TEST-*` row marked `Required: Yes`, repeating the exact structured definition/obligation, baseline, target/guardrail, measurement window, and expected-signal values, scoped to that supported Activation target subset;
-- leave implementation-owned actions, routes, accounts, queries, release bindings, sources, evidence, authorization, and readiness visibly pending;
-- contain secret names only and no secret values; and
-- pass `python "<product-activation-skill-root>/scripts/check_activation.py" --activation <staged ACTIVATION.md> --prd <staged PRD.md> --architecture <staged architecture.md> --deployment <staged DEPLOYMENT.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root>` before publication; the approved package and full Deployment record are one joined authority and must be staged together.
-
-Publish a new seed flat at `docs/ACTIVATION.md` in the same approved move as the product package. Once the path exists, `product-activation` owns it. Product Definition reads it for context but never stages, overwrites, archives, resets, or treats its operational status as product approval.
+The deployment record refreshes in place; it is never archived with the product package. `delivery-harness` reconciles and verifies each source against a real release. Product Definition reads the verified rows for outcome reviews but never stages a release identity into the record or treats a source's operational status as product approval.
 
 ## `outcomes/YYYY-MM-DD-<release-set>.md`
 
 Produced only when the owner asks for an outcome review after a deployment, following the workflow's post-publish step. It is a post-deployment record, not part of the drafting package, and its absence from a package is normal. A saved review is immutable: write a new dated record for each review. One record covers one production release target.
 
-Use `assets/templates/OUTCOME_REVIEW.template.md`. Run the package, Deployment and Activation checkers on their own inputs first, then validate the record with `python "<product-definition-builder-skill-root>/scripts/check_outcome_review.py" --outcome docs/product/outcomes/YYYY-MM-DD-<release-set>.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --activation docs/ACTIVATION.md --repo-root <repository-root> --require-lifecycle`. The check joins the record to those inputs; it does not rerun them.
+Use `assets/templates/OUTCOME_REVIEW.template.md`. Run the package and Deployment checkers on their own inputs first, then validate the record with `python "<product-definition-builder-skill-root>/scripts/check_outcome_review.py" --outcome docs/product/outcomes/YYYY-MM-DD-<release-set>.md --prd docs/product/PRD.md --architecture docs/product/architecture.md --deployment docs/DEPLOYMENT.md --repo-root <repository-root> --require-lifecycle`. The check joins the record to those inputs; it does not rerun them.
 
 Rules:
 
-- Bind the record to the exact release: the Release SHA, artifact and checked time equal the Deployment PASS row, the Activation sha256 equals the current `docs/ACTIVATION.md` bytes, and the Activation Sources table lists every matching verified `MS-*` source and only those.
+- Bind the record to the exact release: the Release SHA, artifact and checked time equal the Deployment PASS row, the Deployment sha256 equals the current `docs/DEPLOYMENT.md` bytes, and the Activation Sources table lists every matching verified `MS-*` Measurement Source and only those, copying its `Verified at` and `Evidence` text.
 - Record actual against target for every `PRD.md` `## Metrics` metric and every required `TEST-*` expected signal. Baseline, target and any numeric window duration must equal the PRD row. An empty or duplicate Measurements table means the review is not done.
 - The measurement window is real elapsed time after deployment, uses real calendar dates, closes on or before the review date, and cannot extend into the future. A review written at deploy time with "pending" actuals is a stub, not a verdict.
 - An incident requires typed containment, a human owner, and explicit routing into the next Product Definition `PRD Risks` and `PRD Open Questions`.
@@ -636,13 +630,13 @@ New packages record `Release source policy: main-preview/1` immediately below th
 
 Use this provider-neutral section for every deployable web, API, mobile, desktop, or browser-extension surface, including hosted targets already summarized in the environment table above. First record the complete expected deployable-surface inventory using stable surface IDs. Then record one block per exact destination and give it a stable target ID, explicit lowercase kebab-case surface suffix, and lowercase kebab-case release name. The production release name is the canonical `<product-slug>-<surface-suffix>` name and never ends in `-prod`; development uses that exact name plus `-dev`; one release name cannot belong to multiple surface IDs. Use the surface suffix guidance in `architecture-playbook.md` for web, API, extension, native, and independently released supporting units. Every expected surface needs at least one `development` target and one `production` target; a package that omits an expected surface is incomplete. Keep the stable `surface` identity separate from `provider`, because one surface may use different providers by stage. Keep surface and target IDs stable across revisions; retire rather than reuse an ID when its meaning changes.
 
-This section is authoritative product documentation for the human or CI release process. The Product Definition checker and downstream Deployment, Activation, Outcome, and SEO joins consume its stable target identities.
+This section is authoritative product documentation for the human or CI release process. The Product Definition checker and downstream Deployment, Outcome, and growth-review joins consume its stable target identities.
 
 Expected deployable surfaces: [stable surface IDs, for example `web-app`, `public-api`, `ios-app`]
 
 ### Release Target: [stable-target-id]
 - Surface: [Stable expected surface ID]
-- Surface class: [hosted_web / hosted_api / browser_extension / ios / android / macos / windows / worker / job / webhook / realtime / cli / agent / other_nonpublic]
+- Surface class: [one class from the Surface Catalog: hosted_web / hosted_api / browser_extension / ios / android / macos / windows / worker / job / webhook / realtime / cli / agent / mcp_server / skill_or_plugin / library_or_sdk / messaging_bot / marketplace_app / assistant_listing / container_or_self_hosted / internal_service / other_nonpublic]
 - Public discoverability: [yes / no]
 - Surface suffix: [Lowercase kebab-case suffix for this independently released unit]
 - Release name: [Production `<product-slug>-<surface-suffix>` or that exact name plus `-dev` for development]
@@ -791,7 +785,7 @@ A product may add this section in a later revision after Frontend Technology Dec
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
 ## CLI and Toolchain Decision
-Use this section for `cli` and `other_nonpublic` release surfaces. Both map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. A hybrid containing both classes still declares the area once. Keep activation profile names separate from stack areas.
+Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `container_or_self_hosted`, `internal_service` and `other_nonpublic` release surfaces. All map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. A hybrid containing several of these classes still declares the area once. Keep activation profile names separate from stack areas.
 
 ### Decision Drivers
 - [Target platforms, command/interface contract, packaging, distribution, upgrade policy, and team constraints.]

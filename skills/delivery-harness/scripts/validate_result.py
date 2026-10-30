@@ -15,12 +15,13 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 from harness_manifest import (
     ManifestError,
     load_plan,
     load_run,
+    load_worker_result,
     validate_current_plan_run,
     is_current_pair,
     validate_plan,
@@ -29,7 +30,6 @@ from harness_manifest import (
 from validate_node_result import validate_node_result
 from validate_worker_result import (
     _observe_git_worker,
-    load_worker_result,
     validate_worker_result_data,
 )
 
@@ -38,6 +38,146 @@ def _unwrap(document: Any, key: str) -> Any:
     if isinstance(document, dict) and set(document) == {key}:
         return document[key]
     return document
+
+
+def load_validation_inputs(
+    plan_path: Path,
+    run_path: Path,
+    *,
+    node_path: Path | None = None,
+    worker_path: Path | None = None,
+    verifier_paths: Sequence[Path | str] = (),
+) -> tuple[Any, Any, Any, Any, list[Any]] | str:
+    """Load PLAN, RUN, and result documents in one pass.
+
+    Returns (plan, run, node_result, worker_result, retained verifier
+    results), with None for result documents that were not requested, or the
+    failure message when an input cannot be read or parsed.
+    """
+    try:
+        plan = load_plan(plan_path)
+        run = load_run(run_path)
+        node_result = (
+            _unwrap(json.loads(node_path.read_text(encoding="utf-8")), "node_result")
+            if node_path
+            else None
+        )
+        worker_result = load_worker_result(worker_path) if worker_path else None
+        retained = [
+            json.loads(Path(path).read_text(encoding="utf-8"))
+            for path in verifier_paths
+        ]
+    except (ManifestError, OSError, ValueError, json.JSONDecodeError) as exc:
+        return str(exc)
+    return plan, run, node_result, worker_result, retained
+
+
+def emit_result(errors: list[str]) -> int:
+    """Print the shared PASS/ERROR payload and return the process exit code."""
+    payload = {"status": "PASS" if not errors else "ERROR", "errors": errors}
+    print(json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False))
+    return 0 if not errors else 2
+
+
+def add_observation_arguments(
+    parser: argparse.ArgumentParser,
+    *,
+    help_texts: bool = False,
+    verifier_result_type: type[Path] | None = None,
+) -> None:
+    """Add the parent-observation claim flags shared by the worker CLIs."""
+    parser.add_argument(
+        "--observed-head-sha",
+        help="Legacy parent-observed worker head SHA" if help_texts else None,
+    )
+    parser.add_argument(
+        "--observed-changed-file",
+        action="append",
+        default=None,
+        help="Parent-observed changed file; repeat for every path" if help_texts else None,
+    )
+    parser.add_argument(
+        "--ancestry-confirmed",
+        action="store_true",
+        help=(
+            "Assert the parent observed base as an ancestor of the worker head"
+            if help_texts
+            else None
+        ),
+    )
+    parser.add_argument(
+        "--verifier-result",
+        action="append",
+        default=[],
+        type=verifier_result_type,
+        help=(
+            "Parent-retained verifier_runtime.py JSON result; repeat for each verifier"
+            if help_texts
+            else None
+        ),
+    )
+
+
+def bound_worker_worktree_path(run: dict[str, Any], worker_result: Any) -> str | None:
+    """Return the RUN worktree path bound to this mission/lease pair."""
+    workers = run.get("workers", [])
+    if not isinstance(worker_result, dict) or not isinstance(workers, list):
+        return None
+    return next(
+        (
+            worker.get("worktree_path")
+            for worker in workers
+            if isinstance(worker, dict)
+            and worker.get("mission_id") == worker_result.get("mission_id")
+            and worker.get("lease_id") == worker_result.get("lease_id")
+        ),
+        None,
+    )
+
+
+def worker_repo_root_required(run: dict[str, Any], worker_result: Any) -> bool:
+    """Whether the bound worker worktree exists but --repo-root was omitted."""
+    worker_path = bound_worker_worktree_path(run, worker_result)
+    return isinstance(worker_path, str) and Path(worker_path).is_dir()
+
+
+def worker_observation_kwargs(
+    live_observation: dict[str, Any] | None,
+    args: argparse.Namespace,
+    retained: list[Any],
+) -> dict[str, Any]:
+    """Build validate_worker_result_data arguments from observations.
+
+    Live Git observation of the bound checkout, when present, overrides the
+    parent-observed claims.
+    """
+    return {
+        "observed_head_sha": (
+            live_observation["head_sha"]
+            if live_observation is not None
+            else args.observed_head_sha
+        ),
+        "observed_changed_files": (
+            live_observation["changed_files"]
+            if live_observation is not None
+            else args.observed_changed_file
+        ),
+        "ancestry_confirmed": (
+            live_observation["ancestry_confirmed"]
+            if live_observation is not None
+            else args.ancestry_confirmed
+        ),
+        "retained_verifier_results": retained,
+        "observed_commit_order": (
+            live_observation["commit_order"] if live_observation is not None else None
+        ),
+        "observed_task_changed_files": (
+            live_observation["task_changed_files"]
+            if live_observation is not None
+            else None
+        ),
+        "manifest_already_validated": True,
+    }
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -54,10 +194,7 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="worker result manifest document",
     )
-    parser.add_argument("--observed-head-sha")
-    parser.add_argument("--observed-changed-file", action="append", default=None)
-    parser.add_argument("--ancestry-confirmed", action="store_true")
-    parser.add_argument("--verifier-result", action="append", default=[], type=Path)
+    add_observation_arguments(parser, verifier_result_type=Path)
     parser.add_argument(
         "--repo-root",
         type=Path,
@@ -70,37 +207,20 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     if not args.node_result and not args.worker_result:
-        print(
-            json.dumps(
-                {
-                    "status": "ERROR",
-                    "errors": ["give at least one of --node-result or --worker-result"],
-                },
-                sort_keys=True,
-                indent=2,
-                ensure_ascii=False,
-            )
-        )
-        return 2
+        return emit_result(["give at least one of --node-result or --worker-result"])
+
+    loaded = load_validation_inputs(
+        args.plan,
+        args.run,
+        node_path=args.node_result,
+        worker_path=args.worker_result,
+        verifier_paths=args.verifier_result,
+    )
+    if isinstance(loaded, str):
+        return emit_result([loaded])
+    plan, run, node_result, worker_result, retained = loaded
 
     errors: list[str] = []
-    try:
-        plan = load_plan(args.plan)
-        run = load_run(args.run)
-        node_result = (
-            _unwrap(json.loads(args.node_result.read_text(encoding="utf-8")), "node_result")
-            if args.node_result
-            else None
-        )
-        worker_result = load_worker_result(args.worker_result) if args.worker_result else None
-        retained = [
-            json.loads(path.read_text(encoding="utf-8")) for path in args.verifier_result
-        ]
-    except (ManifestError, OSError, ValueError, json.JSONDecodeError) as exc:
-        payload = {"status": "ERROR", "errors": [str(exc)]}
-        print(json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False))
-        return 2
-
     current_pair = is_current_pair(plan, run)
     if current_pair:
         live_observation = None
@@ -115,21 +235,10 @@ def main(argv: list[str] | None = None) -> int:
                     )
             except ManifestError as exc:
                 errors.append(f"--repo-root: {exc}")
-        elif worker_result is not None and isinstance(worker_result, dict):
-            worker_path = next(
-                (
-                    worker.get("worktree_path")
-                    for worker in run.get("workers", [])
-                    if isinstance(worker, dict)
-                    and worker.get("mission_id") == worker_result.get("mission_id")
-                    and worker.get("lease_id") == worker_result.get("lease_id")
-                ),
-                None,
+        elif worker_repo_root_required(run, worker_result):
+            errors.append(
+                "--repo-root: current worker validation requires the live bound worktree"
             )
-            if isinstance(worker_path, str) and Path(worker_path).is_dir():
-                errors.append(
-                    "--repo-root: current worker validation requires the live bound worktree"
-                )
         errors.extend(
             validate_current_plan_run(plan, run, repo_root=args.repo_root)
         )
@@ -147,49 +256,17 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         if worker_result is not None:
-            observed_head = (
-                live_observation["head_sha"]
-                if live_observation is not None
-                else args.observed_head_sha
-            )
-            observed_changed = (
-                live_observation["changed_files"]
-                if live_observation is not None
-                else args.observed_changed_file
-            )
-            ancestry = (
-                live_observation["ancestry_confirmed"]
-                if live_observation is not None
-                else args.ancestry_confirmed
-            )
             errors.extend(
                 f"{issue['path']}: {issue['message']}" if isinstance(issue, dict) else str(issue)
                 for issue in validate_worker_result_data(
                     plan,
                     run,
                     worker_result,
-                    observed_head_sha=observed_head,
-                    observed_changed_files=observed_changed,
-                    ancestry_confirmed=ancestry,
-                    retained_verifier_results=retained,
-                    observed_commit_order=(
-                        live_observation["commit_order"]
-                        if live_observation is not None
-                        else None
-                    ),
-                    observed_task_changed_files=(
-                        live_observation["task_changed_files"]
-                        if live_observation is not None
-                        else None
-                    ),
-                    manifest_already_validated=True,
+                    **worker_observation_kwargs(live_observation, args, retained),
                 )
             )
 
-    errors = sorted(set(errors))
-    payload = {"status": "PASS" if not errors else "ERROR", "errors": errors}
-    print(json.dumps(payload, sort_keys=True, indent=2, ensure_ascii=False))
-    return 0 if not errors else 2
+    return emit_result(sorted(set(errors)))
 
 
 if __name__ == "__main__":

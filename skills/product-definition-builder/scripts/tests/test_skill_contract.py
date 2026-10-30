@@ -63,7 +63,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(phrase, skill)
         self.assertIn("Which secret and variable names go where", contract)
-        self.assertIn("contain secret names only and no secret values", contract)
+        self.assertIn("The seed contains no external authorization, account guess, secret value, or claim that a source is verified", contract)
         self.assertIn("before a deployable push", lifecycle)
 
     def test_publish_uses_distinct_repository_context_templates(self) -> None:
@@ -259,7 +259,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             "Bullets marked `(AskUserQuestion)` are a closed, enumerable set", interview
         )
         for marked_bullet in (
-            "or a hybrid? (AskUserQuestion)",
+            "or a combination? Name every surface, then the primary one. (AskUserQuestion)",
             "[AQ-DEPLOYMENT-PLATFORM] For a deployable web, API, or hosted backend target",
             "recurring usability benchmarking? (AskUserQuestion)",
         ):
@@ -284,9 +284,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("why would someone come back or open the app again", interview)
         self.assertIn("where will people first see it", interview)
         self.assertIn("The delivery Shape: track, companion surface, and console type.", interview)
-        self.assertIn("| Shape | track: web / app / agent; companion:", contract)
+        self.assertIn("| Shape | track: web / app / agent / tool / content; companion:", contract)
         self.assertIn("## Growth Contract", contract)
-        self.assertIn("`Owner stage` is `delivery`, `activation`, `gtm` or `seo`", contract)
+        self.assertIn("`Owner stage` is `delivery`, `activation`, `gtm` or `growth`", contract)
         self.assertIn("within Day 0 to Day 7 inclusive", contract)
         stage = self.read(STAGE)
         self.assertIn("Record the At a Glance Shape row and the `## Growth Contract` before Product Definition Approval", stage)
@@ -959,29 +959,45 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         for retired in ("Target Reviews", "Target Measurements", "Verdict History", "Prior outcome sha256"):
             self.assertNotIn(retired, template)
 
-    def test_activation_seed_is_create_once_and_owned_downstream(self) -> None:
+    def test_measurement_sources_seed_replaces_the_activation_record(self) -> None:
         skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")
         lifecycle = self.read("references/artifact-lifecycle.md")
+        template = self.read("assets/templates/OUTCOME_REVIEW.template.md")
 
-        for source in (skill, contract, lifecycle):
-            self.assertIn("ACTIVATION.md", source)
-            self.assertIn("product-activation", source)
-        self.assertIn("does not already exist", skill)
-        self.assertIn("preserve it byte-for-byte", skill)
-        self.assertIn("one Outcome Coverage row for every PRD metric", skill)
-        self.assertIn("any release target with an activation scope", skill)
-        self.assertIn("api / backend", skill)
-        self.assertIn("android", skill)
-        self.assertIn("macos", skill)
-        self.assertIn("windows", skill)
-        self.assertIn("including hybrids", skill)
-        self.assertIn('check_activation.py" --activation', skill)
-        self.assertIn("--architecture <staged architecture.md>", skill)
-        self.assertIn("never falls back to a bundled default", skill)
-        self.assertIn("creates it only when absent", contract)
-        self.assertIn("never stages, overwrites, archives, resets", contract)
-        self.assertIn("Exclude it from the superseded-document inventory", lifecycle)
+        # The retired names are assembled at runtime so this pin file stays
+        # free of them.
+        activation_doc = "".join(("ACTIV", "ATION.md"))
+        retired_names = (
+            activation_doc,
+            "product" + "-activation",
+            "check_" + "activation",
+        )
+        for source in (skill, contract, lifecycle, template):
+            for retired in retired_names:
+                self.assertNotIn(retired, source)
+        self.assertIn("seed `## Measurement Sources` rows in the staged `DEPLOYMENT.md`", skill)
+        self.assertIn("one row per PRD metric and each required `TEST-*` expected signal", skill)
+        self.assertIn("Status `planned`", skill)
+        self.assertIn("`@pending#pending` release bindings", skill)
+        self.assertIn(
+            'check_deployment.py" --deployment <staged DEPLOYMENT.md> --architecture <staged architecture.md>',
+            skill,
+        )
+        self.assertIn("## `docs/DEPLOYMENT.md` Measurement Sources", contract)
+        self.assertIn(r"with a unique `MS-\d{3}` ID", contract)
+        self.assertIn(
+            "no seed row claims a verified source, external authorization, or account access",
+            contract,
+        )
+        self.assertIn("Seed the `## Measurement Sources` table in `docs/DEPLOYMENT.md`", lifecycle)
+        self.assertIn("Exclude them from the superseded-document inventory", lifecycle)
+        self.assertIn("- Measurement record: docs/DEPLOYMENT.md", template)
+        self.assertIn("- Deployment sha256:", template)
+        self.assertIn(
+            "| MS-001 | <target>@<sha>#<artifact> | <human owner matching the deployment row> |",
+            template,
+        )
 
     def test_implementation_plan_handoff_signals_are_not_a_harness_graph(self) -> None:
         contract = self.read("references/output-contract.md")
@@ -1072,7 +1088,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             skill,
         )
         self.assertIn(
-            "browser extension, internal tool, automation or agent workflow, API, or a hybrid? (AskUserQuestion)",
+            "browser extension, API, agent or bot, MCP server, library or plugin, internal tool, a content channel, or a combination? Name every surface, then the primary one. (AskUserQuestion)",
             interview,
         )
         self.assertIn(

@@ -9,16 +9,16 @@ Read only the section triggered by project AGENTS.md. These shared rules retain 
 - Treat affiliate, referral, and reseller as different motions. A reseller decision must cover deal registration, price authority or wholesale terms, customer ownership, provisioning, delegated administration, support, renewals, termination, and channel conflict; an affiliate link alone does not satisfy it.
 - Keep billing/store, entitlement, paywall/checkout, merchant-of-record/tax, attribution, commission/payout, and reseller-operation responsibilities separate in PRD, architecture, stack decisions, implementation, and tests. Update affected UI Surface Contract entries through `product-definition-builder`, then update `ui-design.md` and `wireframes.html` through `ui-design-builder` before implementing customer, partner, pricing, purchase, or administration surfaces.
 
-## Post-Delivery Activation
+## External Setup
 
-- Use `product-activation` preparation from a fixed usable initial build; verify final readiness against the actual release SHA and artifact. It owns `docs/ACTIVATION.md` and never edits or extends a delivery PLAN/RUN.
-- Product Definition may create the first Activation seed when the path is absent. Preserve an existing record; only `product-activation` reconciles its live action, source, evidence, and readiness state.
+- External setup lives in `docs/DEPLOYMENT.md`: every External Console Setup row is one action, and readiness per release target is recorded in that deployment record. There is no separate activation file, and setup never edits or extends a delivery PLAN/RUN.
+- Perform the fixed-build rows from [External Setup](external-setup.md) under their own action grants; verify final readiness against the actual release SHA and artifact.
 - Probe purpose-built connector/API/CLI first, then Browser, Computer Use, and manual handoff. Capability never grants permission.
-- Bind every external write to the exact account or organization, project or property, environment, action, and current action digest. DNS, permissions, credentials, billing, production traffic, public submission, data sharing, and destructive changes require action-time confirmation.
+- Bind every external write to the exact account or organization, project or property, environment, and action. DNS, permissions, credentials, billing, production traffic, public submission, data sharing, and destructive changes require action-time confirmation.
 - Never record secret values. Password, MFA, OTP, CAPTCHA, banking, tax, legal attestation, and secret-value entry remain user handoffs.
 - Refresh and read back every change. A success toast, mutation response, upload, submission, or owner statement does not prove behavior.
-- Route a missing product hook to a new `delivery-harness` change and a missing requirement, metric, TEST ID, or release target to `product-definition-builder`. Activation never patches product code in place.
-- Activation readiness is per release target and does not keep the delivery RUN open or replace the later outcome-review measurement window.
+- Route a missing product hook to a new `delivery-harness` change and a missing requirement, metric, TEST ID, or release target to `product-definition-builder`. External setup never patches product code in place.
+- Setup readiness is per release target and does not keep the delivery RUN open or replace the later outcome-review measurement window.
 
 ## Managed Product Delivery Harness Runs
 

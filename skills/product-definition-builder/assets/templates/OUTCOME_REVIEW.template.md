@@ -1,6 +1,6 @@
 # Outcome Review
 
-This strict post-deployment record is written only after the real measurement window closes. One record binds one production architecture target, release SHA/artifact, deployment PASS, and Activation SHA. Write one record per production target.
+This strict post-deployment record is written only after the real measurement window closes. One record binds one production architecture target, release SHA/artifact, deployment PASS, and Deployment SHA. Write one record per production target.
 
 ## Record
 
@@ -13,18 +13,18 @@ This strict post-deployment record is written only after the real measurement wi
 - Deployment identity: <release-name;exact-channel;artifact/build-identity>
 - Deployment checked: <RFC3339>
 - Deployment status: PASS
-- Activation record: docs/ACTIVATION.md
-- Activation sha256: <lowercase SHA-256 of current docs/ACTIVATION.md>
+- Measurement record: docs/DEPLOYMENT.md
+- Deployment sha256: <lowercase SHA-256 of current docs/DEPLOYMENT.md>
 - Reviewed on: <YYYY-MM-DD>
 - Verdict: <no_change / enhancement / incident>
 
 ## Activation Sources
 
-List every verified `MS-*` source from Activation whose target, SHA, and artifact/build identity match this release. A configured, blocked, stale, or mismatched source cannot support this review.
+List every verified `MS-*` source from the deployment record's Measurement Sources whose Release bindings match this release's target, SHA, and artifact/build identity. A planned, blocked, stale, or mismatched source cannot support this review.
 
 | MS ID | Release binding | Owner | Verified at | Evidence |
 | --- | --- | --- | --- | --- |
-| MS-001 | <target>@<sha>#<artifact> | <human owner matching Activation> | <latest PASS evidence RFC3339> | <Activation EVID-* IDs and bounded non-secret evidence> |
+| MS-001 | <target>@<sha>#<artifact> | <human owner matching the deployment row> | <deployment row Verified at RFC3339> | <deployment row Evidence text> |
 
 ## Measurements
 

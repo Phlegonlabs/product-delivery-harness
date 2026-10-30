@@ -17,7 +17,7 @@ import check_product_package  # noqa: E402
 import contract_utils  # noqa: E402
 from git_evidence import GitEvidenceError, verify_revision_path  # noqa: E402
 from prd_ui_contract import validate_prd_wireframe_data  # noqa: E402
-from release_targets import parse_release_targets  # noqa: E402
+from release_targets import is_public_web_target, parse_release_targets  # noqa: E402
 
 
 def valid_prd(*, mode: str = "new") -> str:
@@ -2133,6 +2133,69 @@ Security scope: executable
         findings = self.validate(architecture=architecture)
         self.assertTrue(any("invalid Public discoverability" in item for item in findings))
 
+    def test_release_target_new_surface_classes_are_accepted(self) -> None:
+        private = release_architecture().replace(
+            "- Public discoverability: yes", "- Public discoverability: no"
+        )
+        for surface_class in (
+            "mcp_server",
+            "skill_or_plugin",
+            "library_or_sdk",
+            "messaging_bot",
+            "marketplace_app",
+            "assistant_listing",
+            "container_or_self_hosted",
+            "internal_service",
+        ):
+            with self.subTest(surface_class=surface_class):
+                _contract, findings = parse_release_targets(private.replace(
+                    "- Surface class: hosted_web", f"- Surface class: {surface_class}"
+                ))
+                self.assertEqual(
+                    [],
+                    [
+                        item
+                        for item in findings
+                        if "Surface class" in item or "discoverable" in item
+                    ],
+                )
+        _contract, findings = parse_release_targets(release_architecture().replace(
+            "- Surface class: hosted_web", "- Surface class: vector_graph"
+        ))
+        self.assertTrue(any("invalid Surface class" in item for item in findings))
+
+    def test_public_discoverability_requires_a_discoverable_surface_class(self) -> None:
+        _contract, findings = parse_release_targets(release_architecture().replace(
+            "- Surface class: hosted_web", "- Surface class: mcp_server"
+        ))
+        self.assertEqual([], findings)
+        _contract, findings = parse_release_targets(release_architecture().replace(
+            "- Surface class: hosted_web", "- Surface class: ios"
+        ))
+        self.assertTrue(
+            any(
+                "Public discoverability=yes requires a discoverable Surface class" in item
+                for item in findings
+            ),
+            findings,
+        )
+        discoverable_contract, findings = parse_release_targets(
+            release_architecture().replace(
+                "- Surface class: hosted_web", "- Surface class: mcp_server"
+            )
+        )
+        self.assertEqual([], findings)
+        self.assertTrue(
+            all(
+                not is_public_web_target(target)
+                for target in discoverable_contract.targets
+            )
+        )
+        hosted_contract, _ = parse_release_targets(release_architecture())
+        self.assertTrue(
+            all(is_public_web_target(target) for target in hosted_contract.targets)
+        )
+
     def test_release_target_pairs_keep_typed_class_and_discoverability(self) -> None:
         architecture = release_architecture()
         marker = "- Surface class: hosted_web\n- Public discoverability: yes"
@@ -3100,7 +3163,7 @@ def shaped_prd(
     if growth:
         track_match = re.search(r"track:\s*(\w+)", shape_value)
         track = track_match.group(1) if track_match else "web"
-        if track not in ("web", "app", "agent"):
+        if track not in ("web", "app", "agent", "tool", "content"):
             track = "web"
         prd = prd.replace(
             "## Problem Statement",
@@ -3187,7 +3250,7 @@ class ShapeRowPackageTests(unittest.TestCase):
     def test_shape_row_vocabulary_failures(self) -> None:
         findings = self.validate(shaped_prd("track: platform; companion: none; console: none"))
         self.assertTrue(
-            any("Shape track must be web, app or agent" in item for item in findings), findings
+            any("Shape track must be web, app, agent, tool or content" in item for item in findings), findings
         )
         findings = self.validate(shaped_prd("track: web; companion: none; console: admin"))
         self.assertTrue(
@@ -3261,6 +3324,63 @@ class ShapeRowPackageTests(unittest.TestCase):
         self.assertEqual(
             [], self.validate(shaped_prd("track: agent; companion: Docs portal; console: none"))
         )
+
+    def test_tool_track_companion_rules(self) -> None:
+        findings = self.validate(shaped_prd("track: tool; companion: none; console: none"))
+        self.assertTrue(
+            any(
+                "tool track with companion none requires a reason in parentheses" in item
+                for item in findings
+            ),
+            findings,
+        )
+        findings = self.validate(
+            shaped_prd("track: tool; companion: Marketing homepage; console: none")
+        )
+        self.assertTrue(
+            any(
+                "tool track companion 'Marketing homepage' must name a docs surface" in item
+                for item in findings
+            ),
+            findings,
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                shaped_prd("track: tool; companion: none (docs ship inside the repo); console: none")
+            ),
+        )
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: tool; companion: Docs portal; console: none"))
+        )
+
+    def test_content_track_allows_plain_none_companion(self) -> None:
+        self.assertEqual(
+            [], self.validate(shaped_prd("track: content; companion: none; console: none"))
+        )
+        self.assertEqual(
+            [],
+            self.validate(
+                shaped_prd("track: content; companion: Fixture landing page; console: none")
+            ),
+        )
+
+    def test_all_five_tracks_pass_with_their_growth_contract(self) -> None:
+        companions = {
+            "web": "Fixture landing page",
+            "app": "Fixture landing page",
+            "agent": "none (docs ship inside the repo)",
+            "tool": "none (docs ship inside the repo)",
+            "content": "none",
+        }
+        for track, companion in companions.items():
+            with self.subTest(track=track):
+                self.assertEqual(
+                    [],
+                    self.validate(
+                        shaped_prd(f"track: {track}; companion: {companion}; console: none")
+                    ),
+                )
 
     def test_console_operations_requires_journeys_and_traced_tests(self) -> None:
         shape_value = (
@@ -3351,7 +3471,7 @@ class GrowthContractTests(unittest.TestCase):
         )
         findings = self.validate(prd)
         self.assertTrue(
-            any("North Star track must be web, app or agent" in item for item in findings),
+            any("North Star track must be web, app, agent, tool or content" in item for item in findings),
             findings,
         )
 
@@ -3479,7 +3599,7 @@ class GrowthContractTests(unittest.TestCase):
         )
         findings = self.validate(prd)
         self.assertTrue(
-            any("owner stage must be delivery, activation, gtm or seo" in item for item in findings),
+            any("owner stage must be delivery, activation, gtm, growth or seo" in item for item in findings),
             findings,
         )
         prd = shaped_prd().replace(
@@ -3514,6 +3634,76 @@ class GrowthContractTests(unittest.TestCase):
         )
         self.assertEqual([], self.validate(prd, architecture=release_architecture()))
 
+    def test_tool_and_content_reengagement_follow_the_agent_rule(self) -> None:
+        for track, companion in (
+            ("tool", "none (docs ship inside the repo)"),
+            ("content", "none"),
+        ):
+            with self.subTest(track=track):
+                base = shaped_prd(f"track: {track}; companion: {companion}; console: none")
+                declined = base.replace(
+                    "| email digest | Fixture digest surface on the home route | TEST-001 |",
+                    "| none — local fixture has no return channel yet | n/a | n/a |",
+                    1,
+                )
+                self.assertEqual([], self.validate(declined))
+                bare_none = base.replace(
+                    "| email digest | Fixture digest surface on the home route | TEST-001 |",
+                    "| none | n/a | n/a |",
+                    1,
+                )
+                findings = self.validate(bare_none)
+                self.assertTrue(
+                    any(
+                        f"{track} track requires a Re-engagement mechanism or a none row "
+                        "with a reason" in item
+                        for item in findings
+                    ),
+                    findings,
+                )
+
+    def test_presence_discovery_kinds_use_platform_handles(self) -> None:
+        for surface, kind in (
+            ("instagram:@ticketradar", "social"),
+            ("youtube:@fixture", "video_channel"),
+            ("newsletter:fixture@example.com", "newsletter"),
+            ("discord:fixture-community", "community"),
+            ("docs:https://docs.example.com", "docs_site"),
+        ):
+            with self.subTest(kind=kind):
+                prd = shaped_prd().replace(
+                    "| /launch | landing | gtm | MS-110 |",
+                    f"| {surface} | {kind} | gtm | MS-110 |",
+                    1,
+                )
+                self.assertEqual([], self.validate(prd))
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| /launch | social | gtm | MS-110 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("platform:handle-or-url" in item for item in findings), findings
+        )
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| launch announcement | newsletter | gtm | MS-110 |",
+            1,
+        )
+        findings = self.validate(prd)
+        self.assertTrue(
+            any("platform:handle-or-url" in item for item in findings), findings
+        )
+
+    def test_discovery_owner_stage_growth_is_accepted(self) -> None:
+        prd = shaped_prd().replace(
+            "| /launch | landing | gtm | MS-110 |",
+            "| /launch | landing | growth | MS-110 |",
+            1,
+        )
+        self.assertEqual([], self.validate(prd))
+
     def test_launch_window_rules(self) -> None:
         prd = shaped_prd().replace(
             "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
@@ -3537,6 +3727,45 @@ class GrowthContractTests(unittest.TestCase):
         self.assertTrue(
             any("Day 0 through Day 7" in item for item in findings), findings
         )
+
+    def test_launch_window_accepts_the_destination_column(self) -> None:
+        v2 = shaped_prd().replace(
+            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |",
+            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |",
+            1,
+        ).replace(
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
+            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits | /launch |",
+            1,
+        )
+        self.assertEqual([], self.validate(v2))
+        findings = self.validate(
+            v2.replace("| Return visits | /launch |", "| Return visits | [TBD] |", 1)
+        )
+        self.assertTrue(
+            any(
+                "Growth Contract Launch Window row contains an empty value or placeholder"
+                in item
+                for item in findings
+            ),
+            findings,
+        )
+        short_row = shaped_prd().replace(
+            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |",
+            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |",
+            1,
+        )
+        findings = self.validate(short_row)
+        self.assertTrue(
+            any(
+                "Growth Contract Launch Window row has 5 cells, expected 6" in item
+                for item in findings
+            ),
+            findings,
+        )
+
+    def test_launch_window_legacy_five_columns_still_accepted(self) -> None:
+        self.assertEqual([], self.validate(shaped_prd()))
 
     def test_launch_window_reversed_ranges_do_not_qualify(self) -> None:
         for cell in ("Day 7-0", "Day 0--1", "9-12"):

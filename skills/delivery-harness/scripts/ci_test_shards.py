@@ -18,8 +18,6 @@ SUITES = {
     "product": "skills/product-definition-builder/scripts/tests",
     "ui": "skills/ui-design-builder/scripts/tests",
     "design-system": "skills/design-system-compiler/scripts/tests",
-    "activation": "skills/product-activation/scripts/tests",
-    "seo": "skills/seo-growth-review/scripts/tests",
 }
 
 # Only Git, filesystem, installer and verifier-runtime code differs by

@@ -33,24 +33,6 @@ def _is_main_branch_target(target: Any) -> bool:
     )
 
 
-def _is_retired_development_branch_target(target: Any) -> bool:
-    """Return whether an exact branch target resolves to retired development."""
-
-    return (
-        isinstance(target, str)
-        and target.startswith("branch:")
-        and (_normalized_branch(target.split(":", 1)[1]) or "").casefold()
-        == "development"
-    )
-
-
-def _integration_branch(run: dict[str, Any]) -> str | None:
-    integration = run.get("integration")
-    if isinstance(integration, dict) and _nonempty_string(integration.get("branch")):
-        return integration["branch"]
-    return None
-
-
 def _validate_authorization_scope(
     errors: list[str],
     path: str,
