@@ -52,14 +52,15 @@ Parent-owned: the two catalogs, the growth-review skill prose, the PRD contract 
 | Five-skill surfaces, READMEs, version 0.73.0, golden path | Parent | `6db9f5de`, `9ed13390`, `03d518b5`, `e09e3cd5`, `6bd742b7` | readme structure OK, golden path 1 OK |
 | W2c outcome review reads Measurement Sources, seeding replaces the activation record | GLM-5.3 Flash worker | `797f60e7`..`653f5748`, merged `9beebe89` | pdb suite 274 OK in the worker tree |
 | Retire `skills/product-activation`, last record mentions, governance and route pins | Parent | `91946ae0`, `a8ab0b29` | pdb suite 287 OK, delivery contract 65 OK, governance routes 7 OK, cli utf8 3 OK |
+| Merge origin/main 0.72.1 (worker return fix); move the 0.69.0 README entry into CHANGELOG | Parent (Claude Opus 5.5) | `3f0be3dd`, `6a3da10f` | skill contract, worker result and readme structure suites OK, check_skill_spec OK; full matrix runs in PR CI |
 
 ## Verification
 
 Required Verification matrix on `a8ab0b29` (working tree identical to that commit; this Epic and `docs/DOCUMENTS.md` are the only later change), logs under `task/matrix-073/` (untracked scratch): `check_skill_spec.py` exit 0; pyflakes over the four remaining script trees clean; `docs_weight.py` grand total 193,875 → 191,363 words against v0.72.0; delivery-harness `ci_test_shards.py run --suite harness --workers 8` 107 modules passed, 0 failed, 539 s wall; `HARNESS_GOLDEN_PATH=1 test_golden_path.py` 1 OK; product-definition-builder 287 OK; ui-design-builder 356 OK (2 skipped); design-system-compiler 214 OK (2 skipped); `git diff --check` exit 0. CI has not run; the branch is local only.
 
-Independent review: not yet run. The owner's protected GPT reviewer route is the next step before any publication.
+Independent review: not run. On 2026-10-29 the owner chose to skip the protected GPT review and approved publication.
 
 ## Remaining Work
 
-- Consumer adoption 0.73.0: re-point the `code_security_verification` slot, move each `docs/ACTIVATION.md` Measurement Sources rows into `docs/DEPLOYMENT.md`, rename `seo-growth-review` bindings to `growth-review`, add presence surfaces to each PRD Growth Contract.
-- Publication: PR `feat/surface-taxonomy` to `main`, CI on the exact candidate, tag `v0.73.0`, installer run. Nothing here authorizes a push, PR or installation.
+- Consumer adoption 0.73.0 is committed in all 23 consumers. No PRD gained presence surfaces or a Shape row yet; that needs a PRD round per project.
+- Consumers still to confirm: the inferred Measurement Sources signal mappings, and `docs/document-sync.json` baselines that list the retired `docs/ACTIVATION.md`.
