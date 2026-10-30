@@ -156,7 +156,7 @@ create_local_commits, integrate_locally, push, archive_worker_tasks,
 remove_worktrees, delete_branches
 ```
 
-当前 RUN 在本地以 `local_only` 结束，`push` 为 false，`pushed_head_sha` 为 null。发布、受保护分支 landing、部署、安装、归档与清理保留各自授权。
+当前 RUN 在本地以 `local_only` 结束，`push` 为 false，`pushed_head_sha` 为 null。发布、受保护分支 landing、部署、安装、归档与清理保留各自授权。任务通过时 worker 返回 `WORKER_RESULT`，阻塞或失败时返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
 
 ## 仓库结构
 
@@ -206,6 +206,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 ## 版本历史
 
 - **0.73.0** — 一个项目就是一组 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 种发布面（新增 MCP server、skill 与 plugin、library、messaging bot、marketplace app、assistant listing、container 与 internal service）和五种存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 写在 PRD Growth Contract；Shape 行新增 `tool` 与 `content` track，Launch Window 新增 Destination 列。bundle 从七个 skills 缩成五个：`code-security-review` 成为 harness 的安全 lens（`references/security-review.md`），`product-activation` 收进 deployment record（External Console Setup 行加上 Measurement Sources 表，设置目录在 `references/external-setup.md`），`seo-growth-review` 改为 `growth-review`，逐一 surface 用各自的 lens 回读，并从项目自己的 stack decisions 解析供应商。`gtm-content` 并入 `go-to-market`，未使用的 templates、死代码与重复的 validator CLI 一并移除。
+
+- **0.72.1** — 任务通过时 worker 返回 `WORKER_RESULT`；阻塞或失败的任务返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多个进程并行执行一个套件的测试模块并保留逐模块 log，本地的 Required Verification 矩阵从单核 27 分钟缩到几分钟。
 
