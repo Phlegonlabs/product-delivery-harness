@@ -268,6 +268,19 @@ class MeasurementSourcesTests(unittest.TestCase):
         )
         self.assertIn("Measurement Sources: verified MS-001 needs evidence", joined)
 
+    def test_a_verified_row_rejects_absent_evidence_sentinels(self) -> None:
+        for sentinel in ("n/a", "none", "N/A"):
+            with self.subTest(sentinel=sentinel):
+                bad_row = VERIFIED_ROW.replace(
+                    "GA4 export retained in docs/metrics/signups.csv", sentinel
+                )
+                findings = check_deployment.check_deployment_text(
+                    measurement_deployment(bad_row)
+                )
+                self.assertEqual(
+                    ["Measurement Sources: verified MS-001 needs evidence"], findings
+                )
+
     def test_a_verified_row_passes(self) -> None:
         findings = check_deployment.check_deployment_text(
             measurement_deployment(VERIFIED_ROW)

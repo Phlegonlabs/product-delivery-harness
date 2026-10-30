@@ -166,6 +166,7 @@ MEASUREMENT_SOURCE_STATUSES = {
     "n/a",
 }
 MEASUREMENT_SOURCE_ID_RE = re.compile(r"^MS-\d{3}$")
+MEASUREMENT_ABSENT_EVIDENCE = {"", "none", "n/a", "pending"}
 MEASUREMENT_BINDING_RE = re.compile(
     r"^(?P<target>[a-z0-9]+(?:-[a-z0-9]+)*)"
     r"@(?P<sha>pending|[0-9a-f]{40})"
@@ -1172,8 +1173,7 @@ def _validate_measurement_sources(
                     f"{label}: verified {ms_id} verified-at must be RFC3339 with a real timezone"
                 )
             if (
-                not evidence.strip()
-                or evidence.casefold() == "pending"
+                evidence.strip().casefold() in MEASUREMENT_ABSENT_EVIDENCE
                 or _is_placeholder(evidence)
             ):
                 findings.append(f"{label}: verified {ms_id} needs evidence")
