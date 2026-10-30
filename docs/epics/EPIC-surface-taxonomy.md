@@ -53,6 +53,8 @@ Parent-owned: the two catalogs, the growth-review skill prose, the PRD contract 
 | W2c outcome review reads Measurement Sources, seeding replaces the activation record | GLM-5.3 Flash worker | `797f60e7`..`653f5748`, merged `9beebe89` | pdb suite 274 OK in the worker tree |
 | Retire `skills/product-activation`, last record mentions, governance and route pins | Parent | `91946ae0`, `a8ab0b29` | pdb suite 287 OK, delivery contract 65 OK, governance routes 7 OK, cli utf8 3 OK |
 | Merge origin/main 0.72.1 (worker return fix); move the 0.69.0 README entry into CHANGELOG | Parent (Claude Opus 5.5) | `3f0be3dd`, `6a3da10f` | skill contract, worker result and readme structure suites OK, check_skill_spec OK; full matrix runs in PR CI |
+| README flowchart and stage table: activation and SEO steps become external setup and growth review | Parent (Claude Opus 5.5) | `958a9927` | readme structure OK |
+| PR #163 Codex review: reject absent evidence on verified Measurement Sources; bind presence-only sources as `presence:<platform>:<handle>` | Parent (Claude Opus 5.5) | `28a287d8`, `33f82392` | measurement sources, deployment record, outcome review suites OK |
 
 ## Verification
 
