@@ -13,7 +13,7 @@
 
 # Product Delivery Harness
 
-Skills for turning product ideas and change requests into verified software with Codex, Claude Code, Pi or another skills-capable host. Product definition, design, implementation, security and activation retain their own sources, evidence and owner decisions.
+Skills for turning product ideas and change requests into verified software with Codex, Claude Code, Pi or another skills-capable host. Product definition, design, implementation, security and external setup retain their own sources, evidence and owner decisions.
 
 ## Install
 
@@ -111,7 +111,7 @@ flowchart LR
   Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
   C -->|managed| A["Managed only: archive-only A"] --> Publish["Authorized candidate publication + Preview when needed"]
   C -->|direct| Publish
-  Publish --> Main["Separately authorized exact-SHA main landing"] --> Activate["Activation per target"] --> Outcome["Measured outcome + optional SEO review"]
+  Publish --> Main["Separately authorized exact-SHA main landing"] --> Setup["External setup readback per target"] --> Outcome["Measured outcome + optional growth review"]
 ```
 
 Initial UI requires design and all applicable self-reviews before Harness execution. Follow [author self-review](skills/delivery-harness/references/pre-delivery-self-review.md) at the Product, direction and HiFi exits below.
@@ -137,7 +137,7 @@ Before every handoff, check source hashes, the Epic record and document consiste
 | HiFi | After completeness preflight, the same author self-reviews and repairs before independent review. One diagnostic wave, one consolidated repair and one affected-scope re-review. Required browser coverage, Impeccable `critique` **and** `audit`, rounded H1–H9 overall **at least 85** and every dimension **at least 80**, then Visual Approval. Carry unchanged evidence forward with its identity. The stage holds the same two-review budget; later defects become isolated repairs with a scoped review of the repair diff. |
 | Delivery | `review_policy: final_candidate`: one combined code, visual-if-UI and security review on the fixed final SHA (real browser for UI), triaged into blocking findings and notes, plus one targeted re-check. After the re-check, each remaining or new defect becomes one bounded repair with its own focused verifier and a scoped review of the repair diff only (finding, repair diff, direct consumers); the security lens joins when the diff touches a trust boundary, a scoped PASS re-binds the repaired paths, and scoped reviews do not consume review attempts. No Final UI Acceptance rerun unless the repair touches a UI surface, then only that surface; the broad final validation runs once per candidate at the end. Environment-blocked attempts do not spend the budget. |
 | Release | One owner instruction may name several exact release actions. Archive-only A and tree-equal server main S inherit verified evidence under the rules below. A changed tree is a new candidate. |
-| Activation | Verify authorization, independent readback and applicable behavior for each release target; preparation and production readiness remain separate. |
+| External setup | `docs/DEPLOYMENT.md` holds one External Console Setup row per action and the Measurement Sources table. Verify authorization, independent readback and applicable behavior per release target; preparation and production readiness remain separate. |
 
 A missing `review_policy` retains legacy `per_mission` behavior. Preserve frozen PLAN/RUN pins and historical approvals; never reset consumed attempts by renaming a node. Past the two-review budget, remaining defects get isolated repairs with a scoped review of each repair diff; there is no extra review round. Security is mandatory for executable diffs; without it report `UNVALIDATED`, never PASS. A docs, copy, Epic, evidence or bookkeeping-only diff records `security: not_applicable (<reason>)` with the path list. A scope-disjoint carried PASS keeps its origin SHA and is never relabeled fresh. The first HiFi pass covers every audit axis. Its re-review repeats critique and audit on affected pages and states while retaining the full evidence matrix.
 

@@ -13,7 +13,7 @@
 
 # Product Delivery Harness
 
-Skills para convertir ideas de producto y solicitudes de cambio en software verificado con Codex, Claude Code, Pi u otro host compatible. Definición, diseño, implementación, seguridad y activación conservan sus propias fuentes, pruebas y decisiones del owner.
+Skills para convertir ideas de producto y solicitudes de cambio en software verificado con Codex, Claude Code, Pi u otro host compatible. Definición, diseño, implementación, seguridad y configuración externa conservan sus propias fuentes, pruebas y decisiones del owner.
 
 ## Instalación
 
@@ -111,7 +111,7 @@ flowchart LR
   Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia"] --> C["Candidato fijo C"]
   C -->|managed| A["Solo Managed: archivo A"] --> Publish["Publicación autorizada y Preview aplicable"]
   C -->|direct| Publish
-  Publish --> Main["Landing main exact-SHA autorizado por separado"] --> Activate["Activation por target"] --> Outcome["Resultados medidos y revisión SEO opcional"]
+  Publish --> Main["Landing main exact-SHA autorizado por separado"] --> Setup["Readback de configuración externa por target"] --> Outcome["Resultados medidos y growth review opcional"]
 ```
 
 La entrega inicial con UI requiere diseño y todas las autorrevisiones aplicables antes de ejecutar Harness. Sigue la [autorrevisión del autor](skills/delivery-harness/references/pre-delivery-self-review.md) en las salidas existentes de Product, dirección y HiFi indicadas abajo.
@@ -137,7 +137,7 @@ Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la 
 | HiFi | Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente. Una ronda diagnóstica, una reparación consolidada y una revisión del alcance afectado. Cobertura obligatoria de navegador, Impeccable `critique` **y** `audit`, media H1–H9 redondeada **mínima de 85** y cada dimensión **mínima de 80**, después Visual Approval. La evidencia intacta conserva su identidad. La etapa conserva el mismo presupuesto de dos revisiones; los defectos posteriores se vuelven reparaciones aisladas con una revisión acotada del diff de reparación. |
 | Entrega | `review_policy: final_candidate`: una revisión conjunta de código, visual si hay UI y seguridad en el SHA final fijo (navegador real para UI), con hallazgos triados en blocking y notes, más un recheck acotado. Tras el recheck, cada defecto restante o nuevo se vuelve una reparación acotada con su verifier enfocado y una revisión acotada solo del diff de reparación (hallazgo, diff de reparación, consumidores directos); la lente de seguridad se une cuando el diff toca un límite de confianza, un PASS acotado revincula las rutas reparadas y las revisiones acotadas no gastan intentos. Sin nueva Final UI Acceptance salvo que la reparación toque una superficie UI, y entonces solo esa superficie; la validación final amplia corre una vez por candidato al final. Los intentos bloqueados por entorno no gastan presupuesto. |
 | Release | Una instrucción del owner puede nombrar varias acciones exactas. El archivo A y el SHA main S con árbol idéntico heredan evidencia verificada según las reglas siguientes. Un árbol distinto es otro candidato. |
-| Activation | Verifica autorización, readback independiente y comportamiento aplicable por target; preparación y readiness de producción siguen separados. |
+| Configuración externa | `docs/DEPLOYMENT.md` guarda una fila External Console Setup por acción y la tabla Measurement Sources. Verifica autorización, readback independiente y comportamiento aplicable por target; preparación y readiness de producción siguen separados. |
 
 Omitir `review_policy` conserva el comportamiento histórico `per_mission`. Preserva pins PLAN/RUN y aprobaciones anteriores; renombrar un nodo nunca reinicia los intentos consumidos. Agotado el presupuesto, los defectos restantes reciben reparaciones aisladas con una revisión acotada de cada diff de reparación; no hay ronda de revisión extra. Los diffs ejecutables exigen seguridad; sin ella informa `UNVALIDATED`, nunca PASS. Un diff de solo docs, copy, Epic, evidencia o bookkeeping registra `security: not_applicable (<reason>)` con la lista de rutas. Un PASS arrastrado con alcance disjunto conserva su SHA de origen y nunca se rotula como fresh. La primera revisión HiFi cubre cada eje de audit. La revisión posterior repite critique y audit en páginas y estados afectados y conserva la matriz completa.
 

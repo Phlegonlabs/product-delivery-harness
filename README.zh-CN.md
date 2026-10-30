@@ -13,7 +13,7 @@
 
 # Product Delivery Harness
 
-这套技能让 Codex、Claude Code、Pi 或其他支持 skills 的宿主，把产品想法与变更需求转成经过验证的软件。产品定义、设计、实现、安全与启用各自保留来源、证据及 owner 决定。
+这套技能让 Codex、Claude Code、Pi 或其他支持 skills 的宿主，把产品想法与变更需求转成经过验证的软件。产品定义、设计、实现、安全与外部设置各自保留来源、证据及 owner 决定。
 
 ## 安装
 
@@ -111,7 +111,7 @@ flowchart LR
   Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation"] --> C["固定候选 C"]
   C -->|managed| A["仅 managed：archive-only A"] --> Publish["已授权候选发布与适用 Preview"]
   C -->|direct| Publish
-  Publish --> Main["另行授权 exact-SHA main landing"] --> Activate["逐 target Activation"] --> Outcome["测量成效与可选 SEO review"]
+  Publish --> Main["另行授权 exact-SHA main landing"] --> Setup["逐 target 外部设置回读"] --> Outcome["测量成效与可选 growth review"]
 ```
 
 初次 UI 交付须先完成设计与所有适用自查，才能进入 Harness 执行。按[作者自查](skills/delivery-harness/references/pre-delivery-self-review.md)，在下表的 Product、方向与 HiFi 既有出口完成检查。
@@ -137,7 +137,7 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 | HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。此阶段保有同样的两次 review 预算；之后的缺陷走隔离修复，并对修复差异做 scoped review。 |
 | 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes，另加一次定向复查。复查后每个剩余或新缺陷各成一笔有界修复，附自己的聚焦 verifier，并只对修复差异做 scoped review（finding、修复差异、直接消费者）；差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径，scoped review 不占用 attempt 预算。除非修复碰到 UI 页面，否则不重跑 Final UI Acceptance，碰到时只重跑该页面；broad final validation 每个候选于最后跑一次。环境受阻的 attempt 不占用预算。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
-| Activation | 逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |
+| 外部设置 | `docs/DEPLOYMENT.md` 每个动作一行 External Console Setup，另有 Measurement Sources 表。逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |
 
 缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。预算用完后，剩余缺陷走隔离修复，并对每个修复差异做 scoped review；没有额外 review 轮次。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审涵盖每个 audit 轴；复查只在受影响页面与状态重跑 critique 和 audit，仍保留完整证据矩阵。
 
