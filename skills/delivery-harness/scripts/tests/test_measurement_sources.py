@@ -209,7 +209,8 @@ class MeasurementSourcesTests(unittest.TestCase):
         self.assertEqual(
             [
                 "Measurement Sources: MS-001 release binding "
-                "'web-prod@ABC123#deployment-1' must be <target>@<sha>#<artifact>"
+                "'web-prod@ABC123#deployment-1' must be "
+                "<target>@<sha>#<artifact> or presence:<platform>:<handle>"
             ],
             findings,
         )
@@ -280,6 +281,34 @@ class MeasurementSourcesTests(unittest.TestCase):
                 self.assertEqual(
                     ["Measurement Sources: verified MS-001 needs evidence"], findings
                 )
+
+    def test_a_verified_presence_row_needs_no_release_target(self) -> None:
+        presence_row = (
+            "| MS-003 | newsletter subscribers | newsletter | production | "
+            "Buttondown API weekly pull | platform_insights | "
+            "presence:newsletter:https://buttondown.com/example | operator | verified | "
+            "2026-09-03T12:00:00Z | subscriber export retained in docs/metrics/newsletter.csv |"
+        )
+        deployment = measurement_deployment(
+            presence_row, base=ARCHITECTURE_BACKED_DEPLOYMENT
+        )
+        findings = check_deployment.check_deployment_text(
+            deployment, architecture_text=RELEASE_ARCHITECTURE
+        )
+        self.assertEqual([], findings)
+
+    def test_a_presence_binding_needs_a_platform_and_handle(self) -> None:
+        bad_row = PENDING_ROW.replace("web-prod@pending#pending", "presence:newsletter")
+        findings = check_deployment.check_deployment_text(
+            measurement_deployment(bad_row)
+        )
+        self.assertEqual(
+            [
+                "Measurement Sources: MS-002 release binding 'presence:newsletter' "
+                "must be <target>@<sha>#<artifact> or presence:<platform>:<handle>"
+            ],
+            findings,
+        )
 
     def test_a_verified_row_passes(self) -> None:
         findings = check_deployment.check_deployment_text(

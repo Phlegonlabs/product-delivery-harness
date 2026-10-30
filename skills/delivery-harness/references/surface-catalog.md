@@ -5,7 +5,7 @@ One project is a set of surfaces. Every stage routes from this catalog: the arch
 Two kinds of surface exist:
 
 - A **build surface** is a release target. It is built from a Git SHA, has an artifact or deployment identity, and appears in `docs/DEPLOYMENT.md` Release Target Status. Its `Surface class` must be one of the classes below (`release_targets.py` enforces the set).
-- A **presence surface** is an account on a platform. It has no SHA. It appears in the PRD Growth Contract as `<platform>:<handle-or-url>` with a presence kind, and is measured through that platform's insights.
+- A **presence surface** is an account on a platform. It has no SHA. It appears in the PRD Growth Contract as `<platform>:<handle-or-url>` with a presence kind, and is measured through that platform's insights; its Measurement Sources row binds as `presence:<platform>:<handle-or-url>`.
 
 ## Tracks
 

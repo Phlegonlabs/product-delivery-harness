@@ -68,7 +68,7 @@ Keep one test report joined to the tested build and context. No feedback vendor 
 
 ## Measurement Sources
 
-One row per `MS-*` source. Signals lists the PRD metric names and required `TEST-*` IDs the source measures. Source role is one of the roles in `delivery-harness/references/surface-catalog.md`. Release bindings use `<release-target-id>@<full-lowercase-sha>#<artifact-or-n/a>`. A row is `verified` only after a read-back returned data for that exact binding; record the RFC3339 time and a non-secret reference. Status is one of `planned`, `available`, `verified`, `blocked`, `superseded`, or `n/a`. An absent section is valid for legacy records; `check_deployment.py --require-measurement-sources` requires it.
+One row per `MS-*` source. Signals lists the PRD metric names and required `TEST-*` IDs the source measures. Source role is one of the roles in `delivery-harness/references/surface-catalog.md`. Release bindings use `<release-target-id>@<full-lowercase-sha>#<artifact-or-n/a>`; a presence surface has no SHA and binds as `presence:<platform>:<handle-or-url>`, its PRD Discovery Surfaces name. A row is `verified` only after a read-back returned data for that exact binding; record the RFC3339 time and a non-secret reference. Status is one of `planned`, `available`, `verified`, `blocked`, `superseded`, or `n/a`. An absent section is valid for legacy records; `check_deployment.py --require-measurement-sources` requires it.
 
 | MS ID | Signals | Target | Environment | Retrieval | Source role | Release bindings | Owner | Status | Verified at | Evidence |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |

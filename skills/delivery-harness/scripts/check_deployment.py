@@ -172,6 +172,9 @@ MEASUREMENT_BINDING_RE = re.compile(
     r"@(?P<sha>pending|[0-9a-f]{40})"
     r"#(?P<artifact>\S+)$"
 )
+# A presence surface (an account on a platform) has no SHA; it binds by its
+# PRD Discovery Surfaces name.
+MEASUREMENT_PRESENCE_BINDING_RE = re.compile(r"^presence:[a-z][a-z0-9_-]*:\S+$")
 PROVENANCE_RE = re.compile(
     r"^repo=(?P<repo>[A-Za-z0-9][A-Za-z0-9._-]*(?:/[A-Za-z0-9][A-Za-z0-9._-]*)+);"
     r" ref=(?P<ref>[A-Za-z0-9._/-]+);"
@@ -1137,11 +1140,13 @@ def _validate_measurement_sources(
             findings.append(f"{label}: {ms_id} needs release bindings")
         parsed_bindings: list[re.Match[str]] = []
         for entry in binding_entries:
+            if MEASUREMENT_PRESENCE_BINDING_RE.fullmatch(entry):
+                continue
             match = MEASUREMENT_BINDING_RE.fullmatch(entry)
             if match is None:
                 findings.append(
                     f"{label}: {ms_id} release binding {entry!r} must be "
-                    "<target>@<sha>#<artifact>"
+                    "<target>@<sha>#<artifact> or presence:<platform>:<handle>"
                 )
                 continue
             parsed_bindings.append(match)
