@@ -215,6 +215,4 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 - **0.70.0** — Each candidate stage keeps a two-review budget: one initial review and one targeted re-check; the owner-authorized extra round and successor review nodes are gone. After the re-check, each remaining or new defect becomes one isolated repair with its own focused verifier and a scoped review of the repair diff only — security joins at trust boundaries, a scoped PASS re-binds the repaired paths, prior PASSes carry forward, and the broad final validation runs once per candidate at the end. The managed route records repair scopes and scoped PASSes, and an owner-selected `mvp` delivery profile compresses a small project or one-week MVP to at most four owner gates.
 
-- **0.69.0** — Discovery asks a fourth Ambition segment, `PRD.md` gains `## Ambition` with a Metrics `Stretch` column, and PRD rounds stop stacking into one cumulative file: each round publishes a delta aligned with its Epic. The Epic records its delta and ambition rung, the PLAN freezes a `prd-delta` source, and a scope checker binds mission traces to the bound delta's requirement IDs.
-
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).

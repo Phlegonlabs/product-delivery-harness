@@ -215,6 +215,4 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 - **0.70.0** — 每个候选阶段保有两次 review 预算：一次初审与一次定向复查；需要 owner 授权的额外轮次与后继 review node 移除。复查后每个剩余或新缺陷各成一笔隔离修复，附自己的聚焦 verifier，并只对修复差异做 scoped review——差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径、既有 PASS 沿用，broad final validation 每个候选于最后跑一次。managed 路线记录修复范围与 scoped PASS，owner 选择的 `mvp` delivery profile 把小型项目或一周 MVP 压缩到最多四个 owner gate。
 
-- **0.69.0** — Discovery 追加第四个 Ambition 段落，`PRD.md` 新增 `## Ambition` 与 Metrics 的 `Stretch` 列，PRD 各轮不再累加到同一份文件：每轮发布与其 Epic 对齐的 delta。Epic 记录其 delta 与 ambition rung，PLAN 冻结 `prd-delta` 来源，范围检查把 mission trace 绑到所属 delta 的需求 ID。
-
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
