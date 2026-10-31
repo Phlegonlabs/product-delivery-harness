@@ -14,6 +14,10 @@ from harness_contract import contract_digest
 
 SCHEMA = "document-sync/1"
 LIMIT = 2 * 1024 * 1024
+# Machine-written coordination files may exceed LIMIT; they are stream-hashed up to
+# this ceiling, and their text is not scanned.
+COORDINATION_PATHS = frozenset({"docs/goal/PLAN.md", "docs/goal/RUN.md"})
+COORDINATION_LIMIT = 256 * 1024 * 1024
 DEFAULT_PATHS = (
     "AGENTS.md", "AGENTS.override.md", "CLAUDE.md", "docs/DOCUMENTS.md",
     "docs/product/PRD.md", "docs/product/architecture.md",
@@ -52,10 +56,7 @@ def safe_path(root, relative, *, document=False):
     parts = relative.split("/")
     if any(part in {"", ".", ".."} or ":" in part for part in parts):
         raise ValueError("unsafe path")
-    lowered = [part.lower() for part in parts]
-    if any(part.startswith(".env") or part in {".git", "archived", "outcomes", ".ssh"}
-           or any(word in part for word in ("credential", "secret", "password", "token", "cookie"))
-           for part in lowered):
+    if excluded_name(relative):
         raise ValueError("secret, Git metadata or historical path is excluded")
     if document:
         instruction = parts[-1] in {"AGENTS.md", "AGENTS.override.md", "CLAUDE.md"}
@@ -82,6 +83,29 @@ def read_bounded(path):
             after.st_ino, after.st_size, after.st_mtime_ns):
         raise ValueError("input changed during observation")
     return data
+
+
+def hash_coordination_file(path):
+    """Stream-hash a large machine-written coordination file; its text is not scanned."""
+    before = path.stat()
+    if not path.is_file() or before.st_size > COORDINATION_LIMIT:
+        raise ValueError("input must be a bounded regular file")
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    after = path.stat()
+    if (before.st_ino, before.st_size, before.st_mtime_ns) != (
+            after.st_ino, after.st_size, after.st_mtime_ns):
+        raise ValueError("input changed during observation")
+    return digest.hexdigest(), before.st_size
+
+
+def excluded_name(relative):
+    """True when a path part names secrets, Git metadata or historical records."""
+    return any(part.startswith(".env") or part in {".git", "archived", "outcomes", ".ssh"}
+               or any(word in part for word in ("credential", "secret", "password", "token", "cookie"))
+               for part in relative.lower().split("/"))
 
 
 def impact_for(name, reason):
@@ -154,6 +178,8 @@ def _scoped_markdown_children(root, name, label, paths):
     for path in sorted(entries):
         if path.suffix == ".md":
             relative = path.relative_to(root).as_posix()
+            if excluded_name(relative):
+                continue
             safe_path(root, relative, document=True)
             paths.append(relative)
             if len(paths) > 128:
@@ -240,6 +266,15 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
                 findings.append({"kind": "missing_document", "path": name})
                 impacts.append(impact_for(name, "missing_document"))
             continue
+        if name in COORDINATION_PATHS and path.is_file() and path.stat().st_size > LIMIT:
+            documents[name], size = hash_coordination_file(path)
+            findings.append({"kind": "oversized_document", "path": name, "bytes": size})
+            if baseline is not None and previous.get(name) != documents[name]:
+                findings.append({"kind": "document_changed", "path": name})
+                impacts.append(impact_for(name, "document_changed"))
+            elif baseline is None:
+                impacts.append(impact_for(name, "first_observation"))
+            continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
         documents[name] = hashlib.sha256(data).hexdigest()
@@ -252,7 +287,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
     snapshot = {"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
-    review = [row for row in findings if "session_marker" not in row]
+    review = [row for row in findings
+              if "session_marker" not in row and row["kind"] != "oversized_document"]
     return {"status": "review_required" if review else "unchanged",
             "findings": findings, "impacts": impacts, "snapshot": snapshot,
             "meaning": "Byte drift only; semantic review, capability, authorization and approval are separate."}

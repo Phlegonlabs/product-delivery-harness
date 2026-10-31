@@ -65,7 +65,7 @@ The resolved integration branch is always the exact non-protected run branch fro
           "host_version": null,
           "minimum_host_version": null,
           "harness_version": null,
-          "required_harness_version": "0.74.0",
+          "required_harness_version": "0.74.1",
           "session_id": null,
           "loaded_contract_digest": null,
           "installed_contract_digest": null,
