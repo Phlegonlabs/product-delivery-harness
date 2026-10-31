@@ -44,7 +44,7 @@ The adapter layer owns no shared state, authorization, review, integration, hand
 
 Apply this only to large plan-backed work:
 
-1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch.
+1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch. Include the Environment Preflight from `### 3. Pass Plan Readiness` in this inspection.
 2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. Observe every advertised current driver before dispatch; unrelated surfaces need no inventory. A visual reviewer attaches a real browser and records its actual inspection. Parent-session access, a role label or a CLI flag does not prove that reviewer's capability.
 3. Do not cap `max_parallel_workers` at a small fixed number. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
 4. Before selection, record `observed.captured_at`, live Git facts, and `integration.batch_base_sha`. A green validator with empty `dispatchable_nodes` and `deferred_nodes` reasons `parent_state_unreconciled` or `batch_base_missing` means the live snapshot is incomplete; these are dispatch-time reasons, not an empty graph.
@@ -90,6 +90,16 @@ Apply the direct route's self-review handoff before managed readiness.
 Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Mission Cohesion Gate, feature-batch missions with small fixed overhead and one bounded worker slice per task, one atomic commit boundary per executable task, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Reject readiness when unrelated features are bundled only because they share files/resources, one task needs a catch-all commit, or a single-task mission has no Mission Cohesion Gate reason. Record the planned review points for the round and the reason for each beyond one review plus one re-check. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery actually uses. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
 
 Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate when applicable.
+
+#### Environment Preflight
+
+Before the parent records `plan_readiness: ready`, it runs one bounded environment probe in the clean base checkout. It records the results in the existing Epic or task record. A failed or unobserved row blocks readiness with an `environment` reason. The block is not a mission failure and not a review finding. Fix the environment or record an owner-accepted deviation in the task record before dispatch. A later environment failure in the same run is an environment-blocked attempt with `blocker_class: environment`, never a product defect. The probe covers these rows:
+
+- Toolchain versions on PATH against the pins in `stack-decisions.md` (Node, Python, package manager, mobile SDK when declared).
+- The plan's declared verifier commands run once at the base as a baseline (install, typecheck, test), with exit codes.
+- Browser automation when the plan declares `ui_surfaces` or a `visual` lens: launch the pinned browser once and load one product route or a blank page. Record the console error policy the browser applies, for example which CSP directives it logs at error level. This lets the reviewer separate tooling noise from product defects.
+- The reviewer route reachable, with its observed caps (time, turns, bytes).
+- The worker driver observed with its slots.
 
 ### 4. Execute And Integrate
 
