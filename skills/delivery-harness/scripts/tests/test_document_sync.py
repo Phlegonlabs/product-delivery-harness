@@ -233,6 +233,33 @@ class DocumentSyncTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.observe()
 
+    def test_oversized_coordination_file_is_stream_hashed_and_quiet(self):
+        run = self.root / "docs/goal/RUN.md"
+        run.parent.mkdir(parents=True)
+        data = b"x" * (LIMIT + 1)
+        run.write_bytes(data)
+        first = self.observe(paths=["AGENTS.md", "docs/goal/RUN.md"])
+        digest = hashlib.sha256(data).hexdigest()
+        self.assertEqual(digest, first["snapshot"]["documents"]["docs/goal/RUN.md"])
+        self.assertIn({"kind": "oversized_document", "path": "docs/goal/RUN.md", "bytes": LIMIT + 1},
+                      first["findings"])
+        again = self.observe(first["snapshot"], paths=["AGENTS.md", "docs/goal/RUN.md"])
+        self.assertEqual("unchanged", again["status"])
+        run.write_bytes(data + b"y")
+        changed = self.observe(first["snapshot"], paths=["AGENTS.md", "docs/goal/RUN.md"])
+        self.assertIn({"kind": "document_changed", "path": "docs/goal/RUN.md"}, changed["findings"])
+
+    def test_default_epic_scan_skips_excluded_names(self):
+        folder = self.root / "docs/epics"
+        folder.mkdir(parents=True)
+        (folder / "EPIC-014-zai-credentials.md").write_text("Rotate the key.\n", encoding="utf-8")
+        (folder / "EPIC-015.md").write_text("Ship it.\n", encoding="utf-8")
+        paths = default_inventory(self.root)
+        self.assertIn("docs/epics/EPIC-015.md", paths)
+        self.assertNotIn("docs/epics/EPIC-014-zai-credentials.md", paths)
+        with self.assertRaises(ValueError):
+            safe_path(self.root, "docs/epics/EPIC-014-zai-credentials.md", document=True)
+
     def test_cli_installed_digest_is_observed_not_caller_override(self):
         stream = io.StringIO()
         with contextlib.redirect_stdout(stream):
