@@ -34,6 +34,8 @@ Domain lenses. A PLAN may add `domain:<field>` entries to `review.lenses`, taken
 
 One reviewer per candidate. Parallel reviewers on one candidate or surface group need an explicit owner request and return one consolidated finding set through the parent; they never each start a repair loop.
 
+When a review packet exceeds the reviewer route's caps, the parent splits that review into scoped calls over disjoint path groups of the same exact SHA. The procedure is in [General Runtime Adapter](runtime-adapters.md#reviewer-tools). The parent merges the returned sets into one consolidated finding set. That merged set follows this section's finding triage and two-pass budget. This is one review point, not the multi-reviewer fan-out that needs an owner request.
+
 Finding triage. A reviewer separates blocking findings from non-blocking notes. A blocking finding is a defect against accepted scope, a TEST obligation, security, or correctness. A non-blocking note is style, decorative wording, a suggestion, or backlog. Only blocking findings produce `fix_required`; a PASS records notes through `record-review-attempt --note`, and the notes go to the backlog or the Epic. Security findings of severity critical/high are always blocking.
 
 Each candidate stage gets at most two independent review passes: the initial review and one targeted re-check. Make one consolidated repair, then one targeted re-check on the new SHA. The security lens re-binds to the new SHA with full scope. After the re-check, every remaining or newly found defect enters the Isolated Repair Protocol; no owner decision opens another full review round.
@@ -437,6 +439,7 @@ If verification fails:
 - Do not commit failed work unless the commit is explicitly a harness/test artifact needed to expose the failure.
 - Record the failing command, exit code, and minimal error.
 - Decide whether the next action is code fix, test fix, environment fix, contract clarification, or user input.
+- A timeout or turn cap reached before inspection is an environment-blocked attempt. The next attempt uses smaller path groups or a smaller brief, never the same packet again.
 - Treat repeated failure as a harness issue after two similar failed attempts.
 - Treat adjacent edge cases from one parsing, validation, serialization, protocol, state-machine, or boundary primitive as one failure family. Do not authorize another example-specific patch after that family survives a repair.
 - Before another write, require a structural repair objective and an acceptance matrix covering the family's known equivalence classes; otherwise return `REFINEMENT_REQUEST` or `contract_gap`.
