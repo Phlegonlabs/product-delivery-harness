@@ -456,6 +456,8 @@ Implementation may start only after static validation passes, RUN records `plan_
 
 Before marking readiness, reject any mission that bundles unrelated features, whose tasks hide multiple commit-sized deliverables, or whose only cohesion is a shared file or serialized resource. Also reject a single-task mission that records no Mission Cohesion Gate reason. Every executable task must map to its own authorized atomic commit before the next task begins.
 
+The readiness review confirms the environment preflight in `stages/managed-delivery.md#3-pass-plan-readiness` before the parent records `plan_readiness: "ready"`. Its rows cover toolchain versions against `stack-decisions.md`, baseline verifier runs at the base, and the observed reviewer route and worker driver. When the plan has UI, the rows also cover the pinned browser console policy. The review names the Epic or task record that holds the probe results.
+
 `plan_readiness` in RUN is the single machine gate; do not restate the checks as a hand-filled table here.
 
 ## Stop / Ask Conditions
@@ -464,3 +466,4 @@ Before marking readiness, reject any mission that bundles unrelated features, wh
 - A touched security boundary lacks an upstream PRD/TEST contract, control, negative test, required evidence, or tooling.
 - A UI route has no frozen screen/design-system entry; load `ui-implementation-contract.md` and route a design-input delta instead of inventing a value.
 - A required worktree, authorization, scope/head binding, or exact-head review cannot be proved.
+- An environment preflight row fails or is unobserved for a stage the plan reaches.
