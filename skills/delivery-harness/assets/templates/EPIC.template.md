@@ -61,7 +61,6 @@ block and restate no RUN state. The block grants nothing and is not a second
 state source.
 
 ```text
-## Handoff
 Repository / branch / HEAD / dirty paths:
 Stage and skill:
 Inputs consumed (path + hash or revision):
