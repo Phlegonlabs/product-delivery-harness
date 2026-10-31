@@ -458,7 +458,8 @@ class InspectHarnessRunTests(unittest.TestCase):
         summary = inspect_harness_run.summarize_run(Path.cwd(), run)
 
         self.assertEqual("select", summary["next_action"]["state"])
-        self.assertIn("record-observation", summary["next_action"]["command"])
+        self.assertIn("acquire-run-lock", summary["next_action"]["command"])
+        self.assertIn("record-observation", summary["next_action"]["reason"])
         self.assertIn("harness_step.py", summary["next_action"]["reason"])
         self.assertTrue(inspect_harness_run.render_text(summary).startswith("Next: select"))
         lines = inspect_harness_run.render_text(summary).splitlines()

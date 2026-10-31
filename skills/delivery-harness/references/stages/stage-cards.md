@@ -8,7 +8,7 @@ Use the card for the stage you are in. Cards add no rule; they order what the co
 
 A session starts on a target that may hold a managed RUN, or a `running` RUN resumes in a new session. Record the System Review And Route before any managed artifact.
 
-Run `inspect_harness_run.py` first and follow its Next block. The inspector exits 1 when a mission needs reconciliation. Map every dirty path to its covering task; drift inside a task that is not `worker_passed` blocks new work. Confirm the runtime version gate as a separate observation. Verify the skill binding for the actual upcoming stage. Treat a stale lock, stale snapshot, or unexplained drift as an owner decision.
+Run `inspect_harness_run.py` first and follow its Next block. The inspector exits 1 when a mission needs reconciliation. Map every dirty path to its covering task; drift inside a task that is not `worker_passed` blocks new work. Confirm the runtime version gate as a separate observation. Verify the skill binding for the actual upcoming stage. Reclaim a stale lock only through `watchdog --reclaim`. Treat a stale snapshot or unexplained drift as an owner decision.
 
 **Commands in order**
 
@@ -131,7 +131,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> reject-worker-result --node-id <id> --worker-id <id> --outcome retryable_failure --reason <text>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> reserve-node-attempt --node-id <id> --attempt-id <id> --request-out <file>
 python "<delivery-harness-skill-root>/scripts/verifier_runtime.py" --request <file>
-python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-node-result --node-id <id> --attempt-id <id> --outcome pass --verifier-result <file>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-node-result --node-id <id> --attempt-id <id> --outcome pass --evidence <text> --verifier-result <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-integration --mission-id <id> --integrated-sha <sha>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> close-wave --source <text>
 ```
@@ -206,4 +206,4 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 - `references/verification-gates.md` — "Closeout Bar"
 - `references/execution-state-model.md` — exact RUN lifecycle values and `status: complete` conditions
-- `references/branch-promotion-contract.md` — "Managed Run Archive Before Promotion"
+- `references/branch-promotion-contract.md` — "Managed RUN Archive Before Promotion"

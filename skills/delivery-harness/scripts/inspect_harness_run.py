@@ -489,8 +489,14 @@ def _next_action(
         }
     return {
         "state": "select",
-        "reason": "Record live Git facts, then run selection with harness_step.py.",
-        "command": f"{_TRANSITION_COMMAND} --repo-root <root> record-observation",
+        "reason": (
+            "No lock is held: acquire the run lock, record live Git facts "
+            "with record-observation, then run selection with harness_step.py."
+        ),
+        "command": (
+            f"{_TRANSITION_COMMAND} --repo-root <root> --session-id <id>"
+            " acquire-run-lock"
+        ),
     }
 
 

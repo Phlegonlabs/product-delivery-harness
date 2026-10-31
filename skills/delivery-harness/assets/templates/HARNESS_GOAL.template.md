@@ -68,7 +68,7 @@ Under `mvp`, the Stack Decision Checkpoint and Product Definition Approval are o
 
 ## Gates That Always Stop
 
-These gates stop the run for an owner decision. No pre-recorded decision removes them, except an execution authorization recorded in this brief.
+These gates stop the run for an owner decision. A pre-recorded decision removes none of them; execution authorization is the one gate this brief can pre-record.
 
 - Product Definition Approval, with the Stack Decision Checkpoint (product-definition Workflow steps 14 and 15).
 - Direction selection, outside `mvp` (ui-design Workflow step 3).
@@ -94,16 +94,16 @@ Never guess an owner decision. Never open a second RUN to pass the gate.
 | --- | --- |
 | Toolchain versions versus stack pins | <toolchain version; pinned version; match or gap> |
 | Browser automation availability | <observed browser tool or none> |
-| Console error policy | no relevant errors; record the console/network log |
+| Console error policy | <console messages the pinned browser logs by policy, such as CSP directives; record the log> |
 | Reviewer route and caps | <route; seconds <n>; turns <n>; bytes <n>> |
 | Worker driver and slots | <driver; available_worker_slots <n>> |
 | Test runner baseline exit codes | <command; exit 0 is PASS> |
 
 ## Stop And Resume
 
-- Session cap: stop at <n> wall-clock hours per session. Stop at a safe boundary and record the RUN `Next action:` first.
-- Stall rule: three consecutive no-progress iterations end the session. Record the blocker in the RUN.
-- On compaction or restart, the first command is `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root>`. Read the inspector summary, then follow the RUN `## Goal And Checkpoint` `Next action:` line.
+- Session cap: stop at <n> wall-clock hours per session. Stop at a safe boundary; first record the `Next action:` line in the mission runbook's `## Goal And Checkpoint`.
+- Stall rule: three consecutive no-progress iterations end the session. Record the blocker in the Epic or task record and pause the run with `pause --source <text>`.
+- On compaction or restart, the first command is `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root>`. Follow its `Next` block, then the mission runbook's `## Goal And Checkpoint` `Next action:` line.
 - A `running` RUN with no run lock needs one owner decision before selection: pause, cancel, or resume. Record it with the matching `harness_transition.py` subcommand; each requires `--source`.
 - When the review budget is exhausted, route the remaining defects to the Isolated Repair Protocol (`references/verification-gates.md#isolated-repair-protocol`). Never open a new RUN for them.
 
@@ -115,8 +115,8 @@ Never guess an owner decision. Never open a second RUN to pass the gate.
 End state: <outcome> on the owner-named run branch, with docs/goal/RUN.md complete.
 Verified by: the PLAN verifiers and every RUN gate, each bound to the exact head SHA.
 While preserving: approved PRD, architecture, stack and UI sources; local data; the run branch.
-Use: docs/goal/HARNESS_GOAL.md, docs/goal/RUN.md, and the current stage cards; they own every rule.
-Between iterations: inspect first, then act, then record; run scripts/inspect_harness_run.py before selection and follow the RUN Next action.
+Use: docs/goal/HARNESS_GOAL.md, docs/goal/RUN.md, and the current stage cards; they point to every rule.
+Between iterations: inspect first, then act, then record; run scripts/inspect_harness_run.py before selection and follow its Next block.
 Guardrails: honor every recorded cap; one writer per checkout; never nest delegation; stop at every gate that always stops.
 If blocked: record the node as blocked with reason owner_gate, write the gate request with verified links, and end the iteration.
 ```
