@@ -28,6 +28,7 @@ Never silently substitute subagents or parent execution.
 
 Confirm fresh context, workspace binding, permissions, completion, cancellation and actual capacity before dispatch.
 Record the host, driver and provider once in `runtime_adapter`, with concrete evidence in the existing attempt record.
+Record each driver's observed route caps: wall-clock cap in seconds, tool-turn cap, and `max_message_bytes`.
 Capability does not grant an action. A missing grant does not make an available capability unavailable.
 
 ## Models, Roles And Context
@@ -88,6 +89,14 @@ The parent's browser session does not prove reviewer capability; missing require
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
 For architecture-bearing reviews, apply [Architecture Method](delegation-contract.md#architecture-method) to the affected boundaries.
+
+When one review node's packet exceeds the reviewer route's caps, the parent dispatches that review as several scoped calls.
+Each call covers one disjoint path group of the same exact SHA.
+Each call carries the full finding contract and the lenses its paths need.
+Trust-boundary paths stay in one group so the security lens sees them together.
+The parent merges the returned sets into one consolidated finding set and records it as one review attempt.
+A path group that no call inspected blocks PASS.
+This is one review point, not the multi-reviewer fan-out that needs an owner request.
 
 ## Version, Handoff And Failure
 

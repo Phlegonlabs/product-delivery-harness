@@ -44,7 +44,7 @@ The adapter layer owns no shared state, authorization, review, integration, hand
 
 Apply this only to large plan-backed work:
 
-1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch.
+1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch. Include the Environment Preflight from `### 3. Pass Plan Readiness` in this inspection.
 2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. Observe every advertised current driver before dispatch; unrelated surfaces need no inventory. A visual reviewer attaches a real browser and records its actual inspection. Parent-session access, a role label or a CLI flag does not prove that reviewer's capability.
 3. Do not cap `max_parallel_workers` at a small fixed number. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
 4. Before selection, record `observed.captured_at`, live Git facts, and `integration.batch_base_sha`. A green validator with empty `dispatchable_nodes` and `deferred_nodes` reasons `parent_state_unreconciled` or `batch_base_missing` means the live snapshot is incomplete; these are dispatch-time reasons, not an empty graph.
@@ -91,6 +91,16 @@ Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Miss
 
 Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate when applicable.
 
+#### Environment Preflight
+
+Before the parent records `plan_readiness: ready`, it runs one bounded environment probe in the clean base checkout. It records the results in the existing Epic or task record. A failed or unobserved row blocks readiness with an `environment` reason. The block is not a mission failure and not a review finding. Fix the environment or record an owner-accepted deviation in the task record before dispatch. A later environment failure in the same run is an environment-blocked attempt with `blocker_class: environment`, never a product defect. The probe covers these rows:
+
+- Toolchain versions on PATH against the pins in `stack-decisions.md` (Node, Python, package manager, mobile SDK when declared).
+- The plan's declared verifier commands run once at the base as a baseline (install, typecheck, test), with exit codes.
+- Browser automation when the plan declares `ui_surfaces` or a `visual` lens: launch the pinned browser once and load one product route or a blank page. Record the console error policy the browser applies, for example which CSP directives it logs at error level. This lets the reviewer separate tooling noise from product defects.
+- The reviewer route reachable, with its observed caps (time, turns, bytes).
+- The worker driver observed with its slots.
+
 ### 4. Execute And Integrate
 
 Acceptance/eval gates: `references/delivery-acceptance-contract.md`, `references/eval-acceptance-contract.md`.
@@ -111,6 +121,7 @@ UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the i
 ### 6. Complete
 
 RUNs close `local_only` at C after all gates and security pass, and a current RUN never pushes. Archive, publication, Preview gates and exact-SHA `main` promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
+Closeout rewrites the current Epic's `## Handoff` block; its `Next action` points at the `inspect_harness_run.py` Next block.
 
 Fixed-build external setup from `external-setup.md` may start before dependent features, under separate action grants recorded in `docs/DEPLOYMENT.md`.
 Final readiness, measurement sources, outcome review and the growth review retain their applicable release and production verification; no RUN grant authorizes them.

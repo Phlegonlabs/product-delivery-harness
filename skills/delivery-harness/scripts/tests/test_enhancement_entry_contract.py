@@ -52,11 +52,37 @@ class EnhancementEntryContractTests(unittest.TestCase):
         if (REPO / "AGENTS.md").exists():
             self.assertIn("significant edit", root.lower())
 
+    def test_epic_handoff_block_fields_are_pinned_and_in_order(self):
+        epic = (SKILLS / "delivery-harness/assets/templates/EPIC.template.md").read_text(encoding="utf-8")
+        owner = (GOVERNANCE / "task-and-handoff.md").read_text(encoding="utf-8")
+        checkpoints = self.owner_section(
+            "task-and-handoff.md", "## Repository Change Checkpoints"
+        )
+        fields = (
+            "Repository / branch / HEAD / dirty paths:",
+            "Stage and skill:",
+            "Inputs consumed (path + hash or revision):",
+            "Approvals in force (gate, owner, date, candidate):",
+            "Done and verified (command, exit code):",
+            "Remaining:",
+            "Blocked / waiting (gate name or owner decision):",
+            "Next action (one command or one owner decision):",
+            "Next owner (skill or human):",
+        )
+        positions = [epic.index(field) for field in fields]
+        self.assertEqual(sorted(positions), positions)
+        for field in fields:
+            with self.subTest(field=field):
+                self.assertIn(field, epic)
+        self.assertIn("assets/templates/EPIC.template.md", checkpoints)
+        self.assertIn("rewritten in place", owner)
+        self.assertIn("restates no RUN state", owner)
+
     def test_all_suite_skills_disable_implicit_invocation(self):
         core = sorted(SKILLS.glob("*/SKILL.md"))
         standalone = sorted((REPO / "standalone-skills").glob("*/SKILL.md"))
         self.assertEqual(len(core), len(NAMES))
-        self.assertEqual(len(standalone), 3)
+        self.assertEqual(len(standalone), 4)
         for path in core + standalone:
             with self.subTest(skill=path.parent.name):
                 metadata = yaml.safe_load(

@@ -9,7 +9,7 @@ new retry budget.
 
 | Stage | Author and corrector | Verifier and feedback owner |
 | --- | --- | --- |
-| Product requirements and architecture | Product author | Product checker, focused review, and explicit owner approvals |
+| Product requirements and architecture | Product author | Product checker, one independent read-only PRD review, and explicit owner approvals |
 | UI direction and HiFi | Bound `frontend-design` author | Completeness, Impeccable, browser/grading, and Visual Approval owners |
 | Design-system compilation | Compiler author | Pair, contrast, type-scale, package, and preview checks |
 | Task and mission | Assigned writer | Focused verifier; exact-head reviewer under `per_mission` |

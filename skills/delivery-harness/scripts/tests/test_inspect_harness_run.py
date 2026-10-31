@@ -317,5 +317,204 @@ class InspectHarnessRunTests(unittest.TestCase):
         self.assertEqual(["current head needs repair"], recovery["most_recent_failure"]["evidence"])
 
 
+    def test_next_action_complete_reports_archive_boundary(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-DONE",
+            "status": "complete",
+            "active_wave": None,
+            "integration": {"integration_head_sha": "1" * 40},
+            "mission_states": {},
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("complete", summary["next_action"]["state"])
+        self.assertIsNone(summary["next_action"]["command"])
+        self.assertIn(
+            "branch-promotion-contract.md",
+            summary["next_action"]["reason"],
+        )
+        rendered = inspect_harness_run.render_text(summary)
+        self.assertTrue(rendered.startswith("Next: complete"))
+        self.assertIn("Command: -", rendered.splitlines()[2])
+
+    def test_next_action_paused_requires_owner_instruction_to_resume(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-PAUSED",
+            "status": "running",
+            "control": {"desired_state": "paused"},
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {
+                "M1": {"phase": "worker_running", "head_sha": "2" * 40},
+            },
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("paused", summary["next_action"]["state"])
+        self.assertIn("resume --source <owner instruction>", summary["next_action"]["command"])
+        self.assertIn("harness_transition.py", summary["next_action"]["command"])
+        reason = summary["next_action"]["reason"]
+        self.assertIn("reconcile interrupted workers first", reason)
+        self.assertIn("owner instruction", reason)
+        self.assertTrue(inspect_harness_run.render_text(summary).startswith("Next: paused"))
+
+    def test_next_action_stale_no_lock_defers_to_owner_decision(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-STALE",
+            "status": "running",
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {
+                "M1": {"phase": "worker_running", "head_sha": "3" * 40},
+            },
+            "workers": [],
+        }
+
+        with tempfile.TemporaryDirectory() as tmp:
+            summary = inspect_harness_run.summarize_run(Path(tmp), run)
+
+        self.assertEqual("stale_no_lock", summary["next_action"]["state"])
+        self.assertIsNone(summary["next_action"]["command"])
+        self.assertIn("No run lock", summary["next_action"]["reason"])
+        self.assertIn("pause, cancel or resume", summary["next_action"]["reason"])
+        self.assertTrue(
+            inspect_harness_run.render_text(summary).startswith("Next: stale_no_lock")
+        )
+
+    def test_next_action_lock_held_points_at_the_watchdog(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-LOCKED",
+            "status": "running",
+            "run_lock": {
+                "session_id": "SESS-A",
+                "acquired_at": "2026-01-01T00:00:00Z",
+                "heartbeat_at": "2026-01-01T00:01:00Z",
+            },
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {},
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("lock_held", summary["next_action"]["state"])
+        self.assertIn("watchdog", summary["next_action"]["command"])
+        self.assertIn("SESS-A", summary["next_action"]["reason"])
+        self.assertTrue(inspect_harness_run.render_text(summary).startswith("Next: lock_held"))
+
+    def test_next_action_reconcile_points_at_recovery_steps(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-RECONCILE",
+            "status": "running",
+            "attempt_log": [
+                {
+                    "attempt_id": "ATTEMPT-M1-01",
+                    "mission_id": "M1",
+                    "kind": "dispatch",
+                    "result": "retryable_failure",
+                    "evidence": ["dispatch failed"],
+                }
+            ],
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {
+                "M1": {"phase": "blocked", "head_sha": "4" * 40},
+            },
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("reconcile", summary["next_action"]["state"])
+        self.assertIsNone(summary["next_action"]["command"])
+        self.assertIn("Recovery next steps", summary["next_action"]["reason"])
+        self.assertTrue(
+            inspect_harness_run.render_text(summary).startswith("Next: reconcile")
+        )
+
+    def test_next_action_select_records_observation_before_selection(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-SELECT",
+            "status": "running",
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {
+                "M1": {"phase": "queued", "head_sha": None},
+            },
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("select", summary["next_action"]["state"])
+        self.assertIn("acquire-run-lock", summary["next_action"]["command"])
+        self.assertIn("record-observation", summary["next_action"]["reason"])
+        self.assertIn("harness_step.py", summary["next_action"]["reason"])
+        self.assertTrue(inspect_harness_run.render_text(summary).startswith("Next: select"))
+        lines = inspect_harness_run.render_text(summary).splitlines()
+        self.assertEqual("Next: select", lines[0])
+        self.assertTrue(lines[1].startswith("  Reason: "))
+        self.assertTrue(lines[2].startswith("  Command: "))
+        self.assertTrue(lines[3].startswith("Run: "))
+
+    def test_next_action_cancelled_control_schedules_no_work(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-CANCELLED",
+            "status": "running",
+            "control": {"desired_state": "cancelled"},
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {"M1": {"phase": "queued", "head_sha": None}},
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("cancelled", summary["next_action"]["state"])
+        self.assertIsNone(summary["next_action"]["command"])
+        self.assertIn("owner-directed", summary["next_action"]["reason"])
+
+    def test_next_action_recovered_failure_does_not_block_selection(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-RECOVERED",
+            "status": "running",
+            "attempt_log": [
+                {
+                    "attempt_id": "ATTEMPT-M1-01",
+                    "mission_id": "M1",
+                    "kind": "dispatch",
+                    "result": "retryable_failure",
+                    "evidence": ["first dispatch failed"],
+                }
+            ],
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {
+                "M1": {"phase": "integrated", "head_sha": "5" * 40},
+                "M2": {"phase": "queued", "head_sha": None},
+            },
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        recovery = summary["attempt_recovery"]["missions"]
+        self.assertTrue(any(item["most_recent_failure"] for item in recovery))
+        self.assertEqual("select", summary["next_action"]["state"])
+
+
 if __name__ == "__main__":
     unittest.main()

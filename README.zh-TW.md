@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.73.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -90,16 +90,16 @@ Use $growth-review to read back every surface of this released product with its 
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html` |
-| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源，以及需要時的 PLAN/RUN |
+| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源，需要時的 PLAN/RUN，以及 managed stage cards 與自主執行用的 launch brief |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一個 lens：搜尋與答案引擎、商店列表、registry 與目錄、bot 平台，以及團隊經營的帳號；含 `pre_launch`、`baseline`、Day 7 與 Day 30 `growth_review` 與 `traffic_drop` 模式，直接回覆 |
 
 ## 獨立 skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗、延伸 PRD 的 Launch Window，並準備各渠道草稿、素材、日曆與附兩個 hook 的各渠道變體。
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 選擇渠道與實驗、每個專案保留一份 messaging record、把 PRD 的 Launch Window 延伸成 launch runbook、為 Growth Contract 的再觸及機制撰寫 lifecycle messaging，並準備各渠道草稿、素材、日曆與附兩個 hook 的各渠道變體，涵蓋開發者渠道與商店 listing。
 
-[README Studio](standalone-skills/readme-studio/SKILL.md) 用實際展示編寫專案 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 驗證 release artifact 與使用者安裝路徑。
+[Customer Discovery](standalone-skills/customer-discovery/SKILL.md) 規劃使用者訪談、整理去識別化筆記，並把 `RA-*` 候選發現交回 Product Definition。[README Studio](standalone-skills/readme-studio/SKILL.md) 用實際展示編寫專案 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 驗證 release artifact 與使用者安裝路徑。
 
-這三個完整 skill 目錄須另行向 host 註冊；`install.sh` 只安裝五個核心 skills。註冊、build、下載、簽章、發佈、排程與帳戶變更保留各自授權。沿用既有產品與量測紀錄，不新增 review wave。
+這四個完整 skill 目錄須另行向 host 註冊；`install.sh` 只安裝五個核心 skills。註冊、build、下載、簽章、發佈、排程與帳戶變更保留各自授權。沿用既有產品與量測紀錄，不新增 review wave。
 
 ## 各部分如何組合在一起
 
@@ -122,17 +122,17 @@ flowchart LR
 
 Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即可完成的工作走 direct。可獨立寫入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，細 task 各自保留 atomic commit。owner 選擇 `Delivery profile: mvp` 時，小型專案或一週 MVP 走壓縮路線：stack 與產品批准一次合併呼叫、必要頁面才做 HiFi、一次合併交付 review 併入 Final UI Acceptance，owner gate 最多四個；證據、安全與資料保護規則不變。
 
-- [進場與交接](skills/delivery-harness/references/governance/task-and-handoff.md)：檢查目前指令與來源；未知的 loaded identity 維持未知。
-- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 設定與 AGENTS 決定 executor、model、effort 與 fallback。每個 checkout 只有一位 writer；被分派的 worker 不能再次分派。
+- [進場與交接](skills/delivery-harness/references/governance/task-and-handoff.md)：檢查目前指令與來源；未知的 loaded identity 維持未知。managed run 從 inspector 的 `Next` 區塊恢復；停滯的 `running` RUN 先要 owner 決定，自主執行從已簽署的 launch brief 開始。
+- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 設定與 AGENTS 決定 executor、model、effort 與 fallback。每個 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 與 review packet 在啟動前先依路線的時間、turn 與 byte 上限切好大小。
 - [驗證](skills/delivery-harness/references/verification-gates.md)：必要證據綁定準確候選；缺能力或證據維持 blocked。
 - [候選發佈與晉升](skills/delivery-harness/references/branch-promotion-contract.md)：保留準確 target、授權與遠端讀回，不得 force-push。
 - [來源維護](skills/delivery-harness/references/governance/source-maintenance.md)：每個 atomic task 跑聚焦檢查，固定候選跑一次完整 matrix。
 
-每次交接前，核對來源雜湊（source hashes）、Epic 紀錄與文件一致性。`docs/tasks.md` 由 RUN 衍生，不能手動編輯產生區段。[文件同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修復](skills/delivery-harness/references/bounded-enhancement.md) 與[交付驗收](skills/delivery-harness/references/delivery-acceptance-contract.md) 擁有這些檢查規則。
+每次交接前，核對來源雜湊（source hashes）、Epic 紀錄與文件一致性，並原地重寫 Epic 的 `## Handoff` 區塊（階段、有效核准、剩餘工作、下一步）；每個 skill 進場先讀這個區塊。`docs/tasks.md` 由 RUN 衍生，不能手動編輯產生區段。[文件同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修復](skills/delivery-harness/references/bounded-enhancement.md) 與[交付驗收](skills/delivery-harness/references/delivery-acceptance-contract.md) 擁有這些檢查規則。
 
 | 階段 | 預設 review 與停止條件 |
 | --- | --- |
-| Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。At a Glance 的 `Shape` 列宣告 track、companion 介面與 console，交由 checker 驗證；`## Growth Contract` 記錄 north star、再觸及、discovery surfaces 與 launch window。套件保有兩次 review 預算——一次初審與一次定向複查——之後的缺陷走隔離修復加 scoped review。 |
+| Product Definition | 封閉式決策前先回讀 Product Thesis。草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更；之後再做一次獨立唯讀 PRD review 與一次定向複查，owner 依十題 review 指南決定。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。At a Glance 的 `Shape` 列宣告 track、companion 介面與 console，交由 checker 驗證；`## Growth Contract` 記錄 north star、再觸及、discovery surfaces 與 launch window。套件預算是作者自查、一次獨立 review 與一次定向複查；之後的缺陷走隔離修復加 scoped review。 |
 | 方向 | 原作者先檢查並修復已渲染的研究，再交 owner 選擇。三個研究；修改只新增一個所選方向的修訂研究與一次決定，拒絕才重做整組。 |
 | HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。一次診斷 wave、一批集中修復與一次受影響範圍複查。保留必要瀏覽器覆蓋、Impeccable `critique` **與** `audit`、四捨五入的 H1–H9 總平均 **至少 85** 及每項 **至少 80**，再取得 Visual Approval。未變證據連同身分沿用。此階段保有同樣的兩次 review 預算；之後的缺陷走隔離修復，並對修復差異做 scoped review。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），findings 分為 blocking 與 notes，另加一次定向複查。複查後每個剩餘或新缺陷各成一筆有界修復，附自己的聚焦 verifier，並只對修復差異做 scoped review（finding、修復差異、直接消費者）；差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑，scoped review 不佔用 attempt 預算。除非修復碰到 UI 頁面，否則不重跑 Final UI Acceptance，碰到時只重跑該頁面；broad final validation 每個候選於最後跑一次。環境受阻的 attempt 不佔用預算。 |
@@ -205,6 +205,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.74.0** — 流程不再中途斷掉。`inspect_harness_run.py` 先印出附一條建議命令的 `Next` 區塊，沒有 lock 的 `running` RUN 必須先由 owner 決定才能選工作。七張短 stage card 取代長 contract 成為日常讀物，已簽署的 launch brief 把授權與預先記錄的 owner 決定帶進自主迴圈，brief 與 review packet 依路線的時間、turn 與 byte 上限切好，readiness 先探一次環境，每個 Epic 結尾有一個 `## Handoff` 區塊，每個 skill 進場先讀它。Product Definition 先回讀 Product Thesis，審批前多一次獨立唯讀 PRD review，並給 owner 十題審閱指南。Go To Market 新增 messaging record、lifecycle messaging、開發者、商店與港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把使用者訪談整理成 `RA-*` 候選。
+
 - **0.73.0** — 一個專案就是一組 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 種發布面（新增 MCP server、skill 與 plugin、library、messaging bot、marketplace app、assistant listing、container 與 internal service）和五種存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 寫在 PRD Growth Contract；Shape 列新增 `tool` 與 `content` track，Launch Window 新增 Destination 欄。bundle 從七個 skills 縮成五個：`code-security-review` 成為 harness 的安全 lens（`references/security-review.md`），`product-activation` 收進 deployment record（External Console Setup 列加上 Measurement Sources 表，設定目錄在 `references/external-setup.md`），`seo-growth-review` 改為 `growth-review`，逐一 surface 用各自的 lens 讀回，並從專案自己的 stack decisions 解析供應商。`gtm-content` 併入 `go-to-market`，未使用的 templates、死碼與重複的 validator CLI 一併移除。
 
 - **0.72.1** — 任務通過時 worker 回傳 `WORKER_RESULT`；阻塞或失敗的任務回傳 `worker_result: null` 的 graph node result，驗證、review 與整合權保留在 parent。
@@ -212,7 +214,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多個行程並行執行一個套件的測試模組並保留逐模組 log，本機的 Required Verification 矩陣從單核 27 分鐘縮到幾分鐘。
 
 - **0.71.0** — 每個專案都明確宣告自己的形狀：PRD At a Glance 新增 `Shape` 列，寫明 track、companion 公開介面與 console 類型，`## Growth Contract` 記錄 north star 與 Day 7、Day 30 目標、再觸及機制、discovery surfaces 與 launch window。各 track 的必要 UI 介面與交付基礎、`agentic-operations-console` 架構 profile，以及 store launch、agent directory 與 GEO 讀回的 activation profile，把流程從 web 延伸到 app 與 agent 產品。`seo-growth-review` 新增 `pre_launch` 模式與 Day 7、Day 30 的 `growth_review` 讀回並餵給下一輪 PRD delta，go-to-market 草擬 Launch Reach Plan，GTM Content 把一份源內容打包成各渠道變體並附兩個 hook。
-
-- **0.70.0** — 每個候選階段保有兩次 review 預算：一次初審與一次定向複查；須 owner 授權的額外輪次與後繼 review node 移除。複查後每個剩餘或新缺陷各成一筆隔離修復，附自己的聚焦 verifier，並只對修復差異做 scoped review——差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑、既有 PASS 沿用，broad final validation 每個候選於最後跑一次。managed 路線記錄修復範圍與 scoped PASS，owner 選擇的 `mvp` delivery profile 把小型專案或一週 MVP 壓縮到最多四個 owner gate。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

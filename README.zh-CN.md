@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.73.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -90,16 +90,16 @@ Use $growth-review to read back every surface of this released product with its 
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包 |
 | `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html` |
-| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源，以及需要时的 PLAN/RUN |
+| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源，需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复 |
 
 ## 独立 skills
 
-[Go To Market](standalone-skills/go-to-market/SKILL.md) 选择渠道与实验、延伸 PRD 的 Launch Window，并准备各渠道草稿、素材、日历与附两个 hook 的各渠道变体。
+[Go To Market](standalone-skills/go-to-market/SKILL.md) 选择渠道与实验、每个项目保留一份 messaging record、把 PRD 的 Launch Window 延伸成 launch runbook、为 Growth Contract 的再触达机制撰写 lifecycle messaging，并准备各渠道草稿、素材、日历与附两个 hook 的各渠道变体，涵盖开发者渠道与商店 listing。
 
-[README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。
+[Customer Discovery](standalone-skills/customer-discovery/SKILL.md) 规划用户访谈、整理去标识化笔记，并把 `RA-*` 候选发现交回 Product Definition。[README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。
 
-这三个完整 skill 目录须另行向宿主注册；`install.sh` 只安装五个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
+这四个完整 skill 目录须另行向宿主注册；`install.sh` 只安装五个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
 
 ## 系统如何协同
 
@@ -122,17 +122,17 @@ flowchart LR
 
 Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。owner 选择 `Delivery profile: mvp` 时，小型项目或一周 MVP 走压缩路线：stack 与产品批准一次合并调用、必要页面才做 HiFi、一次合并交付 review 并入 Final UI Acceptance，owner gate 最多四个；证据、安全与数据保护规则不变。
 
-- [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。
-- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。
+- [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。managed run 从 inspector 的 `Next` 区块恢复；停滞的 `running` RUN 先要 owner 决定，自主执行从已签署的 launch brief 开始。
+- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 与 review packet 在启动前先按路线的时间、turn 与 byte 上限切好大小。
 - [验证](skills/delivery-harness/references/verification-gates.md)：必要证据绑定准确候选；缺能力或证据维持 blocked。
 - [候选发布与晋升](skills/delivery-harness/references/branch-promotion-contract.md)：保留准确 target、授权与远端回读，不得 force-push。
 - [源码维护](skills/delivery-harness/references/governance/source-maintenance.md)：每个 atomic task 跑聚焦检查，固定候选跑一次完整 matrix。
 
-每次交接前，核对来源哈希（source hashes）、Epic 记录与文件一致性。`docs/tasks.md` 由 RUN 派生，不能手动编辑生成区段。[文档同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修复](skills/delivery-harness/references/bounded-enhancement.md) 与[交付验收](skills/delivery-harness/references/delivery-acceptance-contract.md) 拥有这些检查规则。
+每次交接前，核对来源哈希（source hashes）、Epic 记录与文件一致性，并原地重写 Epic 的 `## Handoff` 区块（阶段、有效核准、剩余工作、下一步）；每个 skill 进场先读这个区块。`docs/tasks.md` 由 RUN 派生，不能手动编辑生成区段。[文档同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修复](skills/delivery-harness/references/bounded-enhancement.md) 与[交付验收](skills/delivery-harness/references/delivery-acceptance-contract.md) 拥有这些检查规则。
 
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
-| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。At a Glance 的 `Shape` 行声明 track、companion 界面与 console，由 checker 验证；`## Growth Contract` 记录 north star、再触达、discovery surfaces 与 launch window。套件保有两次 review 预算——一次初审与一次定向复查——之后的缺陷走隔离修复加 scoped review。 |
+| Product Definition | 封闭式决策前先回读 Product Thesis。草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。At a Glance 的 `Shape` 行声明 track、companion 界面与 console，由 checker 验证；`## Growth Contract` 记录 north star、再触达、discovery surfaces 与 launch window。套件预算是作者自查、一次独立 review 与一次定向复查；之后的缺陷走隔离修复加 scoped review。 |
 | 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
 | HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。此阶段保有同样的两次 review 预算；之后的缺陷走隔离修复，并对修复差异做 scoped review。 |
 | 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes，另加一次定向复查。复查后每个剩余或新缺陷各成一笔有界修复，附自己的聚焦 verifier，并只对修复差异做 scoped review（finding、修复差异、直接消费者）；差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径，scoped review 不占用 attempt 预算。除非修复碰到 UI 页面，否则不重跑 Final UI Acceptance，碰到时只重跑该页面；broad final validation 每个候选于最后跑一次。环境受阻的 attempt 不占用预算。 |
@@ -205,6 +205,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.74.0** — 流程不再中途断掉。`inspect_harness_run.py` 先打印附一条建议命令的 `Next` 区块，没有 lock 的 `running` RUN 必须先由 owner 决定才能选工作。七张短 stage card 取代长 contract 成为日常读物，已签署的 launch brief 把授权与预先记录的 owner 决定带进自主循环，brief 与 review packet 按路线的时间、turn 与 byte 上限切好，readiness 先探一次环境，每个 Epic 结尾有一个 `## Handoff` 区块，每个 skill 进场先读它。Product Definition 先回读 Product Thesis，审批前多一次独立只读 PRD review，并给 owner 十题审阅指南。Go To Market 新增 messaging record、lifecycle messaging、开发者、商店与港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把用户访谈整理成 `RA-*` 候选。
+
 - **0.73.0** — 一个项目就是一组 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 种发布面（新增 MCP server、skill 与 plugin、library、messaging bot、marketplace app、assistant listing、container 与 internal service）和五种存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 写在 PRD Growth Contract；Shape 行新增 `tool` 与 `content` track，Launch Window 新增 Destination 列。bundle 从七个 skills 缩成五个：`code-security-review` 成为 harness 的安全 lens（`references/security-review.md`），`product-activation` 收进 deployment record（External Console Setup 行加上 Measurement Sources 表，设置目录在 `references/external-setup.md`），`seo-growth-review` 改为 `growth-review`，逐一 surface 用各自的 lens 回读，并从项目自己的 stack decisions 解析供应商。`gtm-content` 并入 `go-to-market`，未使用的 templates、死代码与重复的 validator CLI 一并移除。
 
 - **0.72.1** — 任务通过时 worker 返回 `WORKER_RESULT`；阻塞或失败的任务返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
@@ -212,7 +214,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多个进程并行执行一个套件的测试模块并保留逐模块 log，本地的 Required Verification 矩阵从单核 27 分钟缩到几分钟。
 
 - **0.71.0** — 每个项目都明确声明自己的形状：PRD At a Glance 新增 `Shape` 行，写明 track、companion 公开界面与 console 类型，`## Growth Contract` 记录 north star 与 Day 7、Day 30 目标、再触达机制、discovery surfaces 与 launch window。各 track 的必要 UI 界面与交付基础、`agentic-operations-console` 架构 profile，以及 store launch、agent directory 与 GEO 回读的 activation profile，把流程从 web 延伸到 app 与 agent 产品。`seo-growth-review` 新增 `pre_launch` 模式与 Day 7、Day 30 的 `growth_review` 回读并喂给下一轮 PRD delta，go-to-market 起草 Launch Reach Plan，GTM Content 把一份源内容打包成各渠道变体并附两个 hook。
-
-- **0.70.0** — 每个候选阶段保有两次 review 预算：一次初审与一次定向复查；需要 owner 授权的额外轮次与后继 review node 移除。复查后每个剩余或新缺陷各成一笔隔离修复，附自己的聚焦 verifier，并只对修复差异做 scoped review——差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径、既有 PASS 沿用，broad final validation 每个候选于最后跑一次。managed 路线记录修复范围与 scoped PASS，owner 选择的 `mvp` delivery profile 把小型项目或一周 MVP 压缩到最多四个 owner gate。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

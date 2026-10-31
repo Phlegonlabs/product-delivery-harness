@@ -51,3 +51,23 @@ Link exact implementation SHA, test evidence and direct-task or PLAN/RUN records
 Record actual outcomes, unresolved criteria, spent repair attempts and next action.
 Preserve historical failures and approval evidence. Complete means every required
 criterion passed on the actual candidate; a handoff alone does not complete it.
+
+## Handoff
+
+Rewrite this block in place at task start, after each authorized commit, before
+the session stops, and at each stage exit; never append a second block. For a
+managed RUN, point the `Next action` line at the `inspect_harness_run.py` Next
+block and restate no RUN state. The block grants nothing and is not a second
+state source.
+
+```text
+Repository / branch / HEAD / dirty paths:
+Stage and skill:
+Inputs consumed (path + hash or revision):
+Approvals in force (gate, owner, date, candidate):
+Done and verified (command, exit code):
+Remaining:
+Blocked / waiting (gate name or owner decision):
+Next action (one command or one owner decision):
+Next owner (skill or human):
+```

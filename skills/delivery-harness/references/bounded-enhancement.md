@@ -29,6 +29,8 @@ When the round changes the PRD, its one Epic binds to that round's one PRD delta
 
 Keep a short Change Log in the chosen record: request or finding, reason, affected files/requirements and UI scope, exact commit or evidence, verification result and remaining work. Record each logical fix when it is made, including failed checks and later repairs. Group related edits; do not log every keystroke or duplicate PLAN/RUN state. Before handoff, reconcile the log with the actual diff and keep unresolved criteria visible. A documentation-only internal enhancement may reference its existing contract/tests instead of inventing a product PRD.
 
+The Epic also carries one current `## Handoff` block, rewritten in place at each checkpoint as [Repository Change Checkpoints](governance/task-and-handoff.md#repository-change-checkpoints) describes.
+
 ## Repository Change Checkpoints
 
 Follow [Repository Change Checkpoints](governance/task-and-handoff.md#repository-change-checkpoints); they apply outside this flow too.

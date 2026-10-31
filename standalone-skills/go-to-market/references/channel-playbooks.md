@@ -72,9 +72,144 @@ Do not invent launch availability.
 [Product Hunt's guide](https://help.producthunt.com/en/articles/17350772-launch-guide), observed 2026-10-15, prohibits direct upvote requests.
 Invite useful feedback. Separate product use from votes or launch traffic.
 
+## Developer Channels
+
+Developer channels reward a plain description and a working install over launch language.
+The audience judges the artifact; the copy stays short and factual.
+
+### Hacker News And Show HN
+
+Open with a factual title: what it is, for whom, and what is new.
+A Show HN post opens with a plain description of what it does, who it serves, and what does not work yet.
+Show honest proof: a runnable link, a real demo or the source, with preview and beta state labelled.
+Give one next step: the install command, the docs or the feedback question.
+Name the founder reply owner; unanswered questions are the visible failure.
+Ask nobody for votes, and read the site guidelines before posting.
+Treat timing as a hypothesis; record the chosen window with the experiment.
+Official guide: Hacker News Guidelines; confirm at execution readiness.
+
+### Reddit
+
+Read each subreddit's rules and recent posts before preparing anything.
+Disclose affiliation in the post or comment body.
+Open by answering the question that was asked; name the product only when it is the honest answer.
+Show proof from the project's own records: an observation, a result or an artifact.
+The next step is the destination or the follow-up question.
+Send no bulk posting, and do not repost removed material.
+Name a reply owner for the thread's life.
+Official guide: What are Reddit's rules; confirm at execution readiness.
+
+### Dev.to Or The Project Blog
+
+Open with the task the reader is trying to finish.
+Build from original evidence: a working setup, a measured result or a diagnosed failure.
+Write a durable artifact in the project voice, with the repository, install command or follow-up article as the next step.
+Name the owner who answers comments.
+Official guide: DEV Community posting guidelines; confirm at execution readiness.
+
+### GitHub
+
+State what the project does and for whom in the README's first line; many visitors read nothing else before deciding.
+Use Discussions for questions and roadmap talk, with a named maintainer as reply owner.
+Publish release notes as announcements: what changed, what breaks, where to install from.
+Proof is the quickstart that runs and the tagged release; keep planned features out of shipped claims.
+Official guide: GitHub Docs on Discussions; confirm at execution readiness.
+
+### Awesome Lists
+
+Follow each list's contribution rules; a merged entry is not a launch and brings no audience of its own.
+Propose an entry only when the project genuinely fits the list's topic.
+The entry's proof is the project link; name the owner who maintains the entry after merge.
+Official guide: each list's own contributing rules; confirm at execution readiness.
+
+### Registry Descriptions
+
+Mirror the README first line in the npm, PyPI, MCP registry or Docker Hub description, and name the install command.
+Keep version, license and support channel consistent with the repository.
+Proof is an install that succeeds from a clean machine; assert no download counts.
+The next step is the quickstart; route registry questions to the maintainer owner.
+Official guide: npm Docs; confirm at execution readiness.
+Official guide: Python Packaging User Guide; confirm at execution readiness.
+Official guide: Model Context Protocol registry documentation; confirm at execution readiness.
+Official guide: Docker Hub documentation; confirm at execution readiness.
+
+## Store Listings
+
+Store copy gives each field one job: title and subtitle earn the view; descriptions earn the install.
+The listing contract and the screenshot set come from the PRD and the approved HiFi; this playbook writes the words.
+
+### App Store And Google Play Listings
+
+Write the title as the task or outcome a user would search for, not a slogan.
+Write the subtitle or short description as the concrete benefit, in the project voice.
+Fill the keyword field or long description with the words intended users actually use; label unsupported search claims as hypotheses.
+Write `what's new` as what changed for the user, including fixed issues and honest scope.
+Write a caption for every screenshot: one visible headline, one supporting line, ordered as the listing contract orders them.
+Draft review replies in the project voice; put no promise about future releases in them.
+Leave every character limit as `<confirm at execution readiness>`; state no number that was not verified.
+Official guide: App Store Connect Help; confirm at execution readiness.
+Official guide: Play Console Help; confirm at execution readiness.
+
+### Beta Invitations And Pre-Orders
+
+Write TestFlight or open beta invitations as what the build does, what to test, known gaps and the feedback route.
+State availability exactly: a beta is not a release.
+Write pre-order or pre-registration copy around a release promise the owner accepted; state no date without that decision.
+Official guide: Apple TestFlight documentation for developers; confirm at execution readiness.
+
+### Featuring Requests
+
+Treat featuring as a hypothesis; the store decides independently.
+Prepare the truthful story, release evidence and required assets; record any submission as a proposal.
+No draft may promise placement.
+
+## Instagram, Facebook Groups, LINE And YouTube
+
+These channels serve the owner's audiences in Hong Kong and Taiwan.
+For other markets, start from [channel selection](channel-selection.md).
+Language variants follow the existing locale rule: adapt naturally, keep facts, offers and destinations, and keep each variant independently reviewable.
+
+### Instagram Posts And Reels
+
+Open the caption with the audience's task or the visible result.
+Write on-screen text and alt text as copy; alt text describes the image for a reader who cannot see it.
+Treat the profile link as the default destination: write the bio line and the caption's pointer to it, record any other destination, and confirm current link placements at execution readiness.
+Proof is the real demonstration; do not stage outcomes the product cannot reproduce.
+Name the reply and comment owner.
+Official guide: Instagram Help Center; confirm at execution readiness.
+
+### Facebook Groups Versus Pages
+
+A Group and a Page are different targets with different permissions; Page guidance is above.
+Read the Group's rules and confirm admin permission before proposing a post.
+Participate as a member before promoting anything.
+Open with the useful answer; name the product only where it honestly helps.
+Name the member who keeps participating after the post.
+Official guide: Facebook Help Center on Groups; confirm at execution readiness.
+
+### LINE Official Account
+
+Separate broadcast messages from 1:1 chat; a broadcast reaches consented friends only.
+Record the consent basis for every audience a message reaches.
+Leave message count limits as `<confirm at execution readiness>`; base no plan on an unverified allowance.
+Write rich message copy in blocks with one purpose each: what happened, what the reader can do, where to go.
+Name the account owner who answers 1:1 replies.
+Official guide: LINE official account documentation for business; confirm at execution readiness.
+
+### YouTube
+
+Write the title as the task the video answers, for search and for people.
+Write the description's first lines to state the result and the destination; later lines carry links and context.
+Plan chapters as the steps the demonstration actually takes.
+Give the end screen one action: the next video, the destination or the owner's subscribe decision.
+Choose Shorts for one visible result and long form for a task with steps; record the choice as a hypothesis.
+Proof is the real product doing the shown work.
+Name the comment owner.
+Official guide: YouTube Help; confirm at execution readiness.
+
 ## Other Selected Channels
 
 For email, identify the consented audience, sender, purpose and unsubscribe requirements before execution.
 List access is not permission to send; never invent subscribers.
-For Instagram and other visual social channels, write the hook, demonstration sequence, on-screen copy and CTA before requesting media production.
+For visual social channels without a section above, write the hook, demonstration sequence, on-screen copy and CTA before requesting media production.
 For public articles, answer real tasks with original evidence and follow the project's content workflow.

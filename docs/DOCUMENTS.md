@@ -6,6 +6,7 @@ Index of live documents. Only open Epics are indexed; closed Epics live in Git h
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior, installation and release instructions | Documentation of record |
 | `CHANGELOG.md` | Release history older than the newest README entries | Added with the 0.66.0 README diet |
+| `docs/epics/EPIC-flow-robustness.md` | Resume-first inspector, stage cards, launch brief, route caps, environment preflight, independent PRD review, GTM reach and the customer-discovery skill | complete as 0.74.0 in PR #164; tag, install and consumer adoption follow the merge |
 | `docs/epics/EPIC-surface-taxonomy.md` | Surface catalog, five tracks, presence surfaces, and the five-skill bundle (activation collapse, growth-review, security fold, GTM merge) | candidate `a8ab0b29` verified locally on `feat/surface-taxonomy`; independent review and publication pending |
 | `docs/epics/EPIC-growth-contract.md` | Product shape and tracks, the PRD Growth Contract and the agentic operations console | candidate `061c605b` verified and scoped review PASS; publication pending |
 | `docs/epics/EPIC-review-budget-and-mvp-profile.md` | Two-review budget, isolated repairs with scoped review and the `mvp` delivery profile | candidate `54fc51e9` verified and scoped review PASS; publication pending |

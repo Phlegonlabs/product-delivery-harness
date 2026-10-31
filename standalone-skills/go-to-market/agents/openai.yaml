@@ -1,6 +1,6 @@
 interface:
   display_name: "Go To Market"
-  short_description: "Project-fit channels, positioning, campaign content and launch experiments"
+  short_description: "Strategy, messaging record, channel copy, lifecycle messaging and launch runbook drafts"
   default_prompt: "Use $go-to-market to propose channels and a content strategy for this project's audience, tone and launch stage, then draft channel copy for review."
 policy:
   allow_implicit_invocation: false

@@ -23,6 +23,7 @@ Runtime:
 - Worker contract: <matching adapter contract>
 - Parent launch identity: <actual session and assignment/attempt evidence>
 - Handoff: <fresh bounded packet or host-native task context; max_message_bytes <positive integer>>
+- Route caps: time <seconds> / turns <n> / max_message_bytes <n>
 - Context source hashes: <ordered paths with matching hashes>
 - Visual inputs: <frontend-visual-inputs.md block; omit for non-UI>
 - Result contract: <absolute or readable path to references/worker-result-contract.md>
@@ -63,7 +64,7 @@ Repair context (omit for an initial implementation):
 - With `create_local_commits` authorized, run the focused verifier and create the atomic task commit. Confirm its checkpoint; only then begin the next task. Each commit names one task; commit repairs separately for that task. Report each SHA once in Git order; the last commit equals the reported head.
 - Before a task commit or `worker_passed`, implement each touched boundary's control and negative test proving denial and no unauthorized side effects. Keep a scaffolded protected route fail-closed until this is true.
 - For a repair handoff, fix the named root-cause family rather than applying the findings as independent patches. If another adjacent variant shows that the proposed mechanism is not closed, stop before adding another special case and return `REFINEMENT_REQUEST` or `contract_gap` with the structural strategy and missing acceptance classes.
-- If the remaining work no longer fits this bounded slice, stop before the next independent mutation and return `REFINEMENT_REQUEST`.
+- One brief holds one task or one root-cause family. If the remaining work no longer fits this slice, or you reach 80 percent of the turn or time cap, start no new mutation: run the focused verifier, commit the verified work, and return `REFINEMENT_REQUEST` naming the remaining work.
 - Stop on a requirement conflict, scope escape, destructive action, unexpected parent-head movement, unavailable verifier, or three consecutive no-progress iterations. Do not retry one failed approach more than twice.
 
 For direction/HiFi authoring/repair or explicitly pinned legacy Wireframe work, `required_skills` must name both `ui-design-builder` and the exact owner-bound `frontend-design`. Before authoring, run `python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <target-AGENTS.md> --stage ui-design` through installed-command resolution. The actual writer loads full pinned skills there; a parent read, snapshot or role title is no substitute. Do not backfill evidence or replace a binding. Missing/conflicting dependencies block only authoring; preserve prior approvals and closed history. This grants no delegation; agent policy selects the UI author. Assemblers/reviewers provide shell construction and validation, not product-design decisions. Carry the delegation contract's maximum-creativity brief.
@@ -106,5 +107,5 @@ Do not spawn, create, or delegate to another agent. All explorers, writers, and 
 - [ ] Lease, base, worktree, branch/ref, permission boundary, and required actions are current.
 - [ ] Host-specific repository context and matching adapter contract were read.
 - [ ] Loaded identity is reported as observed, or explicitly unknown.
-- [ ] Exact skills, write/deny scope, resources, stop conditions, and verifiers are known.
+- [ ] Exact skills, write/deny scope, resources, route caps, stop conditions, and verifiers are known.
 - [ ] The result-contract path is readable.

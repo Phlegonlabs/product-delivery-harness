@@ -57,5 +57,6 @@ Report:
 - observed blockers and non-blocking findings per surface;
 - prioritized opportunities per surface with evidence strength, then the cross-surface reconciliation against the north star;
 - which opportunities improve an existing page, listing or account and which need a new or changed product contract;
-- the owner route for every follow-up, from Gap Routing in `references/review-method.md`; and
-- the metric and next complete comparison window that can show whether an approved change worked.
+- the owner route for every follow-up, from Gap Routing in `references/review-method.md`;
+- the metric and next complete comparison window that can show whether an approved change worked; and
+- the proposed `## Handoff` block for the current Epic, reported inline because the review is read-only.
