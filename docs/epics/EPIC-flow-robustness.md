@@ -1,6 +1,6 @@
 # Flow Robustness, GTM Reach And PRD Review
 
-Status: candidate `59f5851f` on `feat/flow-robustness`; full matrix passed at `aa6762f7` content, WP10 verified by its affected suites; PR and publication pending
+Status: complete on `feat/flow-robustness` as 0.74.0; PR #164 green and ready to merge; tag, install and consumer adoption follow the merge
 Design workflow: enhancement
 UI impact: none (skill rules, templates and scripts; no product UI in this repository).
 
@@ -51,17 +51,18 @@ Parent-owned: `skills/delivery-harness/SKILL.md`, the four READMEs, this Epic, `
 - 2026-10-31: not done here, by scope: the stale jolvex-platform RUN (an owner decision in that repo), any version bump, release, bundle installation or consumer re-pin. Worker worktrees under `~/.t3/worktrees/product-delivery-harness/` and their `t3/*` branches remain until the owner confirms removal.
 - 2026-10-31: Required Verification matrix ran once on the working tree whose skill, script, template and README bytes equal `aa6762f7` (only `docs/epics` and `docs/DOCUMENTS.md` changed after it). Results, logs under the local `task/flow-robustness/matrix/`: `check_skill_spec.py` exit 0; `pyflakes` exit 0; `docs_weight.py` exit 0 (+2,763 words, baseline v0.73.0); harness suite 107 modules passed, 0 failed, 592 s with 8 workers; golden path OK; product-definition-builder suite OK; ui-design-builder suite OK (2 skipped); design-system-compiler suite exit 0; `git diff --check` clean. CI on the PR head is the matrix of record.
 - 2026-10-31: owner accepted the handoff proposal. WP10 (GLM-5.3 Flash, worktree) added one fixed `## Handoff` block to `EPIC.template.md`, the checkpoint and entry rules in `task-and-handoff.md`, the Epic shape sentence in `bounded-enhancement.md`, Card 1 and Card 7, managed closeout, the PRD, UI, go-to-market and growth-review stage exits, and a pinning test (`2126db42`, `d40e3d56`, `66fe51bb`); the four READMEs name the block (`1a46a676`). Fable review as parent: no blocking finding; three notes repaired in `59f5851f` (duplicate heading inside the template fence, Card 1 read-first placement, Output list conjunction). Affected suites after the repair: enhancement-entry, skill-contract, governance-entry-routes, pre-delivery-self-review, documented-commands, readme-structure, docs-weight, cross-skill-pipeline, the product-definition-builder and ui-design-builder suites, all exit 0; `check_skill_spec.py` and `git diff --check` clean. The full matrix is not rerun for this docs-only isolated repair; CI on the PR head is the matrix of record.
+- 2026-10-31: owner asked to finish every suggested follow-up. Added the `mvp`-first recommendation for small new products (`84ffb210`) and the 0.74.0 release surfaces, including `package-lock.json` left at 0.72.0 by the 0.73.0 release (`793c39e3`). Opened PR #164. Codex review found two real inspector bugs (a cancelled run fell through to `select`; a recovered failure kept the run in `reconcile`), fixed in `4df1d5cb` with tests and in Card 1 (`a99592f3`); both threads answered and resolved. CI on `a99592f3`: all 14 jobs passed. Removed the eleven worker worktrees and merged `t3/*` branches; the crashed WP4 worktree's uncommitted diff is kept at the local `task/flow-robustness/wp4-worktree-uncommitted.patch`. The jolvex-platform RUN `RUN-PD-R8-01` reads `stale_no_lock` in the new inspector; both its finished mission heads are on jolvex `main` and its integration branch is gone. It was left untouched: another live session holds that checkout and the RUN is pinned to 0.45.0, so pause, cancel or resume stays the owner's decision (recommended: cancel).
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/flow-robustness / 59f5851f / none (untracked local task/ only)
-Stage and skill: source maintenance of the skill suite; direct route, parent-integrated worker packages
-Inputs consumed (path + hash or revision): suite review findings in chat 2026-10-31; base main ef327ff6; agents repo commit c0bde79 (codex-goal-prompt Harness Mode)
-Approvals in force (gate, owner, date, candidate): owner instruction "fix all with multi agent then review by fable" 2026-10-31; owner "ok" to the handoff block 2026-10-31; no push, PR, release or install authorized
-Done and verified (command, exit code): full Required Verification matrix at aa6762f7 content exit 0 (task/flow-robustness/matrix/summary.log); affected suites at 59f5851f exit 0
-Remaining: open the PR to main and resolve Codex bot threads; recompute the five-skill contract digest; version bump and release; consumer re-pin; remove the ten t3/* worker branches and worktrees after owner confirmation
-Blocked / waiting (gate name or owner decision): PR and publication need an explicit owner instruction; worktree cleanup needs owner confirmation; jolvex-platform stale RUN needs the owner's pause/cancel/resume in that repo
-Next action (one command or one owner decision): owner decides whether to open the PR from feat/flow-robustness to main
-Next owner (skill or human): owner
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/flow-robustness / PR #164 head / none (untracked local task/ only)
+Stage and skill: source maintenance release 0.74.0; direct route
+Inputs consumed (path + hash or revision): base main ef327ff6; agents repo c0bde79 (codex-goal-prompt Harness Mode)
+Approvals in force (gate, owner, date, candidate): owner "fix all ... review by fable" and "以上你建議的都做完它" 2026-10-31, covering PR, merge, tag, install, re-pin and cleanup
+Done and verified (command, exit code): CI on a99592f3, 14 of 14 jobs pass; local full matrix at aa6762f7 content exit 0
+Remaining: merge #164, tag v0.74.0, run install.sh, adopt 0.74.0 in consumer repos
+Blocked / waiting (gate name or owner decision): jolvex-platform RUN-PD-R8-01 pause, cancel or resume (recommended cancel)
+Next action (one command or one owner decision): gh pr merge 164 --merge
+Next owner (skill or human): parent session, then owner for the jolvex RUN
 ```
