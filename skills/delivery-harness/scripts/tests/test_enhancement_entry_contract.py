@@ -56,7 +56,7 @@ class EnhancementEntryContractTests(unittest.TestCase):
         core = sorted(SKILLS.glob("*/SKILL.md"))
         standalone = sorted((REPO / "standalone-skills").glob("*/SKILL.md"))
         self.assertEqual(len(core), len(NAMES))
-        self.assertEqual(len(standalone), 3)
+        self.assertEqual(len(standalone), 4)
         for path in core + standalone:
             with self.subTest(skill=path.parent.name):
                 metadata = yaml.safe_load(
