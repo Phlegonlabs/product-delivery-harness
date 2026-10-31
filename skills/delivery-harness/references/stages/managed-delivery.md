@@ -121,6 +121,7 @@ UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the i
 ### 6. Complete
 
 RUNs close `local_only` at C after all gates and security pass, and a current RUN never pushes. Archive, publication, Preview gates and exact-SHA `main` promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
+Closeout rewrites the current Epic's `## Handoff` block; its `Next action` points at the `inspect_harness_run.py` Next block.
 
 Fixed-build external setup from `external-setup.md` may start before dependent features, under separate action grants recorded in `docs/DEPLOYMENT.md`.
 Final readiness, measurement sources, outcome review and the growth review retain their applicable release and production verification; no RUN grant authorizes them.

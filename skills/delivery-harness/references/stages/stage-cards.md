@@ -6,7 +6,7 @@ Use the card for the stage you are in. Cards add no rule; they order what the co
 
 **When**
 
-A session starts on a target that may hold a managed RUN, or a `running` RUN resumes in a new session. Record the System Review And Route before any managed artifact.
+Read the current Epic's `## Handoff` block before anything else. A session starts on a target that may hold a managed RUN, or a `running` RUN resumes in a new session. Record the System Review And Route before any managed artifact.
 
 Run `inspect_harness_run.py` first and follow its Next block. The inspector exits 1 when a mission needs reconciliation. Map every dirty path to its covering task; drift inside a task that is not `worker_passed` blocks new work. Confirm the runtime version gate as a separate observation. Verify the skill binding for the actual upcoming stage. Reclaim a stale lock only through `watchdog --reclaim`. Treat a stale snapshot or unexplained drift as an owner decision.
 
@@ -185,7 +185,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 Every mission is integrated, the review converged, and final gates have run on the exact head.
 
-Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Check every closeout bar item and every `status: complete` condition. Render and check the tasks view. Release the lock when the session ends. The run lands `local_only`; archive and publication are separate grants.
+Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Check every closeout bar item and every `status: complete` condition. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
 
 **Commands in order**
 

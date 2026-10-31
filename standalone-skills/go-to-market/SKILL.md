@@ -139,6 +139,7 @@ Distinguish prepared, approved, scheduled and published results.
 Return the project brief, positioning and voice, channel decisions, content themes, concrete briefs, channel drafts, the campaign review package and experiment plan.
 Include source links, observation dates, assumptions and owner decisions still needed.
 Use the requested format. Save only within authorized scope and reuse existing GTM records when present.
+When the project has an Epic, rewrite its `## Handoff` block with the campaign state and outstanding owner decisions; without an Epic, include the block inline.
 Keep each project's accounts, sources and conversion definitions separate.
 
 When available, use these owners:
