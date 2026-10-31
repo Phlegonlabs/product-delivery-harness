@@ -19,7 +19,7 @@ python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-
 
 **Stop when**
 
-- The Next block names reconciliation.
+- The Next block names `reconcile`, `stale_no_lock` or `cancelled`.
 - The run lock is held by another live session.
 - Drift exists inside a task that is not `worker_passed`.
 - The version gate is `unobserved`, `upgrade_required`, or `restart_required`.
