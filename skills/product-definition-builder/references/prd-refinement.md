@@ -6,7 +6,7 @@ English `PRD.md` remains product authority. Preserve unaffected decisions and st
 
 ## First Delivery: Review The Whole Journey
 
-The one author self-review below checks the reconciled candidate from two perspectives. No separate first-candidate review runs before it.
+The one author self-review below checks the reconciled candidate from two perspectives. No separate first-candidate review runs before it. After this self-review, the independent PRD review in `stages/product-definition.md#self-review-before-product-definition-approval` reads the same reconciled candidate.
 
 - **UI perspective:** the `requirements` role follows each intended user's entry and first use through an observable useful result. Check cross-screen handoffs, content responsibilities, empty/loading/error/permission states, cancellation and recovery, accessibility, locales and supported responsive targets. Product Definition reviews required behavior; it does not invoke `ui-design-builder`, create wireframes or choose visual style. A headless product reviews caller/operator journeys without inventing screens or login.
 - **Technical perspective:** `architecture`, with applicable `backend` and `frontend-platform` roles, follows those journeys through data ownership and lifecycle, permission boundaries, integration contracts, retries and duplicate effects, migrations, release availability, monitoring, recovery ownership and testability. Propose unresolved technology choices through the existing Stack Decision Checkpoint.

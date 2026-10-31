@@ -28,7 +28,7 @@ Use this skill to turn a product idea into a decision-ready package, not an agen
 Read the owning section before its matching action. Domain guides stay conditional.
 
 - Before a definition or enhancement starts, read [Workflow](references/stages/product-definition.md#workflow) and [Interview Rules](references/stages/product-definition.md#interview-rules). Enhancement mode first uses its scoped delta branch and does not force an initial interview.
-- Before Product Definition Approval is requested, read [Self-Review Before Product Definition Approval](references/stages/product-definition.md#self-review-before-product-definition-approval).
+- Before Product Definition Approval is requested, read [Self-Review Before Product Definition Approval](references/stages/product-definition.md#self-review-before-product-definition-approval) and run its independent read-only PRD review.
 - Before a UI handoff is prepared, read [Current UI Preflight](references/stages/product-definition.md#current-ui-preflight).
 - Before applicable domain decisions are resolved, read the guides that Workflow step 9 names.
 - Actual initial drafting follows the complete required procedure in [Workflow](references/stages/product-definition.md#workflow).
