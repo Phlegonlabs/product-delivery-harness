@@ -9,7 +9,7 @@ Run only on the user's explicit request, continuation, or a required dependency 
 A matching task, installation, discussion, source edit or existing project artifact does not activate it.
 Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
-Commands: `references/installed-commands.md`.
+Commands: `references/installed-commands.md`; stage cards: `references/stages/stage-cards.md`; launch brief: `assets/templates/HARNESS_GOAL.template.md`.
 
 At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). It loads document sync, bounded enhancement, delegation, gen-verify-correct and PRD refinement on their triggers. Acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
 
@@ -75,7 +75,7 @@ For UI work, inspect only `docs/design/`, a user-named design folder, and obviou
 
 Classify each task's Gitignore impact with `references/gitignore-contract.md`; it applies to both direct and managed routes.
 
-When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>` for a concise manifest-versus-worktree summary, then inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker. For a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol, also read [Legacy Pins](references/legacy-pins.md).
+When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root>`; its `Next` block names the state and one recommended command, and a `running` RUN with no lock needs one owner decision before selection. Inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker. For a package pinned to an earlier Harness version, also read [Legacy Pins](references/legacy-pins.md).
 
 After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts using that RUN's exact pinned bundle. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
@@ -90,7 +90,7 @@ These rules apply to both routes:
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys in the [Authorization Action Ledger](references/execution-state-model.md#authorization-action-ledger).
 - Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Archive, publication and promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
-- Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation; never add a fixed prefix.
+- Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation unless a signed launch brief names it; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
@@ -110,20 +110,18 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 1. Inspect the bounded component and relevant instructions.
    Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task, including direct work.
 2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance.
-3. Run the focused checks selected from changed files, including security tests.
+3. Probe the toolchain, browser and reviewer route once (a failed row is an `environment` block), then run the focused checks selected from changed files, including security tests.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies when the diff touches executable code, configuration, dependencies, CI, infrastructure, secrets handling or data access; a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
+6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
 8. Perform only remaining authorized Git actions.
 
 A text-only markup/style review makes no visual PASS claim and cannot close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
 
-Optional `/feature-dev` exploration does not change authorization, ownership or verification.
-
 ## Managed Stage Routing
 
-Use this routing only when the size gate classifies work as `large`. For direct work, do not read the managed stage file.
+Use this routing only when the size gate classifies work as `large`. For direct work, do not read the managed stage file. Start each stage from its card in `references/stages/stage-cards.md`; read the sections below when the card names them or a command fails.
 
 - Before authoring PLAN, read [Managed Route](references/stages/managed-delivery.md#managed-route), [Reference Routing](references/stages/managed-delivery.md#reference-routing), and [Plan Large Work](references/stages/managed-delivery.md#2-plan-large-work).
 - Before readiness and dispatch, read [Default Runtime And Wave Policy](references/stages/managed-delivery.md#default-runtime-and-wave-policy), [Default Mission Topology](references/stages/managed-delivery.md#default-mission-topology), and [Pass Plan Readiness](references/stages/managed-delivery.md#3-pass-plan-readiness).
@@ -158,4 +156,4 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 
 Run System Review And Route; the Resume Reconciliation Gate above covers a running RUN.
 
-If the user pauses or cancels a managed run, apply the durable control transition subcommand of `scripts/harness_transition.py` — `pause`, `resume`, or `cancel`, each requiring `--source`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile interrupted mission workers with `reconcile-interrupted` and stopped review workers together with `reconcile-interrupted-reviews` before any resume. Review reconciliation preserves the attempt evidence, restores lineage counters, removes ungrounded edge traversals, and leaves the run paused.
+If the user pauses or cancels a managed run, apply the durable control transition subcommand of `scripts/harness_transition.py` — `pause`, `resume`, or `cancel`, each requiring `--source`. A conversational stop is not scheduler state. Preserve active and dirty worktrees, then reconcile interrupted mission workers with `reconcile-interrupted` and stopped review workers together with `reconcile-interrupted-reviews` before any resume.
