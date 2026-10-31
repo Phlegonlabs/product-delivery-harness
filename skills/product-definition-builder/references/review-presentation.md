@@ -35,6 +35,26 @@ List a missing required file as a gap without inventing a link or a PASS. A
 later-stage output, such as design-system compilation before Visual Approval,
 is pending and does not block an earlier gate that does not require it.
 
+## Owner Review Guide
+
+At the Product Definition Approval request, include ten short questions the
+owner answers from the linked documents before deciding:
+
+1. Can you tell the first journey end to end without opening the file?
+2. Which things are explicitly not in v1?
+3. What is the first measurement that says v1 works?
+4. Which stack rows are still Recommended or Provisional?
+5. Which TEST row do you not believe?
+6. Which trust boundary would hurt most if wrong?
+7. Who performs each external setup row, and when?
+8. Which assumption would kill the product if false?
+9. What is the smallest release that still proves the thesis?
+10. What is deferred, and why?
+
+An answer that exposes a gap becomes an Open Question or a repair before
+approval. The owner's answers need no write-back. Present the questions as a
+short numbered list after the links, in the owner's language.
+
 ## Review And Handoff
 
 State the review focus, existing approval statuses and unresolved work. Request
