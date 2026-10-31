@@ -8,6 +8,7 @@ Keep unknowns explicit; never invent facts or approval.
 Record project, source revision/date, audience, market/language, positioning, voice, stage and available release.
 State goal, intended action, real destination, owner, capacity and proposed window/timezone.
 Link existing strategy and distinguish accepted decisions from proposals.
+Link the messaging record at `docs/gtm/MESSAGING.md` and record its revision.
 
 ## Channel Plan
 
@@ -31,6 +32,7 @@ Repeat per item with a stable ID and revision:
 - Audience, language, purpose and theme.
 - Exact public copy and sequence order.
 - Source piece and hook variant: source-piece ID plus `hook-a` or `hook-b` when the item belongs to a content pipeline.
+- Optional lifecycle fields: `trigger` (the event or condition that fires the message) and `delay` (the proposed wait after the trigger).
 - Destination and public links, including proposed tracking identifiers where appropriate.
 - Media files or briefs, visible copy, alt text, provenance/rights and production gaps.
 - Evidence for public facts, available release and claims needing review.

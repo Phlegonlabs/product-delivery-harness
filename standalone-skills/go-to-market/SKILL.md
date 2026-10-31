@@ -1,6 +1,6 @@
 ---
 name: go-to-market
-description: Use only when the user explicitly requests go-to-market or a requested skill workflow requires it. Plan a product's go-to-market strategy from its audience, positioning, brand voice, launch stage and capacity. Select distribution channels, content themes and measurable experiments, then turn those choices into reviewable campaign content, including X posts and threads, Threads, Facebook Page and LinkedIn posts, asset briefs, per-channel variants with two hooks and a proposed calendar. Use for launch planning, channel strategy or content preparation; prepare recommendations and copy for review without publishing, scheduling or sending messages.
+description: Use only when the user explicitly requests go-to-market or a requested skill workflow requires it. Plan a product's go-to-market strategy from its audience, positioning, brand voice, launch stage and capacity, and maintain the project messaging record of approved claims and per-surface one-liners. Select distribution channels, content themes and measurable experiments, then turn those choices into reviewable campaign content, including X posts and threads, Threads, Facebook Page and LinkedIn posts, asset briefs, per-channel variants with two hooks and a proposed calendar. Draft store listing and developer channel copy, lifecycle onboarding and re-engagement messages, and a launch runbook for a PRD Launch Window. Use for launch planning, channel strategy, lifecycle messaging or content preparation; prepare recommendations and copy for review without publishing, scheduling or sending messages.
 ---
 
 # Go To Market
@@ -32,6 +32,12 @@ Do not create a consumer PRD merely to prepare a campaign.
 Without product documents, derive a provisional brief from supplied facts and label assumptions.
 Missing readiness can change a proposed CTA; it cannot justify advertising an unavailable feature.
 New pricing, incentives, product promises and target audiences remain proposals until accepted.
+
+## Messaging Record
+
+Read [messaging house](references/messaging-house.md), then create or update `docs/gtm/MESSAGING.md` before drafting.
+Reuse an existing record, and show the exact path before creating a new one.
+Every draft cites the record revision it used.
 
 ## Choose Channels
 
@@ -72,9 +78,15 @@ Propose cadence from capacity and account evidence, preserving an existing one; 
 Include replies and moderation in the workload. A calendar is a proposal, not an active scheduler.
 When the project has a launch window, the PRD Growth Contract Launch Window (Day, Channel class, Action, Owner, Readback metric, Destination) is the launch distribution list; extend its rows and never publish.
 
+## Launch Runbook
+
+When the PRD Growth Contract has a Launch Window, read [the launch runbook](references/launch-runbook.md).
+The runbook binds each Launch Window row to its checks before and after launch. It publishes nothing.
+
 ## Draft For Each Channel
 
 Read [channel playbooks](references/channel-playbooks.md) for the selected surfaces only.
+Store listing copy, registry descriptions and README first lines are channel variants drafted from the messaging record under the playbook sections `## Store Listings` and `## Developer Channels`; Instagram, Facebook Groups, LINE and YouTube follow the playbook section `## Instagram, Facebook Groups, LINE And YouTube`.
 Open with an audience problem, specific observation, useful demonstration or supported story, and give each post a clear purpose, sufficient context, honest proof and an appropriate next step.
 Respect the requested personality; humor, emoji, hashtags and founder voice are choices, not required styles.
 Write the actual requested copy, not topic suggestions or fill-in-the-blank captions. Missing facts block the affected item; finish independent drafts.
@@ -93,6 +105,11 @@ Write two hook variants for each variant, labelled `hook-a` and `hook-b`, carryi
 Keep both hooks in the package; testing selects one later, and drafting declares no winner.
 Shared facts stay the same across variants; adaptation means rewriting, not copying one caption.
 Package each source piece, variant and hook with the item fields the campaign template already has. The pipeline prepares reviewable copy. It does not publish, schedule or run the comparison.
+
+## Lifecycle Messaging
+
+Read [lifecycle messaging](references/lifecycle-messaging.md) before drafting onboarding or re-engagement copy for the PRD Growth Contract `### Re-engagement` mechanisms.
+This skill drafts sequences, triggers, delays and measurement bindings. Provider configuration, sending and trigger implementation stay outside it.
 
 ## Assemble The Review Package
 
