@@ -404,6 +404,96 @@ def _attempt_recovery_summary(
     }
 
 
+_TRANSITION_COMMAND = (
+    'python "<delivery-harness-skill-root>/scripts/harness_transition.py"'
+    " --plan <PLAN.md> --run <RUN.md>"
+)
+_ACTIVE_WORK_PHASES = {"leased", "worker_running", "worker_passed", "integrating"}
+
+
+def _next_action(
+    status: Any,
+    desired_state: Any,
+    run_lock: dict[str, Any] | None,
+    wave: Any,
+    missions: list[dict[str, Any]],
+    attempt_recovery: dict[str, Any],
+) -> dict[str, Any]:
+    """Derive the one next parent action; first matching rule wins."""
+
+    if status == "complete":
+        return {
+            "state": "complete",
+            "reason": (
+                "Run is complete; archive and publication follow "
+                "branch-promotion-contract.md under their own grants."
+            ),
+            "command": None,
+        }
+    if desired_state == "paused":
+        return {
+            "state": "paused",
+            "reason": (
+                "Control is paused; reconcile interrupted workers first and "
+                "resume only on an owner instruction."
+            ),
+            "command": (
+                f"{_TRANSITION_COMMAND} --repo-root <root> --session-id <id>"
+                " resume --source <owner instruction>"
+            ),
+        }
+    active_work = any(
+        mission.get("phase") in _ACTIVE_WORK_PHASES for mission in missions
+    ) or (isinstance(wave, dict) and wave.get("status") in {"proposed", "active"})
+    if status in {"running", "ready"} and active_work and not run_lock:
+        return {
+            "state": "stale_no_lock",
+            "reason": (
+                "No run lock and process liveness unknown. The owner picks "
+                "pause, cancel or resume before any selection; then "
+                "acquire-run-lock and record-observation."
+            ),
+            "command": None,
+        }
+    if run_lock:
+        session_id = run_lock.get("session_id")
+        session = (
+            session_id
+            if isinstance(session_id, str) and session_id.strip()
+            else "unknown"
+        )
+        return {
+            "state": "lock_held",
+            "reason": (
+                f"A lock is held by session {session}; run watchdog and "
+                "reclaim only a stale lock."
+            ),
+            "command": f"{_TRANSITION_COMMAND} watchdog",
+        }
+    needs_reconciliation = any(
+        mission.get("needs_reconciliation") is True for mission in missions
+    )
+    retained_failure = any(
+        item.get("most_recent_failure") is not None
+        for item in attempt_recovery.get("missions", [])
+        if isinstance(item, dict)
+    )
+    if needs_reconciliation or retained_failure:
+        return {
+            "state": "reconcile",
+            "reason": (
+                "Reconciliation is required; follow the Recovery next steps "
+                "list in this summary."
+            ),
+            "command": None,
+        }
+    return {
+        "state": "select",
+        "reason": "Record live Git facts, then run selection with harness_step.py.",
+        "command": f"{_TRANSITION_COMMAND} --repo-root <root> record-observation",
+    }
+
+
 def _next_recovery_steps(summary: dict[str, Any]) -> list[str]:
     recovery = summary.get("attempt_recovery") or {}
     has_failure = any(
@@ -533,6 +623,17 @@ def summarize_run(
     wave = run.get("active_wave")
     lock = run.get("run_lock")
     control = run.get("control")
+    normalized_lock = lock if isinstance(lock, dict) else None
+    next_action = _next_action(
+        status=run.get("status"),
+        desired_state=(
+            control.get("desired_state") if isinstance(control, dict) else None
+        ),
+        run_lock=normalized_lock,
+        wave=wave if isinstance(wave, dict) else None,
+        missions=missions,
+        attempt_recovery=recovery,
+    )
     return {
         "run_id": run.get("run_id"),
         "schema_version": run.get("schema_version"),
@@ -540,7 +641,7 @@ def summarize_run(
         "control_desired_state": control.get("desired_state")
         if isinstance(control, dict)
         else None,
-        "run_lock": lock if isinstance(lock, dict) else None,
+        "run_lock": normalized_lock,
         "active_wave": {
             "wave_id": wave.get("wave_id"),
             "status": wave.get("status"),
@@ -559,14 +660,19 @@ def summarize_run(
         "next_recovery_steps": _next_recovery_steps(
             {"warnings": warnings, "attempt_recovery": recovery}
         ),
+        "next_action": next_action,
     }
 
 
 def render_text(summary: dict[str, Any]) -> str:
+    next_action = summary.get("next_action") or {}
     wave = summary.get("active_wave") or {}
     version_gate = summary.get("runtime_version_gate") or {}
     lock = summary.get("run_lock") or {}
     lines = [
+        f"Next: {next_action.get('state') or '-'}",
+        f"  Reason: {next_action.get('reason') or '-'}",
+        f"  Command: {next_action.get('command') or '-'}",
         f"Run: {summary.get('run_id')} ({summary.get('status')})",
         f"Control: {summary.get('control_desired_state') or '-'}",
         "Run lock: "
