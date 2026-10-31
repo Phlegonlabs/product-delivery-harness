@@ -1,0 +1,6 @@
+interface:
+  display_name: "Customer Discovery"
+  short_description: "User interview planning, scripts and redacted synthesis"
+  default_prompt: "Use $customer-discovery to plan a small user interview study for this project's hypotheses, then synthesize redacted notes into RA-* candidate findings for review."
+policy:
+  allow_implicit_invocation: false
