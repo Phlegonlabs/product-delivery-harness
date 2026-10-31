@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -205,6 +205,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.74.1** — The document-sync inventory no longer fails as a whole on one file: a `docs/goal/PLAN.md` or `RUN.md` above the 2 MB per-file limit is stream-hashed with a quiet `oversized_document` finding, and the default Epic and PRD delta scans skip names that match the secret and history exclusion. Explicit paths stay strict.
+
 - **0.74.0** — Runs no longer stall in the middle. `inspect_harness_run.py` prints a `Next` block with one recommended command, and a `running` RUN without a lock needs an owner decision before selection. Seven short stage cards replace the long contracts as the routine reading, a signed launch brief carries authorizations and pre-recorded owner decisions into an autonomous loop, briefs and review packets are sized to each route's time, turn and byte caps, readiness probes the environment once, and every Epic ends with one `## Handoff` block that each skill entry reads first. The Product Definition reads back a Product Thesis, adds one independent read-only PRD review before approval and gives the owner a ten-question guide. Go To Market gains a messaging record, lifecycle messaging, developer, store and Hong Kong and Taiwan channel playbooks and a launch runbook, and the new standalone Customer Discovery skill turns user interviews into `RA-*` candidates.
 
 - **0.73.0** — One project is a set of surfaces. The new [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) lists 22 build surface classes (adding MCP servers, skills and plugins, libraries, messaging bots, marketplace apps, assistant listings, containers and internal services) and five presence kinds (social, video channel, newsletter, community, docs site) that live in the PRD Growth Contract as `platform:handle`; the Shape row gains `tool` and `content` tracks and the Launch Window a Destination column. The bundle shrinks from seven skills to five: `code-security-review` becomes the harness security lens (`references/security-review.md`), `product-activation` collapses into the deployment record (External Console Setup rows plus a Measurement Sources table, with the setup catalog in `references/external-setup.md`), and `seo-growth-review` becomes `growth-review`, which reads every surface with its own lens and resolves providers from the project's own stack decisions. `gtm-content` folds into `go-to-market`, and unused templates, dead helpers and the duplicate validator CLIs are gone.
@@ -212,7 +214,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.72.1** — Mission workers return `WORKER_RESULT` only for a passing mission; blocked or failed missions return the graph node result with `worker_result: null`, and the parent keeps validation, review and integration authority.
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` runs a suite's test modules in parallel processes with per-module logs, so the local Required Verification matrix finishes in minutes instead of 27 on one core.
-
-- **0.71.0** — Every project declares its shape on purpose: the PRD At a Glance gains a `Shape` row naming the track, companion public surface and console type, and `## Growth Contract` records the north star with Day 7 and Day 30 targets, re-engagement mechanisms, discovery surfaces and a launch window. Track-specific required UI surfaces and delivery foundations, the `agentic-operations-console` architecture profile and activation profiles for store launch, agent directories and GEO read-back extend the flow from web to app and agent products. `seo-growth-review` gains a `pre_launch` mode and Day 7 and Day 30 `growth_review` readbacks that feed the next PRD delta, go-to-market drafts the Launch Reach Plan, and GTM Content packages one source piece into per-channel variants with two hooks.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).

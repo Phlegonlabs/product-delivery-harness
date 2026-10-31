@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -205,6 +205,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.74.1** — El inventario de document-sync ya no falla entero por un solo archivo: un `docs/goal/PLAN.md` o `RUN.md` por encima del límite de 2 MB por archivo se hashea por streaming con un hallazgo silencioso `oversized_document`, y los escaneos por defecto de Epics y deltas del PRD omiten los nombres que coinciden con la exclusión de secretos e historial. Las rutas explícitas siguen siendo estrictas.
+
 - **0.74.0** — Las runs ya no se detienen a mitad. `inspect_harness_run.py` imprime un bloque `Next` con un comando recomendado, y un RUN `running` sin lock necesita una decisión del owner antes de seleccionar trabajo. Siete stage cards breves sustituyen a los contratos largos como lectura habitual, un launch brief firmado lleva autorizaciones y decisiones previas del owner a un bucle autónomo, los briefs y paquetes de revisión se dimensionan a los límites de tiempo, turnos y bytes de cada ruta, readiness sondea el entorno una vez, y cada Epic termina con un bloque `## Handoff` que cada entrada de skill lee primero. La Product Definition hace una lectura de la Product Thesis, añade una revisión independiente de solo lectura del PRD antes de la aprobación y da al owner una guía de diez preguntas. Go To Market añade un messaging record, lifecycle messaging, playbooks de canales de desarrolladores, tiendas, Hong Kong y Taiwán y un launch runbook, y el nuevo skill standalone Customer Discovery convierte entrevistas con usuarios en candidatos `RA-*`.
 
 - **0.73.0** — Un proyecto es un conjunto de superficies. El nuevo [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) lista 22 clases de superficie de build (añade servidores MCP, skills y plugins, librerías, bots de mensajería, apps de marketplace, listados de asistentes, contenedores y servicios internos) y cinco tipos de presencia (social, canal de vídeo, newsletter, comunidad, sitio de docs) que viven en el Growth Contract del PRD como `platform:handle`; la fila Shape gana los tracks `tool` y `content` y la Launch Window una columna Destination. El bundle pasa de siete skills a cinco: `code-security-review` se convierte en la lente de seguridad del harness (`references/security-review.md`), `product-activation` se pliega en el registro de despliegue (filas de External Console Setup más una tabla Measurement Sources, con el catálogo de configuración en `references/external-setup.md`) y `seo-growth-review` pasa a ser `growth-review`, que lee cada superficie con su propia lente y resuelve proveedores desde las stack decisions del proyecto. `gtm-content` se integra en `go-to-market`, y desaparecen plantillas sin uso, helpers muertos y las CLIs de validación duplicadas.
@@ -212,7 +214,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.72.1** — Los workers de misión devuelven `WORKER_RESULT` solo cuando la misión pasa; las misiones bloqueadas o fallidas devuelven el resultado del nodo del grafo con `worker_result: null`, y el parent conserva la autoridad de validación, revisión e integración.
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` ejecuta los módulos de prueba de una suite en procesos paralelos con logs por módulo, así la matriz local de Required Verification termina en minutos en lugar de 27 en un solo núcleo.
-
-- **0.71.0** — Cada proyecto declara su forma a propósito: el At a Glance del PRD gana una fila `Shape` que nombra el track, la superficie pública acompañante y el tipo de consola, y `## Growth Contract` registra el north star con objetivos Day 7 y Day 30, mecanismos de re-engagement, discovery surfaces y una launch window. Las superficies UI requeridas por track, las bases de entrega por track, el perfil de arquitectura `agentic-operations-console` y los perfiles de activación para lanzamiento en store, directorios de agentes y read-back GEO extienden el flujo de web a productos app y agent. `seo-growth-review` gana un modo `pre_launch` y readbacks `growth_review` de Day 7 y Day 30 que alimentan el siguiente delta del PRD, go-to-market redacta el Launch Reach Plan y GTM Content empaqueta una pieza fuente en variantes por canal con dos hooks.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).
