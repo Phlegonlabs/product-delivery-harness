@@ -1,6 +1,6 @@
 # Flow Robustness, GTM Reach And PRD Review
 
-Status: candidate `aa6762f7` on `feat/flow-robustness` reviewed, repaired and verified by the full matrix; PR and publication pending
+Status: candidate `59f5851f` on `feat/flow-robustness`; full matrix passed at `aa6762f7` content, WP10 verified by its affected suites; PR and publication pending
 Design workflow: enhancement
 UI impact: none (skill rules, templates and scripts; no product UI in this repository).
 
@@ -50,3 +50,18 @@ Parent-owned: `skills/delivery-harness/SKILL.md`, the four READMEs, this Epic, `
 - 2026-10-31: independent review at `35e60ebc` by Claude Fable 5.1 as the Harness parent, after the profile hook refused Fable as a child model on both the native Agent route and `delegate_task`. The parent did not author the nine worker packages; its own edits (WP4 recovery, SKILL.md, READMEs) are self-reviewed and named here. Blocking findings, all repaired: the inspector's `select` state recommended `record-observation` while no lock was held (`0f031419`); the launch brief pointed at a RUN `Next action:` line that exists only in `MISSION_RUNBOOK.template.md` (`0f031419`); the customer-discovery `RA-*` table claimed to mirror the research assessment but used `Evidence`/`Source` columns it does not have (`aa6762f7`). Non-blocking notes, also repaired: Card 5 omitted `--evidence` on `record-node-result`, Card 1 called a stale lock an owner decision, Card 7 cited "Managed Run Archive" with the wrong case, the brief pre-filled the console policy fact and said the brief and cards own every rule (`0f031419`); the self-review order sentence read badly (`c4316ad0`); an Instagram link placement was stated as fact (`15860b3d`). Checks after repair: inspector, parent-drift, candidate-resume, skill-contract, pre-delivery-self-review, enhancement-entry, cross-skill-pipeline suites exit 0; card word counts 171 to 297; relative links in changed docs all resolve.
 - 2026-10-31: not done here, by scope: the stale jolvex-platform RUN (an owner decision in that repo), any version bump, release, bundle installation or consumer re-pin. Worker worktrees under `~/.t3/worktrees/product-delivery-harness/` and their `t3/*` branches remain until the owner confirms removal.
 - 2026-10-31: Required Verification matrix ran once on the working tree whose skill, script, template and README bytes equal `aa6762f7` (only `docs/epics` and `docs/DOCUMENTS.md` changed after it). Results, logs under the local `task/flow-robustness/matrix/`: `check_skill_spec.py` exit 0; `pyflakes` exit 0; `docs_weight.py` exit 0 (+2,763 words, baseline v0.73.0); harness suite 107 modules passed, 0 failed, 592 s with 8 workers; golden path OK; product-definition-builder suite OK; ui-design-builder suite OK (2 skipped); design-system-compiler suite exit 0; `git diff --check` clean. CI on the PR head is the matrix of record.
+- 2026-10-31: owner accepted the handoff proposal. WP10 (GLM-5.3 Flash, worktree) added one fixed `## Handoff` block to `EPIC.template.md`, the checkpoint and entry rules in `task-and-handoff.md`, the Epic shape sentence in `bounded-enhancement.md`, Card 1 and Card 7, managed closeout, the PRD, UI, go-to-market and growth-review stage exits, and a pinning test (`2126db42`, `d40e3d56`, `66fe51bb`); the four READMEs name the block (`1a46a676`). Fable review as parent: no blocking finding; three notes repaired in `59f5851f` (duplicate heading inside the template fence, Card 1 read-first placement, Output list conjunction). Affected suites after the repair: enhancement-entry, skill-contract, governance-entry-routes, pre-delivery-self-review, documented-commands, readme-structure, docs-weight, cross-skill-pipeline, the product-definition-builder and ui-design-builder suites, all exit 0; `check_skill_spec.py` and `git diff --check` clean. The full matrix is not rerun for this docs-only isolated repair; CI on the PR head is the matrix of record.
+
+## Handoff
+
+```text
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/flow-robustness / 59f5851f / none (untracked local task/ only)
+Stage and skill: source maintenance of the skill suite; direct route, parent-integrated worker packages
+Inputs consumed (path + hash or revision): suite review findings in chat 2026-10-31; base main ef327ff6; agents repo commit c0bde79 (codex-goal-prompt Harness Mode)
+Approvals in force (gate, owner, date, candidate): owner instruction "fix all with multi agent then review by fable" 2026-10-31; owner "ok" to the handoff block 2026-10-31; no push, PR, release or install authorized
+Done and verified (command, exit code): full Required Verification matrix at aa6762f7 content exit 0 (task/flow-robustness/matrix/summary.log); affected suites at 59f5851f exit 0
+Remaining: open the PR to main and resolve Codex bot threads; recompute the five-skill contract digest; version bump and release; consumer re-pin; remove the ten t3/* worker branches and worktrees after owner confirmation
+Blocked / waiting (gate name or owner decision): PR and publication need an explicit owner instruction; worktree cleanup needs owner confirmation; jolvex-platform stale RUN needs the owner's pause/cancel/resume in that repo
+Next action (one command or one owner decision): owner decides whether to open the PR from feat/flow-robustness to main
+Next owner (skill or human): owner
+```
