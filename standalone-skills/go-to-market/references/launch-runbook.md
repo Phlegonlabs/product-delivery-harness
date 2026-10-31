@@ -65,7 +65,7 @@ Run each checkpoint against every Launch Window row in its range. Record each ch
 
 ## Readback Handoff
 
-Day 7 and Day 30 readbacks go to growth-review's `growth_review` mode, per its [Growth Review Cadence](../../../skills/growth-review/references/review-method.md#growth-review-cadence).
+Day 7 and Day 30 readbacks go to growth-review's `growth_review` mode, per its Growth Review Cadence section in `growth-review/references/review-method.md` (resolve the installed skill root as the Harness `installed-commands.md` states).
 The runbook records raw readbacks with sources and observation times; growth-review interprets them.
 Its findings return as PRD delta candidates. The PRD owner accepts or rejects each candidate.
 
