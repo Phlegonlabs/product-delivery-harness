@@ -1,6 +1,6 @@
 # Flow Robustness, GTM Reach And PRD Review
 
-Status: complete on `feat/flow-robustness` as 0.74.0; PR #164 green and ready to merge; tag, install and consumer adoption follow the merge
+Status: complete; released as v0.74.0 (`b8e32249`), installed, adopted in 19 consumer repos (local commits, not pushed)
 Design workflow: enhancement
 UI impact: none (skill rules, templates and scripts; no product UI in this repository).
 
@@ -52,17 +52,18 @@ Parent-owned: `skills/delivery-harness/SKILL.md`, the four READMEs, this Epic, `
 - 2026-10-31: Required Verification matrix ran once on the working tree whose skill, script, template and README bytes equal `aa6762f7` (only `docs/epics` and `docs/DOCUMENTS.md` changed after it). Results, logs under the local `task/flow-robustness/matrix/`: `check_skill_spec.py` exit 0; `pyflakes` exit 0; `docs_weight.py` exit 0 (+2,763 words, baseline v0.73.0); harness suite 107 modules passed, 0 failed, 592 s with 8 workers; golden path OK; product-definition-builder suite OK; ui-design-builder suite OK (2 skipped); design-system-compiler suite exit 0; `git diff --check` clean. CI on the PR head is the matrix of record.
 - 2026-10-31: owner accepted the handoff proposal. WP10 (GLM-5.3 Flash, worktree) added one fixed `## Handoff` block to `EPIC.template.md`, the checkpoint and entry rules in `task-and-handoff.md`, the Epic shape sentence in `bounded-enhancement.md`, Card 1 and Card 7, managed closeout, the PRD, UI, go-to-market and growth-review stage exits, and a pinning test (`2126db42`, `d40e3d56`, `66fe51bb`); the four READMEs name the block (`1a46a676`). Fable review as parent: no blocking finding; three notes repaired in `59f5851f` (duplicate heading inside the template fence, Card 1 read-first placement, Output list conjunction). Affected suites after the repair: enhancement-entry, skill-contract, governance-entry-routes, pre-delivery-self-review, documented-commands, readme-structure, docs-weight, cross-skill-pipeline, the product-definition-builder and ui-design-builder suites, all exit 0; `check_skill_spec.py` and `git diff --check` clean. The full matrix is not rerun for this docs-only isolated repair; CI on the PR head is the matrix of record.
 - 2026-10-31: owner asked to finish every suggested follow-up. Added the `mvp`-first recommendation for small new products (`84ffb210`) and the 0.74.0 release surfaces, including `package-lock.json` left at 0.72.0 by the 0.73.0 release (`793c39e3`). Opened PR #164. Codex review found two real inspector bugs (a cancelled run fell through to `select`; a recovered failure kept the run in `reconcile`), fixed in `4df1d5cb` with tests and in Card 1 (`a99592f3`); both threads answered and resolved. CI on `a99592f3`: all 14 jobs passed. Removed the eleven worker worktrees and merged `t3/*` branches; the crashed WP4 worktree's uncommitted diff is kept at the local `task/flow-robustness/wp4-worktree-uncommitted.patch`. The jolvex-platform RUN `RUN-PD-R8-01` reads `stale_no_lock` in the new inspector; both its finished mission heads are on jolvex `main` and its integration branch is gone. It was left untouched: another live session holds that checkout and the RUN is pinned to 0.45.0, so pause, cancel or resume stays the owner's decision (recommended: cancel).
+- 2026-10-31: PR #164 merged at `b8e32249` (tree equal to reviewed head `06a11d1d`, CI 14 of 14). Annotated tag `v0.74.0` pushed. `install.sh` from the clean tag exit 0; prior core skills backed up under `skill-backups/product-delivery-harness/20261031-103928`. Standalone `go-to-market` (the unmodified 0.72.0 copy) replaced and `customer-discovery` registered from the tag; `gtm-content`, merged into `go-to-market` in 0.73.0, retired; prior copies backed up under `20261031-standalone-074` (agents repo `98d6e19`). Five-skill contract from the installed root: `beab394e9bb952be6766d0b20472de299ae07af1362b7a2c8796ea26ef9f91da`. Adopted in 19 consumer repos by one commit each on local `main` (two Harness Version lines plus one Epic row or section); the `ui-design-builder` pin moved from the 0.73.0 release tree `168ef075` to `b39afaf2` in ten repos where it matched that tree exactly; hk-car-care keeps its owner-approved task-local pin `c7f71b46`. hk-car-care, jolvex-platform and phlegon-web had another session's branch checked out, so their adoption was made in a temporary worktree and fast-forwarded into `main` without touching those checkouts. Bindings check after adoption: exit 0, or only the pre-existing pending UI slots, or the deliberate hk-car-care pin. Consumer commits are not pushed. The four detached snapshot worktrees (ticketradar-en, -en-app, -ev, jolvex-offer-covers) were left as they are.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/flow-robustness / PR #164 head / none (untracked local task/ only)
-Stage and skill: source maintenance release 0.74.0; direct route
-Inputs consumed (path + hash or revision): base main ef327ff6; agents repo c0bde79 (codex-goal-prompt Harness Mode)
-Approvals in force (gate, owner, date, candidate): owner "fix all ... review by fable" and "以上你建議的都做完它" 2026-10-31, covering PR, merge, tag, install, re-pin and cleanup
-Done and verified (command, exit code): CI on a99592f3, 14 of 14 jobs pass; local full matrix at aa6762f7 content exit 0
-Remaining: merge #164, tag v0.74.0, run install.sh, adopt 0.74.0 in consumer repos
-Blocked / waiting (gate name or owner decision): jolvex-platform RUN-PD-R8-01 pause, cancel or resume (recommended cancel)
-Next action (one command or one owner decision): gh pr merge 164 --merge
-Next owner (skill or human): parent session, then owner for the jolvex RUN
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / b8e32249 (v0.74.0) / none
+Stage and skill: source maintenance; release 0.74.0 closed
+Inputs consumed (path + hash or revision): tag v0.74.0 b8e32249; installed contract beab394e
+Approvals in force (gate, owner, date, candidate): owner "以上你建議的都做完它" 2026-10-31 (release, install, re-pin, cleanup)
+Done and verified (command, exit code): CI on 06a11d1d 14 of 14 pass; install.sh exit 0; check_skill_bindings.py --stage all in 19 consumers (exit 0 or only pre-existing pending slots)
+Remaining: push the 19 consumer main branches; refresh consumer docs/document-sync.json baselines in a separate pass
+Blocked / waiting (gate name or owner decision): consumer push needs an owner instruction; jolvex-platform RUN-PD-R8-01 pause, cancel or resume (recommended cancel)
+Next action (one command or one owner decision): owner decides on pushing the consumer adoptions and on the jolvex RUN
+Next owner (skill or human): owner
 ```
