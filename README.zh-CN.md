@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.73.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -205,6 +205,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.74.0** — 流程不再中途断掉。`inspect_harness_run.py` 先打印附一条建议命令的 `Next` 区块，没有 lock 的 `running` RUN 必须先由 owner 决定才能选工作。七张短 stage card 取代长 contract 成为日常读物，已签署的 launch brief 把授权与预先记录的 owner 决定带进自主循环，brief 与 review packet 按路线的时间、turn 与 byte 上限切好，readiness 先探一次环境，每个 Epic 结尾有一个 `## Handoff` 区块，每个 skill 进场先读它。Product Definition 先回读 Product Thesis，审批前多一次独立只读 PRD review，并给 owner 十题审阅指南。Go To Market 新增 messaging record、lifecycle messaging、开发者、商店与港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把用户访谈整理成 `RA-*` 候选。
+
 - **0.73.0** — 一个项目就是一组 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 种发布面（新增 MCP server、skill 与 plugin、library、messaging bot、marketplace app、assistant listing、container 与 internal service）和五种存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 写在 PRD Growth Contract；Shape 行新增 `tool` 与 `content` track，Launch Window 新增 Destination 列。bundle 从七个 skills 缩成五个：`code-security-review` 成为 harness 的安全 lens（`references/security-review.md`），`product-activation` 收进 deployment record（External Console Setup 行加上 Measurement Sources 表，设置目录在 `references/external-setup.md`），`seo-growth-review` 改为 `growth-review`，逐一 surface 用各自的 lens 回读，并从项目自己的 stack decisions 解析供应商。`gtm-content` 并入 `go-to-market`，未使用的 templates、死代码与重复的 validator CLI 一并移除。
 
 - **0.72.1** — 任务通过时 worker 返回 `WORKER_RESULT`；阻塞或失败的任务返回 `worker_result: null` 的 graph node result，验证、review 与整合权保留在 parent。
@@ -212,7 +214,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多个进程并行执行一个套件的测试模块并保留逐模块 log，本地的 Required Verification 矩阵从单核 27 分钟缩到几分钟。
 
 - **0.71.0** — 每个项目都明确声明自己的形状：PRD At a Glance 新增 `Shape` 行，写明 track、companion 公开界面与 console 类型，`## Growth Contract` 记录 north star 与 Day 7、Day 30 目标、再触达机制、discovery surfaces 与 launch window。各 track 的必要 UI 界面与交付基础、`agentic-operations-console` 架构 profile，以及 store launch、agent directory 与 GEO 回读的 activation profile，把流程从 web 延伸到 app 与 agent 产品。`seo-growth-review` 新增 `pre_launch` 模式与 Day 7、Day 30 的 `growth_review` 回读并喂给下一轮 PRD delta，go-to-market 起草 Launch Reach Plan，GTM Content 把一份源内容打包成各渠道变体并附两个 hook。
-
-- **0.70.0** — 每个候选阶段保有两次 review 预算：一次初审与一次定向复查；需要 owner 授权的额外轮次与后继 review node 移除。复查后每个剩余或新缺陷各成一笔隔离修复，附自己的聚焦 verifier，并只对修复差异做 scoped review——差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径、既有 PASS 沿用，broad final validation 每个候选于最后跑一次。managed 路线记录修复范围与 scoped PASS，owner 选择的 `mvp` delivery profile 把小型项目或一周 MVP 压缩到最多四个 owner gate。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
