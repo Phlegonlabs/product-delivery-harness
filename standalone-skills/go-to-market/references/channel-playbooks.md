@@ -173,7 +173,7 @@ Language variants follow the existing locale rule: adapt naturally, keep facts, 
 
 Open the caption with the audience's task or the visible result.
 Write on-screen text and alt text as copy; alt text describes the image for a reader who cannot see it.
-The only link is the profile link: write the bio line and the caption's pointer to it, and record the destination when a campaign needs a different page.
+Treat the profile link as the default destination: write the bio line and the caption's pointer to it, record any other destination, and confirm current link placements at execution readiness.
 Proof is the real demonstration; do not stage outcomes the product cannot reproduce.
 Name the reply and comment owner.
 Official guide: Instagram Help Center; confirm at execution readiness.
