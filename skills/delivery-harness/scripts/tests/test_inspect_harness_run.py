@@ -468,6 +468,53 @@ class InspectHarnessRunTests(unittest.TestCase):
         self.assertTrue(lines[2].startswith("  Command: "))
         self.assertTrue(lines[3].startswith("Run: "))
 
+    def test_next_action_cancelled_control_schedules_no_work(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-CANCELLED",
+            "status": "running",
+            "control": {"desired_state": "cancelled"},
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {"M1": {"phase": "queued", "head_sha": None}},
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        self.assertEqual("cancelled", summary["next_action"]["state"])
+        self.assertIsNone(summary["next_action"]["command"])
+        self.assertIn("owner-directed", summary["next_action"]["reason"])
+
+    def test_next_action_recovered_failure_does_not_block_selection(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-RECOVERED",
+            "status": "running",
+            "attempt_log": [
+                {
+                    "attempt_id": "ATTEMPT-M1-01",
+                    "mission_id": "M1",
+                    "kind": "dispatch",
+                    "result": "retryable_failure",
+                    "evidence": ["first dispatch failed"],
+                }
+            ],
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {
+                "M1": {"phase": "integrated", "head_sha": "5" * 40},
+                "M2": {"phase": "queued", "head_sha": None},
+            },
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run)
+
+        recovery = summary["attempt_recovery"]["missions"]
+        self.assertTrue(any(item["most_recent_failure"] for item in recovery))
+        self.assertEqual("select", summary["next_action"]["state"])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -409,6 +409,7 @@ _TRANSITION_COMMAND = (
     " --plan <PLAN.md> --run <RUN.md>"
 )
 _ACTIVE_WORK_PHASES = {"leased", "worker_running", "worker_passed", "integrating"}
+_UNRESOLVED_FAILURE_PHASES = {"blocked", "worker_failed", "integration_failed"}
 
 
 def _next_action(
@@ -442,6 +443,15 @@ def _next_action(
                 " resume --source <owner instruction>"
             ),
         }
+    if desired_state == "cancelled":
+        return {
+            "state": "cancelled",
+            "reason": (
+                "Control is cancelled; schedule no further work. Resume only "
+                "on an owner-directed instruction."
+            ),
+            "command": None,
+        }
     active_work = any(
         mission.get("phase") in _ACTIVE_WORK_PHASES for mission in missions
     ) or (isinstance(wave, dict) and wave.get("status") in {"proposed", "active"})
@@ -473,8 +483,12 @@ def _next_action(
     needs_reconciliation = any(
         mission.get("needs_reconciliation") is True for mission in missions
     )
+    phases = {
+        mission.get("mission_id"): mission.get("phase") for mission in missions
+    }
     retained_failure = any(
         item.get("most_recent_failure") is not None
+        and phases.get(item.get("mission_id")) in _UNRESOLVED_FAILURE_PHASES
         for item in attempt_recovery.get("missions", [])
         if isinstance(item, dict)
     )
