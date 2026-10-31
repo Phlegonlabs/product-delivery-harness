@@ -1,6 +1,6 @@
 # Flow Robustness, GTM Reach And PRD Review
 
-Status: in_progress; worker candidates integrating on `feat/flow-robustness`
+Status: in_progress; candidate `aa6762f7` on `feat/flow-robustness` reviewed and repaired; final matrix running
 Design workflow: enhancement
 UI impact: none (skill rules, templates and scripts; no product UI in this repository).
 
@@ -46,3 +46,6 @@ Parent-owned: `skills/delivery-harness/SKILL.md`, the four READMEs, this Epic, `
 ## Change Log
 
 - 2026-10-31: suite review delivered in chat; owner asked to fix all findings with multiple agents and review by Fable. Branch `feat/flow-robustness` created at `ef327ff6`. Nine workers dispatched; `codex-goal-prompt` Harness Mode committed in the agents repository as `c0bde79`.
+- 2026-10-31: all nine packages integrated serially on `feat/flow-robustness` (`35e60ebc`). Two workers (WP4 route caps, WP6b playbooks) ended in a runtime error; WP4's finished edits were recovered from its worktree and trimmed under the 1200-word worker template cap, WP6b was relaunched and landed on its second attempt. Parent-owned edits: `skills/delivery-harness/SKILL.md` entry rules (trimmed to 1996 words under the 2000 cap), the four READMEs, this Epic.
+- 2026-10-31: independent review at `35e60ebc` by Claude Fable 5.1 as the Harness parent, after the profile hook refused Fable as a child model on both the native Agent route and `delegate_task`. The parent did not author the nine worker packages; its own edits (WP4 recovery, SKILL.md, READMEs) are self-reviewed and named here. Blocking findings, all repaired: the inspector's `select` state recommended `record-observation` while no lock was held (`0f031419`); the launch brief pointed at a RUN `Next action:` line that exists only in `MISSION_RUNBOOK.template.md` (`0f031419`); the customer-discovery `RA-*` table claimed to mirror the research assessment but used `Evidence`/`Source` columns it does not have (`aa6762f7`). Non-blocking notes, also repaired: Card 5 omitted `--evidence` on `record-node-result`, Card 1 called a stale lock an owner decision, Card 7 cited "Managed Run Archive" with the wrong case, the brief pre-filled the console policy fact and said the brief and cards own every rule (`0f031419`); the self-review order sentence read badly (`c4316ad0`); an Instagram link placement was stated as fact (`15860b3d`). Checks after repair: inspector, parent-drift, candidate-resume, skill-contract, pre-delivery-self-review, enhancement-entry, cross-skill-pipeline suites exit 0; card word counts 171 to 297; relative links in changed docs all resolve.
+- 2026-10-31: not done here, by scope: the stale jolvex-platform RUN (an owner decision in that repo), any version bump, release, bundle installation or consumer re-pin. Worker worktrees under `~/.t3/worktrees/product-delivery-harness/` and their `t3/*` branches remain until the owner confirms removal.
