@@ -1,6 +1,6 @@
 # Self-Review Before Product Delivery
 
-For a new product, complete these author checks in order: draft the Product Definition, reconcile post-draft market research, review the resulting PRD package, then one independent read-only PRD review, review UI structure and direction, then review the connected HiFi. Finish the existing owner decisions and required independent reviews before Harness execution. Earlier research-first assessment does not replace the post-draft market pass.
+For a new product, complete these author checks in order: draft the Product Definition, reconcile post-draft market research, review the resulting PRD package, obtain one independent read-only PRD review, review UI structure and direction, then review the connected HiFi. Finish the existing owner decisions and required independent reviews before Harness execution. Earlier research-first assessment does not replace the post-draft market pass.
 
 These are preparation checks inside the existing stage exits, not new human approval rounds, schemas or standalone artifacts. The parent remains responsible when a helper contributes findings. Self-review cannot supply an independent review, a human decision or permission to execute, publish, install or delegate.
 
