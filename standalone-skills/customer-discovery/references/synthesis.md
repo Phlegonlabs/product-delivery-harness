@@ -23,16 +23,15 @@ Build one table for the whole study:
 
 ## RA-* Candidate Rows
 
-Mirror `product-definition-builder`'s research assessment format. One row per finding that could change a product decision:
+Use the research assessment columns of `product-definition-builder` (`RA ID`, `Finding`, `Confidence`, `Sources`) plus `Decision it informs` for the handoff. One row per finding that could change a product decision:
 
-| RA ID | Finding | Evidence | Source | Confidence | Decision it informs |
-| --- | --- | --- | --- | --- | --- |
+| RA ID | Finding | Confidence | Sources | Decision it informs |
+| --- | --- | --- | --- | --- |
 
 - `RA ID`: a stable `RA-*` identifier. Mint it once, preserve it across revisions, and never reuse a retired ID.
-- `Finding`: one sentence, stated as a result.
-- `Evidence`: the count of independent participants and the pattern in one clause.
-- `Source`: interview codes and dates, in the form `P03 2026-03-02; P05 2026-03-04`. Never a name.
+- `Finding`: one sentence, stated as a result, with the count of independent participants.
 - `Confidence`: `observed` or `hypothesis`, matching the evidence table.
+- `Sources`: interview codes and dates, in the form `P03 2026-03-02; P05 2026-03-04`. Never a name.
 - `Decision it informs`: the open question or decision named in the study brief.
 
 A finding that could change no decision stays in the evidence table and gets no `RA-*` ID.

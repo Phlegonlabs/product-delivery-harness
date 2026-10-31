@@ -65,10 +65,10 @@ A pattern needs three independent participants to be called `observed`.
 
 ## RA-* Candidates
 
-| RA ID | Finding | Evidence | Source | Confidence | Decision it informs |
-| --- | --- | --- | --- | --- | --- |
+| RA ID | Finding | Confidence | Sources | Decision it informs |
+| --- | --- | --- | --- | --- |
 
-Mint one stable `RA-*` ID per decision-relevant finding. `Source` holds interview codes and dates.
+Mint one stable `RA-*` ID per decision-relevant finding. `Sources` holds interview codes and dates.
 
 ## Handoff
 
