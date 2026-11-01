@@ -43,6 +43,7 @@ Read the owning section before its matching action. Domain and direction guidanc
 
 - A new round requires the approved Product Definition and Stack Decision Checkpoint, with the package's exact UI contract.
 - Agent configuration designates the UI author; this skill does not choose its agent type or model. The actual writer loads the complete pinned `frontend-design` skill; a parent read does not author design.
+- On the owner's request only, an optional R0 exploration round may run before Product Definition Approval: exploratory studies, no selection, no approval authority, no HiFi, no scope change. See [Optional R0 Exploration Round](references/review-workflow.md#optional-r0-exploration-round).
 - Enhancements author only added or changed pages and necessary connecting flows. Routine maintenance does not rebuild historical HiFi or reopen frozen approvals.
 - Direction and HiFi authorship retain the required preflight, Impeccable critique/audit, browser evidence and H1-H9, then one human Visual Approval.
 
