@@ -1,6 +1,6 @@
 # PRD, Direction, And HiFi Pass
 
-Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval. It turns the approved PRD UI Surface Contract into direction studies and then a human-approved visual target; it does not create a gray structural wireframe first. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
+Run this pass only inside an active `ui-design-builder` flow after Product Definition Approval; the owner-requested [R0 exploration round](review-workflow.md#optional-r0-exploration-round) is the one earlier exception. It turns the approved PRD UI Surface Contract into direction studies and then a human-approved visual target; it does not create a gray structural wireframe first. `frontend-design` is the single design author. `impeccable` and rubric graders provide review evidence; they do not publish or approve the target.
 
 Before direction studies and connected HiFi, bind and load `frontend-design` as [Required Skills And Inputs](stages/ui-design.md#required-skills-and-inputs) states. Reviewer and assembler helpers construct the shell or validate; they do not choose or repair the product design.
 
