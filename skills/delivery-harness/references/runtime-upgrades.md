@@ -30,7 +30,7 @@ A new bundle applies to the next RUN; do not migrate an active RUN by editing re
 Collect blocking source fixes into one reviewed release rather than installing each fix separately.
 Owner-directed model changes apply to new assignments only. Preserve existing reservations and record the decision once.
 
-A UI design round keeps the seven-skill digest recorded at intake through Visual Approval.
+A UI design round keeps the five-skill digest recorded at intake through Visual Approval.
 Only a blocking defect justifies one collected mid-round update, at a quiescent boundary with explicit installation authority.
 Record the new digest and restart before loading changed rules. Preserve prior decisions and evidence with their original identities.
 
