@@ -46,9 +46,9 @@ UI work also needs the exact external `frontend-design` and `impeccable` trees i
 | Your starting point | Skill | Result |
 | --- | --- | --- |
 | Product idea | `product-definition-builder` | Approved PRD, architecture, stack and TEST obligations |
-| Approved Product Definition with UI | `ui-design-builder` | Directions, complete HiFi, browser evidence and Visual Approval |
+| Approved Product Definition with UI (design can start after the Product Thesis with an optional exploration round) | `ui-design-builder` | Directions, journey maps, complete HiFi, browser evidence and Visual Approval |
 | Approved HiFi requiring a design system | `design-system-compiler` | Frozen pair and source-bound derived HTML |
-| Scoped implementation or maintenance | `delivery-harness` | Direct work or managed PLAN/RUN |
+| Scoped implementation or maintenance | `delivery-harness` | Direct work or managed PLAN/RUN; UI missions follow the approved journeys |
 | Released product with any discoverable surface | `growth-review` | Read-only per-surface growth review with routed follow-ups |
 
 All five core skills and four standalone skills require an explicit request naming the skill, such as `$delivery-harness`. Continuing an already requested workflow is allowed. Ordinary tasks do not start Harness routing, document sync, Epic records or PLAN/RUN. Installation and existing project artifacts do not opt a task in. A requested skill retains its required checks and dependencies; a new top-level stage needs an explicit request. Codex metadata sets `allow_implicit_invocation: false`; other hosts follow the same instruction boundary.
@@ -105,9 +105,10 @@ These four complete skill directories require separate host registration; `insta
 
 ```mermaid
 flowchart LR
-  Product["Product Definition + Ambition + Growth Contract + owner approval"] --> UI["UI directions + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
+  Product["Product Definition + Ambition + Growth Contract + owner approval"] --> UI["UI directions + journey maps + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
+  Product -.->|"optional R0 exploration after the Product Thesis"| UI
   Product -->|"headless or scoped enhancement or maintenance"| Harness["Direct or managed delivery"]
-  Design --> Harness
+  Design -->|"missions follow the approved journeys"| Harness
   Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
   C -->|managed| A["Managed only: archive-only A"] --> Publish["Authorized candidate publication + Preview when needed"]
   C -->|direct| Publish

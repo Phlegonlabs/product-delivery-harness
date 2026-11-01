@@ -46,9 +46,9 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 当前起点 | Skill | 结果 |
 | --- | --- | --- |
 | 产品想法 | `product-definition-builder` | 已批准的 PRD、architecture、stack 与 TEST 义务 |
-| 已批准且包含 UI 的 Product Definition | `ui-design-builder` | 方向、完整 HiFi、浏览器证据与 Visual Approval |
+| 已批准且包含 UI 的 Product Definition（Product Thesis 之后即可开始设计，可先做可选的探索轮） | `ui-design-builder` | 方向、journey map、完整 HiFi、浏览器证据与 Visual Approval |
 | 已批准且需要设计系统的 HiFi | `design-system-compiler` | 冻结的 pair 与来源绑定派生 HTML |
-| 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN |
+| 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN；UI mission 按已批准的 journey 进行 |
 | 已发布且有任何可被发现 surface 的产品 | `growth-review` | 逐 surface 的只读增长 review，以及已路由后续工作 |
 
 五个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
@@ -105,9 +105,10 @@ Use $growth-review to read back every surface of this released product with its 
 
 ```mermaid
 flowchart LR
-  Product["Product Definition 与 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
+  Product["Product Definition 与 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向、journey map 与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
+  Product -.->|"Product Thesis 之后的可选探索轮 R0"| UI
   Product -->|"无 UI，或限域增强或维护"| Harness["Direct 或 managed 交付"]
-  Design --> Harness
+  Design -->|"mission 按已批准的 journey 进行"| Harness
   Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation"] --> C["固定候选 C"]
   C -->|managed| A["仅 managed：archive-only A"] --> Publish["已授权候选发布与适用 Preview"]
   C -->|direct| Publish
