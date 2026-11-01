@@ -90,7 +90,7 @@ Use $growth-review to read back every surface of this released product with its 
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html` |
-| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源，需要時的 PLAN/RUN，以及 managed stage cards 與自主執行用的 launch brief |
+| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源（含 [GA4 後台設定](skills/delivery-harness/references/ga4-admin-setup.md)），需要時的 PLAN/RUN，以及 managed stage cards 與自主執行用的 launch brief |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一個 lens：搜尋與答案引擎、商店列表、registry 與目錄、bot 平台，以及團隊經營的帳號；含 `pre_launch`、`baseline`、Day 7 與 Day 30 `growth_review` 與 `traffic_drop` 模式，直接回覆 |
 
 ## 獨立 skills

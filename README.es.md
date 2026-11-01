@@ -90,7 +90,7 @@ Usa $growth-review para leer cada superficie de este producto publicado con su p
 | `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
-| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md`, PLAN/RUN cuando hace falta, las stage cards del modo gestionado y el launch brief para ejecución autónoma |
+| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md` (incluida la [configuración de administración de GA4](skills/delivery-harness/references/ga4-admin-setup.md)), PLAN/RUN cuando hace falta, las stage cards del modo gestionado y el launch brief para ejecución autónoma |
 | `growth-review` | Una lente por superficie según el Surface Catalog: motores de búsqueda y de respuestas, listados de tiendas, registries y directorios, plataformas de bots y las cuentas que gestiona el equipo; modos `pre_launch`, `baseline`, `growth_review` de Day 7 y Day 30 y `traffic_drop`, salida inline |
 
 ## Skills independientes

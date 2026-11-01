@@ -90,7 +90,7 @@ Use $growth-review to read back every surface of this released product with its 
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包 |
 | `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html` |
-| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源，需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief |
+| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源（含 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md)），需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复 |
 
 ## 独立 skills

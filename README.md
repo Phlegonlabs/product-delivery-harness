@@ -90,7 +90,7 @@ Use $growth-review to read back every surface of this released product with its 
 | `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
-| `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md`, PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
+| `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md` (including the [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md)), PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
 | `growth-review` | One lens per surface from the Surface Catalog: search and answer engines, store listings, registries and directories, bot platforms and the accounts the team runs; `pre_launch`, `baseline`, Day 7 and Day 30 `growth_review` and `traffic_drop` modes, inline output |
 
 ## Standalone skills
