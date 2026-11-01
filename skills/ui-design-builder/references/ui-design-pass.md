@@ -92,7 +92,7 @@ For each direction, record:
 
 Choose iconography through current official-source lookup for the approved platform. For Web icons, compare Lucide, Phosphor, Heroicons, and Tabler, select one primary and one named fallback, and record license, framework support, maintenance evidence, URLs, and retrieval dates. For iOS, assess SF Symbols first against the approved OS range, text styles, symbol meaning, and brand needs; record the selected system or custom treatment and its reason. Other platforms use their own conventions and approved component foundation. Never require a Web icon library on a native surface. Record `UNVALIDATED` when evidence is unavailable; never silently choose from memory.
 
-Choose typography with the same evidence discipline. Record display/body roles, required weights, Latin and CJK coverage, fallback order, loading strategy, source URLs, and retrieval dates. Record the palette derivation, contrast intent, and whether dark mode is in scope. These candidate theme values render the HiFi target but are not yet a frozen design-system contract.
+Choose typography with the same evidence discipline, from the pairing the owner picked in the font pairing round ([Workflow](stages/ui-design.md#workflow) step 4). Record display/body roles, required weights, Latin and CJK coverage, fallback order, loading strategy, source URLs, and retrieval dates. Record the palette derivation, contrast intent, and whether dark mode is in scope. These candidate theme values render the HiFi target but are not yet a frozen design-system contract.
 
 ## Platform Rules
 

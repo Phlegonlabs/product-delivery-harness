@@ -20,6 +20,8 @@ For other purposes, derive a profile in the same brief from the nearest relevant
 
 A selected direction may explicitly avoid named font families or set a two-line desktop headline requirement for its landing/portfolio pages. Keep these choices scoped by page and text role. Existing brand fonts, system fonts, language coverage and platform accessibility remain valid constraints. Do not turn an avoid list into a universal blacklist or install a font/library without the normal checks.
 
+The font pairing round fills the brief's typography roles and avoid choices. After direction selection the author presents 2–3 display/body pairings for that direction, with CJK coverage when the PRD language needs it, and names the default faces it avoided and why. The chosen pairing and those reasons go in the Design Brief. An owner-supplied brand font is reused without a round.
+
 Measure the actual heading at each applicable desktop review target with loaded and fallback fonts. The default is one or two natural lines, not a forced line break or exactly two lines. First adjust container width and type scale within readable bounds. Mobile, localization and enlarged text may need more lines; record and inspect these exceptions. Never cut approved copy, clamp away text, shrink it below readable size or add nonbreaking spaces to pass. Copy changes return through their existing owner flow.
 
 Only an accepted page-purpose/profile and motion decision is production design authority. Carry that accepted decision into direction rationale, connected HiFi, H1–H9 review, and, when required, the design-system pair and Harness implementation. Unselected direction studies and unselected profile recommendations do not authorize either.
