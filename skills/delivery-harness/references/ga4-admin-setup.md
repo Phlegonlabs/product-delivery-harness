@@ -17,11 +17,19 @@ Google renames menus and changes limits. Check the linked help page and the [con
 - **App:** one stream per platform and app ID: the iOS bundle ID plus App Store ID, or the Android package name. Adding an app stream in GA4 creates a new Firebase project. When the app already has one, link from Firebase instead (Project settings > Integrations); one Firebase project links to one property. See [set up Analytics for a website and/or app](https://support.google.com/analytics/answer/9304153).
 - **Measurement Protocol:** API secrets belong to one stream. Create one only for a named server-side sender and keep it server-side like any other secret.
 
-## Events And Key Events
+## What To Track
 
-- Use the PRD's canonical event names. Prefer a [recommended event](https://support.google.com/analytics/answer/9267735) when one fits.
-- Mark a key event (formerly "conversion") only for a PRD outcome metric, and record its PRD or `TEST-*` ID.
-- Register a custom dimension or metric only for a parameter that a report or exploration reads.
+Build the tracking plan from the PRD metrics and `TEST-*` signals. Track nothing that no metric, report or decision reads. Record the plan as one table: event, trigger, parameters, owner, PRD or `TEST-*` ID, and key event yes/no.
+
+1. **Collected automatically:** `first_visit`, `session_start`, `user_engagement`, plus `page_view` on web and `screen_view` in apps. Nothing to add.
+2. **Enhanced measurement (web toggles):** scrolls, outbound clicks, site search, video engagement, file downloads and form interactions. Keep the ones the plan reads; turn off one that a custom event replaces.
+3. **Recommended events** for actions the product has: `sign_up`, `login`, `search`, `share`, `generate_lead`, `view_item`, `add_to_cart`, `begin_checkout`, `purchase`, `refund`. Use Google's names and parameters so the built-in reports fill in.
+4. **Custom events** for product actions with no recommended name, in snake_case `verb_object` form, such as `create_project` or `click_affiliate`.
+5. **Event parameters** for the splits a report needs, such as `method`, `content_type`, `cta_location` or `partner`. Register each one a report reads as a custom dimension or metric.
+6. **User properties** for slow-changing facts about a user, such as plan tier, signup month or preferred language.
+7. **Key events** (formerly "conversions"): only the few outcomes the PRD measures success by, usually signup or lead, purchase, and the product's core action.
+
+Never send personal data (email, name, phone number, street address, precise location) in an event, parameter, user property or page URL. Set `user_id` only to an internal ID that does not reveal the person.
 
 ## Data Collection And Filters
 
