@@ -57,7 +57,7 @@ Useful current authorities include [Cloudflare Full (strict)](https://developers
 - Cloudflare Web Analytics is a privacy-first traffic/RUM source, not a replacement for the product-event and campaign contract.
 - Meta Pixel may run through the selected web tag route. Conversions API tokens stay server-side; browser/server copies of one conversion need a common event name and event ID for deduplication.
 - Link Search Console, ad platforms, cost imports, domain verification, or campaign sources only when the growth plan requires them.
-- For a GA4 property, set its streams, retention, filters, channel groups, reports and links by [GA4 Admin Setup](ga4-admin-setup.md).
+- For a GA4 property, write the tracking plan and funnels and set its streams, key events, retention, filters, channel groups, reports and links by [GA4 Admin Setup](ga4-admin-setup.md), after every launch.
 
 Use current [GA4 recommended events](https://support.google.com/analytics/answer/9267735), [Google Consent Mode](https://support.google.com/analytics/answer/10000067), [Cloudflare Zaraz supported tools](https://developers.cloudflare.com/zaraz/reference/supported-tools/), and [Cloudflare Web Analytics](https://developers.cloudflare.com/web-analytics/about/) at execution time.
 
