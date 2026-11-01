@@ -47,7 +47,7 @@ Recommend a complete compatible stack when the owner has no preference, includin
 
 ## Provider-Neutral Release Target Pattern
 
-Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close the inventory of deployable surfaces during discovery. Record each target with the fields, source policy and availability rules in [Release Targets](output-contract.md#release-targets). Keep `surface` separate from `provider`: one surface may use different providers by stage.
+Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close the inventory of deployable surfaces during discovery. Record each target with the fields, source policy and availability rules in [Release Targets](output-contract.md#architecturemd). Keep `surface` separate from `provider`: one surface may use different providers by stage.
 
 A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability.
 
@@ -65,7 +65,7 @@ Record this sequence only when the human owner selects a whole-platform order. C
 
 ## Candidate-to-Production Release Pattern
 
-For a deployable hosted web, API, or backend product, resolve the platform before drafting. Keep one repository and one codebase. The release source policy is owned by [Release Targets](output-contract.md#release-targets); the environment contract is in the output contract's Deployment and Operations template. Cloudflare uses native Workers Previews when supported, Pages only by owner choice, or an approved isolated fallback.
+For a deployable hosted web, API, or backend product, resolve the platform before drafting. Keep one repository and one codebase. The release source policy is owned by [Release Targets](output-contract.md#architecturemd); the environment contract is in the output contract's Deployment and Operations template. Cloudflare uses native Workers Previews when supported, Pages only by owner choice, or an approved isolated fallback.
 
 Do not model development as a second codebase or persistent branch. It is an isolated environment deployed from the exact candidate run branch/SHA. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward compatibility, secret ownership, recovery, and evidence invalidation.
 

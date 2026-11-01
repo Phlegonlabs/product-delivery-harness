@@ -245,7 +245,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         frontend = self.read("references/frontend-stack-selection.md")
         platform = frontend.split("### Any Platform", 1)[1].split("### Cloudflare", 1)[0]
 
-        self.assertIn("output-contract.md#release-targets", platform)
+        self.assertIn("output-contract.md#architecturemd", platform)
         self.assertNotIn(
             "Development releases build from the exact candidate run branch/SHA and use",
             platform,

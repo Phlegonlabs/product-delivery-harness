@@ -88,7 +88,7 @@ Verify these rules against current official documentation on the date the PRD is
 
 ### Any Platform
 
-- Use one codebase and isolated non-production/production targets. [Release Targets](output-contract.md#release-targets) owns the source policy, release names and promotion. Isolate bindings, data, auth and sandbox payments.
+- Use one codebase and isolated non-production/production targets. [Release Targets](output-contract.md#architecturemd) owns the source policy, release names and promotion. Isolate bindings, data, auth and sandbox payments.
 - Record remote migration order, deployed-environment smoke checks, retained URL/version evidence, and rollback version separately for each environment. A successful upload alone is not release proof.
 - Platform and framework support changes quickly. Do not copy version numbers or support claims from memory. Record the verification date and direct official sources in `stack-decisions.md`.
 
