@@ -168,6 +168,7 @@ class StructurePublicationTests(unittest.TestCase):
                 "screens": [{"id": "UI-001", "states": [{"id": "ready"}]}]}
         for classes, check, tools in (({"macos"}, "wireframe-desktop", {"desktop-browser"}),
                                       ({"windows"}, "wireframe-desktop", {"desktop-browser"}),
+                                      ({"linux"}, "wireframe-desktop", {"desktop-browser"}),
                                       ({"ios"}, "wireframe-native", {"xcode-simulator", "android-emulator"}),
                                       ({"browser_extension"}, "wireframe-extension", {"playwright-extension"})):
             mode, matrix = checker._wireframe_evidence_contract(data, classes)

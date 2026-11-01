@@ -227,7 +227,7 @@ Apply to `internal_service`: a long-running local or private service with no pub
 
 ## Desktop
 
-Apply separately to `macos` and `windows`. Do not collapse them into one desktop profile when their artifact, signing, distribution, or update contracts differ.
+Apply separately to `macos`, `windows` and `linux`. Do not collapse them into one desktop profile when their artifact, signing, distribution, or update contracts differ.
 
 ### macOS
 
@@ -243,7 +243,14 @@ Apply separately to `macos` and `windows`. Do not collapse them into one desktop
 - Crash and product-event sources keyed to build identity; symbol retention, consent, telemetry policy, and offline behavior.
 - System integration permissions, service or scheduled-task boundaries, registry/file cleanup, device guard, and update behavior.
 
-Native desktop availability is installability or downloadable artifact identity plus the release smoke check; a marketing-site URL check cannot substitute. Use current [Developer ID](https://developer.apple.com/developer-id/), [notarizing macOS software](https://developer.apple.com/help/account/reference/notary-service/), [Windows MSIX](https://learn.microsoft.com/windows/msix/), and [code signing](https://learn.microsoft.com/windows/security/threat-protection/code-signing/) documentation before acting.
+### Linux
+
+- Package format and channel: Flatpak on Flathub, Snap on the Snap Store, deb/rpm from a signed package repository, or a direct AppImage download. Record the app ID, version, architecture, supported distributions, glibc baseline, and exact artifact hash.
+- Signing and review: the repository or package signing key and its owner, Flathub submission review, or Snap Store publisher and confinement; install/upgrade/uninstall smoke on each supported distribution, and recovery owner.
+- Crash and product-event sources keyed to build identity; debug-symbol retention, consent, telemetry policy, and offline behavior.
+- Sandbox permissions (Flatpak permissions, Snap interfaces), X11 and Wayland behavior, desktop entry and icons, and update behavior.
+
+Native desktop availability is installability or downloadable artifact identity plus the release smoke check; a marketing-site URL check cannot substitute. Use current [Developer ID](https://developer.apple.com/developer-id/), [notarizing macOS software](https://developer.apple.com/help/account/reference/notary-service/), [Windows MSIX](https://learn.microsoft.com/windows/msix/), [code signing](https://learn.microsoft.com/windows/security/threat-protection/code-signing/), [Flathub submission](https://docs.flathub.org/docs/for-app-authors/submission), [Snapcraft](https://snapcraft.io/docs), and [AppImage](https://docs.appimage.org/) documentation before acting.
 
 ## Browser Extension
 

@@ -183,7 +183,7 @@ def target_block(
     )
     return f"""### Release Target: {target_id}
 - Surface: {surface}
-- Surface class: {'hosted_web' if surface == 'web-app' else 'hosted_api' if surface == 'public-api' else 'android' if surface == 'android-app' else 'macos' if surface == 'macos-app' else 'windows' if surface == 'windows-app' else 'other_nonpublic'}
+- Surface class: {'hosted_web' if surface == 'web-app' else 'hosted_api' if surface == 'public-api' else 'android' if surface == 'android-app' else 'macos' if surface == 'macos-app' else 'windows' if surface == 'windows-app' else 'linux' if surface == 'linux-app' else 'other_nonpublic'}
 - Public discoverability: {'yes' if surface == 'web-app' else 'no'}
 - Surface suffix: {suffix}
 - Release name: {release_name}
@@ -210,8 +210,10 @@ def multi_surface_architecture() -> str:
         ("macos-prod", "macos-app", "macos", "fixture-macos", "direct download", "production", "signed DMG"),
         ("windows-dev", "windows-app", "windows", "fixture-windows-dev", "winget test", "development", "MSIX"),
         ("windows-prod", "windows-app", "windows", "fixture-windows", "Microsoft Store", "production", "MSIX"),
+        ("linux-dev", "linux-app", "linux", "fixture-linux-dev", "Flathub beta", "development", "Flatpak"),
+        ("linux-prod", "linux-app", "linux", "fixture-linux", "Flathub", "production", "Flatpak"),
     )
-    return "# Architecture\n\n## Release Targets\n\nExpected deployable surfaces: public-api, android-app, macos-app, windows-app\n\n" + "".join(
+    return "# Architecture\n\n## Release Targets\n\nExpected deployable surfaces: public-api, android-app, macos-app, windows-app, linux-app\n\n" + "".join(
         target_block(*definition) for definition in definitions
     )
 
@@ -226,6 +228,8 @@ def multi_surface_deployment() -> str:
         ("macos-prod", "macos-app", "production", "direct download;fixture-macos-prod", "https://downloads.example.com/macos", "a" * 40, "a" * 40, "dmg-build-1", "signed artifact downloaded and installed", "2026-09-03T12:02:00Z", "PASS"),
         ("windows-dev", "windows-app", "development", "winget test;fixture-windows-dev", "pending", "pending", "pending", "pending", "pending", "pending", "pending"),
         ("windows-prod", "windows-app", "production", "Microsoft Store;fixture-windows-prod", "n/a — artifact-only:msix-build-1; no network endpoint", "a" * 40, "a" * 40, "msix-build-1", "store package installed and passed smoke", "2026-09-03T12:03:00Z", "PASS"),
+        ("linux-dev", "linux-app", "development", "Flathub beta;fixture-linux-dev", "pending", "pending", "pending", "pending", "pending", "pending", "pending"),
+        ("linux-prod", "linux-app", "production", "Flathub;fixture-linux-prod", "https://flathub.org/apps/com.example.Fixture", "a" * 40, "a" * 40, "flatpak-build-1", "Flatpak installed from Flathub and passed smoke", "2026-09-03T12:04:00Z", "PASS"),
     ]
     table = "\n".join("| " + " | ".join(row) + " |" for row in rows)
     release_units = """| Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
@@ -234,6 +238,7 @@ def multi_surface_deployment() -> str:
 | android-app | android | fixture-android | fixture-android-dev | Google Play production;fixture-android-prod | Play internal track;fixture-android-dev |
 | macos-app | macos | fixture-macos | fixture-macos-dev | direct download;fixture-macos-prod | TestFlight;fixture-macos-dev |
 | windows-app | windows | fixture-windows | fixture-windows-dev | Microsoft Store;fixture-windows-prod | winget test;fixture-windows-dev |
+| linux-app | linux | fixture-linux | fixture-linux-dev | Flathub;fixture-linux-prod | Flathub beta;fixture-linux-dev |
 """
     base = CI_CONNECTED_DEPLOYMENT.replace(
         """| Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
@@ -550,6 +555,18 @@ class DeploymentRecordTests(unittest.TestCase):
             architecture_text=multi_surface_architecture(),
         )
         self.assertEqual([], findings)
+
+    def test_linux_pass_needs_install_evidence_not_a_page_check(self) -> None:
+        page_only = multi_surface_deployment().replace(
+            "Flatpak installed from Flathub and passed smoke", "listing page returned 200", 1,
+        )
+        findings = check_deployment.check_deployment_text(
+            page_only, architecture_text=multi_surface_architecture(),
+        )
+        self.assertEqual([
+            "Release Target Status: PASS target linux-prod availability evidence "
+            "must name install/download or artifact/build proof"
+        ], findings)
 
     def test_architecture_backed_records_reject_missing_invented_and_duplicate_targets(self) -> None:
         missing = ARCHITECTURE_BACKED_DEPLOYMENT.replace(

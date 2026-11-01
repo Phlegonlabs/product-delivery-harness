@@ -99,7 +99,7 @@ CURRENT_SOURCE_BINDING_KEYS = tuple(
     key for key in SOURCE_BINDING_KEYS if key != "wireframe"
 )
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
-VALID_PLATFORMS = {"web", "ios", "android", "flutter", "react-native", "macos", "windows", "desktop"}
+VALID_PLATFORMS = {"web", "ios", "android", "flutter", "react-native", "macos", "windows", "linux", "desktop"}
 VALID_HYBRID_SURFACE_CLASSES = {
     "hosted_web",
     "browser_extension",
@@ -107,6 +107,7 @@ VALID_HYBRID_SURFACE_CLASSES = {
     "android",
     "macos",
     "windows",
+    "linux",
     "desktop",
 }
 VALID_STYLING_MECHANISMS = {
@@ -378,6 +379,7 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
                     "android": {"native"},
                     "macos": {"desktop"},
                     "windows": {"desktop"},
+                    "linux": {"desktop"},
                     "desktop": {"desktop"},
                 }.get(surface_class) if isinstance(surface_class, str) else None
                 if expected_capture_modes and capture_mode not in expected_capture_modes:
@@ -937,6 +939,7 @@ def _validate_stack_semantics(
             "android": "android",
             "macos": "macos",
             "windows": "windows",
+            "linux": "linux",
             "desktop": "desktop",
         }
         for item in surface_items:
@@ -965,7 +968,7 @@ def _validate_stack_semantics(
                 problems.append(f"design-system.json stackSemantics.{surface_id}.platform does not match surfaceClass")
             selected_for_surface = (
                 selected_mobile
-                if str(item.get("surfaceClass")) in {"ios", "android", "macos", "windows", "desktop"}
+                if str(item.get("surfaceClass")) in {"ios", "android", "macos", "windows", "linux", "desktop"}
                 else selected_frontend
             )
             for key in required_keys:
@@ -988,6 +991,7 @@ def _validate_stack_semantics(
             "android": "android",
             "macos": "macos",
             "windows": "windows",
+            "linux": "linux",
             "desktop": "desktop",
         }.get(surface_class)
         if expected_platform and recorded.get("platform") != expected_platform:
@@ -1011,7 +1015,7 @@ def _validate_stack_semantics(
                 problems.append("design-system.json stackSemantics does not exactly equal ui-design Approved target stackSemantics")
         selected_for_surface = (
             selected_mobile
-            if surface_class in {"ios", "android", "macos", "windows", "desktop"}
+            if surface_class in {"ios", "android", "macos", "windows", "linux", "desktop"}
             else selected_frontend
         )
         for key in required_keys:

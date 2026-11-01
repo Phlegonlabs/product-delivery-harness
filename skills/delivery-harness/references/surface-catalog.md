@@ -14,7 +14,7 @@ The PRD Shape `track` names the primary surface family. It labels the product; i
 | Track | Primary surfaces | Companion rule | Re-engagement rule |
 | --- | --- | --- | --- |
 | web | hosted_web | public surface or `none` | at least one mechanism |
-| app | ios, android, macos, windows, browser_extension | public companion when AEO/SEO is required | at least one mechanism |
+| app | ios, android, macos, windows, linux, browser_extension | public companion when AEO/SEO is required | at least one mechanism |
 | agent | agent, assistant_listing, messaging_bot | public docs surface or `none (reason)` | mechanism or `none (reason)` |
 | tool | mcp_server, cli, library_or_sdk, skill_or_plugin, container_or_self_hosted, internal_service | public docs surface or `none (reason)` | mechanism or `none (reason)` |
 | content | presence surfaces only; release targets may be `none` with a reason | `none` allowed | mechanism or `none (reason)` |
@@ -31,6 +31,7 @@ The PRD Shape `track` names the primary surface family. It labels the product; i
 | android | Native or cross-platform Android app | Play Console tracks | play_console, crash, revenuecat when subscriptions exist | android | aso | Same as ios, with App Links and Play data safety |
 | macos | Desktop app for macOS | Direct download, notarized DMG/PKG, or store | crash, first_party | macos | store-listing when a store is used | Install, upgrade and uninstall smoke; crash source keyed to build |
 | windows | Desktop app for Windows | Microsoft Store, winget or signed installer | crash, first_party | windows | store-listing when a store is used | Same as macos, with signing and SmartScreen evidence |
+| linux | Desktop app for Linux | Flathub, Snap Store, a signed package repository, or AppImage/deb/rpm download | crash, first_party | linux | store-listing when a store is used | Same as macos, with package signature evidence and an install smoke on each supported distribution |
 | cli | Command-line tool released on its own | Package registry or release artifact | registry, first_party | cli / toolchain | directory | Install smoke from a clean machine; telemetry policy; `--help` and version read-back |
 | agent | Hosted agent or automation with side effects | Hosting platform | first_party, service_health | agent / automation plus api / backend | directory | Directory metadata; `llms.txt` and public docs; usage events; tool permission boundary; console health when `console: operations` |
 | mcp_server | MCP server exposing tools or resources | npm, PyPI, MCP registry | registry, first_party | mcp server | directory | Registry metadata; tool list and permission boundary; install smoke; README quickstart that runs |

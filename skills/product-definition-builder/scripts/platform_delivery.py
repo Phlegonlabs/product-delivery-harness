@@ -23,6 +23,7 @@ USER_FACING_SURFACE_CLASSES = {
     "ios",
     "macos",
     "windows",
+    "linux",
     "android",
 }
 ARCH_ID_RE = re.compile(r"\bARCH-[A-Z0-9-]+\b", re.IGNORECASE)

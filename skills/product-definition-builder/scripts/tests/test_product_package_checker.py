@@ -287,6 +287,7 @@ def release_target(
         "android-app": "android",
         "macos-app": "macos",
         "windows-app": "windows",
+        "linux-app": "linux",
     }.get(surface, "other_nonpublic")
     source_policy = (
         "stage=development; ref=run.integration.branch; "
@@ -1991,13 +1992,31 @@ Security scope: executable
         self.assertEqual([], self.validate(architecture=release_architecture()))
 
     def test_hybrid_ui_surfaces_bind_web_and_ios_release_contracts(self) -> None:
-        native_surface = """
+        self.assertEqual([], self.validate(**self.hybrid_native_package(
+            "ios", "native", ("TestFlight", "App Store"),
+        )))
+
+    def test_hybrid_ui_surfaces_bind_web_and_linux_desktop_contracts(self) -> None:
+        package = self.hybrid_native_package("linux", "desktop", ("Flathub beta", "Flathub"))
+        self.assertEqual([], self.validate(**package))
+        wrong_capture = dict(package, prd=package["prd"].replace(
+            "- `captureMode`: desktop", "- `captureMode`: native",
+        ))
+        self.assertTrue(any(
+            "captureMode" in finding and "'desktop'" in finding
+            for finding in self.validate(**wrong_capture)
+        ))
+
+    def hybrid_native_package(
+        self, surface_class: str, capture_mode: str, providers: tuple[str, str],
+    ) -> dict[str, str]:
+        native_surface = f"""
 ### UI-002 — Native home
 - `route`: /native-home
-- `releaseSurface`: ios-app
-- `surfaceClass`: ios
-- `captureMode`: native
-- Main purpose: Let the owner inspect the same fixture on iOS.
+- `releaseSurface`: {surface_class}-app
+- `surfaceClass`: {surface_class}
+- `captureMode`: {capture_mode}
+- Main purpose: Let the owner inspect the same fixture on {surface_class}.
 - Content responsibilities: Show completion state with source: fixture record; order: status then recovery; format: text; count: one; length: bounded; fallback: unavailable message.
 - Actions and transitions: Refresh the record, show success feedback, and show a recoverable failure state.
 - `states`: ready
@@ -2021,29 +2040,29 @@ Security scope: executable
             "| --- | --- | --- | --- | --- |\n"
             "| UX-001 | Owner reviews status | Show completion and recovery | Success is visible; failure offers retry | prototype-reviewed |",
         ) + contract
-        ios_targets = "\n".join(
+        native_targets = "\n".join(
             (
                 release_target(
-                    "ios-development",
-                    surface="ios-app",
-                    suffix="ios",
-                    provider="TestFlight",
+                    f"{surface_class}-development",
+                    surface=f"{surface_class}-app",
+                    suffix=surface_class,
+                    provider=providers[0],
                     stage="development",
-                    release_name="fixture-ios-dev",
+                    release_name=f"fixture-{surface_class}-dev",
                 ),
                 release_target(
-                    "ios-production",
-                    surface="ios-app",
-                    suffix="ios",
-                    provider="App Store",
+                    f"{surface_class}-production",
+                    surface=f"{surface_class}-app",
+                    suffix=surface_class,
+                    provider=providers[1],
                     stage="production",
-                    release_name="fixture-ios",
+                    release_name=f"fixture-{surface_class}",
                 ),
             )
         )
         architecture = release_architecture(
-            expected="web-app, ios-app",
-            extra_targets=ios_targets,
+            expected=f"web-app, {surface_class}-app",
+            extra_targets=native_targets,
         )
         stack = valid_stack().replace(
             "- Approved areas: frontend",
@@ -2068,11 +2087,7 @@ Security scope: executable
             + mobile_rows
             + "\n"
         )
-
-        self.assertEqual(
-            [],
-            self.validate(prd=prd, architecture=architecture, stack=stack),
-        )
+        return {"prd": prd, "architecture": architecture, "stack": stack}
 
     def test_capture_mode_requires_matching_responsive_kind_for_web_ios_and_extension(self) -> None:
         web_prd = valid_prd().replace(

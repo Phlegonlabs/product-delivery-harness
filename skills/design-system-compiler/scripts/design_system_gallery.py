@@ -23,7 +23,7 @@ from design_system_gallery_runtime import runtime_plate
 from design_system_runtime_assets import RUNTIME_BOOT, RUNTIME_CSS, RUNTIME_FRAME, RUNTIME_GALLERY
 
 LAYERS = ("layout", "surface", "typography", "control")
-NATIVE_CLASSES = {"ios", "android", "macos", "windows", "desktop"}
+NATIVE_CLASSES = {"ios", "android", "macos", "windows", "linux", "desktop"}
 HEX = r"#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})"
 COLOR_RE = re.compile(rf"(?:{HEX}|rgba?\([0-9.,% /]+\)|hsla?\([0-9.,% /deg]+\))")
 LENGTH_RE = re.compile(r"(?:0|[0-9]+(?:\.[0-9]+)?)(?:px|rem|em)")

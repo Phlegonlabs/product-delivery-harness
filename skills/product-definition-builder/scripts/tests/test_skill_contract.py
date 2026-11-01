@@ -660,7 +660,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             self.assertIn("-dev", content)
             self.assertIn("-prod", content)
         self.assertIn("`web`, `api`, and `extension`", architecture)
-        self.assertIn("`ios`, `android`, `macos`, or `windows`", architecture)
+        self.assertIn("`ios`, `android`, `macos`, `windows`, or `linux`", architecture)
         self.assertIn("Chrome, Firefox", architecture)
         self.assertIn("public listing title may differ", architecture.lower())
         for content in (interview, architecture, contract):

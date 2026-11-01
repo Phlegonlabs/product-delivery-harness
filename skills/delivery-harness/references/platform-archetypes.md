@@ -276,14 +276,14 @@ Required E2E scenarios:
 
 ## Mobile / Desktop Archetype
 
-Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows desktop app. These do not have a URL model or SEO metadata. Freeze the surfaces below before implementation.
+Use this profile when the target is a native mobile or desktop app instead of a web surface: native iOS, native Android, Flutter (one codebase targeting iOS + Android and optionally more), or a macOS/Windows/Linux desktop app. These do not have a URL model or SEO metadata. Freeze the surfaces below before implementation.
 
 The design-source input for this profile is the active visual route recorded in `ui-design.md`, written for the resolved platform's HIG, Material, or desktop window conventions. When the Design System Need Gate is `required`, `design-system.md` and `design-system.json` bind and their primitive layers take the platform's vocabulary. When it is `not_required`, the approved native or desktop target plus platform conventions bind and no placeholder pair is created. UI evidence uses the native row and per-platform capture mechanism in `references/verification-gates.md`'s UI Evidence Gate (Simulator/Emulator/device screenshots), not browser screenshots.
 
 Freeze these surfaces:
 
 ```text
-Toolchain and project shape: iOS (*.xcodeproj/*.xcworkspace, Package.swift), Android (build.gradle(.kts), settings.gradle(.kts)), Flutter (pubspec.yaml + native runners), macOS (*.xcodeproj/Swift or cross-platform toolkit), Windows (*.csproj/*.sln, WPF/WinUI/MAUI or cross-platform toolkit)
+Toolchain and project shape: iOS (*.xcodeproj/*.xcworkspace, Package.swift), Android (build.gradle(.kts), settings.gradle(.kts)), Flutter (pubspec.yaml + native runners), macOS (*.xcodeproj/Swift or cross-platform toolkit), Windows (*.csproj/*.sln, WPF/WinUI/MAUI or cross-platform toolkit), Linux (GTK/Qt or cross-platform toolkit, plus a Flatpak/Snap manifest or deb/rpm spec)
 Targets and minimums: OS/SDK floor (minSdk/targetSdk, minimum OS version, target framework), device classes (phone/tablet/desktop), orientation, per-target parity for Flutter
 App shell and navigation: entry point, navigation model, deep links / universal links / app links, state restoration
 Local persistence and sync: on-device storage (Core Data/SwiftData, Room, SQLite, Hive/Isar), offline behavior, background sync, migration of on-device schema across app versions

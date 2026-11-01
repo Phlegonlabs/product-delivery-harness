@@ -624,6 +624,16 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         data["surfaceContracts"]["UI-WEB"]["captureMode"] = "native"
         self.assertTrue(any("captureMode is incompatible with surfaceClass" in item for item in checker.validate_registry(data)))
         data["surfaceContracts"]["UI-WEB"]["captureMode"] = "hosted-browser"
+        data["surfaceContracts"]["UI-LINUX"] = {
+            "releaseSurface": "linux-app",
+            "surfaceClass": "linux",
+            "captureMode": "desktop",
+            "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]},
+        }
+        self.assertEqual([], checker.validate_registry(data))
+        data["surfaceContracts"]["UI-LINUX"]["captureMode"] = "native"
+        self.assertTrue(any("captureMode is incompatible with surfaceClass" in item for item in checker.validate_registry(data)))
+        del data["surfaceContracts"]["UI-LINUX"]
         data["surfaceContracts"]["UI-WEB"]["surfaceClass"] = "unknown"
         self.assertTrue(any("surfaceClass is invalid" in item for item in checker.validate_registry(data)))
 

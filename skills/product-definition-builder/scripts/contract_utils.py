@@ -60,7 +60,7 @@ def release_area_requirements(targets: Iterable[object]) -> set[str]:
         surface_class = str(getattr(target, "surface_class", "")).casefold()
         if surface_class in {"hosted_web", "browser_extension"}:
             areas.add("frontend")
-        elif surface_class in {"ios", "android", "macos", "windows"}:
+        elif surface_class in {"ios", "android", "macos", "windows", "linux"}:
             areas.add("mobile or desktop")
         elif surface_class in {"hosted_api", "worker", "job", "webhook", "realtime"}:
             areas.add("backend or data")

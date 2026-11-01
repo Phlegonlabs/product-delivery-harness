@@ -53,12 +53,13 @@ PLATFORMS = {
     "android",
     "macos",
     "windows",
+    "linux",
     "desktop",
     "agent",
     "api",
     "cli",
 }
-NATIVE_PLATFORMS = {"ios", "android", "macos", "windows"}
+NATIVE_PLATFORMS = {"ios", "android", "macos", "windows", "linux"}
 AUTH_MODES = {"mock", "real", "none"}
 ENVIRONMENTS = {"local", "test", "preview", "staging", "production"}
 STATUSES = {"pass", "fail", "blocked", "skipped", "unvalidated"}
