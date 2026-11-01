@@ -13,7 +13,7 @@ Read the current Epic's `## Handoff` block first, then run `inspect_harness_run.
 **Commands in order**
 
 ```text
-python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root>
+python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root> --session-id <id>
 python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-md <AGENTS.md> --stage <stage>
 ```
 
