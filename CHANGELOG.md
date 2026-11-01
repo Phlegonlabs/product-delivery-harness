@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.71.0. Current releases are in [README.md](README.md#version-history).
+English release history through 0.72.0. Current releases are in [README.md](README.md#version-history).
+
+- **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` runs a suite's test modules in parallel processes with per-module logs, so the local Required Verification matrix finishes in minutes instead of 27 on one core.
 
 - **0.71.0** — Every project declares its shape on purpose: the PRD At a Glance gains a `Shape` row naming the track, companion public surface and console type, and `## Growth Contract` records the north star with Day 7 and Day 30 targets, re-engagement mechanisms, discovery surfaces and a launch window. Track-specific required UI surfaces and delivery foundations, the `agentic-operations-console` architecture profile and activation profiles for store launch, agent directories and GEO read-back extend the flow from web to app and agent products. `seo-growth-review` gains a `pre_launch` mode and Day 7 and Day 30 `growth_review` readbacks that feed the next PRD delta, go-to-market drafts the Launch Reach Plan, and GTM Content packages one source piece into per-channel variants with two hooks.
 
