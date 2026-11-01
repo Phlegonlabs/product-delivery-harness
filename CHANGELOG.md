@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.72.0. Current releases are in [README.md](README.md#version-history).
+English release history through 0.72.1. Current releases are in [README.md](README.md#version-history).
+
+- **0.72.1** — Mission workers return `WORKER_RESULT` only for a passing mission; blocked or failed missions return the graph node result with `worker_result: null`, and the parent keeps validation, review and integration authority.
 
 - **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` runs a suite's test modules in parallel processes with per-module logs, so the local Required Verification matrix finishes in minutes instead of 27 on one core.
 
