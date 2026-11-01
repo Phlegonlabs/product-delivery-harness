@@ -27,13 +27,18 @@ DEFAULT_PATHS = (
 )
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 SESSION_MARKER = re.compile(r"[A-Za-z0-9._-]{1,128}:[0-9a-f]{64}\Z")
-RETIRED_NAMES = ("full-harness", "prd-builder", "product-design-builder")
-RETIRED = re.compile(r"(?:skills[/\\]|`)(full-harness|prd-builder|product-design-builder)(?=[/\\`])")
+# Skills that install.sh retires; keep the two lists in step.
+RETIRED_NAMES = (
+    "full-harness", "prd-builder", "product-design-builder",
+    "code-security-review", "product-activation", "seo-growth-review",
+)
+_RETIRED = "|".join(map(re.escape, RETIRED_NAMES))
+RETIRED = re.compile(rf"(?:skills[/\\]|`)({_RETIRED})(?=[/\\`])")
 RETIREMENT_CATALOG = re.compile(
-    r"\b(?:retire|retires|retired|retiring)\s+(?P<items>"
-    r"`(?:full-harness|prd-builder|product-design-builder)`"
-    r"(?:\s*,\s*`(?:full-harness|prd-builder|product-design-builder)`)*"
-    r"(?:\s*,?\s+and\s+`(?:full-harness|prd-builder|product-design-builder)`)?"
+    rf"\b(?:retire|retires|retired|retiring)\s+(?P<items>"
+    rf"`(?:{_RETIRED})`"
+    rf"(?:\s*,\s*`(?:{_RETIRED})`)*"
+    rf"(?:\s*,?\s+and\s+`(?:{_RETIRED})`)?"
     r")",
     re.IGNORECASE,
 )

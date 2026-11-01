@@ -158,6 +158,30 @@ class DocumentSyncTests(unittest.TestCase):
                 self.assertTrue(any(row["kind"] == "legacy_pointer_review"
                                     for row in result["findings"]), result["findings"])
 
+    def test_every_installer_retired_skill_warns(self):
+        installer = (Path(__file__).resolve().parents[4] / "install.sh").read_text(encoding="utf-8")
+        retired = installer.split("legacy_skills=(", 1)[1].split(")", 1)[0].split()
+        self.assertEqual(
+            ["full-harness", "prd-builder", "product-design-builder",
+             "code-security-review", "product-activation", "seo-growth-review"],
+            retired,
+        )
+        for name in retired:
+            for content in (f"Use `{name}`", f"Read skills/{name}/SKILL.md first."):
+                with self.subTest(content=content):
+                    self.doc.write_text(content, encoding="utf-8")
+                    result = self.observe(self.observe()["snapshot"])
+                    self.assertIn("legacy_pointer_review", {row["kind"] for row in result["findings"]})
+        catalog = "The installer retires " + ", ".join(f"`{n}`" for n in retired[:-1]) + f", and `{retired[-1]}`."
+        self.doc.write_text(catalog, encoding="utf-8")
+        result = self.observe(self.observe()["snapshot"])
+        self.assertNotIn("legacy_pointer_review", {row["kind"] for row in result["findings"]})
+
+    def test_current_growth_review_is_not_a_retired_pointer(self):
+        self.doc.write_text("Read skills/growth-review/SKILL.md and run `growth-review`.", encoding="utf-8")
+        result = self.observe(self.observe()["snapshot"])
+        self.assertNotIn("legacy_pointer_review", {row["kind"] for row in result["findings"]})
+
     def test_paths_never_read_secrets_or_history(self):
         for name in ("../AGENTS.md", "/AGENTS.md", "docs//x.md", ".env", "docs/secrets.md",
                      "docs/archived/PRD.md", "docs/product/outcomes/a.md", "C:/AGENTS.md", "a\\AGENTS.md"):
