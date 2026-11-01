@@ -10,7 +10,7 @@ Work through these in order. Each step links to its section below.
 
 1. The production property and its streams exist, and the release build sends to the right Measurement ID ([Data Streams](#data-streams)).
 2. The tracking plan and funnels are written ([What To Track](#what-to-track), [Funnels](#funnels)).
-3. Key events match the plan. GA marks `purchase` as a key event by default; unmark it when the product sells nothing ([Events And Key Events](#events-and-key-events)).
+3. Key events match the plan. GA marks `purchase` as a key event by default and does not let you unmark it; on a product that sells nothing it stays empty, so leave it out of reports ([Events And Key Events](#events-and-key-events)).
 4. Every event parameter the plan reads is a registered custom dimension or metric.
 5. Event data retention is 14 months ([Data Collection And Filters](#data-collection-and-filters)).
 6. Internal and developer traffic filters are Active. GA creates the internal-traffic filter in Testing, where it removes nothing.
@@ -71,7 +71,7 @@ A funnel counts how many people move through ordered steps toward one outcome. D
 ## Events And Key Events
 
 - Use the tracking plan's event names. Prefer a [recommended event](https://support.google.com/analytics/answer/9267735) when one fits.
-- Mark a key event only for a PRD outcome metric, and record its PRD or `TEST-*` ID. Unmarking affects new data only; past events keep their key-event status. See [mark events as key events](https://support.google.com/analytics/answer/13128484).
+- Mark a key event only for a PRD outcome metric, and record its PRD or `TEST-*` ID. The star on the Events page works only for an event GA has already received; star a new event after its first hit. Unmarking affects new data only; past events keep their key-event status. See [mark events as key events](https://support.google.com/analytics/answer/13128484).
 - Register a custom dimension or metric for each parameter that a report, funnel or exploration reads. An unregistered parameter is collected but cannot be split in reports.
 
 ## Data Collection And Filters
