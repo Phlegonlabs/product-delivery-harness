@@ -461,6 +461,17 @@ def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple
     return finalize_approval_digests(prd, architecture, stack)
 
 
+TOOLCHAIN_CLASSES = (
+    "cli",
+    "mcp_server",
+    "skill_or_plugin",
+    "library_or_sdk",
+    "container_or_self_hosted",
+    "internal_service",
+    "other_nonpublic",
+)
+
+
 def toolchain_package(surface_classes: tuple[str, ...]) -> tuple[str, str, str]:
     targets = []
     surfaces = []
@@ -616,15 +627,36 @@ class ProductPackageCheckerTests(unittest.TestCase):
         ))
 
     def test_toolchain_release_packages_pass_full_approval(self) -> None:
-        for classes in (("cli",), ("other_nonpublic",), ("cli", "other_nonpublic")):
+        for classes in (*((c,) for c in TOOLCHAIN_CLASSES), ("cli", "other_nonpublic")):
             with self.subTest(classes=classes):
                 package = toolchain_package(classes)
                 self.assertEqual([], check_product_package.validate_texts(
                     *package, require_filled=True, require_approved=True,
                 ))
 
+    def test_every_toolchain_class_requires_the_toolchain_area(self) -> None:
+        # Approved areas are written by hand here, not derived from the
+        # checker, so a missing class mapping cannot hide in the fixture.
+        for surface_class in TOOLCHAIN_CLASSES:
+            prd, architecture, stack = toolchain_package((surface_class,))
+            with self.subTest(surface_class=surface_class, case="declared"):
+                declared = re.sub(r"(?m)^- Approved areas:.*$", "- Approved areas: toolchain", stack)
+                self.assertEqual([], check_product_package.validate_texts(
+                    *finalize_approval_digests(prd, architecture, declared),
+                    require_filled=True, require_approved=True,
+                ))
+            with self.subTest(surface_class=surface_class, case="omitted"):
+                omitted = stack.split("## CLI and Toolchain Decision")[0]
+                omitted = re.sub(r"(?m)^- Approved areas:.*$", "- Approved areas: none", omitted)
+                problems = "\n".join(check_product_package.validate_texts(
+                    *finalize_approval_digests(prd, architecture, omitted),
+                    require_filled=True, require_approved=True,
+                ))
+                self.assertIn("missing required toolchain", problems)
+                self.assertIn("Approved areas must exactly match", problems)
+
     def test_toolchain_approval_rejects_missing_section_layer_and_unapproved_choice(self) -> None:
-        for classes in (("cli",), ("other_nonpublic",)):
+        for classes in ((c,) for c in TOOLCHAIN_CLASSES):
             prd, architecture, stack = toolchain_package(classes)
             for candidate, expected in (
                 (stack.split("## CLI and Toolchain Decision")[0], "missing required toolchain"),

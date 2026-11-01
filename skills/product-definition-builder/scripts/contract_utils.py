@@ -39,6 +39,19 @@ def product_identity(text: str, *, kind: str) -> str:
     return normalize_identity(match.group(1)) if match else ""
 
 
+# Surface classes that share the one Toolchain area (output-contract.md,
+# CLI and Toolchain Decision).
+TOOLCHAIN_SURFACE_CLASSES = frozenset({
+    "cli",
+    "mcp_server",
+    "skill_or_plugin",
+    "library_or_sdk",
+    "container_or_self_hosted",
+    "internal_service",
+    "other_nonpublic",
+})
+
+
 def release_area_requirements(targets: Iterable[object]) -> set[str]:
     """Map every shipped release class to its executable technology areas."""
 
@@ -53,7 +66,7 @@ def release_area_requirements(targets: Iterable[object]) -> set[str]:
             areas.add("backend or data")
         elif surface_class == "agent":
             areas.update({"backend or data", "ai or automation"})
-        elif surface_class in {"cli", "other_nonpublic"}:
+        elif surface_class in TOOLCHAIN_SURFACE_CLASSES:
             areas.add("toolchain")
     return areas
 
