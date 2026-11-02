@@ -46,6 +46,23 @@
 2. 行動 App：先用 Maestro YAML 做快速 journey 冒煙；只有需要深度跨平台控制或既有 Appium 投資時，才引入 Appium；避免一開始同時養兩套行動框架。
 3. 上線前容量與 Agent 功能：k6 在隔離環境壓測關鍵 API 並附環境規格；Agent 功能以固定案例集加工具軌跡審查驗收，不以「回答看起來合理」通過。
 
+## 效能與負載測試候選（2026-11-01 增補）
+
+本節為 2026-11-01 增補，上方原有條目保留原核對日期。事實來自官方頁面的搜尋結果，未逐頁取回全文；適配、成本與鎖定是工作推論。預算列怎麼寫、結果如何綁定 candidate SHA，見 `delivery-harness/references/performance-and-cost-budget.md`。k6 已在上方矩陣，不重複列。
+
+| 候選 | 範圍與證據 | 適用 | 避免條件 | 架構與整合義務 | 營運與成本 | 遷移與鎖定 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Lighthouse CI | 對候選 Preview 或建置產物跑 Lighthouse 實驗室量測；以 assertions 或預算檔在 CI 判定通過與否 | hosted_web 的 LCP、CLS、TBT 與資源大小回歸 | 單靠它宣稱真實使用者的 INP 或 Core Web Vitals；INP 無法在實驗室量測 | 固定 URL 清單、執行次數與 CLI 版本；assertion 分 error／warn／off，只有 error 使 exit code 非零 | CI 時間；開源免費；若用 LHCI server 保存歷史，需自管 | 設定檔可攜；預算檔與其他 assert 選項不可並用，檔案單位為 KB、assertion 單位為 bytes |
+| Xcode Instruments／XCTest 指標 | `XCTApplicationLaunchMetric` 在 `measure(metrics:)` 內量測啟動時間；Instruments 的 App Launch 模板用來診斷慢在哪 | iOS、macOS 的啟動回歸與診斷 | 沒有固定裝置與 OS 版本；用 profiler 數字當使用者體感 | 專用 UI 測試 target、每個測試的 baseline | 需 Apple 硬體與 Xcode；工具隨 Xcode 提供 | 綁定 Apple 平台 |
+| Android Macrobenchmark | `StartupTimingMetric` 回報 TTID／TTFD；`FrameTimingMetric` 回報逐 frame CPU 時間與 Android 12 以上的 frame overrun；官方建議看 P95／P99 找卡頓 | Android 的啟動與捲動回歸 | 非 Android；沒有固定裝置與 OS 版本 | benchmark module、`reportFullyDrawn` 標記 TTFD、準備與量測分開 | 需裝置或模擬器；Jetpack 函式庫免費 | 綁定 Android 工具鏈；函式庫版本採用前核對 |
+
+- 核心指標：Core Web Vitals 的 p75「good」門檻是 LCP ≤ 2.5 秒、INP ≤ 200 ms、CLS ≤ 0.1；INP 無法在實驗室量測，Total Blocking Time 是建議的實驗室代理（[web.dev Web Vitals](https://web.dev/articles/vitals)）。
+- Lighthouse CI：`lhci autorun` 串起收集與判定，assertion 與預算寫法見 [Getting Started](https://googlechrome.github.io/lighthouse-ci/docs/getting-started.html) 與 [Configuration](https://github.com/GoogleChrome/lighthouse-ci/blob/main/docs/configuration.md)。入門頁約四年前，範例釘 `@lhci/cli@0.15.x`，採用時另核對版本。
+- k6 補充：thresholds 可寫成 `p(95)<500`；失敗時 exit code 非零；`abortOnFail` 可提前中止，`delayAbortEval` 延後評估；Grafana Cloud k6 約每 60 秒檢查一次（[Thresholds](https://grafana.com/docs/k6/latest/using-k6/thresholds/)）。
+- Android：[Capture Macrobenchmark metrics](https://developer.android.com/topic/performance/benchmarking/macrobenchmark-metrics)。Apple：[XCTApplicationLaunchMetric](https://developer.apple.com/documentation/xctest/xctapplicationlaunchmetric) 與 [Optimizing App Launch（WWDC19）](https://developer.apple.com/videos/play/wwdc2019/423/)，後者說明 profiler 自身有額外負擔，XCTest 計時較貼近使用者體感。
+
+實驗室結果證明候選版本；上線後以既有 Measurement Sources 的 `service_health` 或 `first_party` 讀回，證明真實負載。兩者互不替代。Windows、Linux 桌面的原生 profiler 本輪未核對，採用時查官方文件並記錄版本。
+
 ## 失敗與驗證檢查清單
 
 - 每個 TEST ID 記錄環境性質（synthetic、mock、sandbox、production read-only）、工具版本、commit 與實際結果。
@@ -64,7 +81,8 @@ PRD 的 journey／TEST ID 對映到測試計畫與任務紀錄；最終驗收結
 - Playwright 各語言綁定的版本差異與 CI 映像需求未核對。
 - 契約測試格式（OpenAPI／JSON Schema 等）與 CI 整合未與專案現況核對。
 - Agent eval 的評分標準需產品側定義，任何工具都不能替代該決策。
+- 效能增補（2026-11-01）：Lighthouse CI 與 Macrobenchmark 的目前穩定版本、Windows／Linux 桌面 profiler、k6 雲端方案計費都未核對。
 
 ## 來源清單
 
-上方已內連：Playwright 首頁／安裝／斷言／Library、Maestro CLI；補查來源：[Vitest](https://vitest.dev/guide/)、[pytest](https://docs.pytest.org/en/stable/)、[Appium](https://appium.io/docs/en/latest/)、[k6](https://grafana.com/docs/k6/latest/)。
+上方已內連：Playwright 首頁／安裝／斷言／Library、Maestro CLI；補查來源：[Vitest](https://vitest.dev/guide/)、[pytest](https://docs.pytest.org/en/stable/)、[Appium](https://appium.io/docs/en/latest/)、[k6](https://grafana.com/docs/k6/latest/)。2026-11-01 增補的來源內連於「效能與負載測試候選」一節。
