@@ -16,6 +16,7 @@ from platform_delivery import parse_platform_delivery, PROTOCOL
 from prd_operations import operation_graph_findings, required_operations
 from prd_ui_contract import parse_prd_ui_contract
 from release_targets import parse_release_targets
+import program_package
 from git_evidence import GitEvidenceError, verify_revision_path
 from eval_policy import validate_eval_policy
 from contract_utils import (
@@ -25,6 +26,7 @@ from contract_utils import (
     parse_digest,
     product_identity,
     release_area_requirements,
+    safe_read_text,
     sha256_text,
 )
 
@@ -446,7 +448,7 @@ AT_A_GLANCE_ROWS = {
     "biggest risk",
 }
 # Rows a package may add after the five canonical ones; each has a closed value set.
-AT_A_GLANCE_OPTIONAL_ROWS = {"delivery profile": {"standard", "mvp"}}
+AT_A_GLANCE_OPTIONAL_ROWS = {"delivery profile": ("mvp", "standard", "program")}
 PERSONAS_HEADER = ("persona", "need", "key workflow", "success signal")
 SHAPE_ROW_LABEL = "shape"
 SHAPE_FIELD_KEYS = ("track", "companion", "console")
@@ -1962,7 +1964,7 @@ def _validate_prd_core_sections(
                     _add(
                         problems,
                         "prd",
-                        f"At a Glance row {row[0]!r} must be one of: " + ", ".join(sorted(allowed)),
+                        f"At a Glance row {row[0]!r} must be one of: " + ", ".join(allowed),
                     )
             elif not _meaningful(row[1], minimum=8):
                 _add(problems, "prd", f"At a Glance row {row[0]!r} is not meaningful")
@@ -2626,6 +2628,16 @@ def _architecture_ids(architecture_text: str) -> set[str]:
     return ids
 
 
+def _delivery_profile(prd_text: str) -> str:
+    """The At a Glance `Delivery profile` value, lowercased; empty when absent."""
+
+    rows = _find_table(_section(prd_text, "## At a Glance") or "", AT_A_GLANCE_HEADER) or []
+    return next(
+        (row[1].strip().casefold() for row in rows if len(row) == 2 and row[0].casefold() == "delivery profile"),
+        "",
+    )
+
+
 def validate_texts(
     prd_text: str,
     architecture_text: str,
@@ -2639,8 +2651,16 @@ def validate_texts(
     platform_delivery: str | None = None,
     deltas_dir: Path | None = None,
     notes: list[str] | None = None,
+    program: program_package.ProgramContext | None = None,
 ) -> list[str]:
-    """Validate already-decoded core product-package texts."""
+    """Validate already-decoded core product-package texts.
+
+    `program` joins the package to its program. With a `module_id` it is a module
+    run: the program-only checks are skipped, release targets come from the program
+    architecture, the approval digest leaves out the stack, and the shared stack is
+    not checked (the program run owns it). With an empty `module_id` it is the
+    program's own run: every check stays on and module IDs resolve through the registry.
+    """
 
     if ui_contract is not None and ui_contract not in CURRENT_UI_CONTRACTS:
         raise ValueError(
@@ -2652,13 +2672,36 @@ def validate_texts(
         raise ValueError("unsupported --eval-policy value")
     if platform_delivery is not None and platform_delivery != PROTOCOL:
         raise ValueError("unsupported --platform-delivery value")
-    problems: list[str] = validate_eval_policy(
+    module = program is not None and bool(program.module_id)
+    problems: list[str] = [] if module else validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
     )
+    reported_depends: set[str] = set()
+
+    def resolve_foreign(identifiers: set[str], family: str) -> set[str]:
+        """`identifiers` minus those the program or another module defines.
+
+        A module may use another module's ID only when it depends on that module."""
+
+        if program is None:
+            return identifiers
+        defined = program.other_ids(family)
+        for identifier in sorted(identifiers & defined):
+            scope = identifier.split("-")[1]
+            if (
+                module
+                and scope not in program.depends_on
+                and scope not in program_package.PROGRAM_SCOPES
+                and identifier not in reported_depends
+            ):
+                reported_depends.add(identifier)
+                _add(problems, "prd", f"references {identifier} from module not in Depends on")
+        return identifiers - defined
+
     delta_mode = (_latest_delta_reference(prd_text, problems=problems) is not None) or (
         deltas_dir is not None and deltas_dir.is_dir()
     )
-    ambition_required = delta_mode or _has_heading(prd_text, "## Ambition")
+    ambition_required = not module and (delta_mode or _has_heading(prd_text, "## Ambition"))
 
     prd_required_headings = (
         REQUIRED_PRD_HEADINGS
@@ -2684,7 +2727,7 @@ def validate_texts(
         r"^#\s+Architecture(?::|\s*$)", active_text(architecture_text), re.MULTILINE
     ):
         _add(problems, "architecture", "missing Architecture title")
-    if not re.search(
+    if not module and not re.search(
         r"^#\s+Stack Decisions(?::|\s*$)", active_text(stack_text), re.MULTILINE
     ):
         _add(problems, "stack-decisions", "missing Stack Decisions title")
@@ -2722,7 +2765,9 @@ def validate_texts(
         architecture_text,
         problems=problems,
     )
-    release_contract, _release_findings = parse_release_targets(architecture_text)
+    release_contract, _release_findings = parse_release_targets(
+        program.program_architecture if module else architecture_text
+    )
     required_stack_areas.update(release_area_requirements(release_contract.targets))
     platform_contract, platform_findings = parse_platform_delivery(
         architecture_text,
@@ -2819,8 +2864,9 @@ def validate_texts(
     identities = {
         "PRD": product_identity(prd_text, kind="prd"),
         "architecture": product_identity(architecture_text, kind="architecture"),
-        "stack-decisions": product_identity(stack_text, kind="stack"),
     }
+    if not module:
+        identities["stack-decisions"] = product_identity(stack_text, kind="stack")
     explicit_identities = {value for value in identities.values() if value}
     if require_approved:
         for label, identity in identities.items():
@@ -2943,7 +2989,7 @@ def validate_texts(
             required_test_upstreams[test_id] = {
                 match.group(0).upper()
                 for match in re.finditer(
-                    r"\b(?:PRD|TRUST|AI)-[A-Z0-9-]+\b", row[4], re.IGNORECASE
+                    r"\b(?:PRD|TRUST|AI|BR)-[A-Z0-9-]+\b", row[4], re.IGNORECASE
                 )
             }
             upstream = _ids(row[4], "PRD")
@@ -3005,7 +3051,7 @@ def validate_texts(
         declared_tests = _ids(row[5], "TEST")
         if not declared_tests:
             _add(problems, "prd", f"{requirement_id} names no TEST ID")
-        for test_id in declared_tests - known_test_ids:
+        for test_id in resolve_foreign(declared_tests - known_test_ids, "TEST"):
             _add(problems, "prd", f"{requirement_id} references unknown {test_id}")
         if any(
             not _meaningful(value, minimum=minimum)
@@ -3019,7 +3065,7 @@ def validate_texts(
     for row in test_rows:
         if len(row) != len(TEST_OBLIGATIONS_HEADER):
             continue
-        for unknown in sorted(_ids(row[4], "PRD") - requirement_ids):
+        for unknown in sorted(resolve_foreign(_ids(row[4], "PRD") - requirement_ids, "PRD")):
             _add(problems, "prd", f"{row[0]} references unknown upstream {unknown}")
     for requirement_id in sorted((must_ids | applicable_nfr_ids) - required_coverage):
         _add(
@@ -3033,23 +3079,25 @@ def validate_texts(
     ):
         _add(problems, "prd", "Test Obligations must include at least one Required Yes test")
 
-    shape_fields = _validate_shape_row(
-        prd_text,
-        test_rows=test_rows,
-        ui_surface_ids=set(ui_surfaces),
-        release_target_ids={target.target_id for target in release_contract.targets},
-        require_filled=require_filled,
-        problems=problems,
-    )
-    _validate_growth_contract(
-        prd_text,
-        shape_fields=shape_fields,
-        ui_surface_ids=set(ui_surfaces),
-        release_target_ids={target.target_id for target in release_contract.targets},
-        known_test_ids=known_test_ids,
-        require_filled=require_filled,
-        problems=problems,
-    )
+    shape_fields = None
+    if not module:
+        shape_fields = _validate_shape_row(
+            prd_text,
+            test_rows=test_rows,
+            ui_surface_ids=set(ui_surfaces),
+            release_target_ids={target.target_id for target in release_contract.targets},
+            require_filled=require_filled,
+            problems=problems,
+        )
+        _validate_growth_contract(
+            prd_text,
+            shape_fields=shape_fields,
+            ui_surface_ids=set(ui_surfaces),
+            release_target_ids={target.target_id for target in release_contract.targets},
+            known_test_ids=known_test_ids,
+            require_filled=require_filled,
+            problems=problems,
+        )
 
     ux_section = _section(prd_text, "## UX Requirements") or ""
     ux_rows = _find_table(ux_section, UX_REQUIREMENTS_HEADER) or []
@@ -3071,7 +3119,7 @@ def validate_texts(
         fields = surface.get("contractFields")
         trace_value = fields.get("Trace IDs", "") if isinstance(fields, dict) else ""
         for prefix, known_ids in trace_authorities.items():
-            for unknown in sorted(_ids(trace_value, prefix) - known_ids):
+            for unknown in sorted(resolve_foreign(_ids(trace_value, prefix) - known_ids, prefix)):
                 _add(
                     problems,
                     "prd",
@@ -3892,51 +3940,52 @@ def validate_texts(
                 "trust or automation controls",
             )
 
-    research_gate = _research_gate(prd_text)
-    research_gate_count = len(
-        re.findall(
-            r"^Research Gate:\s*.*$",
-            active_text(prd_text),
-            re.IGNORECASE | re.MULTILINE,
-        )
-    )
-    if research_gate_count != 1:
-        research_gate = None
-        _add(problems, "prd", "Research Gate requires exactly one active decision line")
-    if research_gate is None:
-        _add(problems, "prd", "missing Research Gate decision")
-    else:
-        research_status, research_detail = research_gate
-        if require_approved and research_status in {"clarify", "stop"}:
-            _add(
-                problems,
-                "prd",
-                f"Research Gate is {research_status!r} and cannot be approved",
+    if not module:
+        research_gate = _research_gate(prd_text)
+        research_gate_count = len(
+            re.findall(
+                r"^Research Gate:\s*.*$",
+                active_text(prd_text),
+                re.IGNORECASE | re.MULTILINE,
             )
-        research_owner = re.search(
-            r"\bdecided by\s+(.+?)\s*$", research_detail, re.IGNORECASE
         )
-        if require_filled and (
-            research_owner is None
-            or _invalid_human_owner(research_owner.group(1))
-        ):
-            _add(problems, "prd", "Research Gate must name its human decision owner")
-        assessed_dates = re.findall(
-            r"\bassessed\s+(\d{4}-\d{2}-\d{2})\b",
-            research_detail,
-            re.IGNORECASE,
-        )
-        if require_filled and (
-            len(assessed_dates) != 1 or not _real_date(assessed_dates[0])
-        ):
-            _add(problems, "prd", "Research Gate must name one real assessed YYYY-MM-DD date")
-        if require_filled and not _meaningful(research_detail, minimum=20):
-            _add(problems, "prd", "Research Gate must record concrete assessment evidence")
-        if research_status == "skipped" and (
-            not research_detail
-            or (require_filled and "[" in research_detail and "]" in research_detail)
-        ):
-            _add(problems, "prd", "skipped Research Gate requires a reason")
+        if research_gate_count != 1:
+            research_gate = None
+            _add(problems, "prd", "Research Gate requires exactly one active decision line")
+        if research_gate is None:
+            _add(problems, "prd", "missing Research Gate decision")
+        else:
+            research_status, research_detail = research_gate
+            if require_approved and research_status in {"clarify", "stop"}:
+                _add(
+                    problems,
+                    "prd",
+                    f"Research Gate is {research_status!r} and cannot be approved",
+                )
+            research_owner = re.search(
+                r"\bdecided by\s+(.+?)\s*$", research_detail, re.IGNORECASE
+            )
+            if require_filled and (
+                research_owner is None
+                or _invalid_human_owner(research_owner.group(1))
+            ):
+                _add(problems, "prd", "Research Gate must name its human decision owner")
+            assessed_dates = re.findall(
+                r"\bassessed\s+(\d{4}-\d{2}-\d{2})\b",
+                research_detail,
+                re.IGNORECASE,
+            )
+            if require_filled and (
+                len(assessed_dates) != 1 or not _real_date(assessed_dates[0])
+            ):
+                _add(problems, "prd", "Research Gate must name one real assessed YYYY-MM-DD date")
+            if require_filled and not _meaningful(research_detail, minimum=20):
+                _add(problems, "prd", "Research Gate must record concrete assessment evidence")
+            if research_status == "skipped" and (
+                not research_detail
+                or (require_filled and "[" in research_detail and "]" in research_detail)
+            ):
+                _add(problems, "prd", "skipped Research Gate requires a reason")
 
     impact_known_ids = (
         requirement_ids
@@ -3988,7 +4037,7 @@ def validate_texts(
         )
         if require_approved:
             expected_digest = sha256_text(
-                canonical_product_bytes(prd_text, architecture_text, stack_text)
+                canonical_product_bytes(prd_text, architecture_text, "" if module else stack_text)
             )
             supplied_digest = parse_digest(package_digest)
             if supplied_digest is None and revision_digest is not None:
@@ -4117,6 +4166,9 @@ def validate_texts(
                 "legacy package: no 'At a Glance' Shape row; "
                 "growth contract checks skipped"
             )
+
+    if module:
+        return problems  # the program run checks the shared stack once
 
     stack_block = _extract_machine_block(
         stack_text,
@@ -4286,6 +4338,7 @@ def validate(
     eval_policy: str | None = None,
     platform_delivery: str | None = None,
     notes: list[str] | None = None,
+    program: program_package.ProgramContext | None = None,
 ) -> list[str]:
     """Read and validate the three canonical core package files."""
 
@@ -4311,6 +4364,7 @@ def validate(
         platform_delivery=platform_delivery,
         deltas_dir=prd_path.parent / "deltas",
         notes=notes,
+        program=program,
     )
 
 
@@ -4333,36 +4387,87 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         choices=(PROTOCOL,),
         help="require the opt-in platform-delivery/1 architecture contract",
     )
+    parser.add_argument(
+        "--module",
+        help="limit a program package's module pass to this module id",
+    )
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
-    args = parse_args(argv or sys.argv[1:])
-    notes: list[str] = []
+def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
+    """Check a `program` package: the program itself, then each module against it."""
+
+    root = args.prd.parent
+    options = {"require_filled": args.require_filled, "require_approved": args.require_approved}
+    program = program_package.load_program(root)
+    own = program_package.ProgramContext(
+        "", "", program.prd, program.architecture, program.registry, frozenset(), program.digest
+    )
     problems = validate(
         args.prd,
         args.architecture,
         args.stack_decisions,
-        require_filled=args.require_filled,
-        require_approved=args.require_approved,
+        **options,
         repo_root=args.repo_root,
         ui_contract=args.ui_contract,
         eval_policy=args.eval_policy,
         platform_delivery=args.platform_delivery,
         notes=notes,
+        program=own,
     )
+    problems += program_package.validate_program(root, module=args.module, notes=notes, **options)
+    stack, _ = safe_read_text(args.stack_decisions)
+    for module_id, (prd, architecture) in program.texts.items():
+        if args.module in (None, module_id):
+            found = validate_texts(
+                prd,
+                architecture,
+                stack or "",
+                **options,
+                repo_root=args.repo_root,
+                ui_contract=args.ui_contract,
+                platform_delivery=args.platform_delivery,
+                program=program_package.module_context(program, module_id),
+            )
+            problems += [f"{module_id}: {item}" for item in found]
+    return problems
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv or sys.argv[1:])
+    notes: list[str] = []
+    prd_text, _ = safe_read_text(args.prd)
+    program = _delivery_profile(prd_text or "") == "program"
+    if program:
+        problems = _validate_program(args, notes)
+    else:
+        problems = validate(
+            args.prd,
+            args.architecture,
+            args.stack_decisions,
+            require_filled=args.require_filled,
+            require_approved=args.require_approved,
+            repo_root=args.repo_root,
+            ui_contract=args.ui_contract,
+            eval_policy=args.eval_policy,
+            platform_delivery=args.platform_delivery,
+            notes=notes,
+        )
+        if args.module is not None:
+            _add(problems, "package", "--module applies only to a PRD whose Delivery profile is program")
     for note in notes:
         print(f"INFO {note}")
     if problems:
         for problem in problems:
             print(f"FAIL {problem}", file=sys.stderr)
         return 1
+    kind = "program" if program else "core"
     if args.require_filled and args.require_approved:
-        print("PASS core Product Definition package is complete and owner-approved")
+        print(f"PASS {kind} Product Definition package is complete and owner-approved")
     elif args.require_approved:
-        print("PASS core Product Definition package approval checked (completeness not checked)")
+        print(f"PASS {kind} Product Definition package approval checked (completeness not checked)")
     else:
-        print("PASS core Product Definition package structure (approval not checked)")
+        print(f"PASS {kind} Product Definition package structure (approval not checked)")
     return 0
 
 
