@@ -203,7 +203,7 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_frontend_design_is_admitted_before_both_authoring_stages(self):
         prompt = self.read("agents/openai.yaml")
         stage = self.read(UI_STAGE)
-        wireframe = self.read("references/wireframe-guide.md")
+        wireframe = self.read("references/legacy/wireframe-guide.md")
         hifi = self.read("references/ui-design-pass.md")
         binding = (
             'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
@@ -251,7 +251,7 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_new_wireframes_use_schema_five_and_keep_legacy_readability(self):
         checker = self.read("scripts/check_wireframe_html.py")
         template = self.read("assets/templates/WIREFRAMES.template.html")
-        guide = self.read("references/wireframe-guide.md")
+        guide = self.read("references/legacy/wireframe-guide.md")
         for content in (checker, template, guide):
             self.assertIn("wireframes/5", content)
         self.assertIn("wireframes/4", checker)
@@ -262,7 +262,7 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_new_wireframe_validation_has_no_human_copy_or_structure_gate(self):
         stage = self.read(UI_STAGE)
         contract = self.read("references/output-contract.md")
-        guide = self.read("references/wireframe-guide.md")
+        guide = self.read("references/legacy/wireframe-guide.md")
         self.assertLess(
             stage.index("run a cheap machine completeness check"),
             stage.index("Present the complete current HiFi entry"),
@@ -403,7 +403,7 @@ console.log("hybrid fallback and stale QA assertions completed");
 
     def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
         rubric = self.read("references/ui-grading-rubric.md")
-        guide = self.read("references/wireframe-guide.md")
+        guide = self.read("references/legacy/wireframe-guide.md")
         for marker in ("## Legacy Wireframe Grading", "### W5 Composition Criteria",
                        "`W1 PRD conformance`", "`W5 Structural clarity and evidence`"):
             with self.subTest(marker=marker):

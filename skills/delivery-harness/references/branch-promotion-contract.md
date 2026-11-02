@@ -20,7 +20,7 @@ Record unresolved earlier candidates; never substitute a stale local main ref fo
 
 Plan-only validation checks an explicit policy and matching active architecture marker before RUN creation.
 An absent RUN is not a historical version pin or execution authority.
-RUNs pinned before 0.63 follow [legacy pins](legacy-pins.md#branch-protocols-before-063).
+RUNs pinned before 0.63 follow [legacy pins](legacy/legacy-pins.md#branch-protocols-before-063).
 
 ## Managed RUN Archive Before Promotion
 

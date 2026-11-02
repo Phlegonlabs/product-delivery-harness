@@ -3,10 +3,12 @@
 
 Counts words in every skill's SKILL.md and every Markdown file under its
 references/ tree, including nested optional references, while excluding
-scripts, assets, and other skill trees. It compares the totals against the
-most recent reachable v* tag (or --baseline <ref>) and prints one line per
-changed file plus per-skill and grand totals. This is a read-only visibility
-tool for the documentation complexity ratchet: it makes growth visible at
+scripts, assets, and other skill trees. Files under references/legacy/ are
+read only by packages pinned to an earlier version, so they stay out of the
+counts and their words appear on one "legacy (excluded)" line. It compares
+the totals against the most recent reachable v* tag (or --baseline <ref>) and
+prints one line per changed file plus per-skill and grand totals. This is a
+read-only visibility tool for the documentation complexity ratchet: it makes growth visible at
 verification time and never gates a release.
 """
 
@@ -60,6 +62,15 @@ def _run_git_bytes(
 
 def _word_count(text: str) -> int:
     return len(text.split())
+
+
+def _is_legacy_document(path: str) -> bool:
+    parts = path.split("/")
+    return len(parts) >= 5 and parts[2:4] == ["references", "legacy"]
+
+
+def _without_legacy(words: dict[str, int]) -> dict[str, int]:
+    return {k: v for k, v in words.items() if not _is_legacy_document(k)}
 
 
 def _is_skill_document(path: Path) -> bool:
@@ -226,7 +237,9 @@ def report(repo_root: Path, baseline: str | None) -> int:
         reject_object_substitution(repo_root)
     except GitMetadataError as exc:
         raise ManifestError(str(exc)) from exc
-    now = weights(repo_root, None)
+    all_now = weights(repo_root, None)
+    now = _without_legacy(all_now)
+    legacy_words = sum(all_now.values()) - sum(now.values())
     ref = baseline
     baseline_label = ref
     if ref is None:
@@ -236,7 +249,7 @@ def report(repo_root: Path, baseline: str | None) -> int:
         baseline_label = ref
     if ref is not None:
         ref = resolve_ref(repo_root, ref)
-    base = weights(repo_root, ref) if ref else {}
+    base = _without_legacy(weights(repo_root, ref)) if ref else {}
 
     skills = sorted({path.split("/", 2)[1] for path in now} |
                     {path.split("/", 2)[1] for path in base})
@@ -265,6 +278,7 @@ def report(repo_root: Path, baseline: str | None) -> int:
               f"({skill_now - skill_base:+d})")
     print(f"GRAND TOTAL: {grand_base} -> {grand_now} ({grand_now - grand_base:+d}) "
           f"baseline: {baseline_label or 'none'}")
+    print(f"legacy (excluded): {legacy_words}")
     return 0
 
 

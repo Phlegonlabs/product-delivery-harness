@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.75.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,14 +206,14 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.75.2** — 閱讀更薄。新增 `docs_reading_budget.py`，量出每個入口開工前必讀的字數（必讀與條件式連結分開，`--budget N` 可在 CI 守線）。七份 reference 在不刪任何規則的前提下壓縮：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（約減 8,600 字）；`design-input-updates.md` 改為只有 UI 工作才讀，每次 direct 與 managed run 少讀 3.7k 字。計入總字數已低於 v0.74.1，雖然本週新增了不少內容。
+
+- **0.75.1** — 預設更薄。只有 pin 舊版才需要的指南（`legacy-pins.md`、已退役的 `ui-design/2` wireframe 指南）搬到 `references/legacy/`，只在專案 pin 舊版時才讀，不再計入 docs weight（排除 6,481 字，仍會安裝）。新增 `docs_duplicates.py` 找出跨檔重複的句子，可用 `--fail-over` 在 CI 守線。
+
 - **0.75.0** — ERP 規模產品用的 `program` 交付檔。程式級 PRD 放模組地圖與依賴順序、由 kernel 擁有的共用資料、詞彙表、角色與職責分離、容量假設、整合登記與跨模組業務流程（固定 `PF-BASE` 資料集上的 `TEST-E2E-*`，含期末結帳）；每個模組在 `docs/product/modules/<id>/` 有自己的 PRD 與架構，ID 加模組代號（`PRD-INV-001`），並有 `BR-*` 業務規則表與單據狀態、權限矩陣與報表目錄；程式級架構新增 Migration and Cutover 與 `TEST-MIG-*`。`check_product_package.py` 驗證一次程式級再逐模組（`--module <id>`），模組的 `Program revision` 過期時給 warning，`standard`/`mvp` 行為不變。模組依地圖順序一次一個 Epic 與 PLAN/RUN；訪談加入 program 問題；option library 新增司法管轄區合規條目。
 
 - **0.74.5** — 審查後的新增。原生驗證改為用完即清：記錄磁碟剩餘空間，登記自己建立的 DerivedData、build 產物、模擬器與 AVD，取證後刪除。新增 reference：AI 功能契約（prompt 與模型版本化、模型矩陣、成本上限、eval 資料集生命週期、人工審核、檢索治理、工具權限）與 AI 供應商外部設定；效能與成本預算（NFR 列、容量假設、負載測試候選）；多模組產品的 modular monolith 架構模式與模組佈局。
 
 - **0.74.4** — 設計先行流程。owner 要求時，可在 Product Thesis 之後、Product Definition 核准之前先跑一輪 R0 探索方向；選定方向後，作者先畫核心旅程圖（`journeys.html`）並提供字體配對，才開始 HiFi；HiFi 按旅程逐段製作與分組；新增首次使用（onboarding）設計檔，情緒高點放在付費牆之前；UI mission 跟著核准的旅程切，每份 mission brief 帶該旅程的 HiFi 頁面。
-
-- **0.74.3** — 新增 [GA4 後台設定](skills/delivery-harness/references/ga4-admin-setup.md) 指南：每次上線後依序執行的清單、該追蹤什麼、如何定義漏斗，以及讓 GA4 量測來源算作已驗證的驗收方式。
-
-- **0.74.2** — 審查修正與 Linux 桌面。每一種工具鏈類型（MCP server、skill 與 plugin、函式庫、容器、內部服務）都必須有 Toolchain 決策；Linux 桌面 app（`linux`）可通過 release、UI、design-system、部署與驗收檢查。`inspect_harness_run.py --session-id` 讓 parent 持有自己的鎖時 `Next` 直接進入選擇；document-sync 會標出指向六個已退役 skills 的指引；readiness 卡只授權本次要用的動作；新增測試抓出失效的標題連結。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

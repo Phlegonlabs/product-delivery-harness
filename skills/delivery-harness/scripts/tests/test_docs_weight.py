@@ -87,6 +87,24 @@ class DocsWeightTests(unittest.TestCase):
         self.assertNotIn("run.py", out)
         self.assertNotIn("assets/notes.md", out)
 
+    def test_references_legacy_is_excluded_and_reported(self) -> None:
+        self.write("skills/demo/SKILL.md", "one two")
+        self.write("skills/demo/references/pins.md", "three more words")
+        self.commit_all("base")
+        self.git("tag", "v1.0.0")
+
+        (self.root / "skills/demo/references/legacy").mkdir()
+        self.git("mv", "skills/demo/references/pins.md", "skills/demo/references/legacy/pins.md")
+        self.commit_all("move to legacy")
+
+        code, out = self.run_report("--baseline", "v1.0.0")
+        self.assertEqual(0, code, out)
+        self.assertIn("removed skills/demo/references/pins.md: 3 -> 0 (-3)", out)
+        self.assertIn("TOTAL demo: 5 -> 2 (-3)", out)
+        self.assertIn("GRAND TOTAL: 5 -> 2 (-3) baseline: v1.0.0", out)
+        self.assertNotIn("references/legacy", out)
+        self.assertEqual("legacy (excluded): 3", out.strip().splitlines()[-1])
+
     def test_live_and_immutable_selection_include_nested_references_only(self) -> None:
         nested = "skills/demo/references/nested/deep.md"
         self.write("skills/demo/SKILL.md", "root skill")

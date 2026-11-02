@@ -1,6 +1,10 @@
 # Changelog
 
-English release history through 0.74.1. Current releases are in [README.md](README.md#version-history).
+English release history through 0.74.3. Current releases are in [README.md](README.md#version-history).
+
+- **0.74.3** — A [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) guide: an ordered checklist to run after every launch, what to track, how to define funnels, and the read-back that makes a GA4 measurement source verified.
+
+- **0.74.2** — Review fixes and Linux desktop. Product checks require the Toolchain decision for every toolchain surface class (MCP servers, skills and plugins, libraries, containers, internal services), and Linux desktop apps (`linux`) pass the release, UI, design-system, deployment and acceptance checks. `inspect_harness_run.py --session-id` lets a parent's own run lock lead `Next` to selection, document sync flags pointers to all six retired skills, the readiness card grants only the actions a run takes, and a test now catches dead heading links.
 
 - **0.74.1** — The document-sync inventory no longer fails as a whole on one file: a `docs/goal/PLAN.md` or `RUN.md` above the 2 MB per-file limit is stream-hashed with a quiet `oversized_document` finding, and the default Epic and PRD delta scans skip names that match the secret and history exclusion. Explicit paths stay strict.
 
