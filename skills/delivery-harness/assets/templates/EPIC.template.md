@@ -8,7 +8,10 @@ Describe the observed problem, current behavior and desired measurable outcome.
 Reference the current PRD path, requirement IDs and baseline revision/SHA.
 Keep one current PRD; do not copy it here or create a PRD per Epic. This Epic's
 PRD change lives in its round delta `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`;
-reference that delta path and its Baseline/Result hashes here.
+reference that delta path and its Baseline/Result hashes here. In a `program`
+package, a module Epic names its module PRD path and that module's delta under
+`docs/product/modules/<module-id>/deltas/`; the program Epic (`EPIC-000`) records
+module order and status.
 
 ## Accepted Scope
 

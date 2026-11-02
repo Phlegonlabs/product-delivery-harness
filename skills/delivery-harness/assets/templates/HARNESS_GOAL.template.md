@@ -17,7 +17,8 @@ Use this brief when the owner runs the Harness inside an autonomous loop. It car
 | --- | --- |
 | Skill to invoke | `$delivery-harness`, or the upstream skill the owner names |
 | Intent | <plan-only \| plan-then-stop \| plan-then-execute \| execute-ready-plan> |
-| Delivery profile | <standard \| mvp> |
+| Delivery profile | <standard \| mvp \| program> |
+| Module (`program` only) | <module id and its docs/product/modules/<module-id>/ package path; otherwise none> |
 | Target repository root | <absolute path> |
 | Base branch | <observed remote base and full SHA, e.g. refs/remotes/origin/main> |
 | Run branch | <owner-named refs/heads/<name>; never an automatic prefix> |
@@ -54,7 +55,7 @@ Targets use only the five prefixes: `worker:`, `task:`, `worktree:`, `branch:`, 
 
 | Decision | Owner value | Source step |
 | --- | --- | --- |
-| Delivery profile | <standard \| mvp> | product-definition Workflow step 12 (`At a Glance` row); Harness MVP Week |
+| Delivery profile | <standard \| mvp \| program> | product-definition Workflow step 12 (`At a Glance` row); Harness MVP Week |
 | Assumptions authorized for the discovery interview | <yes \| no> | product-definition Workflow step 3 |
 | Stack Decision Mode | <owner review of one coherent recommendation plus alternatives \| layer-by-layer owner selection \| explicit delegation to the skill> | product-definition Workflow step 7 |
 | Direction mode | <three studies \| one recommended direction (mvp)> | ui-design Workflow step 3 |
