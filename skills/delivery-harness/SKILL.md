@@ -60,7 +60,7 @@ Record:
 
 ```text
 Project size: small | large
-Delivery profile: standard | mvp
+Delivery profile: standard | mvp | program
 Intent: plan-only | plan-then-stop | plan-then-execute | execute-ready-plan
 Route: direct | plan-backed graph
 Host adapter: none | general (observed host identity or generic)
@@ -91,7 +91,7 @@ These rules apply to both routes:
 - Preserve all 12 managed action keys in the [Authorization Action Ledger](references/execution-state-model.md#authorization-action-ledger).
 - Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Archive, publication and promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
 - Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation unless a signed launch brief names it; never add a fixed prefix.
-- Archival, worktree removal, and branch deletion are separate actions and are never implied by completion.
+- Archival, worktree removal, and branch deletion are separate actions, never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
 - Non-mission nodes reserve with `reserve-node-attempt`, execute outside the RUN lock, then record evidence with `record-node-result`; interrupted attempts become `blocked`.

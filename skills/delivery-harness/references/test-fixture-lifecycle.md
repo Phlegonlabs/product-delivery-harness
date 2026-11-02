@@ -10,6 +10,8 @@ Record the exact nonproduction environment identity, endpoint, project/tenant, d
 
 Freeze required scenarios before implementation results are known. Each scenario names its TEST IDs, platform/device/OS, role and tenant, auth mode, initial data, actions, observable assertions, external service mode and expected side effects. Negative tests assert both rejection and unchanged protected state. Register two users/tenants when isolation is required; one all-powerful test account cannot prove isolation.
 
+A cross-module business process test (`TEST-E2E-*`) runs on one named shared data set such as `PF-BASE`. Record its ID and sha256 in the architecture Testing section, run it on a fixed clock, and commit the golden outputs beside it; the code under test never generates them. Restore the set into an empty database for each run and tear it down under the steps below. Production data never enters it. The test runs as the last module's final acceptance gate; earlier modules prove only their own TESTs.
+
 ## Setup, Exercise, Observe, Teardown
 
 1. Under existing exact test-environment authority, create or reset only synthetic resources owned by this run. Stamp resources with the run namespace and retain their non-secret identifiers in an ownership manifest. Setup is idempotent; after an ambiguous timeout, read back before retrying. Concurrent runs have different namespaces and no shared mutable accounts.

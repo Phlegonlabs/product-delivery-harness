@@ -83,6 +83,16 @@ Order approved discovery, deployment and measurement prerequisites before their 
 Keep code tasks separate from parent-coordinated, separately authorized external setup; neither workers nor RUN gain deployment or console-write authority.
 Use evidence for each prerequisite, not a global setup readiness, to unblock its dependent work. Preserve independent work during external blockers.
 
+#### Program Profile
+
+A `program` package adds a program PRD and architecture, a shared `stack-decisions.md` and one package per module. Deliver one module at a time: one Epic and one PLAN/RUN per module, in Module Map `Order`, with `standard` defaults.
+
+- A module RUN starts when every `Depends on` module is released (RUN closed, landed on main) and its package is approved. The program Epic (`EPIC-000`) tracks order and status; a module Epic names its module PRD path.
+- In this release the PLAN still binds `docs/product/PRD.md` paths; module-root binding arrives in the next. The parent names the module package in the Epic and launch brief and adds no PLAN field.
+- The program architecture declares release surfaces once. A module lists `Program release surfaces:`; its RUN verifies only those targets, updates only their `docs/DEPLOYMENT.md` rows and seeds its own `MS-*` rows.
+- A `TEST-E2E-*` row is the final acceptance gate of the last module in its process order (`test-fixture-lifecycle.md`).
+- A module's UI joins the one `docs/design/ui-design.md` through Incremental UI Scope.
+
 ### 3. Pass Plan Readiness
 
 Apply the direct route's self-review handoff before managed readiness.

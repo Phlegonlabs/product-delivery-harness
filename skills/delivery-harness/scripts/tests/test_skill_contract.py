@@ -473,7 +473,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         stage = self.read(MANAGED_STAGE)
 
-        self.assertIn("Delivery profile: standard | mvp", skill)
+        self.assertIn("Delivery profile: standard | mvp | program", skill)
         self.assertIn("### MVP Week", skill)
         self.assertIn(
             "the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding",
@@ -486,6 +486,56 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Under the `mvp` profile, Final UI Acceptance is part of the one combined review",
             stage,
         )
+
+    def test_program_profile_delivers_one_module_run_at_a_time(self) -> None:
+        skill = self.read("SKILL.md")
+        stage = self.read(MANAGED_STAGE)
+        program = stage.split("#### Program Profile", 1)[1].split("### 3. Pass Plan Readiness", 1)[0]
+        decomposition = self.read("references/execution-task-decomposition.md")
+        cohesion = decomposition.split("## Mission Cohesion Gate", 1)[1].split("## What Deserves A Task", 1)[0]
+        split = self.owner_section(
+            self.read("references/governance/source-maintenance.md"), "## Mission Task Split"
+        )
+        goal = self.read("assets/templates/HARNESS_GOAL.template.md")
+        epic = self.read("assets/templates/EPIC.template.md")
+        fixture = self.read("references/test-fixture-lifecycle.md")
+
+        self.assertIn("Delivery profile: standard | mvp | program", skill)
+        self.assertIn("program-profile", stage_headings(stage))
+        for marker in (
+            "one Epic and one PLAN/RUN per module, in Module Map `Order`",
+            "Deliver one module at a time",
+            "every `Depends on` module is released (RUN closed, landed on main)",
+            "its package is approved",
+            "The program Epic (`EPIC-000`) tracks order and status",
+            "a module Epic names its module PRD path",
+            "the PLAN still binds `docs/product/PRD.md` paths",
+            "module-root binding arrives in the next",
+            "adds no PLAN field",
+            "declares release surfaces once",
+            "`Program release surfaces:`",
+            "updates only their `docs/DEPLOYMENT.md` rows",
+            "seeds its own `MS-*` rows",
+            "final acceptance gate of the last module in its process order",
+            "one `docs/design/ui-design.md` through Incremental UI Scope",
+        ):
+            self.assertIn(marker, program, marker)
+        self.assertIn("the module is the unit", cohesion)
+        self.assertIn("the `kernel` module's RUN is the shared-foundation mission set", cohesion)
+        self.assertIn("a mission never crosses modules", cohesion)
+        self.assertIn("decompose one module at a time", split)
+        self.assertIn("a mission never crosses modules", split)
+        self.assertIn(r"<standard \| mvp \| program>", goal)
+        self.assertIn("| Module (`program` only) |", goal)
+        self.assertIn("docs/product/modules/<module-id>/deltas/", epic)
+        self.assertIn("program Epic (`EPIC-000`) records", epic)
+        self.assertIn("`PF-BASE`", fixture)
+        self.assertIn("sha256", fixture)
+        self.assertIn("fixed clock", fixture)
+        self.assertIn("the code under test never generates them", fixture)
+        self.assertIn("Restore the set into an empty database for each run", fixture)
+        self.assertIn("Production data never enters it", fixture)
+        self.assertIn("earlier modules prove only their own TESTs", fixture)
 
     def test_scripted_transition_flag_surfaces_are_documented(self) -> None:
         state = self.read("references/execution-state-model.md")
