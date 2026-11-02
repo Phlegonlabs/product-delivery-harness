@@ -221,7 +221,7 @@ When the proposal is empty only because launch actions are unauthorized, request
 Current dispatch supports subagents and sequential-parent work only.
 If the owner explicitly requests user-owned app tasks, report the unsupported route and stop that dispatch.
 Never replace those tasks silently or fabricate an app-task identity.
-Historical app/task bindings use their [exact pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
+Historical app/task bindings use their [exact pinned bundle](legacy/legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 
 ## Batch Integration And Recompute
 

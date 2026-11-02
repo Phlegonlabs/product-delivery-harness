@@ -37,6 +37,8 @@ Do not reuse or renumber IDs after a plan is published. If historical data needs
 
 Run this gate for every proposed mission before PLAN readiness. A mission is a feature batch: one user-visible feature or one shared foundation, owned by one writer role. Its fine tasks keep their own atomic commits and verifiers. In a UI-bearing product the user-visible features are the approved journeys (`docs/design/directions/<round>/journeys.html`, HiFi pages grouped by journey): one journey may span several missions for a reason below, but a mission never mixes unrelated journeys.
 
+Under the `program` profile the module is the unit. Each module RUN plans its own missions, the `kernel` module's RUN is the shared-foundation mission set, and a mission never crosses modules.
+
 Every mission adds fixed cost: worktree, handoff, result validation, serial integration and integration reruns, plus one review under `per_mission`, where review count follows mission count. Plan as few missions as the work allows.
 
 Split a mission only when one of these is true:

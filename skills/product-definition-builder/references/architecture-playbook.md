@@ -4,23 +4,15 @@ Use this playbook to make architecture sections implementation-ready. The overal
 
 ## Caller And State Method
 
-Apply [Architecture Method](../../delivery-harness/references/delegation-contract.md#architecture-method) to the accepted journeys.
-Start with a concrete caller example before defining components and conceptual interfaces.
-Name mutable-state owners, readers, invariants, invalid states and trust boundaries.
-Connect repeated side effects and failure recovery to existing `TEST-*` obligations.
-Keep implementation signatures and types in the downstream implementation-design assignment.
-Compare structural alternatives only when coupling, durability, trust or migration remains unresolved.
-Reuse valid enhancement decisions and small-repair designs.
-These methods add no approval gate or mandatory package field.
+Apply [Architecture Method](../../delivery-harness/references/delegation-contract.md#architecture-method) to the accepted journeys. Keep implementation signatures and types in the downstream implementation-design assignment. Compare structural alternatives only when coupling, durability, trust or migration remains unresolved. Reuse valid enhancement decisions and small-repair designs. These methods add no approval gate or mandatory package field.
 
 ## Baseline Architecture Coverage
 
-Write the canonical `architecture.md` in English and draft its complete `architecture.zh-TW.md` review copy alongside it under `bilingual-review.md`. Preserve architecture IDs, interfaces, numeric constraints and literal code in both. Implementers and downstream skills reference the approved English architecture.
+Write the canonical `architecture.md` in English and draft its complete `architecture.zh-TW.md` review copy alongside it under `bilingual-review.md`.
 
 Every architecture should cover:
 
-- Product archetype and target surfaces.
-- Actors and external systems.
+- Product archetype, target surfaces, actors, and external systems.
 - Frontend or client responsibilities.
 - For products with a browser frontend, frontend technology layers: deployment/runtime, rendering model, language, package manager, framework, UI library, component foundation, styling approach, build tool, routing/data approach, and testing.
 - For products with a backend, persistent data, or auth requirement, backend technology layers in this order: service topology (monolith versus named services and monorepo versus polyrepo), runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
@@ -28,14 +20,13 @@ Every architecture should cover:
 - Data model and persistence.
 - API, event, file, or trigger contracts.
 - Authentication, authorization, and role boundaries.
-- Monetization model; product/price, purchase/subscription, entitlement, payment, tax, refund, and chargeback ownership; and the separately resolved affiliate, referral, or reseller operating model when applicable. Apply `monetization-and-partner-channel-guide.md`.
+- Monetization model and ownership, plus the separately resolved affiliate, referral, or reseller operating model when applicable. Apply `monetization-and-partner-channel-guide.md`.
 - Security, privacy, secrets, and audit concerns.
 - Required PRD Security Requirements rows: name each asset/boundary, enforcement point, safe failure, PRD ID, and TEST ID in Auth, Permissions, and Security.
-- The Data and Trust Gate: classification, residency, retention, deletion/export, consent/policy basis, vendor and human access, encryption, incident ownership, and applicable tests.
-- The AI and Automation Gate when applicable: model/provider boundary, data use, prompt and tool permissions, human approval, evaluation, prohibited outcomes, cost/latency budgets, observability, fallback/shutoff, prompt-injection defense, and output validation.
+- The Data and Trust Gate and, when applicable, the AI and Automation Gate, with their applicable tests, using the fields in `output-contract.md`'s architecture template.
 - Integrations and failure handling.
 - Deployment, environment configuration, migrations, and rollback.
-- For every deployable surface, provider-neutral release targets with stable IDs, development/production stage, source, artifact/signing, exact channel, release gate path, availability proof, rollout, and rollback or forward-fix.
+- Provider-neutral release targets for every deployable surface (see Provider-Neutral Release Target Pattern).
 - Observability, metrics, alerting, and audit logs.
 - Scaling, reliability, idempotency, retries, and rate limits.
 
@@ -43,33 +34,31 @@ Every architecture should cover:
 
 For each accepted journey, connect the PRD role/data/action and success/failure/recovery outcomes to the actual screen or client, API/service contract, authorization enforcement, data model and persistence, external dependencies and operational owner. Name validation errors, denied access, retry/idempotency, partial failure and recovery where applicable. Link the same requirement and TEST IDs; do not duplicate the PRD or invent a new handoff specification. Headless and local-only products record their actual client and explain inapplicable layers.
 
-Recommend a complete compatible stack when the owner has no preference, including runtime, client, backend, auth/data, agent tools and tests as applicable. Keep proposals visibly Recommended/Provisional until accepted; do not turn a recommendation into scaffold authority. Reuse the current approved stack for enhancements unless the accepted scope changes it.
+Recommend a complete compatible stack when the owner has no preference, including runtime, client, backend, auth/data, agent tools and tests as applicable. Reuse the current approved stack for enhancements unless the accepted scope changes it.
 
 ## Provider-Neutral Release Target Pattern
 
-Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close the inventory of deployable surfaces during discovery. Record each target with the fields, source policy and availability rules in [Release Targets](output-contract.md#architecturemd). Keep `surface` separate from `provider`: one surface may use different providers by stage.
+Use this for every deployable web, API, mobile, desktop, or browser-extension surface. Close the inventory of deployable surfaces during discovery, and record each target with the fields, source policy and availability rules in [Release Targets](output-contract.md#architecturemd). A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability.
 
-A build, upload, submission, deployment command, notarization result, or store approval is an intermediate event, not availability.
-
-Keep native mobile and desktop targets in this provider-neutral record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table. Retire rather than reuse a target ID whose destination changes meaning.
+Keep native mobile and desktop targets in this record. Do not force TestFlight, Play tracks, App Store, notarized downloads, Microsoft Store, or signed update feeds into the two-row hosted environment table.
 
 ### Surface Naming Convention
 
 Name an independently released unit from what it is, not from where it runs. Use lowercase kebab case: the production name is `<product-slug>-<surface-suffix>` and never carries `-prod`; the development name adds `-dev`. Long-lived `-staging` or `-qa` names are valid only when those environments exist. Ephemeral branch/SHA previews keep platform-generated identities.
 
-Use `web`, `api`, and `extension` as the normal suffixes. Use `admin`, `worker`, `jobs`, `agent`, `webhook`, `realtime`, or `cli` only for a separately released artifact. Native release artifacts may use `ios`, `android`, `macos`, `windows`, or `linux`; a hosted backend shared by native clients is still `api`, not `ios-api` or `android-api`. A unit serving one combined web application and its API remains `web`; independently deployed web and API units get separate names. Keep Chrome, Firefox, an app store, and a hosting vendor in `provider` or channel fields. Add a browser name to the suffix only when browser-specific artifacts actually diverge, such as `chrome-extension` and `firefox-extension`. A public listing title may differ from this internal release name.
+Use `web`, `api`, and `extension` as the normal suffixes. Use `admin`, `worker`, `jobs`, `agent`, `webhook`, `realtime`, or `cli` only for a separately released artifact. Native release artifacts may use `ios`, `android`, `macos`, `windows`, or `linux`; a hosted backend shared by native clients is still `api`, not `ios-api` or `android-api`. One unit serving a combined web application and its API remains `web`; independently deployed web and API units get separate names. Keep Chrome, Firefox, an app store, and a hosting vendor in `provider` or channel fields. Add a browser name to the suffix only when browser-specific artifacts actually diverge, such as `chrome-extension` and `firefox-extension`. A public listing title may differ from this internal release name.
 
 ## Platform Delivery Sequence
 
-Record this sequence only when the human owner selects a whole-platform order. Capture every platform's product requirements, UI obligations, and required tests first. Then list stages in implementation order, assign each release surface to exactly one stage, and name Required-Yes TEST IDs and an observable signal for each handoff. A shared API is a normal shared surface; user-facing platform classes cannot be renamed into a shared label. A single user-facing class may record `not_required — concrete reason`. Reuse `output-contract.md`'s exact fields and table.
+Record this sequence only when the human owner selects a whole-platform order. A shared API is a normal shared surface; user-facing platform classes cannot be renamed into a shared label. Reuse `output-contract.md`'s exact fields and table.
 
 ## Candidate-to-Production Release Pattern
 
-For a deployable hosted web, API, or backend product, resolve the platform before drafting. Keep one repository and one codebase. The release source policy is owned by [Release Targets](output-contract.md#architecturemd); the environment contract is in the output contract's Deployment and Operations template. Cloudflare uses native Workers Previews when supported, Pages only by owner choice, or an approved isolated fallback.
+For a deployable hosted web, API, or backend product, resolve the platform before drafting and keep one repository and one codebase. The release source policy is owned by [Release Targets](output-contract.md#architecturemd); the environment contract is in the output contract's Deployment and Operations template. Cloudflare uses native Workers Previews when supported, Pages only by owner choice, or an approved isolated fallback.
 
 Do not model development as a second codebase or persistent branch. It is an isolated environment deployed from the exact candidate run branch/SHA. Do not let a development environment access production customer data, production sessions, or live payment mutations. Specify promotion prerequisites, migration order, backward compatibility, secret ownership, recovery, and evidence invalidation.
 
-Isolation does not mean development stays empty. When the product has content-shaped data (for example articles, images, or other catalog-style entities), seed the development environment with representative mock/sample data as part of the development migration or setup step, so development testing sees realistic content without ever reading real production records. Record the mock-data seed in the development row's Migration Order cell of the environment-contract table (see `references/output-contract.md`'s architecture.md template) or an equivalent setup step, and never source it from a live production copy unless the user explicitly authorizes and scopes that as a separate, deliberate sync/anonymization process. Each Migration Order entry is written for the human or CI release process that runs after the engineering harness produces the exact candidate branch/SHA; the harness does not consume it.
+Isolation does not mean development stays empty. When the product has content-shaped data (articles, images, other catalog-style entities), seed the development environment with representative mock/sample data in the development migration or setup step. Record the seed in the development row's Migration Order cell of the environment-contract table (see `references/output-contract.md`'s architecture.md template) or an equivalent setup step, and never source it from a live production copy unless the user explicitly authorizes and scopes a separate sync/anonymization process. Write each Migration Order entry for the human or CI release process that runs after the harness produces the candidate; the harness does not consume it.
 
 ## Web App Pattern
 
@@ -79,100 +68,98 @@ Use for browser-based SaaS, marketplaces, dashboards, portals, and public web pr
 - Frontend decision: status (`Required`, `Selected`, `Approved`, `Recommended`, or `Provisional`), product-fit rationale, alternatives, official-source verification date, and uncertainty. Only the first three are executable.
 - Backend: API layer, business services, validation, background jobs, file handling, notifications.
 - Data: relational entities by default for transactional products; include indexes, tenancy, soft delete, audit history, and retention when relevant.
-- APIs: list core REST, GraphQL, RPC, or server action contracts; include pagination, filtering, validation errors, auth errors, and rate limits.
-- Security: session management, CSRF when applicable, RBAC, tenant isolation, input validation, secure file upload, secrets handling.
-- Operations: environments, database migrations, feature flags, scheduled jobs, queues, monitoring, rollback.
-- Commercial systems when applicable: separately selected store/billing, entitlement, paywall/checkout, merchant-of-record/tax, and affiliate/referral/reseller providers; stable identity joins; verified idempotent webhooks; refund/chargeback effects; reconciliation; and partner attribution, commission, payout, provisioning, and termination flows.
+- APIs: list core REST, GraphQL, RPC, or server action contracts; include pagination, filtering, validation errors, and auth errors.
+- Security: session management, CSRF when applicable, RBAC, tenant isolation, input validation, secure file upload.
+- Operations: feature flags, scheduled jobs, queues.
+- Commercial systems when applicable: apply `monetization-and-partner-channel-guide.md`.
 
 ## Mobile and Desktop Distribution Discipline
 
-The mobile and desktop patterns below name concrete toolchains, store fees, code-signing steps, testing tracks, and OS-version deadlines. These change on the vendors' schedule, not yours. Do not copy any specific fee, tester count, testing-window rule, target-API deadline, minimum OS version, or signing/notarization step from memory into a PRD. Verify each against the official source cited in the pattern on the date the PRD is written, and record that check date and the direct link in `architecture.md`'s deployment/operations section, the same way `frontend-stack-selection.md` records a verification date in `stack-decisions.md` for web platform claims. When you cannot verify a specific number live, write the requirement without the number and mark it as needing live verification rather than asserting a stale figure.
+The mobile and desktop patterns below name toolchains, store fees, code-signing steps, testing tracks, and OS-version deadlines that change on the vendors' schedule. Do not copy any specific fee, tester count, testing-window rule, target-API deadline, minimum OS version, or signing/notarization step from memory into a PRD. Verify each against the official source cited in the pattern on the date the PRD is written, and record that check date and the direct link in `architecture.md`'s deployment/operations section. When you cannot verify a number live, write the requirement without it and mark it as needing live verification.
 
-The native iOS, native Android, Flutter, React Native, and desktop targets do not use the web deployment-platform question (Cloudflare/Vercel/AWS/self-hosted). Their release path is an app store, testing track, notarized download, or signed installer/update feed. Record each destination as a separate stable release target (see Provider-Neutral Release Target Pattern). When the channel cannot restore an installed version, halt a staged rollout where possible and ship a signed forward-fix through the same distribution path. A mobile or desktop product that also has a server backend still resolves that backend's own hosting separately.
+Native iOS, native Android, Flutter, React Native, and desktop release through an app store, testing track, notarized download, or signed installer/update feed. When the channel cannot restore an installed version, halt a staged rollout where possible and ship a signed forward-fix through the same distribution path. A mobile or desktop product with a server backend still resolves that backend's hosting separately.
 
 ## Native iOS Pattern
 
-Use for a native Apple-platform app built directly against Apple's SDKs (not a cross-platform runtime).
+Use for a native Apple-platform app built directly against Apple's SDKs.
 
-- Toolchain: Xcode as the IDE, Swift with SwiftUI or UIKit for the UI, Swift Package Manager for dependencies. Evaluate CocoaPods only when existing pods or a required dependency need it; verify its current support status and compatibility from official sources before selecting it.
-- Client architecture: navigation and screen structure (commonly MVVM with a coordinator or navigation-stack pattern), local persistence (Core Data, SwiftData, or SQLite), local state, offline behavior, permissions, deep links, and device capabilities.
-- Distribution: a paid Apple Developer Program membership is required to ship to the App Store and TestFlight — confirm the current annual fee live. Builds must be code-signed with a distribution certificate and a provisioning profile. TestFlight is the beta channel before public release; confirm the current internal and external tester limits live. Push notifications go through APNs (Apple Push Notification service).
-- Backend: sync API, auth sessions, notification sending to APNs, media upload, and entitlement or subscription checks when the app sells content.
+- Toolchain: Xcode, Swift with SwiftUI or UIKit, Swift Package Manager. Evaluate CocoaPods only when existing pods or a required dependency need it, after verifying its current support status and compatibility from official sources.
+- Client architecture: navigation and screen structure (commonly MVVM with a coordinator or navigation stack), local persistence (Core Data, SwiftData, or SQLite), local state, offline behavior, permissions, deep links, and device capabilities.
+- Distribution: a paid Apple Developer Program membership (annual fee) is required for the App Store and TestFlight. Builds are code-signed with a distribution certificate and a provisioning profile. TestFlight is the beta channel before public release (internal and external tester limits). Push goes through APNs.
+- Backend: sync API, auth sessions, APNs sending, media upload, and entitlement or subscription checks when the app sells content.
 - Purchases: apply `monetization-and-partner-channel-guide.md` when the app charges for digital access. StoreKit may be sufficient for one Apple-only surface.
 - Data: local cache versus remote canonical records, conflict resolution, sync timestamps, and deletion behavior.
 - Security: Keychain for secrets, biometric or device auth when needed, PII minimization, and jailbroken-device assumptions only when the product requires them.
-- Operations and required verification: app-review turnaround, server compatibility windows across app versions in the wild, analytics, crash reporting, and the limited rollback after an App Store release (you ship a new build or use phased release / expedited review, you do not silently roll back an installed version). Verify current signing, TestFlight, and submission requirements at [Apple Developer Program](https://developer.apple.com/programs/), [TestFlight](https://developer.apple.com/testflight/), and [code signing and provisioning profiles (TN3125)](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles) on the PRD date.
+- Operations and required verification: app-review turnaround, server compatibility windows across app versions in the wild, analytics, crash reporting, and limited rollback after an App Store release (ship a new build or use phased release / expedited review). Official sources: [Apple Developer Program](https://developer.apple.com/programs/), [TestFlight](https://developer.apple.com/testflight/), and [TN3125](https://developer.apple.com/documentation/technotes/tn3125-inside-code-signing-provisioning-profiles).
 
 ## Native Android Pattern
 
-Use for a native Android app built directly against the Android SDK (not a cross-platform runtime).
+Use for a native Android app built directly against the Android SDK.
 
-- Toolchain: Android Studio as the IDE, Kotlin as the language, Gradle as the build system, and Jetpack Compose (or the older Views system) for the UI.
-- Client architecture: navigation and screen structure (commonly MVVM with Jetpack components), local persistence (Room over SQLite or DataStore), local state, offline behavior, permissions, deep links, and device capabilities.
-- Distribution: a Google Play Console developer account requires a one-time registration fee — confirm the current amount live. Play offers internal, closed, and open testing tracks before production. Play App Signing has Google hold and manage the app signing key while you sign uploads with an upload key. New personal developer accounts are subject to a pre-production testing requirement (a minimum number of testers opted in for a minimum number of days before you can apply for production access) — verify the current tester count and duration live, since these have changed. New apps and updates must target a minimum Android API level by a Play deadline that moves each year — verify the current required target API level and its deadline live. Push notifications go through FCM (Firebase Cloud Messaging).
-- Backend: sync API, auth sessions, notification sending to FCM, media upload, and entitlement or subscription checks when relevant.
-- Purchases: apply `monetization-and-partner-channel-guide.md`; Google Play Billing, cross-platform subscription management, web checkout, and partner distribution remain separate decisions.
-- Data: local cache versus remote canonical records, conflict resolution, sync timestamps, and deletion behavior.
+- Toolchain: Android Studio, Kotlin, Gradle, and Jetpack Compose (or the older Views system).
+- Client architecture: as the Native iOS Pattern, commonly MVVM with Jetpack components and Room over SQLite or DataStore for local persistence.
+- Distribution: a Google Play Console developer account requires a one-time registration fee. Play offers internal, closed, and open testing tracks before production. Under Play App Signing, Google holds the app signing key and you sign uploads with an upload key. New personal developer accounts must meet a pre-production testing requirement (minimum testers for a minimum number of days before production access). New apps and updates must target a minimum Android API level by a Play deadline that moves each year. Push goes through FCM.
+- Backend and data: as the Native iOS Pattern, with FCM for notifications.
+- Purchases: as the Native iOS Pattern; Google Play Billing, cross-platform subscription management, web checkout, and partner distribution remain separate decisions.
 - Security: EncryptedSharedPreferences or the Keystore for secrets, biometric or device auth when needed, PII minimization, and rooted-device assumptions only when required.
-- Operations and required verification: staged rollout percentages, server compatibility windows across app versions, analytics, crash reporting (for example via Play Console vitals), and rollback constraints after release (halt or reduce a staged rollout rather than un-shipping an installed version). Verify current fees, testing tracks, signing, testing gates, and target-API rules at [Play Console registration](https://support.google.com/googleplay/android-developer/answer/6112435), [Play App Signing](https://developer.android.com/studio/publish/app-signing), [test your app](https://developer.android.com/guide/app-bundle/test), and [target API level requirements](https://developer.android.com/google/play/requirements/target-sdk) on the PRD date.
+- Operations and required verification: staged rollout percentages (halt or reduce rather than un-ship), server compatibility windows across app versions, analytics, and crash reporting. Official sources: [Play Console registration](https://support.google.com/googleplay/android-developer/answer/6112435), [Play App Signing](https://developer.android.com/studio/publish/app-signing), [test your app](https://developer.android.com/guide/app-bundle/test), and [target API level requirements](https://developer.android.com/google/play/requirements/target-sdk).
 
 ## Flutter Pattern
 
 Use for a single cross-platform codebase targeting iOS and Android from one source (and optionally web, macOS, Windows, and Linux).
 
 - Toolchain: one Dart codebase, dependencies declared in `pubspec.yaml` and resolved from pub.dev. Native-only capabilities are reached through platform channels (MethodChannel, or a typed generator such as Pigeon) that call into Kotlin/Java on Android and Swift/Objective-C on iOS.
-- Targets: Flutter compiles to native binaries per platform. Confirm the current supported OS-version ranges for each target you intend to ship live, since they move with releases.
-- Distribution: because it compiles to native, Flutter does not bypass either store. An iOS+Android product still needs BOTH an Apple path (Apple Developer Program, code signing, TestFlight, App Store review) exactly as in the Native iOS Pattern AND a Google path (Play Console, testing tracks, Play App Signing, target-API rules) exactly as in the Native Android Pattern. Budget for both memberships, both signing setups, and both review processes. If you also ship Flutter desktop, add the matching desktop distribution path below.
-- Client architecture, backend, data, and security: follow the same concerns as the native patterns (navigation and state, local persistence, sync API, secure storage, push via APNs on iOS and FCM on Android). A plugin that wraps a native capability may differ per platform — record which platforms each plugin actually supports.
-- Operations and required verification: one build pipeline produces multiple platform artifacts, but each still goes through its own store's release and rollback rules. Verify the current supported platforms and per-store deployment steps at [Flutter supported platforms](https://docs.flutter.dev/reference/supported-platforms), [Flutter iOS deployment](https://docs.flutter.dev/deployment/ios), and [Flutter Android deployment](https://docs.flutter.dev/deployment/android), plus the Apple and Google sources named in the native patterns, on the PRD date.
+- Distribution: Flutter compiles to native binaries, so it bypasses neither store. An iOS+Android product needs BOTH an Apple path exactly as in the Native iOS Pattern AND a Google path exactly as in the Native Android Pattern. Budget for both memberships, both signing setups, and both review processes. If you also ship Flutter desktop, add the matching desktop distribution path below.
+- Client architecture, backend, data, and security: follow the native patterns (push via APNs on iOS and FCM on Android). Record which platforms each plugin actually supports.
+- Operations and required verification: verify supported platforms and OS-version ranges for each shipped target. Official sources: [Flutter supported platforms](https://docs.flutter.dev/reference/supported-platforms), [Flutter iOS deployment](https://docs.flutter.dev/deployment/ios), and [Flutter Android deployment](https://docs.flutter.dev/deployment/android), plus the Apple and Google sources in the native patterns.
 
 ## React Native / Expo Pattern
 
-For App + companion Web delivery, apply `mobile-stack-selection.md#app-and-companion-web-contract`. Record one product architecture with separate iOS, Android and showcase/browser release surfaces, explicit shared-code boundaries and per-platform acceptance. A mobile Expo choice does not decide the Web frontend stack or merge store releases with website deployment.
+For App + companion Web delivery, apply `mobile-stack-selection.md#app-and-companion-web-contract`: one product architecture with separate iOS, Android and showcase/browser release surfaces, explicit shared-code boundaries and per-platform acceptance. A mobile Expo choice does not decide the Web frontend stack or merge store releases with website deployment.
 
-Use for a single cross-platform codebase targeting iOS and Android from JavaScript/TypeScript, especially when sharing logic with an existing React web codebase. React Native's own documentation recommends building a new app with a Framework, and Expo is the recommended one — see `mobile-stack-selection.md` for choosing this over Flutter or native, and for the Expo-vs-bare workflow decision.
+Use for a single cross-platform codebase targeting iOS and Android from JavaScript/TypeScript, especially when sharing logic with an existing React web codebase. React Native's documentation recommends a Framework for new apps, and Expo is the recommended one; see `mobile-stack-selection.md` for choosing this over Flutter or native and for the Expo-vs-bare workflow decision.
 
-- Toolchain: one JavaScript/TypeScript codebase, npm/yarn/pnpm dependencies, and React Native's native platform components. Expo (the managed workflow, scaffolded with `create-expo-app`) is the default toolchain: it provides file-based routing, a standard library of native modules, and the EAS cloud services below. Choose bare React Native (full native iOS/Android projects, reached via prebuild or ejection) only when a native module needs native-project access Expo's managed workflow and config plugins cannot provide, and record which module forced it.
-- Targets: React Native compiles to native iOS and Android apps. The same codebase can optionally target the web (React Native for Web) and Windows/macOS — confirm current support and per-target limitations live before promising a target beyond iOS/Android.
-- Client architecture: navigation (commonly React Navigation or Expo Router), local persistence (SQLite, or a wrapper such as AsyncStorage/MMKV for key-value), local and shared state, offline behavior, permissions, deep links, and device capabilities reached through native modules.
-- Distribution: because it produces native apps, React Native does not bypass either store. An iOS+Android product still needs BOTH an Apple path (Apple Developer Program, code signing, TestFlight, App Store review) exactly as in the Native iOS Pattern AND a Google path (Play Console, testing tracks, Play App Signing, target-API rules) exactly as in the Native Android Pattern. Budget for both memberships and both review processes. EAS Build compiles and signs both platforms in the cloud (removing the local-Mac-for-iOS-builds requirement); EAS Submit uploads builds to the App Store and Play Store from the cloud, the automation role fastlane plays in the native patterns; manual App Store Connect / Play Console upload remains the alternative to EAS Submit.
-- Over-the-air updates: EAS Update ships JavaScript and asset changes over-the-air without an app-store review cycle. Native code changes (new native modules, native config) always require a new store-reviewed build. Record which change types are OTA-eligible and which are not.
-- Backend, data, and security: follow the same concerns as the native patterns (sync API, auth sessions, push via APNs on iOS and FCM on Android, secure storage via the platform Keychain/Keystore through a native module, local cache versus remote canonical records, conflict resolution). A native module may differ per platform — record which platforms each supports.
-- Operations and required verification: one build pipeline (EAS or self-hosted CI) produces both platform artifacts, but each still goes through its own store's release and rollback rules (a new build or staged rollout, not a silent un-ship). Do not copy an Expo SDK version, EAS build tier/pricing, or supported-OS range from memory. Verify current tooling at [React Native: Get Started](https://reactnative.dev/docs/environment-setup), [Expo docs](https://docs.expo.dev/), [EAS Build](https://docs.expo.dev/build/introduction/), [EAS Submit](https://docs.expo.dev/submit/introduction/), and [EAS Update](https://docs.expo.dev/eas-update/introduction/), plus the Apple and Google sources named in the native patterns, on the PRD date.
+- Toolchain: one JavaScript/TypeScript codebase (npm/yarn/pnpm) with Expo (managed workflow, `create-expo-app`) as the default. Choose bare React Native (via prebuild or ejection) only when a native module needs native-project access Expo's managed workflow and config plugins cannot provide, and record which module forced it.
+- Targets: iOS and Android; confirm current support and per-target limitations before promising web (React Native for Web) or Windows/macOS.
+- Client architecture: navigation (commonly React Navigation or Expo Router), local persistence (SQLite, or AsyncStorage/MMKV for key-value), local and shared state, offline behavior, permissions, deep links, and device capabilities reached through native modules.
+- Distribution: as in the Flutter Pattern, BOTH the Apple and Google paths are required. EAS Build compiles and signs both platforms in the cloud; EAS Submit uploads builds to both stores; manual App Store Connect / Play Console upload remains the alternative.
+- Over-the-air updates: EAS Update ships JavaScript and asset changes without an app-store review cycle; native code changes (new native modules, native config) always require a new store-reviewed build. Record which change types are OTA-eligible.
+- Backend, data, and security: as the native patterns, with secure storage via the platform Keychain/Keystore through a native module. Record which platforms each native module supports.
+- Operations and required verification: do not copy an Expo SDK version, EAS build tier/pricing, or supported-OS range from memory. Official sources: [React Native: Get Started](https://reactnative.dev/docs/environment-setup), [Expo docs](https://docs.expo.dev/), [EAS Build](https://docs.expo.dev/build/introduction/), [EAS Submit](https://docs.expo.dev/submit/introduction/), and [EAS Update](https://docs.expo.dev/eas-update/introduction/), plus the Apple and Google sources in the native patterns.
 
 ## Desktop App Pattern
 
 Use for an installable desktop application on macOS, Windows, Linux, or a set of them.
 
-- macOS toolchain and distribution: build with SwiftUI or AppKit (or a cross-platform toolkit, see below). Apps are code-signed with a Developer ID certificate; apps distributed outside the Mac App Store must also be notarized by Apple (submitted with `notarytool`) so Gatekeeper runs them without an "unidentified developer" warning. Distribution is either direct download (Developer ID, signed and notarized) or the Mac App Store (sandboxing required). Verify current signing and notarization requirements at [notarizing macOS software](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [macOS distribution](https://developer.apple.com/macos/distribution/) on the PRD date.
-- Windows toolchain and distribution: build with WinUI or .NET (WPF or WinForms), or a cross-platform toolkit. Package as MSIX (the modern Windows package format; MSIX packages must be signed) or a traditional installer. Distribute by direct download or the Microsoft Store; the Store re-signs MSIX submissions, while direct download needs a certificate that chains to a trusted root. Verify current packaging, signing, and distribution options at [MSIX overview](https://learn.microsoft.com/en-us/windows/msix/overview), [signing an MSIX package](https://learn.microsoft.com/en-us/windows/msix/package/signing-package-overview), and [choose a distribution path](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/choose-distribution-path) on the PRD date.
-- Linux toolchain and distribution: build with GTK or Qt, or a cross-platform toolkit. Ship as a Flatpak on Flathub, a Snap on the Snap Store, deb/rpm packages from a signed repository, or an AppImage. Name the supported distributions and the oldest glibc you build against. Verify current packaging and review rules at [Flathub](https://docs.flathub.org/docs/for-app-authors/submission) and [Snapcraft](https://snapcraft.io/docs).
-- Cross-platform desktop alternative: when one codebase should target both macOS and Windows (and often Linux), consider Tauri (a web frontend over the OS-native webview with a Rust backend, small binaries) or Electron (bundles Chromium and Node.js, larger binaries but a full browser runtime). A cross-platform build still has to satisfy each OS's own signing and distribution rules above — the framework does not remove macOS notarization or Windows signing. Verify current platform support at [Tauri](https://tauri.app/) and [Electron](https://www.electronjs.org/) on the PRD date.
-- Client architecture: window and view structure, local persistence and file handling, offline-first behavior (desktop apps typically run without a network), auto-update mechanism, OS integration (menu bar, tray, notifications, file associations), and permissions.
+- macOS toolchain and distribution: build with SwiftUI or AppKit (or a cross-platform toolkit, see below). Sign with a Developer ID certificate; apps distributed outside the Mac App Store must also be notarized by Apple (submitted with `notarytool`). Distribute by direct download or the Mac App Store (sandboxing required). Official sources: [notarizing macOS software](https://developer.apple.com/documentation/security/notarizing-macos-software-before-distribution) and [macOS distribution](https://developer.apple.com/macos/distribution/).
+- Windows toolchain and distribution: build with WinUI or .NET (WPF or WinForms), or a cross-platform toolkit. Package as MSIX (must be signed) or a traditional installer. Distribute by direct download, which needs a certificate that chains to a trusted root, or the Microsoft Store, which re-signs MSIX submissions. Official sources: [MSIX overview](https://learn.microsoft.com/en-us/windows/msix/overview), [signing an MSIX package](https://learn.microsoft.com/en-us/windows/msix/package/signing-package-overview), and [choose a distribution path](https://learn.microsoft.com/en-us/windows/apps/package-and-deploy/choose-distribution-path).
+- Linux toolchain and distribution: build with GTK or Qt, or a cross-platform toolkit. Ship as a Flatpak on Flathub, a Snap on the Snap Store, deb/rpm packages from a signed repository, or an AppImage. Name the supported distributions and the oldest glibc you build against. Official sources: [Flathub](https://docs.flathub.org/docs/for-app-authors/submission) and [Snapcraft](https://snapcraft.io/docs).
+- Cross-platform desktop alternative: when one codebase should target both macOS and Windows (and often Linux), consider Tauri (OS-native webview with a Rust backend, small binaries) or Electron (bundled Chromium and Node.js, larger binaries). Either still has to satisfy each OS's signing and distribution rules above, including macOS notarization and Windows signing. Official sources: [Tauri](https://tauri.app/) and [Electron](https://www.electronjs.org/).
+- Client architecture: window and view structure, local persistence and file handling, offline-first behavior, auto-update mechanism, OS integration (menu bar, tray, notifications, file associations), and permissions.
 - Backend and data: many desktop apps are local-first with optional sync; when a backend exists, resolve its hosting separately, and specify sync, conflict resolution, and auth-session handling.
 - Security: OS keychain/credential store for secrets, code-signing integrity, update-channel integrity (signed updates), and PII minimization.
 - Operations and required verification: signed auto-update delivery, per-OS minimum-version support, crash reporting, and staged rollout where the update framework supports it. Rollback means shipping a prior signed version through the same update channel. Record the verification date and the official sources above on `stack-decisions.md`'s `Compatibility checked on:` line; signing, distribution, and rollout stay in `architecture.md`.
 
 ## Browser Extension Pattern
 
-Use for a browser extension. The interview resolves the complete v1 browser target set before architecture; Chrome with Manifest V3 is a common single-target choice, while Firefox and Safari have separate stores and API differences. Never turn the common case into a silent target decision.
+Use for a browser extension. The interview resolves the complete v1 browser target set before architecture; Chrome with Manifest V3 is a common single-target choice, but Firefox and Safari have separate stores and API differences. Never turn the common case into a silent target decision.
 
-- Toolchain: TypeScript plus an extension-aware bundler such as Vite with CRXJS or WXT, so the manifest, content scripts, service worker, and extension pages build from one tool (see `frontend-stack-selection.md`).
-- Client architecture: a `manifest.json` (V3) declares the entry points. A service worker is the event-driven background context — there is no persistent background page. Content scripts run inside web pages with only partial extension-API access; extension pages (popup, options, side panel) are ordinary HTML/TypeScript documents with full API access. Assign each workflow to the context that owns it and define how contexts communicate (`chrome.runtime` messaging, long-lived ports, or storage events).
+- Toolchain: TypeScript plus an extension-aware bundler such as Vite with CRXJS or WXT (see `frontend-stack-selection.md`).
+- Client architecture: a `manifest.json` (V3) declares the entry points. A service worker is the event-driven background context; there is no persistent background page. Content scripts run inside web pages with only partial extension-API access; extension pages (popup, options, side panel) are ordinary HTML/TypeScript documents with full API access. Assign each workflow to the context that owns it and define how contexts communicate (`chrome.runtime` messaging, long-lived ports, or storage events).
 - Permissions model: declare the narrowest host and API permissions that work. `host_permissions` drive install-time warnings and store review; use optional permissions with runtime requests where the UX allows.
-- Backend and data: `chrome.storage` for settings and local state. When sync, accounts, or shared data need a companion backend, resolve its hosting separately like any other server surface, and define the requests the extension may make and how its auth tokens are stored.
-- Distribution: the release path is the Chrome Web Store developer dashboard (one-time registration fee — confirm the current amount live), store review before publication, versioned uploads, and staged rollouts; the browser itself delivers updates. Firefox (addons.mozilla.org) and Safari (App Store as a Safari Web Extension) each need their own listing and review when targeted. Record each store destination in `architecture.md`'s provider-neutral `## Release Targets`, like a native store target; the hosted two-row environment table does not apply.
-- Operations and required verification: extension version pinning by the store, review turnaround for each update, and a forward-fix through the same store review rather than instant rollback. Verify current manifest requirements, permission policy, fees, and store rules at [Chrome Extensions docs](https://developer.chrome.com/docs/extensions/) and [Chrome Web Store](https://developer.chrome.com/docs/webstore/) on the PRD date; do not copy limits, review timing, or fees from memory.
+- Backend and data: `chrome.storage` for settings and local state. When sync, accounts, or shared data need a companion backend, resolve its hosting separately and define the requests the extension may make and how its auth tokens are stored.
+- Distribution: the release path is the Chrome Web Store developer dashboard (one-time registration fee), store review before publication, versioned uploads, and staged rollouts; the browser itself delivers updates. Firefox (addons.mozilla.org) and Safari (App Store as a Safari Web Extension) each need their own listing and review when targeted. Record each store destination as a release target in `architecture.md`'s `## Release Targets`.
+- Operations and required verification: extension version pinning by the store, review turnaround for each update, and a forward-fix through the same store review rather than instant rollback. Official sources: [Chrome Extensions docs](https://developer.chrome.com/docs/extensions/) and [Chrome Web Store](https://developer.chrome.com/docs/webstore/); do not copy limits, review timing, or fees from memory.
 
 ## Internal Tool Pattern
 
 Use for admin panels, operations consoles, review queues, workflow tools, and back-office systems.
 
 - Frontend: dense table views, filters, search, bulk actions, detail panels, audit trails, keyboard efficiency where useful.
-- Backend: permissioned admin endpoints, approval workflows, import/export, background processing, audit logging.
+- Backend: permissioned admin endpoints, approval workflows, import/export, background processing.
 - Data: operational records, user actions, review status, assignment, SLA timestamps, immutable audit entries.
 - APIs: guarded mutations, bulk operation contracts, validation summaries, idempotency keys for destructive or repeat actions.
-- Security: least-privilege roles, approval gates, PII masking, access review, comprehensive audit logs.
+- Security: least-privilege roles, approval gates, PII masking, access review.
 - Operations: queue visibility, retry tools, manual override policies, incident playbooks.
 
 ## Automation and Agent Workflow Pattern
@@ -180,20 +167,20 @@ Use for admin panels, operations consoles, review queues, workflow tools, and ba
 Use for scheduled automations, event-triggered workflows, AI agents, data pipelines, and integration tools.
 
 - Triggers: schedule, webhook, email, file drop, database change, manual run, or user command.
-- Orchestration: workflow steps, state machine, queue, retry policy, timeout, cancellation, and human approval points.
+- Orchestration: workflow steps, state machine, queue, retry policy, and timeout.
 - Tools and integrations: source system, destination system, auth method, scopes, rate limits, quotas, and sandbox behavior.
 - Data: run records, step logs, input snapshots, generated outputs, idempotency keys, deduplication, and replay support.
 - Safety: permission boundaries, dry-run mode, confirmation gates, prompt injection defenses for AI workflows, output validation.
 - Model and data boundary: provider/runtime, version-change policy, inputs and context sent to the model, retention/training terms, retrieval sources, and confidential-data exclusions.
 - Evaluation: representative task set, required quality and safety thresholds, prohibited outcomes, deterministic checks around model output, and regression cadence.
 - Human control: exact tools and side effects the automation may invoke, approval points, cancellation, emergency disable, fallback behavior, and who accepts residual risk.
-- Execution selection: use `agentic-runtime-selection.md` to choose a fixed workflow, single agent, or bounded multi-agent topology before naming SDKs or models. Keep durable state, tool/sandbox boundaries, retrieval, evaluation/tracing/budgets, and the model/provider as separate decisions.
+- Execution selection: use `agentic-runtime-selection.md` to choose a fixed workflow, single agent, or bounded multi-agent topology before naming SDKs or models.
 - Failure handling: partial success, retryable and non-retryable errors, dead-letter queue, alerting, resume, rollback or compensating actions.
 - Observability: run history, step-level logs, latency, success rate, cost, token or API usage, integration error rates.
 
 ## Agentic Operations Console Pattern
 
-Use for an agent or automation product whose Shape row records `console: operations`. The console is a deliberately designed backend control surface, not an afterthought. Build it from these six modules:
+Use for an agent or automation product whose Shape row records `console: operations`. Build this deliberately designed backend control surface from six modules:
 
 - Configuration: agent definitions, model and provider routing, tool permissions, and prompt and skill versions.
 - Execution: run history, traces and logs, rerun, and a kill switch.
@@ -208,10 +195,10 @@ A `console: operations` shape requires User Journeys for configuration, run insp
 
 Use when the product is mainly a service consumed by other systems.
 
-- Interfaces: endpoints, events, SDK boundaries, authentication, versioning, rate limits, and error taxonomy.
+- Interfaces: endpoints, events, SDK boundaries, authentication, versioning, error taxonomy.
 - Domain services: validation, authorization, business rules, consistency boundaries, transaction design.
 - Data: canonical entities, migrations, indexing, archival, retention, encryption, and backup.
-- Operations: SLOs, capacity, autoscaling, deploy strategy, backward compatibility, observability, and incident response.
+- Operations: SLOs, capacity, autoscaling, deploy strategy, backward compatibility, and incident response.
 
 ## Modular Monolith Pattern
 
@@ -236,5 +223,5 @@ Use for an application with many business modules (ERP, back-office suites, mult
 - Specify authorization at both UI and backend layers.
 - Implement required security controls and denial/no-side-effect tests with the task that touches their boundary. A scaffolded protected route stays fail-closed until those controls and tests exist.
 - For each applicable frontend, backend/data, mobile/desktop, commercial, or AI/automation area, present coherent stack bundles and record the owner-approved result. `Recommended` and `Provisional` rows are draft inputs, never implementation authority.
-- Treat platform, rendering, framework, UI library, and build tooling as separate decisions. For example, `Cloudflare Workers + React + Vite` is a coherent stack; `Cloudflare vs Astro vs Vite vs React` is not a coherent comparison.
+- Treat platform, rendering, framework, UI library, and build tooling as separate decisions.
 - Avoid naming other vendors unless the user specified one, the current environment requires it, or a documented tradeoff makes the recommendation materially more useful.

@@ -72,7 +72,7 @@ Managed runs carry no wall-time percentage target. The objective is to stop payi
 
 ### 2. Plan Large Work
 
-Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Every plan freezes one canonical PRD, architecture, and stack source and always runs the full sibling Product package checker with `--repo-root`. New full-UI plans freeze `ui-design/3`, complete HiFi, `design-system/4` and one frozen derived HTML source, without wireframes; retained and older pins follow `legacy-pins.md#legacy-ui-contracts-before-059`. Use the bounded review-repair graph and owner-attempt rules. The optional repair-only mission follows `references/graph-orchestration.md#optional-repair-only-mission`: first PASS leaves it dormant; a finding activates one repair and one targeted recheck. After the recheck, remaining findings enter the Isolated Repair Protocol (`verification-gates.md`). A generic instruction to continue grants no new attempt.
+Freeze only approved inputs needed by the graph: Product Definition revision, Stack Decision Checkpoint, source paths and digests, scope, architecture and design boundaries, acceptance criteria, trace IDs, write/deny scopes, dependencies, resources, stop conditions, and exact verifiers. Every plan freezes one canonical PRD, architecture, and stack source and always runs the full sibling Product package checker with `--repo-root`. New full-UI plans freeze `ui-design/3`, complete HiFi, `design-system/4` and one frozen derived HTML source, without wireframes; retained and older pins follow `legacy/legacy-pins.md#legacy-ui-contracts-before-059`. Use the bounded review-repair graph and owner-attempt rules. The optional repair-only mission follows `references/graph-orchestration.md#optional-repair-only-mission`: first PASS leaves it dormant; a finding activates one repair and one targeted recheck. After the recheck, remaining findings enter the Isolated Repair Protocol (`verification-gates.md`). A generic instruction to continue grants no new attempt.
 
 The PLAN records the owner-selected `Delivery profile` from System Review And Route. `mvp` plans one combined review plus one re-check in delivery, folds Final UI Acceptance into that combined review, plans isolated repairs after it, runs the broad suite once, and keeps at most four owner gates across the flow: Product Definition Approval with the Stack Decision Checkpoint in one call, one Visual Approval, execution authorization, and release. `mvp` compiles a design system only when the Design System Need Gate is `required`. `standard` follows every default in this file.
 
@@ -82,6 +82,16 @@ For initial website/app work, read [Initial Product Foundations](../initial-prod
 Order approved discovery, deployment and measurement prerequisites before their dependent features using existing dependencies and TEST obligations.
 Keep code tasks separate from parent-coordinated, separately authorized external setup; neither workers nor RUN gain deployment or console-write authority.
 Use evidence for each prerequisite, not a global setup readiness, to unblock its dependent work. Preserve independent work during external blockers.
+
+#### Program Profile
+
+A `program` package adds a program PRD and architecture, a shared `stack-decisions.md` and one package per module. Deliver one module at a time: one Epic and one PLAN/RUN per module, in Module Map `Order`, with `standard` defaults.
+
+- A module RUN starts when every `Depends on` module is released (RUN closed, landed on main) and its package is approved. The program Epic (`EPIC-000`) tracks order and status; a module Epic names its module PRD path.
+- In this release the PLAN still binds `docs/product/PRD.md` paths; module-root binding arrives in the next. The parent names the module package in the Epic and launch brief and adds no PLAN field.
+- The program architecture declares release surfaces once. A module lists `Program release surfaces:`; its RUN verifies only those targets, updates only their `docs/DEPLOYMENT.md` rows and seeds its own `MS-*` rows.
+- A `TEST-E2E-*` row is the final acceptance gate of the last module in its process order (`test-fixture-lifecycle.md`).
+- A module's UI joins the one `docs/design/ui-design.md` through Incremental UI Scope.
 
 ### 3. Pass Plan Readiness
 

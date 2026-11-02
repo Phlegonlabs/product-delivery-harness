@@ -473,7 +473,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         stage = self.read(MANAGED_STAGE)
 
-        self.assertIn("Delivery profile: standard | mvp", skill)
+        self.assertIn("Delivery profile: standard | mvp | program", skill)
         self.assertIn("### MVP Week", skill)
         self.assertIn(
             "the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding",
@@ -486,6 +486,56 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Under the `mvp` profile, Final UI Acceptance is part of the one combined review",
             stage,
         )
+
+    def test_program_profile_delivers_one_module_run_at_a_time(self) -> None:
+        skill = self.read("SKILL.md")
+        stage = self.read(MANAGED_STAGE)
+        program = stage.split("#### Program Profile", 1)[1].split("### 3. Pass Plan Readiness", 1)[0]
+        decomposition = self.read("references/execution-task-decomposition.md")
+        cohesion = decomposition.split("## Mission Cohesion Gate", 1)[1].split("## What Deserves A Task", 1)[0]
+        split = self.owner_section(
+            self.read("references/governance/source-maintenance.md"), "## Mission Task Split"
+        )
+        goal = self.read("assets/templates/HARNESS_GOAL.template.md")
+        epic = self.read("assets/templates/EPIC.template.md")
+        fixture = self.read("references/test-fixture-lifecycle.md")
+
+        self.assertIn("Delivery profile: standard | mvp | program", skill)
+        self.assertIn("program-profile", stage_headings(stage))
+        for marker in (
+            "one Epic and one PLAN/RUN per module, in Module Map `Order`",
+            "Deliver one module at a time",
+            "every `Depends on` module is released (RUN closed, landed on main)",
+            "its package is approved",
+            "The program Epic (`EPIC-000`) tracks order and status",
+            "a module Epic names its module PRD path",
+            "the PLAN still binds `docs/product/PRD.md` paths",
+            "module-root binding arrives in the next",
+            "adds no PLAN field",
+            "declares release surfaces once",
+            "`Program release surfaces:`",
+            "updates only their `docs/DEPLOYMENT.md` rows",
+            "seeds its own `MS-*` rows",
+            "final acceptance gate of the last module in its process order",
+            "one `docs/design/ui-design.md` through Incremental UI Scope",
+        ):
+            self.assertIn(marker, program, marker)
+        self.assertIn("the module is the unit", cohesion)
+        self.assertIn("the `kernel` module's RUN is the shared-foundation mission set", cohesion)
+        self.assertIn("a mission never crosses modules", cohesion)
+        self.assertIn("decompose one module at a time", split)
+        self.assertIn("a mission never crosses modules", split)
+        self.assertIn(r"<standard \| mvp \| program>", goal)
+        self.assertIn("| Module (`program` only) |", goal)
+        self.assertIn("docs/product/modules/<module-id>/deltas/", epic)
+        self.assertIn("program Epic (`EPIC-000`) records", epic)
+        self.assertIn("`PF-BASE`", fixture)
+        self.assertIn("sha256", fixture)
+        self.assertIn("fixed clock", fixture)
+        self.assertIn("the code under test never generates them", fixture)
+        self.assertIn("Restore the set into an empty database for each run", fixture)
+        self.assertIn("Production data never enters it", fixture)
+        self.assertIn("earlier modules prove only their own TESTs", fixture)
 
     def test_scripted_transition_flag_surfaces_are_documented(self) -> None:
         state = self.read("references/execution-state-model.md")
@@ -1135,10 +1185,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "exact receipt-bound C..A archive verification passes",
             "Any product-path change or other difference makes A a new candidate",
             "Never relabel inherited candidate, security or CI results as fresh executions at S",
-            "legacy-pins.md#branch-protocols-before-063",
+            "legacy/legacy-pins.md#branch-protocols-before-063",
         ):
             self.assertIn(phrase, promotion)
-        self.assertIn("forward-integration SHA T and read-back", self.read("references/legacy-pins.md"))
+        self.assertIn("forward-integration SHA T and read-back", self.read("references/legacy/legacy-pins.md"))
         self.assertIn("initial-delivery and enhancement run branches", orchestration)
         self.assertIn("frozen remote `main` head for both ordinary work and hotfixes", orchestration)
         state = self.read("references/execution-state-model.md")
@@ -1740,7 +1790,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         verification = self.read("references/verification-gates.md")
         worker = self.read("references/worker-result-contract.md")
         self.assertIn("`host` policy", graph)
-        self.assertIn("legacy-pins.md#container-verifiers-before-066", graph)
+        self.assertIn("legacy/legacy-pins.md#container-verifiers-before-066", graph)
         for content in (verification, worker):
             self.assertIn("host", content)
             self.assertIn("container", content)
@@ -2003,6 +2053,25 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never sets `review.type`", gates)
         bounded = self.read("references/bounded-enhancement.md")
         self.assertIn("PRD-DELTA-<EPIC-ID>.md", bounded)
+
+    def test_program_trace_ids_are_scoped_lenses(self) -> None:
+        contract = self.read("references/contract-and-traceability.md")
+        archetypes = self.read("references/platform-archetypes.md")
+        families = archetypes.split("## Trace ID Families", 1)[1].split(
+            "## Profile Selection Rule", 1
+        )[0]
+
+        self.assertIn("`<FAMILY>-<SCOPE>-<NNN>`", contract)
+        self.assertIn("`PRD-INV-001`", contract)
+        self.assertIn("uppercase Module Map token (2-5 characters, letter first, no hyphen)", contract)
+        self.assertIn("never equals a family name", contract)
+        self.assertIn("`PRG`, `E2E` and `MIG` are reserved program scopes", contract)
+        self.assertIn("`DS-*` stays program-wide and unscoped", contract)
+        self.assertIn("`standard` and `mvp` packages keep `PRD-001`", contract)
+        self.assertIn("A scoped ID is still one of the six core families", contract)
+        self.assertIn("`BR-*` business rule is a lens of this kind, like `TRUST-*` and `AI-*`", contract)
+        self.assertIn("names the BR in its upstream cell", contract)
+        self.assertIn("BR-* program module business rules, scoped like core IDs (BR-INV-001)", families)
 
     def test_growth_contract_foundations_are_documented_by_surface(self) -> None:
         foundations = self.read("references/initial-product-foundations.md")

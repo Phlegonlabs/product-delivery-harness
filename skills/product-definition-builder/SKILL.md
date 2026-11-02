@@ -37,7 +37,8 @@ Read the owning section before its matching action. Domain guides stay condition
 
 - `PRD.md` and `architecture.md` remain the canonical English implementation sources; complete Chinese review copies remain required.
 - Product Definition Approval and the Stack Decision Checkpoint are explicit owner gates.
-- The PRD `## At a Glance` records the owner-selected `Delivery profile: standard | mvp`. Under `mvp`, the Stack Decision Checkpoint and Product Definition Approval are one owner call; both decisions stay explicit.
+- The PRD `## At a Glance` records the owner-selected `Delivery profile: standard | mvp | program`. Under `mvp`, the Stack Decision Checkpoint and Product Definition Approval are one owner call; both decisions stay explicit.
+- A `program` package is a program PRD, architecture and shared stack plus one package per module ([Program Packages](references/output-contract.md#program-packages)). It validates per module and once at program level. Module delivery runs one Epic and one PLAN/RUN per module, in Module Map order.
 - Enhancement preserves the same current PRD and stable IDs.
 - No UI design, implementation, PLAN/RUN, or E2E evidence register starts here.
 - A completed package does not launch downstream work automatically. The package creates no wireframe, design system, production component, or Harness mission map.

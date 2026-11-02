@@ -4,6 +4,8 @@ Reference only. Source check date: 2026-09-25.
 
 Scoped additions checked 2026-10-02: TanStack ecosystem, application-stack alternatives, Cloudflare development-platform coverage and design/motion references. Existing entries retain their original source dates; a catalog refresh is not a product adoption or install.
 
+Jurisdiction checklist added 2026-11-01 (Hong Kong, Taiwan, Singapore, Japan, the EU and the US). Its facts carry their own dated official sources; cells without one read `UNVALIDATED`. It prompts questions and is not legal or tax advice.
+
 Architecture extensions cover server-driven HTML, local-first sync, durable business workflows, tenant isolation, headless content/conditional commerce and independent typed APIs. These extend existing compositions and scenarios; only local-first and a small TypeScript API need additional composition rows. Shared mobile/backend contracts retain separate client UI and release obligations.
 
 Design additions cover component foundations, eight visual-direction candidates and manual discovery across Mobbin, Dribbble, Awwwards, Refero and MotionSites. React Bits is a component source; Anime.js is an animation engine. Reference discovery uses website search and shared case/original-site links, without design-reference MCP setup.
@@ -24,6 +26,7 @@ CSS frameworks, component foundations and icon packages are technology choices o
 | [Authentication](authentication-and-identity.md) | Managed, ecosystem-coupled, application-session, and self-hosted identity paths | `product-definition-builder`: auth strategy; `code-security-review`: exact-scope session/token review |
 | [Backend](backend.md) | FastAPI, Django, NestJS, Hono, ASP.NET Core, and Go/runtime paths | `product-definition-builder`: backend stack; `delivery-harness`: testing/runtime constraints |
 | [Cloudflare platform](cloudflare-platform.md) | Compute, data, agents/search, browser/sandbox, media/email, Basin/K2/Artifacts, framework/CLI/skill options, the optional Void SDK path and dated maturity | `product-definition-builder`: deployment/runtime decisions; `delivery-harness`: adopted provider setup |
+| [Compliance by jurisdiction](compliance-jurisdiction.md) | One row each for Hong Kong, Taiwan, Singapore, Japan, the EU and the US: tax and e-invoice regime, record-retention years, data residency and cross-border transfer, payroll and statutory filings; an unsourced cell reads `UNVALIDATED` | `product-definition-builder`: prompts for the PRD Data and Trust rows and the program Integrations Register; not a gate |
 | [Components / Icons](components-icons.md) | Native/existing controls, headless/owned-source foundations, React Aria, Mantine, framework-specific suites, registries | `ui-design-builder`: intake, direction and HiFi with approved stack |
 | [CSS / Styling](css-styling.md) | Native CSS through utility/atomic/typed/framework styling | `ui-design-builder`: intake and direction with approved stack; `design-system-compiler`: consumed choices only |
 | [Data / Storage](data-storage.md) | Relational, embedded, document, cache and object storage; local persistence versus sync and tenant data boundaries | `product-definition-builder`: data architecture; `delivery-harness`: tests and migrations |

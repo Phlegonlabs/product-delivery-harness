@@ -31,7 +31,7 @@ The rules below apply only to a PLAN-v6/RUN-v11 managed route. They do not conve
 - Before dispatch, verify each worktree has the expected repository, branch/ref, exact base HEAD, and a clean status.
 - Run focused checks in each completed worktree. Review counts, repair and the final validation follow `verification-gates.md`.
 - With matching `integrate_locally` authorization, merge only worktree heads that pass the Worker Result Gate and the reviews their plan requires into the resolved integration branch.
-- The RUN closes at local candidate C. Archive, publication, preview and promotion follow `branch-promotion-contract.md#managed-run-archive-before-promotion`. Pinned historical RUNs follow `delivery-harness/references/legacy-pins.md`.
+- The RUN closes at local candidate C. Archive, publication, preview and promotion follow `branch-promotion-contract.md#managed-run-archive-before-promotion`. Pinned historical RUNs follow `delivery-harness/references/legacy/legacy-pins.md`.
 - After a completed plan and before its archival, record every owner or agent update not already reflected in `docs/product/PRD.md` as one dated row in the `docs/tasks.md` Update Log — the fenced section the renderer preserves verbatim; product-affecting updates also follow Keep Product Contracts Current into the PRD in the same change.
 - After the Closeout Bar, archive, publish and promote as `branch-promotion-contract.md#managed-run-archive-before-promotion` states. A failed post-A candidate or preview gate follows its "Post-A Candidate Or Preview Failure" section.
 - Later enhancement work freezes a fresh remote base after the prior protected-branch state is resolved: remote `main` for ordinary work and hotfixes.

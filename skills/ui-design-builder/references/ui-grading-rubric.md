@@ -1,6 +1,6 @@
 # UI Grading Rubric
 
-This rubric defines the Product-Definition-bound diagnostic and grading stage for current HiFi. A `ui-design/2` package runs the HiFi completeness preflight, then the first HiFi review, and finally the full HiFi human gate. It runs no wireframe grading wave; W1–W5 live in `wireframe-guide.md` for legacy wireframes only. This rubric supplements the browser matrix check, static checker, and required Impeccable HiFi review; it never replaces them or the human approval decision. Correctness comes from explicit hard-gate evidence. Numeric scores summarize comparative quality and never create another repair round by themselves.
+This rubric defines the Product-Definition-bound diagnostic and grading stage for current HiFi. A `ui-design/2` package runs the HiFi completeness preflight, then the first HiFi review, and finally the full HiFi human gate. It runs no wireframe grading wave; W1–W5 live in `legacy/wireframe-guide.md` for legacy wireframes only. This rubric supplements the browser matrix check, static checker, and required Impeccable HiFi review; it never replaces them or the human approval decision. Correctness comes from explicit hard-gate evidence. Numeric scores summarize comparative quality and never create another repair round by themselves.
 
 ## Frozen Grading Basis
 
@@ -53,7 +53,7 @@ Apply this before numeric grading after the current package passes its cheap com
 
 ## Legacy Wireframe Scope
 
-The legacy `W1 PRD conformance` through `W5 Structural clarity and evidence` dimensions and the W5 composition criteria live in [wireframe-guide.md](wireframe-guide.md#legacy-wireframe-grading). The thresholds above still apply to them.
+The legacy `W1 PRD conformance` through `W5 Structural clarity and evidence` dimensions and the W5 composition criteria live in [wireframe-guide.md](legacy/wireframe-guide.md#legacy-wireframe-grading). The thresholds above still apply to them.
 
 ## Reading And Cross-Screen Cases
 
