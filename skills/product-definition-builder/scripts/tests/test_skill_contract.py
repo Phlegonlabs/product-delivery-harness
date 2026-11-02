@@ -1113,6 +1113,38 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         for marker in ("CRXJS", "WXT", "UI framework: optional", "Manifest V3"):
             self.assertIn(marker, frontend)
 
+    def test_modular_monolith_pattern_keeps_boundaries_and_is_selectable(self) -> None:
+        architecture = self.read("references/architecture-playbook.md")
+        pattern = architecture.split("## Modular Monolith Pattern", 1)[1].split(
+            "## Decision Guidance", 1
+        )[0]
+        guidance = architecture.split("## Decision Guidance", 1)[1]
+
+        for marker in (
+            "bounded context",
+            "named owner",
+            "Shared kernel",
+            "Only the kernel owner changes it",
+            "master data",
+            "transactional data",
+            "schema or table prefix per module",
+            "never another module's tables",
+            "outbox",
+            "idempotent",
+            "typed, versioned internal API",
+            "extracted as a service",
+            "Declare permissions per module",
+            "audit entries",
+            "own test suite",
+            "cross-module business process tests",
+        ):
+            self.assertIn(marker.lower(), pattern.lower(), marker)
+        self.assertIn("option-library/architecture.md", pattern)
+        self.assertIn(
+            "Choose the Modular Monolith Pattern over the Web App Pattern or API or Backend Service Pattern",
+            guidance,
+        )
+
     def test_market_research_findings_can_land_in_stack_decisions(self) -> None:
         skill = self.read(STAGE)
         guide = self.read("references/market-research-guide.md")

@@ -1905,6 +1905,24 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             root_agents = (REPO_ROOT / "AGENTS.md").read_text(encoding="utf-8")
             self.assertIn("governance/product-contracts.md#source-keep-product-contracts-current", root_agents)
 
+    def test_saas_archetype_scaffolds_a_module_layout_for_modular_monoliths(self) -> None:
+        archetypes = self.read("references/platform-archetypes.md")
+        saas = archetypes.split("## Authenticated App, Dashboard, Internal Tool, SaaS", 1)[1].split(
+            "## Public Website, Marketing Site, Landing Page", 1
+        )[0]
+
+        self.assertIn("Module layout.", saas)
+        for marker in (
+            "one package or directory per bounded context",
+            "shared-kernel package",
+            "own migration folder",
+            "kernel first",
+            "cross-module process suite",
+            "only through a module's public entry point",
+            "ESLint boundaries, Swift package targets, Gradle modules, .NET projects",
+        ):
+            self.assertIn(marker, saas, marker)
+
     def test_branch_names_are_explicit_and_have_no_harness_prefix(self) -> None:
         policy_paths = (
             "SKILL.md",

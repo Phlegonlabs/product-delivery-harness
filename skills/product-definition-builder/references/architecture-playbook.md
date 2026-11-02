@@ -213,9 +213,24 @@ Use when the product is mainly a service consumed by other systems.
 - Data: canonical entities, migrations, indexing, archival, retention, encryption, and backup.
 - Operations: SLOs, capacity, autoscaling, deploy strategy, backward compatibility, observability, and incident response.
 
+## Modular Monolith Pattern
+
+Use for an application with many business modules (ERP, back-office suites, multi-module SaaS) that should ship as one deployable with hard module boundaries. It organizes the backend and data; each module's screens still follow the Web App or Internal Tool Pattern. Durable workflow, multi-tenant isolation, and a typed API for several clients are compared in the optional [architecture catalog](../../delivery-harness/references/option-library/architecture.md).
+
+- Modules: one bounded context per module, each with a named owner, a purpose, and the business data it owns. List them, their owners, and their allowed dependencies in `architecture.md`'s component section.
+- Shared kernel: the few concepts every module needs, such as party, product, unit of measure, currency, organisation unit, and document numbering. Only the kernel owner changes it. Modules depend on the kernel, never the reverse. A concept only two modules use belongs to one of them, not the kernel.
+- Data: keep master data (parties, products, price lists: few writers, many readers) apart from transactional data (documents and postings, written by one module). Use one database with a schema or table prefix per module. A module reads and writes only its own tables.
+- Cross-module access: only through the owning module's API or its published events, never another module's tables or internal types.
+- Events: write each event to an outbox in the same transaction as the state change it reports. Consumers are idempotent (deduplicate by event ID), tolerate redelivery and reordering, and have a dead-letter and replay path. Call another module synchronously only when the caller cannot proceed without the answer.
+- API: each module exposes a typed, versioned internal API for commands, queries, and event schemas, and callers use it as if it were remote. A module can then be extracted as a service without changing its callers.
+- Auth and audit: declare permissions per module as module, resource, and action, and enforce them in the module's API as well as the UI. Each module writes its own audit entries for sensitive actions.
+- Operations: one deployable and one release target. Run per-module migrations in dependency order, kernel first, and tag logs, metrics, and alerts with the module and its owner.
+- Tests: each module has its own test suite that runs against fakes of other modules' published APIs. Add a small set of cross-module business process tests (for example quote to order to invoice to payment) that run through real modules, each with its own `TEST-*` ID. A CI check fails on an import across a module boundary.
+
 ## Decision Guidance
 
 - Prefer the simplest architecture that satisfies the stated workflows and constraints.
+- Choose the Modular Monolith Pattern over the Web App Pattern or API or Backend Service Pattern when the product has several business modules with separate owners or rules that share master data, run business processes across modules, and release together. Keep the Web App Pattern for one domain owned by one team, and the API or Backend Service Pattern for a service consumed by other systems. Split a module into its own deployable only for a recorded scaling, release, or ownership reason.
 - Call out tradeoffs when choosing between synchronous requests, background jobs, event-driven design, or scheduled processing.
 - Specify idempotency for payment, notification, import, workflow, and external mutation flows.
 - Specify authorization at both UI and backend layers.
