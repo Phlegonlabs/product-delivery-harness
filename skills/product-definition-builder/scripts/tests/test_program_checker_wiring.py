@@ -16,6 +16,7 @@ import check_product_package  # noqa: E402
 import program_fixtures as fx  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
     finalize_approval_digests,
+    release_target,
     strictize_approved_package,
 )
 
@@ -207,6 +208,27 @@ class ProgramCheckerWiringTests(unittest.TestCase):
 
         fx.edit(self.files, "PRD.md", gate, "")
         self.assertIn("prd: missing Research Gate decision", self.failures(self.check("--require-filled")))
+
+    def test_backend_only_module_does_not_inherit_program_web_areas(self) -> None:
+        # The program ships a hosted web surface; the inventory module has no UI
+        # and marks its frontend section not required. The module must still pass.
+        files = dict(self.files)
+        files["architecture.md"] = fx.replace(
+            files["architecture.md"],
+            "Expected deployable surfaces: none — fixture ships no deployable surface.",
+            "Expected deployable surfaces: web-app\n\n"
+            + release_target("web-development", stage="development", release_name="fixture-web-dev")
+            + "\n"
+            + release_target("web-production", stage="production", release_name="fixture-web"),
+        )
+        files["modules/inventory/architecture.md"] = fx.replace(
+            files["modules/inventory/architecture.md"],
+            "## Frontend Architecture\nThis section records concrete fixture boundaries, ownership, failure handling, and implementation responsibilities.\n",
+            "## Frontend Architecture\nnot_required — backend-only module; it ships through the program's web surface.\n",
+        )
+        result = self.check("--require-filled", "--module", "inventory", files=files)
+        self.assertNotIn("substantive frontend architecture", result.err)
+        self.assertEqual(0, result.code, result.err)
 
     def test_delivery_profile_names_the_three_values(self) -> None:
         fx.edit(self.files, "PRD.md", "| Delivery profile | program |", "| Delivery profile | portfolio |")

@@ -2768,7 +2768,10 @@ def validate_texts(
     release_contract, _release_findings = parse_release_targets(
         program.program_architecture if module else architecture_text
     )
-    required_stack_areas.update(release_area_requirements(release_contract.targets))
+    if not module:
+        # A module ships through the program's surfaces; its own areas come
+        # from its UI surfaces above, so a backend-only module stays valid.
+        required_stack_areas.update(release_area_requirements(release_contract.targets))
     platform_contract, platform_findings = parse_platform_delivery(
         architecture_text,
         prd_text,
