@@ -2,7 +2,7 @@
 
 Load this reference only when a mission writes UI code or a UI review needs the implementation contract.
 
-Every route gets product behavior, copy responsibility, and its exact responsive set from `PRD.md`; implementation architecture and technology come from `architecture.md` and `stack-decisions.md`. In initial design or an active enhancement, the approved HiFi supplies reviewed composition and embedded `ui-hifi-copy/1` exact copy and dynamic display contracts (pinned legacy contracts: `legacy-pins.md#legacy-ui-contracts-before-059`); `docs/design/ui-design.md` supplies the current design decisions and Visual Approval. Routine maintenance follows the current accepted product and effective requirements without regenerating historical design sources. No downstream source overrides Product Definition.
+Every route gets product behavior, copy responsibility, and its exact responsive set from `PRD.md`; implementation architecture and technology come from `architecture.md` and `stack-decisions.md`. In initial design or an active enhancement, the approved HiFi supplies reviewed composition and embedded `ui-hifi-copy/1` exact copy and dynamic display contracts (pinned legacy contracts: `legacy/legacy-pins.md#legacy-ui-contracts-before-059`); `docs/design/ui-design.md` supplies the current design decisions and Visual Approval. Routine maintenance follows the current accepted product and effective requirements without regenerating historical design sources. No downstream source overrides Product Definition.
 
 Visual authority uses exactly one mode:
 
@@ -13,7 +13,7 @@ A `blocked` or missing UI design gate blocks implementation.
 
 ## Design And Maintenance Routing
 
-Classify this round under [Product Contracts](governance/product-contracts.md#consumer-keep-product-contracts-current). Routine maintenance is valid only with UI impact `none` or `style`; a `structure` or `both` impact follows the affected design gates. A validated frozen maintenance record may retain `ui-design/3` or `ui-design/2`; Harness checks the current Product Definition, PLAN scope and retained target identity, and retention grants no current HiFi, pair or preview PASS (`legacy-pins.md#legacy-ui-contracts-before-059`). Without that record, new `/3` delivery still requires the complete `/4` package and its exact frozen derived HTML.
+Classify this round under [Product Contracts](governance/product-contracts.md#consumer-keep-product-contracts-current). Routine maintenance is valid only with UI impact `none` or `style`; a `structure` or `both` impact follows the affected design gates. A validated frozen maintenance record may retain `ui-design/3` or `ui-design/2`; Harness checks the current Product Definition, PLAN scope and retained target identity, and retention grants no current HiFi, pair or preview PASS (`legacy/legacy-pins.md#legacy-ui-contracts-before-059`). Without that record, new `/3` delivery still requires the complete `/4` package and its exact frozen derived HTML.
 
 ## Rules For Every UI Mission
 

@@ -33,7 +33,7 @@ The harness has three distinct authorities. Do not merge them into one table or 
 The parent is the only writer of `PLAN.md` and `RUN.md`. Workers return reports and evidence. The parent verifies those reports against observed facts before changing canonical state.
 
 New managed work uses PLAN v6 with RUN v11. Legacy compact RUN-only records and older schemas remain readable history; they cannot authorize new managed execution.
-To finish an older protocol, use its [exact pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
+To finish an older protocol, use its [exact pinned bundle](legacy/legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 Do not null the current PLAN identity or migrate a live RUN to bypass a gate.
 The sequential parent cannot supply independent review; use a fresh eligible reviewer or an authorized serialized host handoff.
 
@@ -323,13 +323,13 @@ remove_worktrees
 delete_branches
 ```
 
-`invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization. Pre-0.58 pins follow [legacy pins](legacy-pins.md#pre-058-runtime-dispatch). A configured external bridge requires this key and `spawn_subagents`; PLAN host eligibility still applies. It remains a parent rule for external processes the parent starts itself.
+`invoke_external_runtime` is required when the Harness parent starts a different provider process or service. Its target is `runtime:<provider>`. It does not replace `spawn_subagents`, worktree, branch, commit, integration, or lifecycle authorization. Pre-0.58 pins follow [legacy pins](legacy/legacy-pins.md#pre-058-runtime-dispatch). A configured external bridge requires this key and `spawn_subagents`; PLAN host eligibility still applies. It remains a parent rule for external processes the parent starts itself.
 
 The ordinary execution loop uses only the applicable local entries. Parent-dispatched sibling workers and reviewers require their exact launch authorization. App-task dispatch is historical and unsupported by the current driver set. "Implement", "build", "fix", or "refactor" never implies a remote action. Harness 0.38+ keeps RUN `push` false; after A exists, a new exact instruction is captured in the checkout-external request instead of the archived RUN. All 12 keys remain for schema compatibility.
 
 For a large `sequential_parent` route, leave `spawn_subagents`, `create_user_owned_tasks`, and `create_app_managed_worktrees` unauthorized and unused. The route's parent-owned worktree/branch/commit/integration actions still require their own matching grants.
 
-Pre-0.38 RUN-v11 push recovery follows [legacy pins](legacy-pins.md#pre-038-run-branch-push). Harness 0.38+ rejects that path before any side effect. Post-archive publication follows `branch-promotion-contract.md#managed-run-archive-before-promotion`. Neither path can target `main` or `development`.
+Pre-0.38 RUN-v11 push recovery follows [legacy pins](legacy/legacy-pins.md#pre-038-run-branch-push). Harness 0.38+ rejects that path before any side effect. Post-archive publication follows `branch-promotion-contract.md#managed-run-archive-before-promotion`. Neither path can target `main` or `development`.
 
 Each `authorizations` entry has this minimum shape:
 
@@ -414,7 +414,7 @@ Host policy owns concrete tools, models, effort and fallbacks; `runtime-adapters
 `runtime_adapter` records the observed lowercase `provider`, ordered `available_drivers`, `detection_source` and version gate.
 The current drivers are `subagents` and `sequential_parent`.
 A user-owned app-task request is unsupported; block it rather than silently replacing it.
-Historical app/task fields remain retained history, interpreted only by their [pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
+Historical app/task fields remain retained history, interpreted only by their [pinned bundle](legacy/legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 
 Missing grants do not erase capability. Unknown loaded identity stays unknown.
 A historical `adopted` status defers current dispatch with `pinned_bundle_or_restart_required`.

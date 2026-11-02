@@ -1,5 +1,8 @@
 # Legacy Pins
 
+Read by RUNs, PLANs and design packages pinned below Harness 0.66, and by nothing else.
+Current packages do not read this file.
+
 Read this file only when you resume, recover, validate, edit or close a PLAN, RUN or design package pinned to an earlier Harness version, schema or branch protocol. New work never uses these rules. Use the exact pinned bundle for these procedures; current tools are not their execution path. A pin never widens authorization.
 
 ## Pre-0.38 Run-Branch Push

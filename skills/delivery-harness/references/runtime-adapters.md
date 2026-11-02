@@ -23,7 +23,7 @@ Record supported `available_drivers` in preference order:
 Include `sequential_parent` last only when that route is available and permitted.
 It cannot satisfy a fresh independent review node.
 Current dispatch does not support user-owned app tasks.
-An explicit request for those tasks blocks until the owner changes the request or selects its [pinned bundle](legacy-pins.md).
+An explicit request for those tasks blocks until the owner changes the request or selects its [pinned bundle](legacy/legacy-pins.md).
 Never silently substitute subagents or parent execution.
 
 Confirm fresh context, workspace binding, permissions, completion, cancellation and actual capacity before dispatch.

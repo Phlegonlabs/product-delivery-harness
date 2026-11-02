@@ -54,7 +54,7 @@ Do not replace installers with manual overwrites or alter credentials, roles or 
 ## Re-Orchestrate Remaining Work Onto The New Runtime
 
 A fresh host does not inherit another session's capability claims.
-First follow [Finishing A Run On Its Pinned Bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
+For a RUN pinned below 0.66, first follow [Finishing A Run On Its Pinned Bundle](legacy/legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 An incompatible active pin stays on that bundle; current tools do not silently adopt or migrate it.
 
 For a compatible unchanged RUN, run Resume Reconciliation before selection.

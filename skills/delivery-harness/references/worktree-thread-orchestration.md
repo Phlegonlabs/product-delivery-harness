@@ -82,7 +82,7 @@ Default every plan-backed mission write to `parent_managed_worktree`, whether on
 
 Current managed dispatch does not support user-owned app tasks or app-managed writer allocation.
 An explicit request for them blocks; never replace it silently with subagents or parent execution.
-Historical task/worktree identities and retention evidence remain unchanged under their [exact pinned bundle](legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
+Historical task/worktree identities and retention evidence remain unchanged under their [exact pinned bundle](legacy/legacy-pins.md#finishing-a-run-on-its-pinned-bundle).
 
 ## Flat Parent-Owned Agent Topology
 

@@ -89,7 +89,7 @@ A verifier that binds a shared resource declares it:
 }
 ```
 
-Host verifiers are serialized even when the runner has free slots, and run fresh with no result reuse. Current declarations require an explicit execution mode; a missing block is invalid, not permission for parallel host execution. Container verifiers in older pins follow `legacy-pins.md#container-verifiers-before-066`.
+Host verifiers are serialized even when the runner has free slots, and run fresh with no result reuse. Current declarations require an explicit execution mode; a missing block is invalid, not permission for parallel host execution. Container verifiers in older pins follow `legacy/legacy-pins.md#container-verifiers-before-066`.
 
 Declare resources for shared caches, generated clients, databases, ports, browsers, and external state. Exclusive claims serialize operations that conflict outside a checkout. Host execution is serial within the runner, but does not coordinate unrelated processes or grant permission to mutate external systems. Audit shared state before authorizing the command.
 

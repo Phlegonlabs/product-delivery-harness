@@ -10,7 +10,7 @@ Missing or malformed pins never select historical admission. A pre-invocation er
 Host commands have current user permissions; a worktree and read-only declaration do not provide process confinement.
 A verifier needing a separate checkout uses its own authorized worktree.
 Live worker observations compare worktree filesystem identity, exact branch and head, and clean state. Link and reparse aliases are refused.
-Historical container/runtime-image protocols run only from their [exact pinned bundle](legacy-pins.md#container-verifiers-before-066).
+Historical container/runtime-image protocols run only from their [exact pinned bundle](legacy/legacy-pins.md#container-verifiers-before-066).
 
 The supported test/runtime baseline is Python 3.10 or newer (CI runs 3.13).
 Install and verify the repository test dependencies from the repository root:
