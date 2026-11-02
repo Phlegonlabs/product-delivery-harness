@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -51,7 +51,7 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 有界實作或維護 | `delivery-harness` | Direct 工作或 managed PLAN/RUN |
 | 已發布且有任何可被發現 surface 的產品 | `growth-review` | 逐 surface 的唯讀增長 review，以及已路由後續工作 |
 
-五個核心 skills 與三個獨立 skills 都只在你明確點名呼叫時啟動，例如 `$delivery-harness`；亦可繼續已呼叫的工作。一般任務不會自動跑 Harness 分流、文件同步、Epic 紀錄或 PLAN/RUN。安裝、專案指令與既有文件都不代表呼叫。被呼叫的 skill 保留必要檢查與依賴；新的頂層階段需要明確要求。Codex 設定為 `allow_implicit_invocation: false`，其他 host 依同一指令邊界執行。
+五個核心 skills 與四個獨立 skills 都只在你明確點名呼叫時啟動，例如 `$delivery-harness`；亦可繼續已呼叫的工作。一般任務不會自動跑 Harness 分流、文件同步、Epic 紀錄或 PLAN/RUN。安裝、專案指令與既有文件都不代表呼叫。被呼叫的 skill 保留必要檢查與依賴；新的頂層階段需要明確要求。Codex 設定為 `allow_implicit_invocation: false`，其他 host 依同一指令邊界執行。
 
 相關選擇尚未解決，或既有決定需要參考背景時，使用[參考選擇規則](skills/delivery-harness/references/reference-selection.md)與[可選目錄](skills/delivery-harness/references/option-library/README.md)。兩者都不是前置條件，也不授予執行權限；既有決定與批准仍有效。
 
@@ -205,6 +205,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.74.2** — 審查修正與 Linux 桌面。每一種工具鏈類型（MCP server、skill 與 plugin、函式庫、容器、內部服務）都必須有 Toolchain 決策；Linux 桌面 app（`linux`）可通過 release、UI、design-system、部署與驗收檢查。`inspect_harness_run.py --session-id` 讓 parent 持有自己的鎖時 `Next` 直接進入選擇；document-sync 會標出指向六個已退役 skills 的指引；readiness 卡只授權本次要用的動作；新增測試抓出失效的標題連結。
+
 - **0.74.1** — document-sync 盤點不再因單一檔案整體失敗：超過 2 MB 單檔上限的 `docs/goal/PLAN.md` 或 `RUN.md` 改以串流計算雜湊並記錄安靜的 `oversized_document` 發現，預設的 Epic 與 PRD delta 掃描會跳過符合機密與歷史排除規則的檔名。明確指定的路徑維持嚴格。
 
 - **0.74.0** — 流程不再中途斷掉。`inspect_harness_run.py` 先印出附一條建議命令的 `Next` 區塊，沒有 lock 的 `running` RUN 必須先由 owner 決定才能選工作。七張短 stage card 取代長 contract 成為日常讀物，已簽署的 launch brief 把授權與預先記錄的 owner 決定帶進自主迴圈，brief 與 review packet 依路線的時間、turn 與 byte 上限切好，readiness 先探一次環境，每個 Epic 結尾有一個 `## Handoff` 區塊，每個 skill 進場先讀它。Product Definition 先回讀 Product Thesis，審批前多一次獨立唯讀 PRD review，並給 owner 十題審閱指南。Go To Market 新增 messaging record、lifecycle messaging、開發者、商店與港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把使用者訪談整理成 `RA-*` 候選。
@@ -212,7 +214,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.73.0** — 一個專案就是一組 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 種發布面（新增 MCP server、skill 與 plugin、library、messaging bot、marketplace app、assistant listing、container 與 internal service）和五種存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 寫在 PRD Growth Contract；Shape 列新增 `tool` 與 `content` track，Launch Window 新增 Destination 欄。bundle 從七個 skills 縮成五個：`code-security-review` 成為 harness 的安全 lens（`references/security-review.md`），`product-activation` 收進 deployment record（External Console Setup 列加上 Measurement Sources 表，設定目錄在 `references/external-setup.md`），`seo-growth-review` 改為 `growth-review`，逐一 surface 用各自的 lens 讀回，並從專案自己的 stack decisions 解析供應商。`gtm-content` 併入 `go-to-market`，未使用的 templates、死碼與重複的 validator CLI 一併移除。
 
 - **0.72.1** — 任務通過時 worker 回傳 `WORKER_RESULT`；阻塞或失敗的任務回傳 `worker_result: null` 的 graph node result，驗證、review 與整合權保留在 parent。
-
-- **0.72.0** — `ci_test_shards.py run --suite <name> --workers N` 以多個行程並行執行一個套件的測試模組並保留逐模組 log，本機的 Required Verification 矩陣從單核 27 分鐘縮到幾分鐘。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

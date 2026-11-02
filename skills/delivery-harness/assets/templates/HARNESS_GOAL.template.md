@@ -103,7 +103,7 @@ Never guess an owner decision. Never open a second RUN to pass the gate.
 
 - Session cap: stop at <n> wall-clock hours per session. Stop at a safe boundary; first record the `Next action:` line in the mission runbook's `## Goal And Checkpoint`.
 - Stall rule: three consecutive no-progress iterations end the session. Record the blocker in the Epic or task record and pause the run with `pause --source <text>`.
-- On compaction or restart, the first command is `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root>`. Follow its `Next` block, then the mission runbook's `## Goal And Checkpoint` `Next action:` line.
+- On compaction or restart, the first command is `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root> --session-id <id>`. Follow its `Next` block, then the mission runbook's `## Goal And Checkpoint` `Next action:` line.
 - A `running` RUN with no run lock needs one owner decision before selection: pause, cancel, or resume. Record it with the matching `harness_transition.py` subcommand; each requires `--source`.
 - When the review budget is exhausted, route the remaining defects to the Isolated Repair Protocol (`references/verification-gates.md#isolated-repair-protocol`). Never open a new RUN for them.
 
@@ -116,7 +116,7 @@ End state: <outcome> on the owner-named run branch, with docs/goal/RUN.md comple
 Verified by: the PLAN verifiers and every RUN gate, each bound to the exact head SHA.
 While preserving: approved PRD, architecture, stack and UI sources; local data; the run branch.
 Use: docs/goal/HARNESS_GOAL.md, docs/goal/RUN.md, and the current stage cards; they point to every rule.
-Between iterations: inspect first, then act, then record; run scripts/inspect_harness_run.py before selection and follow its Next block.
+Between iterations: inspect first, then act, then record; run scripts/inspect_harness_run.py --session-id <id> before selection and follow its Next block.
 Guardrails: honor every recorded cap; one writer per checkout; never nest delegation; stop at every gate that always stops.
 If blocked: record the node as blocked with reason owner_gate, write the gate request with verified links, and end the iteration.
 ```

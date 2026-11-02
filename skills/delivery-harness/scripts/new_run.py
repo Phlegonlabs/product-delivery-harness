@@ -62,7 +62,7 @@ def _requires_repo_root(plan: dict[str, Any]) -> bool:
 def _harness_version() -> str:
     """Read the Harness version from skill-local or package metadata.
 
-    A normal installation copies only the seven skill directories, so the
+    A normal installation copies only the five skill directories, so the
     delivery-harness directory carries its own VERSION file. Package metadata
     remains a compatibility fallback for older packaged layouts.
     """

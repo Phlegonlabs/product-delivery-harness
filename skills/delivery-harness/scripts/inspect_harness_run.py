@@ -419,6 +419,7 @@ def _next_action(
     wave: Any,
     missions: list[dict[str, Any]],
     attempt_recovery: dict[str, Any],
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     """Derive the one next parent action; first matching rule wins."""
 
@@ -465,18 +466,16 @@ def _next_action(
             ),
             "command": None,
         }
-    if run_lock:
-        session_id = run_lock.get("session_id")
-        session = (
-            session_id
-            if isinstance(session_id, str) and session_id.strip()
-            else "unknown"
-        )
+    holder = run_lock.get("session_id") if run_lock else None
+    holder = holder if isinstance(holder, str) and holder.strip() else None
+    own_lock = bool(run_lock) and holder is not None and holder == session_id
+    if run_lock and not own_lock:
         return {
             "state": "lock_held",
             "reason": (
-                f"A lock is held by session {session}; run watchdog and "
-                "reclaim only a stale lock."
+                f"A lock is held by session {holder or 'unknown'}. If that is "
+                "your session, rerun with --session-id <id>; otherwise run "
+                "watchdog and reclaim only a stale lock."
             ),
             "command": f"{_TRANSITION_COMMAND} watchdog",
         }
@@ -500,6 +499,18 @@ def _next_action(
                 "list in this summary."
             ),
             "command": None,
+        }
+    if own_lock:
+        return {
+            "state": "select",
+            "reason": (
+                "You hold the run lock: record live Git facts with "
+                "record-observation, then run selection with harness_step.py."
+            ),
+            "command": (
+                f"{_TRANSITION_COMMAND} --repo-root <root> --session-id <id>"
+                " record-observation"
+            ),
         }
     return {
         "state": "select",
@@ -535,7 +546,10 @@ def _next_recovery_steps(summary: dict[str, Any]) -> list[str]:
 
 
 def summarize_run(
-    repo_root: Path, run: dict[str, Any], run_path: Path | None = None
+    repo_root: Path,
+    run: dict[str, Any],
+    run_path: Path | None = None,
+    session_id: str | None = None,
 ) -> dict[str, Any]:
     runtime_capabilities = run.get("runtime_capabilities")
     runtime_adapter = (
@@ -653,6 +667,7 @@ def summarize_run(
         wave=wave if isinstance(wave, dict) else None,
         missions=missions,
         attempt_recovery=recovery,
+        session_id=session_id,
     )
     return {
         "run_id": run.get("run_id"),
@@ -785,6 +800,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         type=Path,
         help="RUN.md path; defaults to <repo-root>/docs/goal/RUN.md",
     )
+    parser.add_argument(
+        "--session-id",
+        help="This parent's session ID; its own run lock does not block Next",
+    )
     parser.add_argument("--json", action="store_true", dest="as_json")
     return parser.parse_args(argv)
 
@@ -794,7 +813,9 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = args.repo_root.resolve()
     run_path = (args.run or repo_root / "docs" / "goal" / "RUN.md").resolve()
     try:
-        summary = summarize_run(repo_root, load_run(run_path), run_path)
+        summary = summarize_run(
+            repo_root, load_run(run_path), run_path, session_id=args.session_id
+        )
     except (GitMetadataError, OSError, ManifestError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2

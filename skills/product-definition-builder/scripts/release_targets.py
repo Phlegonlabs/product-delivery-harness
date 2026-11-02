@@ -47,6 +47,7 @@ SURFACE_CLASSES = {
     "android",
     "macos",
     "windows",
+    "linux",
     "worker",
     "job",
     "webhook",

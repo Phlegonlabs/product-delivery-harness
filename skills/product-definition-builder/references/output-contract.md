@@ -205,7 +205,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 
 - `route`: [One literal route value, or `n/a — <reason>`]
 - `releaseSurface`: [Exact stable `Surface` value from `architecture.md` Release Targets, such as `web-app` or `ios-app`]
-- `surfaceClass`: [Exact Release Target surface class, such as `hosted_web`, `browser_extension`, `ios`, `android`, `macos`, or `windows`]
+- `surfaceClass`: [Exact Release Target surface class, such as `hosted_web`, `browser_extension`, `ios`, `android`, `macos`, `windows`, or `linux`]
 - `captureMode`: [hosted-browser / browser-extension / native / desktop, derived from `surfaceClass`]
 - Main purpose: [One primary user goal]
 - Content responsibilities: [Required information and controls; exact copy or bounded display contract for each, without choosing layout or region order]
@@ -636,7 +636,7 @@ Expected deployable surfaces: [stable surface IDs, for example `web-app`, `publi
 
 ### Release Target: [stable-target-id]
 - Surface: [Stable expected surface ID]
-- Surface class: [one class from the Surface Catalog: hosted_web / hosted_api / browser_extension / ios / android / macos / windows / worker / job / webhook / realtime / cli / agent / mcp_server / skill_or_plugin / library_or_sdk / messaging_bot / marketplace_app / assistant_listing / container_or_self_hosted / internal_service / other_nonpublic]
+- Surface class: [one class from the Surface Catalog: hosted_web / hosted_api / browser_extension / ios / android / macos / windows / linux / worker / job / webhook / realtime / cli / agent / mcp_server / skill_or_plugin / library_or_sdk / messaging_bot / marketplace_app / assistant_listing / container_or_self_hosted / internal_service / other_nonpublic]
 - Public discoverability: [yes / no]
 - Surface suffix: [Lowercase kebab-case suffix for this independently released unit]
 - Release name: [Production `<product-slug>-<surface-suffix>` or that exact name plus `-dev` for development]
@@ -768,7 +768,7 @@ A product may add this section in a later revision after Frontend Technology Dec
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Target operating systems | [iOS / Android / both / macOS / Windows / exact set] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Target operating systems | [iOS / Android / both / macOS / Windows / Linux / exact set] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 | Client strategy | [Platform-native / cross-platform] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 | Framework | [SwiftUI / Jetpack Compose / Flutter / React Native / Tauri / Electron / exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 | Styling approach | [platform theme / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |

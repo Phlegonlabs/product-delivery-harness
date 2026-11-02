@@ -273,13 +273,14 @@ For a hosted-browser surface (`capture_mode: hosted-browser`), capture through a
 
 For a browser-extension mission (`capture_mode: browser-extension`), use extension-aware browser automation against the installed extension and its declared contexts. Record `capture_method: browser-extension`; do not substitute a hosted URL or `--base-url` parity capture.
 
-For a native iOS/Android/Flutter/macOS/Windows mission (`capture_mode: native`), capture through the platform's own UI-test tooling instead of a browser, using the device/OS-by-state matrix and the runbook's native UI Evidence columns. Record `capture_method: native-ui-test` or `manual-native`:
+For a native iOS/Android/Flutter/macOS/Windows/Linux mission (`capture_mode: native`), capture through the platform's own UI-test tooling instead of a browser, using the device/OS-by-state matrix and the runbook's native UI Evidence columns. Record `capture_method: native-ui-test` or `manual-native`:
 
 - iOS: iOS Simulator screenshots produced by `xcodebuild test` running XCUITest cases.
 - Android: Android Emulator screenshots produced by Espresso via `./gradlew connectedAndroidTest`.
 - Flutter: integration-test screenshots via `flutter test integration_test/` (or `flutter drive`), captured for each native target in scope.
 - macOS desktop: XCUITest screenshots from `xcodebuild test`.
 - Windows desktop: WinAppDriver or a .NET UI-test framework driving the app.
+- Linux desktop: the toolkit's own UI tests (Flutter `integration_test`, `tauri-driver`, or an AT-SPI tool such as dogtail) in a pinned distribution image.
 - Fallback: when no UI-test tooling exists for the project yet, a manually captured Simulator/Emulator/device screenshot is acceptable, recorded with the same path, hash, and head binding and labeled as a manual capture.
 
 For a desktop mission (`capture_mode: desktop`), use the platform desktop UI-test tooling or a labeled manual desktop capture. Record `capture_method: desktop-ui-test` or `manual-desktop`; desktop evidence never uses a hosted URL or browser parity helper.

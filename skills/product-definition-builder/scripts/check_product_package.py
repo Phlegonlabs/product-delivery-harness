@@ -2747,6 +2747,7 @@ def validate_texts(
         "android": "native",
         "macos": "desktop",
         "windows": "desktop",
+        "linux": "desktop",
     }
     for surface_id, surface in ui_surfaces.items():
         binding_fields = ("releaseSurface", "surfaceClass", "captureMode")

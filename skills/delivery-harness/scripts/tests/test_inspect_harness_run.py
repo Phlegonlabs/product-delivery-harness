@@ -409,7 +409,51 @@ class InspectHarnessRunTests(unittest.TestCase):
         self.assertEqual("lock_held", summary["next_action"]["state"])
         self.assertIn("watchdog", summary["next_action"]["command"])
         self.assertIn("SESS-A", summary["next_action"]["reason"])
+        self.assertIn("--session-id", summary["next_action"]["reason"])
         self.assertTrue(inspect_harness_run.render_text(summary).startswith("Next: lock_held"))
+
+        foreign = inspect_harness_run.summarize_run(Path.cwd(), run, session_id="SESS-B")
+        self.assertEqual("lock_held", foreign["next_action"]["state"])
+
+    def test_next_action_own_lock_continues_to_selection(self) -> None:
+        run = {
+            "schema_version": 11,
+            "run_id": "RUN-OWN-LOCK",
+            "status": "running",
+            "run_lock": {
+                "session_id": "SESS-A",
+                "acquired_at": "2026-01-01T00:00:00Z",
+                "heartbeat_at": "2026-01-01T00:01:00Z",
+            },
+            "active_wave": None,
+            "integration": {},
+            "mission_states": {},
+            "workers": [],
+        }
+
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run, session_id="SESS-A")
+
+        self.assertEqual("select", summary["next_action"]["state"])
+        self.assertIn("You hold the run lock", summary["next_action"]["reason"])
+        self.assertIn("record-observation", summary["next_action"]["command"])
+        self.assertNotIn("acquire-run-lock", summary["next_action"]["command"])
+        self.assertNotIn("watchdog", summary["next_action"]["command"])
+
+        run["mission_states"] = {"M1": {"phase": "blocked", "head_sha": "4" * 40}}
+        run["attempt_log"] = [{
+            "attempt_id": "ATTEMPT-M1-01",
+            "mission_id": "M1",
+            "kind": "dispatch",
+            "result": "retryable_failure",
+            "evidence": ["dispatch failed"],
+        }]
+        summary = inspect_harness_run.summarize_run(Path.cwd(), run, session_id="SESS-A")
+        self.assertEqual("reconcile", summary["next_action"]["state"])
+
+    def test_session_id_flag_reaches_next_action(self) -> None:
+        args = inspect_harness_run.parse_args(["--repo-root", ".", "--session-id", "SESS-A"])
+        self.assertEqual("SESS-A", args.session_id)
+        self.assertIsNone(inspect_harness_run.parse_args(["--repo-root", "."]).session_id)
 
     def test_next_action_reconcile_points_at_recovery_steps(self) -> None:
         run = {

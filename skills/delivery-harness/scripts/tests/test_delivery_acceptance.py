@@ -327,6 +327,20 @@ class DeliveryAcceptanceTests(unittest.TestCase):
         self.assertEqual(1, status)
         self.assertIn("TEST-001/ios-real", " ".join(payload["errors"]))
 
+    def test_desktop_platforms_need_a_build_identity(self):
+        for platform in ("windows", "linux"):
+            with self.subTest(platform=platform):
+                value = contract()
+                value["tests"][0]["scenarios"][1]["platform"] = platform
+                value["tests"][0]["scenarios"][1]["build"] = {
+                    "not_applicable_reason": "no installed native artifact is available"
+                }
+                status, payload = invoke(value)
+                self.assertEqual(1, status)
+                errors = " ".join(payload["errors"])
+                self.assertIn("identity is required for native", errors)
+                self.assertNotIn("platform must be", errors)
+
     def test_malformed_execution_fails_without_traceback(self):
         for replacement in (None, [], {}, dict(execution(), assertions=[]), dict(execution(), persona=None)):
             with self.subTest(value=replacement):

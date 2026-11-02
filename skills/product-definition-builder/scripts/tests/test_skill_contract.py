@@ -245,7 +245,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         frontend = self.read("references/frontend-stack-selection.md")
         platform = frontend.split("### Any Platform", 1)[1].split("### Cloudflare", 1)[0]
 
-        self.assertIn("output-contract.md#release-targets", platform)
+        self.assertIn("output-contract.md#architecturemd", platform)
         self.assertNotIn(
             "Development releases build from the exact candidate run branch/SHA and use",
             platform,
@@ -660,7 +660,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             self.assertIn("-dev", content)
             self.assertIn("-prod", content)
         self.assertIn("`web`, `api`, and `extension`", architecture)
-        self.assertIn("`ios`, `android`, `macos`, or `windows`", architecture)
+        self.assertIn("`ios`, `android`, `macos`, `windows`, or `linux`", architecture)
         self.assertIn("Chrome, Firefox", architecture)
         self.assertIn("public listing title may differ", architecture.lower())
         for content in (interview, architecture, contract):

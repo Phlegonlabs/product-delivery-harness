@@ -185,6 +185,7 @@ STACK_PLATFORM_BY_SURFACE_CLASS = {
     "android": "android",
     "macos": "macos",
     "windows": "windows",
+    "linux": "linux",
     "desktop": "desktop",
 }
 CAPTURE_MODE_BY_SURFACE_CLASS = {
@@ -196,6 +197,7 @@ CAPTURE_MODE_BY_SURFACE_CLASS = {
     "flutter": "native",
     "macos": "desktop",
     "windows": "desktop",
+    "linux": "desktop",
     "desktop": "desktop",
 }
 NON_HUMAN_TOKEN_RE = re.compile(
@@ -1651,7 +1653,7 @@ def _validate_stack_semantics_join(
             continue
         surface_id = surface.get("id")
         surface_class = str(surface.get("surfaceClass", "")).casefold()
-        family = "mobile" if surface_class in {"ios", "android", "macos", "windows", "desktop"} else "frontend"
+        family = "mobile" if surface_class in {"ios", "android", "macos", "windows", "linux", "desktop"} else "frontend"
         selected = approved.get(family)
         if selected is None:
             _add(problems, f"Approved target surface {surface_id} has no approved {family} Stack selections")

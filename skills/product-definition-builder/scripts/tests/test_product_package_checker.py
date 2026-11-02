@@ -287,6 +287,7 @@ def release_target(
         "android-app": "android",
         "macos-app": "macos",
         "windows-app": "windows",
+        "linux-app": "linux",
     }.get(surface, "other_nonpublic")
     source_policy = (
         "stage=development; ref=run.integration.branch; "
@@ -461,6 +462,17 @@ def strictize_approved_package(prd: str, architecture: str, stack: str) -> tuple
     return finalize_approval_digests(prd, architecture, stack)
 
 
+TOOLCHAIN_CLASSES = (
+    "cli",
+    "mcp_server",
+    "skill_or_plugin",
+    "library_or_sdk",
+    "container_or_self_hosted",
+    "internal_service",
+    "other_nonpublic",
+)
+
+
 def toolchain_package(surface_classes: tuple[str, ...]) -> tuple[str, str, str]:
     targets = []
     surfaces = []
@@ -616,15 +628,36 @@ class ProductPackageCheckerTests(unittest.TestCase):
         ))
 
     def test_toolchain_release_packages_pass_full_approval(self) -> None:
-        for classes in (("cli",), ("other_nonpublic",), ("cli", "other_nonpublic")):
+        for classes in (*((c,) for c in TOOLCHAIN_CLASSES), ("cli", "other_nonpublic")):
             with self.subTest(classes=classes):
                 package = toolchain_package(classes)
                 self.assertEqual([], check_product_package.validate_texts(
                     *package, require_filled=True, require_approved=True,
                 ))
 
+    def test_every_toolchain_class_requires_the_toolchain_area(self) -> None:
+        # Approved areas are written by hand here, not derived from the
+        # checker, so a missing class mapping cannot hide in the fixture.
+        for surface_class in TOOLCHAIN_CLASSES:
+            prd, architecture, stack = toolchain_package((surface_class,))
+            with self.subTest(surface_class=surface_class, case="declared"):
+                declared = re.sub(r"(?m)^- Approved areas:.*$", "- Approved areas: toolchain", stack)
+                self.assertEqual([], check_product_package.validate_texts(
+                    *finalize_approval_digests(prd, architecture, declared),
+                    require_filled=True, require_approved=True,
+                ))
+            with self.subTest(surface_class=surface_class, case="omitted"):
+                omitted = stack.split("## CLI and Toolchain Decision")[0]
+                omitted = re.sub(r"(?m)^- Approved areas:.*$", "- Approved areas: none", omitted)
+                problems = "\n".join(check_product_package.validate_texts(
+                    *finalize_approval_digests(prd, architecture, omitted),
+                    require_filled=True, require_approved=True,
+                ))
+                self.assertIn("missing required toolchain", problems)
+                self.assertIn("Approved areas must exactly match", problems)
+
     def test_toolchain_approval_rejects_missing_section_layer_and_unapproved_choice(self) -> None:
-        for classes in (("cli",), ("other_nonpublic",)):
+        for classes in ((c,) for c in TOOLCHAIN_CLASSES):
             prd, architecture, stack = toolchain_package(classes)
             for candidate, expected in (
                 (stack.split("## CLI and Toolchain Decision")[0], "missing required toolchain"),
@@ -1959,13 +1992,31 @@ Security scope: executable
         self.assertEqual([], self.validate(architecture=release_architecture()))
 
     def test_hybrid_ui_surfaces_bind_web_and_ios_release_contracts(self) -> None:
-        native_surface = """
+        self.assertEqual([], self.validate(**self.hybrid_native_package(
+            "ios", "native", ("TestFlight", "App Store"),
+        )))
+
+    def test_hybrid_ui_surfaces_bind_web_and_linux_desktop_contracts(self) -> None:
+        package = self.hybrid_native_package("linux", "desktop", ("Flathub beta", "Flathub"))
+        self.assertEqual([], self.validate(**package))
+        wrong_capture = dict(package, prd=package["prd"].replace(
+            "- `captureMode`: desktop", "- `captureMode`: native",
+        ))
+        self.assertTrue(any(
+            "captureMode" in finding and "'desktop'" in finding
+            for finding in self.validate(**wrong_capture)
+        ))
+
+    def hybrid_native_package(
+        self, surface_class: str, capture_mode: str, providers: tuple[str, str],
+    ) -> dict[str, str]:
+        native_surface = f"""
 ### UI-002 — Native home
 - `route`: /native-home
-- `releaseSurface`: ios-app
-- `surfaceClass`: ios
-- `captureMode`: native
-- Main purpose: Let the owner inspect the same fixture on iOS.
+- `releaseSurface`: {surface_class}-app
+- `surfaceClass`: {surface_class}
+- `captureMode`: {capture_mode}
+- Main purpose: Let the owner inspect the same fixture on {surface_class}.
 - Content responsibilities: Show completion state with source: fixture record; order: status then recovery; format: text; count: one; length: bounded; fallback: unavailable message.
 - Actions and transitions: Refresh the record, show success feedback, and show a recoverable failure state.
 - `states`: ready
@@ -1989,29 +2040,29 @@ Security scope: executable
             "| --- | --- | --- | --- | --- |\n"
             "| UX-001 | Owner reviews status | Show completion and recovery | Success is visible; failure offers retry | prototype-reviewed |",
         ) + contract
-        ios_targets = "\n".join(
+        native_targets = "\n".join(
             (
                 release_target(
-                    "ios-development",
-                    surface="ios-app",
-                    suffix="ios",
-                    provider="TestFlight",
+                    f"{surface_class}-development",
+                    surface=f"{surface_class}-app",
+                    suffix=surface_class,
+                    provider=providers[0],
                     stage="development",
-                    release_name="fixture-ios-dev",
+                    release_name=f"fixture-{surface_class}-dev",
                 ),
                 release_target(
-                    "ios-production",
-                    surface="ios-app",
-                    suffix="ios",
-                    provider="App Store",
+                    f"{surface_class}-production",
+                    surface=f"{surface_class}-app",
+                    suffix=surface_class,
+                    provider=providers[1],
                     stage="production",
-                    release_name="fixture-ios",
+                    release_name=f"fixture-{surface_class}",
                 ),
             )
         )
         architecture = release_architecture(
-            expected="web-app, ios-app",
-            extra_targets=ios_targets,
+            expected=f"web-app, {surface_class}-app",
+            extra_targets=native_targets,
         )
         stack = valid_stack().replace(
             "- Approved areas: frontend",
@@ -2036,11 +2087,7 @@ Security scope: executable
             + mobile_rows
             + "\n"
         )
-
-        self.assertEqual(
-            [],
-            self.validate(prd=prd, architecture=architecture, stack=stack),
-        )
+        return {"prd": prd, "architecture": architecture, "stack": stack}
 
     def test_capture_mode_requires_matching_responsive_kind_for_web_ios_and_extension(self) -> None:
         web_prd = valid_prd().replace(

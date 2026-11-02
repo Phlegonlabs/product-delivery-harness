@@ -32,6 +32,11 @@ class DocumentedCommandTests(unittest.TestCase):
             self.assertIn(obligation, research)
         self.assertNotIn("readonly_assignments.cjs", source)
 
+    def test_readiness_card_keeps_unused_actions_and_push_unauthorized(self):
+        cards = (SCRIPTS.parent / "references/stages/stage-cards.md").read_text(encoding="utf-8")
+        self.assertNotIn("every action entry needs `authorized: true`", cards)
+        self.assertIn("`push` always, stays `authorized: false`", cards)
+
     def test_stack_option_map_retains_authorship_and_checker_without_generator(self):
         source = (SCRIPTS.parents[1] / "product-definition-builder/references/output-contract.md").read_text(encoding="utf-8")
         section = source.split("## `stack-decisions.md`", 1)[1].split("### Coherent Options Presented", 1)[0]
