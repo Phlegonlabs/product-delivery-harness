@@ -13,6 +13,7 @@ DOMAIN_FILES = {
     "authentication-and-identity.md",
     "backend.md",
     "cloudflare-platform.md",
+    "compliance-jurisdiction.md",
     "components-icons.md",
     "css-styling.md",
     "data-storage.md",
@@ -58,7 +59,7 @@ class ReferenceLibraryTests(unittest.TestCase):
         self.assertEqual(DOMAIN_FILES, actual - {"README.md"} - SUPPORT_FILES)
         self.assertEqual(SUPPORT_FILES, actual & SUPPORT_FILES)
         self.assertIn("README.md", actual)
-        self.assertEqual(23, len(actual))
+        self.assertEqual(24, len(actual))
 
     def test_index_links_all_domains_and_states_optional_boundaries(self):
         text = (LIBRARY / "README.md").read_text(encoding="utf-8")
