@@ -23,7 +23,7 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "check_external_skill_dependencies.py", "check_launch_packet.py", "check_prd_delta_scope.py",
         "check_skill_bindings.py", "check_skill_spec.py", "check_ui_contract.py",
         "ci_test_shards.py", "configure_project_context.py", "docs_duplicates.py",
-        "docs_weight.py",
+        "docs_reading_budget.py", "docs_weight.py",
         "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
         "new_run.py", "parity_capture.py", "push_archived_candidate.py",
         "render_review_packet.py", "render_tasks_view.py", "select_ready_nodes.py",
