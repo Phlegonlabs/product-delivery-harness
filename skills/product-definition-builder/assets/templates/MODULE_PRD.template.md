@@ -1,4 +1,4 @@
-<!-- Copy to docs/product/modules/<module-id>/PRD.md for each module in the program Module Map. Replace <SCOPE> with the module's Module Map scope in every ID, replace every other [bracket] and <angle> placeholder, delete rows that do not apply, then delete this comment. The gate lines restate the program PRD values and may not relax them. Cite another module's IDs only when that module is in this module's Depends on. -->
+<!-- Copy to docs/product/modules/<module-id>/PRD.md for each module in the program Module Map. The module id is the directory name and the scope is its Module Map row; the PRD repeats neither. Replace <SCOPE> with that scope in every ID, replace every other [bracket] and <angle> placeholder, delete rows that do not apply, then delete this comment. The Program revision line is the program PRD's `program_prd_digest` (canonical bytes, approval block excluded); the checker prints it as a warning when it goes stale. The gate lines restate the program PRD values and may not relax them. Cite another module's IDs only when that module is in this module's Depends on. -->
 # PRD: [Module Name]
 
 ## At a Glance
@@ -9,9 +9,8 @@
 | Why now | [One line] |
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
-| Module | <module-id> |
-| Scope | <SCOPE> |
-| Program revision | sha256:<64 lowercase hex of the program PRD.md> |
+
+Program revision: sha256:<64 lowercase hex>
 
 [One paragraph describing the module, the entities it owns, and the outcome.]
 

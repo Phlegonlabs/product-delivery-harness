@@ -38,7 +38,7 @@ A `program` package is a program `PRD.md`, `architecture.md` and one shared `sta
 - **Module only:** User Journeys, Functional Requirements, UX Requirements, the UI Surface Contract, module Test Obligations, Security rows, Data Model, API contracts and Component rows.
 - **Both:** At a Glance, Problem Statement, Goals, Non-Goals, Risks, Assumptions, Open Questions, Data and Integration Requirements, UI Design Handoff Status, Product Definition Decisions with its own approval block, and the Data and Trust, Security and AI headings. A module restates the program gate value, may not relax it, and carries only its own rows. The program PRD fills required headings with program content (`PRD-PRG-*` capabilities, cross-module journeys) and records UX as `not_required`.
 - **IDs** use `<FAMILY>-<SCOPE>-<NNN>`, such as `PRD-INV-001`. SCOPE is uppercase, 2-5 characters, letter first, no hyphen. `PRG`, `E2E` and `MIG` are reserved program scopes. A scope equal to a family name (`PRD ARCH UI UX TEST DS RA MR MS TRUST AI BR`) is rejected. `DS-*` stays program-wide; `standard` and `mvp` keep `PRD-001`.
-- **Program revision.** A module PRD records `Program revision: sha256:<digest of the program PRD.md>` in At a Glance. If the program PRD changes later, the checker warns `stale_program_revision` (a warning, not a failure) and the parent decides whether to reopen the module.
+- **Module identity and revision.** A module's id is its directory name and its scope is its Module Map row; the module PRD repeats neither. Its At a Glance keeps the five canonical rows, then one line `Program revision: sha256:<64 lowercase hex>`, the `program_prd_digest`: sha256 of the program PRD's canonical bytes, approval block excluded. If the program PRD changes later, the checker prints `INFO warning: stale_program_revision` (not a failure) and the parent decides whether to reopen the module.
 - **Stack.** One shared `stack-decisions.md`. A module that needs a new layer adds a row and reopens the Stack Decision Checkpoint, one owner call.
 - **Chinese review copy.** The program `PRD.md` only, unless the owner names a module.
 
@@ -307,7 +307,7 @@ Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI
 ## Business Rules
 - [Rules, thresholds, approvals, calculations]
 
-The bullet list may be a `BR-*` table (`ID | Trigger | Condition | Outcome | Exceptions | Owner | TEST IDs`), required in a module PRD and optional in `standard`. Each `BR-*` names the `Required: Yes` TEST that proves it, and that TEST's upstream cell names the BR. A `standard` PRD may also add Glossary, Permission Matrix, Reports, Capacity Assumptions and Integrations Register sections from the program and module templates; the checker validates their headers when present.
+The bullet list may be a `BR-*` table (`ID | Trigger | Condition | Outcome | Exceptions | Owner | TEST IDs`), required in a module PRD and optional in `standard`. Each `BR-*` names the `Required: Yes` TEST that proves it, and that TEST's upstream cell names the BR. A `standard` PRD may also add Glossary, Permission Matrix, Reports, Capacity Assumptions and Integrations Register sections from the program and module templates; only a `program` package checks them.
 
 ## Monetization and Partner Channels
 
