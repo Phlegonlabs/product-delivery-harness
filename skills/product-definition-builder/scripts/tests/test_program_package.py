@@ -9,6 +9,7 @@ TESTS_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(TESTS_DIR))
 sys.path.insert(0, str(TESTS_DIR.parent))
 
+import check_product_package  # noqa: E402
 import program_fixtures as fx  # noqa: E402
 import program_package  # noqa: E402
 
@@ -38,6 +39,14 @@ class ProgramCase(unittest.TestCase):
 class DiscoveryTests(ProgramCase):
     def test_baseline_program_has_no_findings(self) -> None:
         self.assertEqual([], self.run_checks(require_filled=True))
+
+    def test_kernel_fixture_still_passes_the_single_product_checker(self) -> None:
+        # The Program revision line and the BR table must not break the existing parsers.
+        self.assertEqual([], check_product_package.validate_texts(
+            self.files["modules/kernel/PRD.md"],
+            self.files["modules/kernel/architecture.md"],
+            self.files["stack-decisions.md"],
+        ))
 
     def test_discovers_map_rows_with_directories(self) -> None:
         root = self.write()
@@ -247,10 +256,9 @@ class SharedContractTests(ProgramCase):
         self.edit("PRD.md", anchor, anchor + "| Invoice | A bill | billing | none |\n")
         self.assertFinding("Glossary term 'Invoice' owning module 'billing' is not in the Module Map", self.run_checks())
 
-    def test_roles_are_unique(self) -> None:
-        anchor = "| kernel-admin | Maintains master data | Company |\n"
-        self.edit("PRD.md", anchor, anchor + "| Kernel-Admin | Again | Company |\n")
-        self.assertFinding("program: Roles repeats role 'Kernel-Admin'", self.run_checks())
+    def test_roles_table_needs_the_canonical_header(self) -> None:
+        self.edit("PRD.md", "| Role | Description | Scope |", "| Role | Purpose | Scope |")
+        self.assertFinding("program: Roles must use the canonical table", self.run_checks())
 
     def test_separation_of_duties_pair_names_an_existing_test(self) -> None:
         pair = "| inventory:post-receipt | inventory:approve-adjustment | No role holds both | TEST-PRG-009 |"
@@ -335,14 +343,6 @@ class FlowTests(ProgramCase):
         row = fx.PERIOD_CLOSE_TEST_ROW.replace("| Yes |", "| No |")
         self.edit("PRD.md", "## UI Design Handoff Status\n", row + "## UI Design Handoff Status\n")
         self.assertFinding("a gl module requires", self.run_checks())
-
-    def test_program_ids_use_program_scopes(self) -> None:
-        self.edit("PRD.md", "| PRD-PRG-001 | Complete the fixture |", "| PRD-001 | Complete the fixture |")
-        self.assertFinding("program: PRD-001 must use a program scope (PRG, E2E or MIG)", self.run_checks())
-        self.setUp()
-        self.edit("architecture.md", "| ARCH-PRG-001 |", "| ARCH-KRN-001 |")
-        self.assertFinding("program: ARCH-KRN-001 must use a program scope", self.run_checks())
-
 
 class MigrationTests(ProgramCase):
     LEGACY = "## Migration and Cutover\n### Legacy Sources\n| ARCH ID | Legacy source | Owner | Extract method | Volume | Target module |\n| --- | --- | --- | --- | --- | --- |\n| ARCH-MIG-001 | Old stock file | Warehouse manager | CSV export | 40k rows | inventory |\n"

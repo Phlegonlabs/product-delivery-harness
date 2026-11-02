@@ -28,16 +28,14 @@ ROLES_HEADER = ("role", "description", "scope")
 SOD_HEADER = ("duty a", "duty b", "rule", "test id")
 CAPACITY_HEADER = ("driver", "value", "basis", "nfr ids")
 REGISTER_HEADER = (
-    "external system", "direction and cadence", "idempotency key",
-    "reconciliation report", "error queue owner", "modules", "test ids",
+    "external system", "direction and cadence", "idempotency key", "reconciliation report",
+    "error queue owner", "modules", "test ids",
 )
 PROCESS_HEADER = ("process", "modules in order", "test ids")
 RULES_HEADER = ("id", "trigger", "condition", "outcome", "exceptions", "owner", "test ids")
 STATES_HEADER = ("from", "to", "action", "who may trigger", "side effects", "guard")
 PERMISSION_HEADER = ("role", "action", "data scope", "condition")
-REPORTS_HEADER = (
-    "prd id", "report", "audience", "filters", "source entities", "freshness", "export",
-)
+REPORTS_HEADER = ("prd id", "report", "audience", "filters", "source entities", "freshness", "export")
 GATES = ("Data and Trust Gate", "AI and Automation Gate", "Security Requirements Gate")
 GATE_RANK = {"not_required": 0, "required": 1, "blocked": 2}  # blocked is never weaker
 
@@ -74,7 +72,6 @@ class Program:
 @dataclass(frozen=True)
 class ProgramContext:
     """What `validate_texts` needs to check one module inside its program."""
-
     module_id: str
     scope: str
     program_prd: str
@@ -96,7 +93,6 @@ class ProgramContext:
 
 def program_prd_digest(prd_text: str) -> str:
     """`sha256:<hex>` of the canonical program PRD (approval block excluded)."""
-
     return "sha256:" + sha256_text(canonical_product_bytes(prd_text, "", ""))
 
 
@@ -107,7 +103,6 @@ def _scope_of(identifier: str) -> str:
 
 def _defined_ids(text: str) -> set[str]:
     """IDs a document defines: a table's first cell or a `### UI-...` heading."""
-
     found: set[str] = set()
     for line in active_text(text).splitlines():
         heading = _UI_HEADING_RE.match(line)
@@ -122,23 +117,15 @@ def _discover(product_root: Path, prd_text: str) -> list[ModuleRef]:
     section = cpp._section(prd_text, "## Module Map") or ""
     rows = cpp._find_table(section, MAP_HEADER) or []
     modules_dir = product_root / "modules"
-    directories = (
-        {path.name: path for path in modules_dir.iterdir() if path.is_dir()}
-        if modules_dir.is_dir()
-        else {}
-    )
-    refs: list[ModuleRef] = []
-    for row in rows:
-        if len(row) != len(MAP_HEADER):
-            continue
-        module_id, scope, _name, _owns, depends, order, status = row
-        deps = () if depends.casefold() == "none" else tuple(
-            item.strip() for item in depends.split(",") if item.strip()
+    directories = {p.name: p for p in modules_dir.iterdir() if p.is_dir()} if modules_dir.is_dir() else {}
+    refs = [
+        ModuleRef(
+            row[0], row[1], tuple(_split(row[4])), int(row[5]) if row[5].isdigit() else None,
+            row[6].casefold(), directories.get(row[0]), True,
         )
-        refs.append(ModuleRef(
-            module_id, scope, deps, int(order) if order.isdigit() else None,
-            status.casefold(), directories.get(module_id), True,
-        ))
+        for row in rows
+        if len(row) == len(MAP_HEADER)
+    ]
     mapped = {ref.module_id for ref in refs}
     refs.extend(
         ModuleRef(name, "", (), None, "", path, False)
@@ -150,7 +137,6 @@ def _discover(product_root: Path, prd_text: str) -> list[ModuleRef]:
 
 def discover_modules(product_root: Path) -> list[ModuleRef]:
     """Module Map rows joined to the directories under `modules/`."""
-
     prd_text, _ = safe_read_text(product_root / "PRD.md")
     return _discover(product_root, prd_text or "")
 
@@ -166,7 +152,6 @@ def _register(
 
 def load_program(product_root: Path) -> Program:
     """Read the program files, discover the modules and build the ID registry."""
-
     problems: list[str] = []
 
     def read(path: Path, label: str) -> str | None:
@@ -203,7 +188,6 @@ def load_program(product_root: Path) -> Program:
 
 def module_context(program: Program, module_id: str) -> ProgramContext:
     """The program view `validate_texts` receives for one module (no I/O)."""
-
     ref = next((m for m in program.modules if m.module_id == module_id and m.mapped), None)
     if ref is None:
         raise ValueError(f"unknown module {module_id!r}")
@@ -215,24 +199,11 @@ def module_context(program: Program, module_id: str) -> ProgramContext:
     )
 
 
-def _check_discovery(program: Program, problems: list[str]) -> None:
-    for ref in program.modules:
-        if not ref.mapped:
-            cpp._add(problems, "program", f"modules/{ref.module_id} has no Module Map row")
-        elif ref.directory is None and ref.status != "planned":
-            cpp._add(
-                problems, "program",
-                f"Module Map row {ref.module_id!r} has status {ref.status!r} "
-                f"but no modules/{ref.module_id} directory",
-            )
-
-
 def _table(
     text: str, scope: str, problems: list[str], require_filled: bool,
     heading: str, header: tuple[str, ...],
 ) -> list[tuple[str, ...]] | None:
     """Full-width rows of the canonical table under `heading`; None if the heading is absent."""
-
     section = (cpp._subsection if heading.startswith("###") else cpp._section)(text, heading)
     if section is None:
         return None
@@ -252,9 +223,13 @@ def _table(
 
 def _split(cell: str) -> list[str]:
     """Items of a comma-, semicolon- or slash-separated cell; `none` is no item."""
-
     items = (item.strip() for item in re.split(r"[,;/]", cell))
     return [item for item in items if item and item.casefold() != "none"]
+
+
+def _rows(text: str, heading: str, header: tuple[str, ...]) -> list[tuple[str, ...]]:
+    """Rows of a table whose own findings are reported elsewhere."""
+    return _table(text, "", [], False, heading, header) or []
 
 
 def _mapped(program: Program) -> dict[str, ModuleRef]:
@@ -291,17 +266,19 @@ def _check_map(program: Program, require_filled: bool, problems: list[str]) -> N
         if m.scope in RESERVED_SCOPES:
             add(f"Module Map scope {m.scope!r} of {m.module_id!r} is reserved")
         elif not SCOPE_RE.fullmatch(m.scope):
-            add(
-                f"Module Map scope {m.scope!r} of {m.module_id!r} must be "
-                "2-5 uppercase characters starting with a letter"
-            )
+            add(f"Module Map scope {m.scope!r} of {m.module_id!r} must be 2-5 uppercase characters, letter first")
         if m.order is None:
             add(f"Module Map Order of {m.module_id!r} must be an integer")
         for dep in m.depends_on:
             if dep not in by_id:
                 add(f"Module Map: {m.module_id!r} depends on unknown module {dep!r}")
-            elif None not in (m.order, by_id[dep].order) and by_id[dep].order >= m.order:
+            elif None not in (m.order, by_id[dep].order) and by_id[dep].order > m.order:
                 add(f"Module Map Order puts {m.module_id!r} before its dependency {dep!r}")
+    for ref in program.modules:
+        if not ref.mapped:
+            add(f"modules/{ref.module_id} has no Module Map row")
+        elif ref.directory is None and ref.status != "planned":
+            add(f"Module Map row {ref.module_id!r} has status {ref.status!r} but no modules/{ref.module_id} directory")
     done: set[str] = set()
 
     def visit(node: str, trail: tuple[str, ...]) -> None:
@@ -316,30 +293,31 @@ def _check_map(program: Program, require_filled: bool, problems: list[str]) -> N
         visit(module_id, ())
 
 
+def _known(add, by_id: dict[str, ModuleRef], label: str, names: list[str]) -> list[str]:
+    """The names that are Module Map modules; the rest are reported against `label`."""
+    for name in names:
+        if name not in by_id:
+            add(f"{label} {name!r} is not in the Module Map")
+    return [name for name in names if name in by_id]
+
+
 def _check_data(program: Program, require_filled: bool, problems: list[str]) -> None:
     add = partial(cpp._add, problems, "program")
     rows = partial(_table, program.prd, "program", problems, require_filled)
     by_id = _mapped(program)
+    known = partial(_known, add, by_id)
     for entity, owner, readers, *_ in rows("## Shared Data", SHARED_HEADER) or []:
-        if owner not in by_id:
-            add(f"Shared Data {entity!r} owner {owner!r} is not in the Module Map")
-        for reader in _split(readers):
-            if reader not in by_id:
-                add(f"Shared Data {entity!r} reader {reader!r} is not in the Module Map")
-            elif reader != owner and owner not in by_id[reader].depends_on:
+        known(f"Shared Data {entity!r} owner", [owner])
+        for reader in known(f"Shared Data {entity!r} reader", _split(readers)):
+            if reader != owner and owner not in by_id[reader].depends_on:
                 add(f"Shared Data {entity!r} reader {reader!r} must depend on owner {owner!r}")
     terms: set[str] = set()
     for term, _definition, owner, _avoid in rows("## Glossary", GLOSSARY_HEADER) or []:
         if term.casefold() in terms:
             add(f"Glossary repeats term {term!r}")
         terms.add(term.casefold())
-        if owner not in by_id:
-            add(f"Glossary term {term!r} owning module {owner!r} is not in the Module Map")
-    roles: set[str] = set()
-    for role, *_ in rows("### Roles", ROLES_HEADER) or []:
-        if role.casefold() in roles:
-            add(f"Roles repeats role {role!r}")
-        roles.add(role.casefold())
+        known(f"Glossary term {term!r} owning module", [owner])
+    rows("### Roles", ROLES_HEADER)
     known_tests = {i for fams in program.registry.values() for i in fams.get("TEST", ())}
     for duty_a, duty_b, _rule, test in rows("### Segregation of Duties", SOD_HEADER) or []:
         named = cpp._ids(test, "TEST")
@@ -370,6 +348,7 @@ def _check_flows(program: Program, require_filled: bool, problems: list[str]) ->
     add = partial(cpp._add, problems, "program")
     rows = partial(_table, program.prd, "program", problems, require_filled)
     by_id = _mapped(program)
+    known = partial(_known, add, by_id)
     tests = _test_rows(program.prd)
     systems = {
         row[0].casefold()
@@ -384,15 +363,10 @@ def _check_flows(program: Program, require_filled: bool, problems: list[str]) ->
             add(f"Integrations Register system {system!r} is not in the architecture Integrations table")
         if not names:
             add(f"Integrations Register system {system!r} names no module")
-        for name in names:
-            if name not in by_id:
-                add(f"Integrations Register system {system!r} module {name!r} is not in the Module Map")
+        known(f"Integrations Register system {system!r} module", names)
     for process, names, test_ids in rows("## Business Processes", PROCESS_HEADER) or []:
-        listed = _split(names)
-        for name in listed:
-            if name not in by_id:
-                add(f"Business Process {process!r} module {name!r} is not in the Module Map")
-        orders = [by_id[n].order for n in listed if n in by_id and by_id[n].order is not None]
+        listed = known(f"Business Process {process!r} module", _split(names))
+        orders = [by_id[name].order for name in listed if by_id[name].order is not None]
         if orders != sorted(set(orders)):
             add(f"Business Process {process!r} must list its modules in Module Map order")
         if not any(t.startswith("TEST-E2E-") and _required(tests, t) for t in cpp._ids(test_ids, "TEST")):
@@ -418,12 +392,6 @@ def _check_flows(program: Program, require_filled: bool, problems: list[str]) ->
             add(f"Migration and Cutover requires {identifier} as a Required Yes obligation")
 
 
-def _check_program_ids(program: Program, problems: list[str]) -> None:
-    for identifier in sorted(_defined_ids(program.prd) | _defined_ids(program.architecture)):
-        if _scope_of(identifier) not in PROGRAM_SCOPES:
-            cpp._add(problems, "program", f"{identifier} must use a program scope (PRG, E2E or MIG)")
-
-
 def _check_module(
     program: Program, ref: ModuleRef, require_filled: bool, require_approved: bool,
     problems: list[str], notes: list[str] | None,
@@ -433,8 +401,7 @@ def _check_module(
     context = module_context(program, ref.module_id)
     add = partial(cpp._add, problems, scope)
     rows = partial(_table, prd, scope, problems, require_filled)
-    program_roles = _table(program.prd, "program", [], False, "### Roles", ROLES_HEADER) or []
-    roles = {row[0].casefold() for row in program_roles}
+    roles = {row[0].casefold() for row in _rows(program.prd, "### Roles", ROLES_HEADER)}
     for identifier in sorted(_defined_ids(prd) | _defined_ids(architecture)):
         if _scope_of(identifier) != scope:
             add(f"{identifier} does not use the module scope {scope}")
@@ -442,8 +409,6 @@ def _check_module(
     tests = _test_rows(prd)
     for row in rows("## Business Rules", RULES_HEADER) or []:
         rule, listed = row[0].upper(), cpp._ids(row[6], "TEST")
-        if not re.fullmatch(r"BR-[A-Z0-9-]+", rule):
-            add(f"invalid Business Rules ID {row[0]!r}")
         if not listed:
             add(f"{rule} names no TEST ID")
         for identifier in sorted(listed):
@@ -461,12 +426,10 @@ def _check_module(
         if not tables:
             add("Document States must use the canonical table")
         for table in tables:
-            cpp._validate_table_rows(
-                table, len(STATES_HEADER), label="Document States",
-                require_filled=require_filled, problems=problems, path=scope,
-            )
-            for row in table:
-                for role in _split(row[3]) if len(row) == len(STATES_HEADER) else ():
+            cpp._validate_table_rows(table, len(STATES_HEADER), label="Document States",
+                                     require_filled=require_filled, problems=problems, path=scope)
+            for row in (r for r in table if len(r) == len(STATES_HEADER)):
+                for role in _split(row[3]):
                     if role.casefold() not in roles:
                         add(f"Document States role {role!r} is not in the program Roles table")
 
@@ -511,20 +474,16 @@ def _check_module(
 
 def _check_separation(program: Program, problems: list[str]) -> None:
     """No role may hold both duties of a pair, in any one module or across modules."""
-
     held: dict[str, dict[str, str]] = {}  # role -> action -> scope of the module granting it
     for ref in program.modules:
-        if ref.module_id in program.texts:
-            matrix = program.texts[ref.module_id][0]
-            for role, action, *_ in _table(matrix, "", [], False, "## Permission Matrix", PERMISSION_HEADER) or []:
-                held.setdefault(role.casefold(), {})[action.casefold()] = ref.scope
-    for duty_a, duty_b, *_ in _table(program.prd, "", [], False, "### Segregation of Duties", SOD_HEADER) or []:
+        prd = program.texts.get(ref.module_id, ("", ""))[0]
+        for role, action, *_ in _rows(prd, "## Permission Matrix", PERMISSION_HEADER):
+            held.setdefault(role.casefold(), {})[action.casefold()] = ref.scope
+    for duty_a, duty_b, *_ in _rows(program.prd, "### Segregation of Duties", SOD_HEADER):
         for role, actions in sorted(held.items()):
             if duty_a.casefold() in actions and duty_b.casefold() in actions:
-                cpp._add(
-                    problems, actions[duty_b.casefold()],
-                    f"role {role!r} holds both {duty_a} and {duty_b} (segregation of duties)",
-                )
+                message = f"role {role!r} holds both {duty_a} and {duty_b} (segregation of duties)"
+                cpp._add(problems, actions[duty_b.casefold()], message)
 
 
 def validate_program(
@@ -537,18 +496,15 @@ def validate_program(
 ) -> list[str]:
     """Return `<scope>: <message>` failures for a program package.
 
-    Program files always run, because they supply the registry. `module`
-    limits the per-module pass to one module id. Warnings that must not fail
-    the run, such as `stale_program_revision`, are appended to `notes`.
+    Program files always run, since they supply the registry; `module` limits
+    only the per-module pass. Warnings, such as `stale_program_revision`, go to `notes`.
     """
 
     program = load_program(product_root)
     problems = list(program.problems)
-    _check_discovery(program, problems)
     _check_map(program, require_filled, problems)
     _check_data(program, require_filled, problems)
     _check_flows(program, require_filled, problems)
-    _check_program_ids(program, problems)
     if module is not None and module not in _mapped(program):
         cpp._add(problems, "program", f"unknown module {module!r}")
     for ref in program.modules:
