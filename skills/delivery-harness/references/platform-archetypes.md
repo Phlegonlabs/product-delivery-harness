@@ -186,6 +186,19 @@ When the Partner Channel Gate is `required`, add a separate partner-channel miss
 
 M4 is an illustrative single line, not a mandate to build every authenticated screen in one mission. Per `contract-and-traceability.md`'s Review Placement Defaults, split it into one mission per feature batch; the one final review carries the visual lens, and per-mission visual reviews exist only under `per_mission`. When the product has a design system, those batch missions come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order.
 
+Module layout. When the approved architecture is a modular monolith (many business modules, one deployable), scaffold the code by bounded context in the foundation mission:
+
+```text
+Repository:   one repo or monorepo, one package or directory per bounded context
+Kernel:       one shared-kernel package (party, product, unit of measure, currency, organisation unit, document numbering), changed only by its owner
+App shell:    the API or app layer that composes the modules; routing and session wiring, no business rules
+Module:       public entry point (API and published events), internal code, own migration folder, own tests
+Migrations:   one folder per module, run in dependency order, kernel first
+Tests:        a suite per module, plus a small cross-module process suite in the shell or a tests package
+Imports:      across modules only through a module's public entry point, enforced by the toolchain's dependency rule where one exists
+              (ESLint boundaries, Swift package targets, Gradle modules, .NET projects), otherwise by a CI import check
+```
+
 Required E2E scenarios:
 
 - Anonymous denied or redirected.
