@@ -339,9 +339,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         stage = self.read(STAGE)
         interview = self.read("references/interview-guide.md")
-        self.assertIn("Delivery profile: standard | mvp", skill)
+        self.assertIn("Delivery profile: standard | mvp | program", skill)
         self.assertIn("one owner call", skill)
-        self.assertIn("| Delivery profile | standard / mvp |", stage)
+        self.assertIn("| Delivery profile | standard / mvp / program |", stage)
         self.assertIn("this checkpoint and step 15's Product Definition Approval are one owner call", stage)
         self.assertIn("may conclude `documented assumptions`", stage)
         self.assertIn("compresses the four segments into two turns", stage)
@@ -350,6 +350,26 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("PRD delta round", stage)
         self.assertNotIn("exactly four planned free-text turns", interview)
         self.assertNotIn("exactly four bounded free-text turns", stage)
+
+    def test_program_profile_contract_text(self) -> None:
+        contract = self.read("references/output-contract.md")
+        skill = self.read("SKILL.md")
+        stage = self.read(STAGE)
+        self.assertIn("| Delivery profile | standard / mvp / program |", contract)
+        program = contract.split("\n## Program Packages\n", 1)[1].split("\n## How To Read This Package\n", 1)[0]
+        for required in ("docs/product/modules/<module-id>/PRD.md", "<FAMILY>-<SCOPE>-<NNN>",
+                         "`PRG`, `E2E` and `MIG`", "stale_program_revision", "One shared `stack-decisions.md`",
+                         "program `PRD.md` only", "PROGRAM_PRD.template.md", "MODULE_PRD.template.md",
+                         "PROGRAM_MIGRATION.template.md", "**Program only:**", "**Module only:**", "**Both:**"):
+            self.assertIn(required, program, required)
+        business = contract.split("\n## Business Rules\n", 1)[1].split("\n## Monetization and Partner Channels\n", 1)[0]
+        self.assertIn("`BR-*` table", business)
+        self.assertIn("Integrations Register", business)
+        deployment = contract.split("\n## Deployment and Operations\n", 1)[1].split("\n## Release Targets\n", 1)[0]
+        self.assertIn("\n## Migration and Cutover\n", deployment)
+        self.assertIn("one Epic and one PLAN/RUN per module, in Module Map order", skill)
+        self.assertIn("then each module package, each with its own approval block", stage)
+        self.assertIn("review copy of the program `PRD.md` only", stage)
 
     def test_skill_routes_backend_products_to_backend_selection(self) -> None:
         skill = self.read(STAGE)

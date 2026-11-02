@@ -20,7 +20,7 @@ It specifies what each UI surface must show and do. It does not decide how the s
 
 Produce `docs/product/implementation-plan.md` only when the user explicitly asks for delivery sequencing or implementation planning.
 
-Keep canonical artifact prose in English. Produce complete Traditional Chinese owner review copies of PRD and architecture during drafting as `PRD.zh-TW.md` and `architecture.zh-TW.md`; they never become implementation authority. Follow `bilingual-review.md` for source hashes, matching trace IDs, semantic review, approval and paired publication. Preserve literal product copy and identifiers in their required language. Other artifacts remain English unless the owner requests translations.
+Keep canonical artifact prose in English. Produce complete Traditional Chinese owner review copies of PRD and architecture during drafting as `PRD.zh-TW.md` and `architecture.zh-TW.md`; they never become implementation authority. A `program` package follows the Chinese-copy rule in Program Packages. Follow `bilingual-review.md` for source hashes, matching trace IDs, semantic review, approval and paired publication. Preserve literal product copy and identifiers in their required language. Other artifacts remain English unless the owner requests translations.
 
 ## Design And Maintenance Routing
 
@@ -29,6 +29,18 @@ First classify this round using `ui-design-builder/references/review-workflow.md
 ## Device And Reading Scope
 
 For newly scoped iOS products, propose iPhone first. iPad is included only when explicitly required; never remove it from an approved PRD without an owner decision. Two named iPhone review targets can satisfy the native responsive set without assuming an iPad regular layout. Record supported orientations, OS range and Dynamic Type obligations separately. Declare supported locales and whether content uses locale switching or simultaneous bilingual reading. Stacked language pairs allow natural wrapping and assistive language identification. Do not force multi-language work onto single-language products or invent language controls. The UI owner translates these obligations into composition and visual design.
+
+## Program Packages
+
+A `program` package is a program `PRD.md`, `architecture.md` and one shared `stack-decisions.md`, with one ordinary package per module at `docs/product/modules/<module-id>/PRD.md`, `architecture.md` and `deltas/`. `<module-id>` is lowercase kebab. The program PRD's Module Map gives each module an uppercase scope token of 2-5 letters (`INV`); `kernel` / `KRN` owns master data. Templates: `assets/templates/PROGRAM_PRD.template.md`, `MODULE_PRD.template.md` and `PROGRAM_MIGRATION.template.md`.
+
+- **Program only:** Ambition, Growth Contract, the Shape row, Research Gate, org-wide Personas, north-star Metrics, Monetization and Partner Channels, the AI gate and eval policy, the Stack Decision Checkpoint, the release-target inventory and the hosted environment contract.
+- **Module only:** User Journeys, Functional Requirements, UX Requirements, the UI Surface Contract, module Test Obligations, Security rows, Data Model, API contracts and Component rows.
+- **Both:** At a Glance, Problem Statement, Goals, Non-Goals, Risks, Assumptions, Open Questions, Data and Integration Requirements, UI Design Handoff Status, Product Definition Decisions with its own approval block, and the Data and Trust, Security and AI headings. A module restates the program gate value, may not relax it, and carries only its own rows. The program PRD fills required headings with program content (`PRD-PRG-*` capabilities, cross-module journeys) and records UX as `not_required`.
+- **IDs** use `<FAMILY>-<SCOPE>-<NNN>`, such as `PRD-INV-001`. SCOPE is uppercase, 2-5 characters, letter first, no hyphen. `PRG`, `E2E` and `MIG` are reserved program scopes. A scope equal to a family name (`PRD ARCH UI UX TEST DS RA MR MS TRUST AI BR`) is rejected. `DS-*` stays program-wide; `standard` and `mvp` keep `PRD-001`.
+- **Program revision.** A module PRD records `Program revision: sha256:<digest of the program PRD.md>` in At a Glance. If the program PRD changes later, the checker warns `stale_program_revision` (a warning, not a failure) and the parent decides whether to reopen the module.
+- **Stack.** One shared `stack-decisions.md`. A module that needs a new layer adds a row and reopens the Stack Decision Checkpoint, one owner call.
+- **Chinese review copy.** The program `PRD.md` only, unless the owner names a module.
 
 ## How To Read This Package
 
@@ -84,7 +96,7 @@ Use this structure:
 | Why now | [One line] |
 | Success looks like | [One metric with its target] |
 | Biggest risk | [One line] |
-| Delivery profile | standard / mvp |
+| Delivery profile | standard / mvp / program |
 | Shape | track: web / app / agent / tool / content; companion: <public surface or none>; console: none / config-only / operations |
 
 [One paragraph describing the product, user, and outcome.]
@@ -294,6 +306,8 @@ Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI
 
 ## Business Rules
 - [Rules, thresholds, approvals, calculations]
+
+The bullet list may be a `BR-*` table (`ID | Trigger | Condition | Outcome | Exceptions | Owner | TEST IDs`), required in a module PRD and optional in `standard`. Each `BR-*` names the `Required: Yes` TEST that proves it, and that TEST's upstream cell names the BR. A `standard` PRD may also add Glossary, Permission Matrix, Reports, Capacity Assumptions and Integrations Register sections from the program and module templates; the checker validates their headers when present.
 
 ## Monetization and Partner Channels
 
@@ -623,6 +637,9 @@ For every deployable hosted web, API, or backend target, include this environmen
 | Production | [Verified main landing SHA after candidate Preview acceptance and separate promotion read-back] | [`<product-slug>-<surface-suffix>`; never add `-prod`] | [Production resources] | [Production] | [Live or not applicable] | [Classification, command, and ordering or not applicable] | [URL, deployed SHA, production smoke, evidence] | [Prior production version] |
 
 State that both hosted targets use one repository and one codebase. Do not reuse production data, sessions, secrets, or live payment mutations in development. Write each Migration Order cell so the human or CI release process can run it in order.
+
+## Migration and Cutover
+[Required in a program architecture, optional otherwise. Fill the tables from `assets/templates/PROGRAM_MIGRATION.template.md`. A migrating program carries Required-Yes `TEST-MIG-001` to `TEST-MIG-004`; a greenfield program writes `not_required — <concrete reason>`. A module architecture adds a `### Migration` mapping table for its own legacy sources.]
 
 ## Release Targets
 
