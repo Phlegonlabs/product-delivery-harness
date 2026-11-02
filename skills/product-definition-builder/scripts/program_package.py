@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from functools import partial
 from pathlib import Path
 
 # Module-attribute access only: check_product_package imports this module too,
@@ -13,11 +14,24 @@ from pathlib import Path
 import check_product_package as cpp
 from contract_utils import canonical_product_bytes, safe_read_text, sha256_text
 from markdown_contract import active_text
+from release_targets import KEBAB_RE
 
 PROGRAM_SCOPES = ("PRG", "E2E", "MIG")
+RESERVED_SCOPES = frozenset("PRD ARCH UI UX TEST DS RA MR MS TRUST AI BR PRG E2E MIG".split())
+SCOPE_RE = re.compile(r"[A-Z][A-Z0-9]{1,4}")
 # Registry families; UX IDs are scope-checked but never referenced across modules.
 FAMILIES = ("PRD", "UI", "ARCH", "TEST", "BR")
 MAP_HEADER = ("module", "scope", "name", "owns", "depends on", "order", "status")
+SHARED_HEADER = ("entity", "owner module", "readers", "identity key", "change rule")
+GLOSSARY_HEADER = ("term", "definition", "owning module", "avoid")
+ROLES_HEADER = ("role", "description", "scope")
+SOD_HEADER = ("duty a", "duty b", "rule", "test id")
+CAPACITY_HEADER = ("driver", "value", "basis", "nfr ids")
+REGISTER_HEADER = (
+    "external system", "direction and cadence", "idempotency key",
+    "reconciliation report", "error queue owner", "modules", "test ids",
+)
+PROCESS_HEADER = ("process", "modules in order", "test ids")
 
 _ID_RE = re.compile(r"(?:PRD|UX|UI|ARCH|TEST|BR)-[A-Z0-9]+(?:-[A-Z0-9]+)*", re.I)
 _UI_HEADING_RE = re.compile(r"^###\s+(UI-[A-Z0-9]+(?:-[A-Z0-9]+)*)\b", re.I)
@@ -203,6 +217,203 @@ def _check_discovery(program: Program, problems: list[str]) -> None:
             )
 
 
+def _table(
+    text: str, scope: str, problems: list[str], require_filled: bool,
+    heading: str, header: tuple[str, ...],
+) -> list[tuple[str, ...]] | None:
+    """Full-width rows of the canonical table under `heading`; None if the heading is absent."""
+
+    section = (cpp._subsection if heading.startswith("###") else cpp._section)(text, heading)
+    if section is None:
+        return None
+    if cpp._explicit_absence_reason(section) is not None:
+        return []
+    label = heading.lstrip("# ")
+    rows = cpp._find_table(section, header)
+    if rows is None:
+        cpp._add(problems, scope, f"{label} must use the canonical table")
+        return []
+    cpp._validate_table_rows(
+        rows, len(header), label=label, require_filled=require_filled,
+        problems=problems, path=scope,
+    )
+    return [row for row in rows if len(row) == len(header)]
+
+
+def _split(cell: str) -> list[str]:
+    """Items of a comma-, semicolon- or slash-separated cell; `none` is no item."""
+
+    items = (item.strip() for item in re.split(r"[,;/]", cell))
+    return [item for item in items if item and item.casefold() != "none"]
+
+
+def _mapped(program: Program) -> dict[str, ModuleRef]:
+    return {ref.module_id: ref for ref in program.modules if ref.mapped}
+
+
+def _test_rows(prd: str) -> dict[str, tuple[str, ...]]:
+    section = cpp._section(prd, "## Test Obligations") or ""
+    width = len(cpp.TEST_OBLIGATIONS_HEADER)
+    rows = cpp._find_table(section, cpp.TEST_OBLIGATIONS_HEADER) or []
+    return {row[0].upper(): row for row in rows if len(row) == width}
+
+
+def _required(tests: dict[str, tuple[str, ...]], identifier: str) -> bool:
+    return identifier in tests and tests[identifier][3].casefold() == "yes"
+
+
+def _check_map(program: Program, require_filled: bool, problems: list[str]) -> None:
+    add = partial(cpp._add, problems, "program")
+    if _table(program.prd, "program", problems, require_filled, "## Module Map", MAP_HEADER) is None:
+        add("missing required heading '## Module Map'")
+    by_id = _mapped(program)
+    mapped = list(by_id.values())
+    for label, values in (
+        ("module id", [m.module_id for m in program.modules if m.mapped]),
+        ("scope", [m.scope for m in mapped]),
+        ("Order", [m.order for m in mapped if m.order is not None]),
+    ):
+        for value in sorted({v for v in values if values.count(v) > 1}):
+            add(f"Module Map repeats {label} {value!r}")
+    for m in mapped:
+        if not KEBAB_RE.match(m.module_id):
+            add(f"Module Map module id {m.module_id!r} must be lowercase kebab-case")
+        if m.scope in RESERVED_SCOPES:
+            add(f"Module Map scope {m.scope!r} of {m.module_id!r} is reserved")
+        elif not SCOPE_RE.fullmatch(m.scope):
+            add(
+                f"Module Map scope {m.scope!r} of {m.module_id!r} must be "
+                "2-5 uppercase characters starting with a letter"
+            )
+        if m.order is None:
+            add(f"Module Map Order of {m.module_id!r} must be an integer")
+        for dep in m.depends_on:
+            if dep not in by_id:
+                add(f"Module Map: {m.module_id!r} depends on unknown module {dep!r}")
+            elif None not in (m.order, by_id[dep].order) and by_id[dep].order >= m.order:
+                add(f"Module Map Order puts {m.module_id!r} before its dependency {dep!r}")
+    done: set[str] = set()
+
+    def visit(node: str, trail: tuple[str, ...]) -> None:
+        if node in trail:
+            add("Module Map Depends on cycle: " + " -> ".join((*trail[trail.index(node):], node)))
+        elif node not in done and node in by_id:
+            for dep in by_id[node].depends_on:
+                visit(dep, (*trail, node))
+            done.add(node)
+
+    for module_id in by_id:
+        visit(module_id, ())
+
+
+def _check_data(program: Program, require_filled: bool, problems: list[str]) -> None:
+    add = partial(cpp._add, problems, "program")
+    rows = partial(_table, program.prd, "program", problems, require_filled)
+    by_id = _mapped(program)
+    for entity, owner, readers, *_ in rows("## Shared Data", SHARED_HEADER) or []:
+        if owner not in by_id:
+            add(f"Shared Data {entity!r} owner {owner!r} is not in the Module Map")
+        for reader in _split(readers):
+            if reader not in by_id:
+                add(f"Shared Data {entity!r} reader {reader!r} is not in the Module Map")
+            elif reader != owner and owner not in by_id[reader].depends_on:
+                add(f"Shared Data {entity!r} reader {reader!r} must depend on owner {owner!r}")
+    terms: set[str] = set()
+    for term, _definition, owner, _avoid in rows("## Glossary", GLOSSARY_HEADER) or []:
+        if term.casefold() in terms:
+            add(f"Glossary repeats term {term!r}")
+        terms.add(term.casefold())
+        if owner not in by_id:
+            add(f"Glossary term {term!r} owning module {owner!r} is not in the Module Map")
+    roles: set[str] = set()
+    for role, *_ in rows("### Roles", ROLES_HEADER) or []:
+        if role.casefold() in roles:
+            add(f"Roles repeats role {role!r}")
+        roles.add(role.casefold())
+    known_tests = {i for fams in program.registry.values() for i in fams.get("TEST", ())}
+    for duty_a, duty_b, _rule, test in rows("### Segregation of Duties", SOD_HEADER) or []:
+        named = cpp._ids(test, "TEST")
+        if not named:
+            add(f"Segregation of Duties pair {duty_a} / {duty_b} names no TEST ID")
+        for identifier in sorted(named - known_tests):
+            add(f"Segregation of Duties pair {duty_a} / {duty_b} names unknown {identifier}")
+    section = cpp._section(program.prd, "## Non-Functional Requirements") or ""
+    nfr_rows = [
+        row for row in cpp._find_table(section, cpp.NFR_HEADER) or []
+        if len(row) == len(cpp.NFR_HEADER)
+    ]
+    nfr_ids = {row[0].upper() for row in nfr_rows}
+    covered: set[str] = set()
+    for driver, _value, _basis, nfrs in rows("## Capacity Assumptions", CAPACITY_HEADER) or []:
+        named = cpp._ids(nfrs, "PRD")
+        if not named:
+            add(f"Capacity driver {driver!r} names no NFR ID")
+        for identifier in sorted(named - nfr_ids):
+            add(f"Capacity driver {driver!r} names unknown NFR {identifier}")
+        covered |= named
+    for row in nfr_rows:
+        if re.search(r"performance|scalab", row[1], re.I) and row[0].upper() not in covered:
+            add(f"{row[0]} ({row[1]}) is not named by any Capacity Assumptions row")
+
+
+def _check_flows(program: Program, require_filled: bool, problems: list[str]) -> None:
+    add = partial(cpp._add, problems, "program")
+    rows = partial(_table, program.prd, "program", problems, require_filled)
+    by_id = _mapped(program)
+    tests = _test_rows(program.prd)
+    systems = {
+        row[0].casefold()
+        for row in cpp._find_table(
+            cpp._section(program.architecture, "## Integrations") or "",
+            cpp.ARCHITECTURE_TABLE_HEADERS["## Integrations"],
+        ) or []
+    }
+    for row in rows("## Integrations Register", REGISTER_HEADER) or []:
+        system, names = row[0], _split(row[5])
+        if system.casefold() not in systems:
+            add(f"Integrations Register system {system!r} is not in the architecture Integrations table")
+        if not names:
+            add(f"Integrations Register system {system!r} names no module")
+        for name in names:
+            if name not in by_id:
+                add(f"Integrations Register system {system!r} module {name!r} is not in the Module Map")
+    for process, names, test_ids in rows("## Business Processes", PROCESS_HEADER) or []:
+        listed = _split(names)
+        for name in listed:
+            if name not in by_id:
+                add(f"Business Process {process!r} module {name!r} is not in the Module Map")
+        orders = [by_id[n].order for n in listed if n in by_id and by_id[n].order is not None]
+        if orders != sorted(set(orders)):
+            add(f"Business Process {process!r} must list its modules in Module Map order")
+        if not any(t.startswith("TEST-E2E-") and _required(tests, t) for t in cpp._ids(test_ids, "TEST")):
+            add(f"Business Process {process!r} needs a Required Yes TEST-E2E-* test in the program Test Obligations")
+    if "gl" in by_id and not any(
+        identifier.startswith("TEST-E2E-") and _required(tests, identifier)
+        and re.search(r"period[ -]close", row[1], re.I)
+        for identifier, row in tests.items()
+    ):
+        add("a gl module requires a Required Yes TEST-E2E-* period-close test")
+    section = cpp._section(program.architecture, "## Migration and Cutover")
+    if section is None:
+        add("architecture is missing required heading '## Migration and Cutover'")
+        return
+    reason = cpp._explicit_absence_reason(section)
+    if reason is not None:
+        if not cpp._meaningful(reason, minimum=12):
+            add("Migration and Cutover not_required needs a concrete reason")
+        return
+    for number in range(1, 5):
+        identifier = f"TEST-MIG-00{number}"
+        if not _required(tests, identifier):
+            add(f"Migration and Cutover requires {identifier} as a Required Yes obligation")
+
+
+def _check_program_ids(program: Program, problems: list[str]) -> None:
+    for identifier in sorted(_defined_ids(program.prd) | _defined_ids(program.architecture)):
+        if _scope_of(identifier) not in PROGRAM_SCOPES:
+            cpp._add(problems, "program", f"{identifier} must use a program scope (PRG, E2E or MIG)")
+
+
 def validate_program(
     product_root: Path,
     *,
@@ -221,4 +432,8 @@ def validate_program(
     program = load_program(product_root)
     problems = list(program.problems)
     _check_discovery(program, problems)
+    _check_map(program, require_filled, problems)
+    _check_data(program, require_filled, problems)
+    _check_flows(program, require_filled, problems)
+    _check_program_ids(program, problems)
     return problems
