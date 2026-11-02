@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.5-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -87,10 +87,10 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | 负责范围 |
 | --- | --- |
-| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval |
+| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval；[AI 功能契约](skills/product-definition-builder/references/ai-feature-contract.md) 与多模块产品的 modular monolith 模式 |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包 |
 | `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html` |
-| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源（含 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md)），需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief |
+| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源（含 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 与 AI 供应商设置）、[性能与成本预算](skills/delivery-harness/references/performance-and-cost-budget.md)、跑完会清掉自己产物的原生验证，需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复 |
 
 ## 独立 skills
@@ -206,6 +206,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.74.5** — 审查后的新增。原生验证改为用完即清：记录磁盘剩余空间，登记自己建立的 DerivedData、build 产物、模拟器与 AVD，取证后删除。新增 reference：AI 功能契约（prompt 与模型版本化、模型矩阵、成本上限、eval 数据集生命周期、人工审核、检索治理、工具权限）与 AI 供应商外部设置；性能与成本预算（NFR 行、容量假设、负载测试候选）；多模块产品的 modular monolith 架构模式与模块布局。
+
 - **0.74.4** — 设计先行流程。owner 要求时，可在 Product Thesis 之后、Product Definition 批准之前先跑一轮 R0 探索方向；选定方向后，作者先画核心旅程图（`journeys.html`）并提供字体配对，才开始 HiFi；HiFi 按旅程逐段制作与分组；新增首次使用（onboarding）设计档，情绪高点放在付费墙之前；UI mission 跟着批准的旅程切，每份 mission brief 带该旅程的 HiFi 页面。
 
 - **0.74.3** — 新增 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 指南：每次上线后依序执行的清单、该追踪什么、如何定义漏斗，以及让 GA4 测量来源算作已验证的验收方式。
@@ -213,7 +215,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.74.2** — 审查修正与 Linux 桌面。每一种工具链类型（MCP server、skill 与 plugin、函数库、容器、内部服务）都必须有 Toolchain 决策；Linux 桌面 app（`linux`）可通过 release、UI、design-system、部署与验收检查。`inspect_harness_run.py --session-id` 让 parent 持有自己的锁时 `Next` 直接进入选择；document-sync 会标出指向六个已退役 skills 的指引；readiness 卡只授权本次要用的动作；新增测试抓出失效的标题链接。
 
 - **0.74.1** — document-sync 盘点不再因单一文件整体失败：超过 2 MB 单文件上限的 `docs/goal/PLAN.md` 或 `RUN.md` 改以流式计算哈希并记录安静的 `oversized_document` 发现，默认的 Epic 与 PRD delta 扫描会跳过符合机密与历史排除规则的文件名。明确指定的路径保持严格。
-
-- **0.74.0** — 流程不再中途断掉。`inspect_harness_run.py` 先打印附一条建议命令的 `Next` 区块，没有 lock 的 `running` RUN 必须先由 owner 决定才能选工作。七张短 stage card 取代长 contract 成为日常读物，已签署的 launch brief 把授权与预先记录的 owner 决定带进自主循环，brief 与 review packet 按路线的时间、turn 与 byte 上限切好，readiness 先探一次环境，每个 Epic 结尾有一个 `## Handoff` 区块，每个 skill 进场先读它。Product Definition 先回读 Product Thesis，审批前多一次独立只读 PRD review，并给 owner 十题审阅指南。Go To Market 新增 messaging record、lifecycle messaging、开发者、商店与港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把用户访谈整理成 `RA-*` 候选。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

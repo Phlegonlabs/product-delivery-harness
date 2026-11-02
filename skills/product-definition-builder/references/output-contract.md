@@ -185,7 +185,7 @@ Trace: [PRD/UI/TEST IDs for this complete journey]
 | PRD-002 | [Performance / reliability / availability / security / privacy / accessibility / scalability / maintainability / operability / compliance, or another applicable attribute] | [Surface, workflow, population, and condition covered] | [Measured signal with unit, population, window, and percentile where applicable] | [Numeric threshold or bounded outcome] | TEST-002 |
 | N/A | [Non-applicable quality category] | [Why it does not apply to this product or scope] | N/A | N/A | N/A |
 
-Record every applicable quality category as a measurable `PRD-*` requirement, or record the category as explicitly `N/A` with a reason. The `N/A` row is an applicability record, not an NFR obligation, and does not receive a requirement or TEST ID. Words such as `fast`, `secure`, `reliable`, `scalable`, or `accessible` do not pass without an observable measure and target. Include units, tested population or traffic shape, measurement window, and percentile where they affect the result.
+Record every applicable quality category as a measurable `PRD-*` requirement, or record the category as explicitly `N/A` with a reason. The `N/A` row is an applicability record, not an NFR obligation, and does not receive a requirement or TEST ID. Words such as `fast`, `secure`, `reliable`, `scalable`, or `accessible` do not pass without an observable measure and target. Include units, tested population or traffic shape, measurement window, and percentile where they affect the result. Write performance, scalability and cost rows from the capacity assumptions and surface-class budgets in [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md).
 
 ## UX Requirements
 | ID | User / task | Requirement | Success and failure signal | Evidence status |
@@ -290,7 +290,7 @@ When `required`, record:
 | Fallback, shutoff, and incident path | [Degraded path, cancellation, disable switch, response owner] | [Owner/evidence] | [TEST-*] |
 | Injection and output validation | [Untrusted-input isolation, schema/policy checks, invalid-output handling] | [Owner/evidence] | [TEST-*] |
 
-Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI-SIDE-EFFECTS`, `AI-EVALUATION`, `AI-OPERATIONS`, `AI-FALLBACK`, and `AI-VALIDATION`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell.
+Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI-SIDE-EFFECTS`, `AI-EVALUATION`, `AI-OPERATIONS`, `AI-FALLBACK`, and `AI-VALIDATION`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell. Run each AI feature by the [AI Feature Contract](ai-feature-contract.md): versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance and tool manifest.
 
 ## Business Rules
 - [Rules, thresholds, approvals, calculations]
@@ -600,7 +600,7 @@ Describe in a few lines: service boundaries, API style, data access, and backgro
 [Implement the PRD Data and Trust Gate: data classification and ownership, source of truth, storage/processing regions, vendor boundaries, encryption, access/audit, retention, deletion/export, consent/policy, backup/recovery, and incident ownership. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
 
 ## AI and Automation Architecture
-[Implement the PRD AI and Automation Gate: model/provider and version boundary, allowed context and retrieval sources, prompt/tool trust boundaries, side-effect approvals, evaluation and output validation, cost/latency budgets, observability, fallback/shutoff, and incident handling. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
+[Implement the PRD AI and Automation Gate: model/provider and version boundary, allowed context and retrieval sources, prompt/tool trust boundaries, side-effect approvals, evaluation and output validation, cost/latency budgets, observability, fallback/shutoff, and incident handling. Place the model matrix, cost budget, eval set lifecycle, review queue, retrieval governance and tool manifest by the [AI Feature Contract](ai-feature-contract.md). When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
 
 ## Integrations
 | System | Purpose | Data exchanged | Auth / scopes | Contract / limits | Failure / recovery | Owner |
@@ -672,8 +672,12 @@ Keep this section absent for legacy packages. A visible contract marker always v
 ## Observability
 [Logs, metrics, traces, alerts, dashboards, audit events.]
 
+Record the budget signals and cost alerts from [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md) here, with the `service_health` or `first_party` source that reads each one back.
+
 ## Scaling and Reliability
 [Expected load, bottlenecks, caching, retries, idempotency, disaster recovery.]
+
+Record the capacity assumptions, the budget table, the caching and queue limits, and the cost model from [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md) here; the NFR rows derive from them.
 
 ## Technical Risks and Tradeoffs
 | Decision | Options Considered | Recommendation | Reason |

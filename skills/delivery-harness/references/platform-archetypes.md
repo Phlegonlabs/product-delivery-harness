@@ -186,6 +186,19 @@ When the Partner Channel Gate is `required`, add a separate partner-channel miss
 
 M4 is an illustrative single line, not a mandate to build every authenticated screen in one mission. Per `contract-and-traceability.md`'s Review Placement Defaults, split it into one mission per feature batch; the one final review carries the visual lens, and per-mission visual reviews exist only under `per_mission`. When the product has a design system, those batch missions come after its tokens and primitives are implemented — see `execution-task-decomposition.md`'s UI Build Order.
 
+Module layout. When the approved architecture is a modular monolith (many business modules, one deployable), scaffold the code by bounded context in the foundation mission:
+
+```text
+Repository:   one repo or monorepo, one package or directory per bounded context
+Kernel:       one shared-kernel package (party, product, unit of measure, currency, organisation unit, document numbering), changed only by its owner
+App shell:    the API or app layer that composes the modules; routing and session wiring, no business rules
+Module:       public entry point (API and published events), internal code, own migration folder, own tests
+Migrations:   one folder per module, run in dependency order, kernel first
+Tests:        a suite per module, plus a small cross-module process suite in the shell or a tests package
+Imports:      across modules only through a module's public entry point, enforced by the toolchain's dependency rule where one exists
+              (ESLint boundaries, Swift package targets, Gradle modules, .NET projects), otherwise by a CI import check
+```
+
 Required E2E scenarios:
 
 - Anonymous denied or redirected.
@@ -325,6 +338,18 @@ Flutter:         flutter test (widget/unit) and flutter test integration_test/ (
 Windows .NET:    dotnet test (unit/integration); dotnet build
 Desktop macOS:   xcodebuild test for a Swift app, or the cross-platform toolkit's own test runner
 ```
+
+These toolchains leave build output, devices and caches behind. After the evidence is copied into the repository evidence path, the verifier removes what the run created and nothing else, per the cleanup rule in `references/verification-gates.md`'s Changed-File Selection And Exact Execution Reuse section:
+
+```text
+iOS/macOS:     xcrun simctl delete <udid> for each device the run created; remove the run's DerivedData and build output (build with -derivedDataPath set to a run-owned directory so the ledger holds one known path)
+Android:       avdmanager delete avd -n <name> for the run's AVD; remove the project's Gradle build output (./gradlew clean)
+Flutter:       flutter clean, run inside the project only; remove any Simulator or AVD the run created
+Windows .NET:  remove the project's bin/ and obj/
+Linux desktop: remove the run's build directories and any Flatpak or Snap build cache the run made
+```
+
+The next run rebuilds from the same archetype steps.
 
 ## Browser Extension
 
