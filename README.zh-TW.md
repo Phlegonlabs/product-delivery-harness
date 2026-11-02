@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.5-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -87,10 +87,10 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | 負責範圍 |
 | --- | --- |
-| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval |
+| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各輪 PRD delta 與 Product Definition Approval；[AI 功能契約](skills/product-definition-builder/references/ai-feature-contract.md) 與多模組產品的 modular monolith 模式 |
 | `ui-design-builder` | `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html` |
-| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源（含 [GA4 後台設定](skills/delivery-harness/references/ga4-admin-setup.md)），需要時的 PLAN/RUN，以及 managed stage cards 與自主執行用的 launch brief |
+| `delivery-harness` | 範圍路由、授權、任務、整合、驗證、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源（含 [GA4 後台設定](skills/delivery-harness/references/ga4-admin-setup.md) 與 AI 供應商設定）、[效能與成本預算](skills/delivery-harness/references/performance-and-cost-budget.md)、跑完會清掉自己產物的原生驗證，需要時的 PLAN/RUN，以及 managed stage cards 與自主執行用的 launch brief |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一個 lens：搜尋與答案引擎、商店列表、registry 與目錄、bot 平台，以及團隊經營的帳號；含 `pre_launch`、`baseline`、Day 7 與 Day 30 `growth_review` 與 `traffic_drop` 模式，直接回覆 |
 
 ## 獨立 skills
@@ -206,6 +206,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.74.5** — 審查後的新增。原生驗證改為用完即清：記錄磁碟剩餘空間，登記自己建立的 DerivedData、build 產物、模擬器與 AVD，取證後刪除。新增 reference：AI 功能契約（prompt 與模型版本化、模型矩陣、成本上限、eval 資料集生命週期、人工審核、檢索治理、工具權限）與 AI 供應商外部設定；效能與成本預算（NFR 列、容量假設、負載測試候選）；多模組產品的 modular monolith 架構模式與模組佈局。
+
 - **0.74.4** — 設計先行流程。owner 要求時，可在 Product Thesis 之後、Product Definition 核准之前先跑一輪 R0 探索方向；選定方向後，作者先畫核心旅程圖（`journeys.html`）並提供字體配對，才開始 HiFi；HiFi 按旅程逐段製作與分組；新增首次使用（onboarding）設計檔，情緒高點放在付費牆之前；UI mission 跟著核准的旅程切，每份 mission brief 帶該旅程的 HiFi 頁面。
 
 - **0.74.3** — 新增 [GA4 後台設定](skills/delivery-harness/references/ga4-admin-setup.md) 指南：每次上線後依序執行的清單、該追蹤什麼、如何定義漏斗，以及讓 GA4 量測來源算作已驗證的驗收方式。
@@ -213,7 +215,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.74.2** — 審查修正與 Linux 桌面。每一種工具鏈類型（MCP server、skill 與 plugin、函式庫、容器、內部服務）都必須有 Toolchain 決策；Linux 桌面 app（`linux`）可通過 release、UI、design-system、部署與驗收檢查。`inspect_harness_run.py --session-id` 讓 parent 持有自己的鎖時 `Next` 直接進入選擇；document-sync 會標出指向六個已退役 skills 的指引；readiness 卡只授權本次要用的動作；新增測試抓出失效的標題連結。
 
 - **0.74.1** — document-sync 盤點不再因單一檔案整體失敗：超過 2 MB 單檔上限的 `docs/goal/PLAN.md` 或 `RUN.md` 改以串流計算雜湊並記錄安靜的 `oversized_document` 發現，預設的 Epic 與 PRD delta 掃描會跳過符合機密與歷史排除規則的檔名。明確指定的路徑維持嚴格。
-
-- **0.74.0** — 流程不再中途斷掉。`inspect_harness_run.py` 先印出附一條建議命令的 `Next` 區塊，沒有 lock 的 `running` RUN 必須先由 owner 決定才能選工作。七張短 stage card 取代長 contract 成為日常讀物，已簽署的 launch brief 把授權與預先記錄的 owner 決定帶進自主迴圈，brief 與 review packet 依路線的時間、turn 與 byte 上限切好，readiness 先探一次環境，每個 Epic 結尾有一個 `## Handoff` 區塊，每個 skill 進場先讀它。Product Definition 先回讀 Product Thesis，審批前多一次獨立唯讀 PRD review，並給 owner 十題審閱指南。Go To Market 新增 messaging record、lifecycle messaging、開發者、商店與港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把使用者訪談整理成 `RA-*` 候選。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

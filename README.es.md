@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.5-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -87,10 +87,10 @@ Usa $growth-review para leer cada superficie de este producto publicado con su p
 
 | Skill | Responsabilidad |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval |
+| `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval; el [contrato de funciones de IA](skills/product-definition-builder/references/ai-feature-contract.md) y el patrón de monolito modular para productos de muchos módulos |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
-| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md` (incluida la [configuración de administración de GA4](skills/delivery-harness/references/ga4-admin-setup.md)), PLAN/RUN cuando hace falta, las stage cards del modo gestionado y el launch brief para ejecución autónoma |
+| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md` (incluidas la [configuración de administración de GA4](skills/delivery-harness/references/ga4-admin-setup.md) y la del proveedor de IA), [presupuestos de rendimiento y coste](skills/delivery-harness/references/performance-and-cost-budget.md), verificación nativa que limpia lo que construyó, PLAN/RUN cuando hace falta, las stage cards del modo gestionado y el launch brief para ejecución autónoma |
 | `growth-review` | Una lente por superficie según el Surface Catalog: motores de búsqueda y de respuestas, listados de tiendas, registries y directorios, plataformas de bots y las cuentas que gestiona el equipo; modos `pre_launch`, `baseline`, `growth_review` de Day 7 y Day 30 y `traffic_drop`, salida inline |
 
 ## Skills independientes
@@ -206,6 +206,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.74.5** — Adiciones tras la revisión. La verificación nativa construye bajo demanda y limpia después: registra el espacio libre en disco, lleva un libro de los DerivedData, salidas de build, simuladores y AVD que creó y los elimina una vez capturada la evidencia. Nuevas referencias: el contrato de funciones de IA (prompts y modelos versionados, matriz de modelos, presupuesto de coste, ciclo de vida del conjunto de evaluación, revisión humana, gobernanza de recuperación, permisos de herramientas) con un perfil de configuración externa del proveedor de IA; presupuestos de rendimiento y coste como filas NFR con supuestos de capacidad y candidatos de pruebas de carga; y un patrón de monolito modular con una disposición de módulos para productos de muchos módulos.
+
 - **0.74.4** — Flujo con el diseño primero. A petición del owner, una ronda de exploración R0 de direcciones puede correr justo después del Product Thesis, antes de aprobar la Product Definition. Tras elegir dirección, el autor mapea los journeys principales (`journeys.html`) y ofrece pares tipográficos antes de cualquier pantalla HiFi; el HiFi se escribe y agrupa journey por journey; un perfil de primer uso mantiene el pico emocional antes de cualquier paywall; y las misiones de UI siguen los journeys aprobados, cada brief con las páginas HiFi de su journey.
 
 - **0.74.3** — Nueva guía de [configuración de administración de GA4](skills/delivery-harness/references/ga4-admin-setup.md): una lista ordenada para cada lanzamiento, qué medir, cómo definir embudos y la lectura que marca como verificada una fuente de medición GA4.
@@ -213,7 +215,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.74.2** — Correcciones de la revisión y escritorio Linux. Las comprobaciones de producto exigen la decisión de Toolchain para cada clase de superficie de herramientas (servidores MCP, skills y plugins, bibliotecas, contenedores, servicios internos), y las apps de escritorio Linux (`linux`) pasan las comprobaciones de release, UI, design system, despliegue y aceptación. `inspect_harness_run.py --session-id` permite que el lock propio del parent lleve `Next` a la selección, document-sync marca las referencias a los seis skills retirados, la stage card de readiness solo autoriza las acciones que usa la run y una prueba detecta enlaces rotos a encabezados.
 
 - **0.74.1** — El inventario de document-sync ya no falla entero por un solo archivo: un `docs/goal/PLAN.md` o `RUN.md` por encima del límite de 2 MB por archivo se hashea por streaming con un hallazgo silencioso `oversized_document`, y los escaneos por defecto de Epics y deltas del PRD omiten los nombres que coinciden con la exclusión de secretos e historial. Las rutas explícitas siguen siendo estrictas.
-
-- **0.74.0** — Las runs ya no se detienen a mitad. `inspect_harness_run.py` imprime un bloque `Next` con un comando recomendado, y un RUN `running` sin lock necesita una decisión del owner antes de seleccionar trabajo. Siete stage cards breves sustituyen a los contratos largos como lectura habitual, un launch brief firmado lleva autorizaciones y decisiones previas del owner a un bucle autónomo, los briefs y paquetes de revisión se dimensionan a los límites de tiempo, turnos y bytes de cada ruta, readiness sondea el entorno una vez, y cada Epic termina con un bloque `## Handoff` que cada entrada de skill lee primero. La Product Definition hace una lectura de la Product Thesis, añade una revisión independiente de solo lectura del PRD antes de la aprobación y da al owner una guía de diez preguntas. Go To Market añade un messaging record, lifecycle messaging, playbooks de canales de desarrolladores, tiendas, Hong Kong y Taiwán y un launch runbook, y el nuevo skill standalone Customer Discovery convierte entrevistas con usuarios en candidatos `RA-*`.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).

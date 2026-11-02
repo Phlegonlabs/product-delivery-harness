@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.5-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -87,10 +87,10 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | Owns |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval |
+| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval; the [AI feature contract](skills/product-definition-builder/references/ai-feature-contract.md) and the modular monolith pattern for many-module products |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
-| `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md` (including the [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md)), PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
+| `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md` (including the [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) and AI provider setup), [performance and cost budgets](skills/delivery-harness/references/performance-and-cost-budget.md), native verification that cleans up what it built, PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
 | `growth-review` | One lens per surface from the Surface Catalog: search and answer engines, store listings, registries and directories, bot platforms and the accounts the team runs; `pre_launch`, `baseline`, Day 7 and Day 30 `growth_review` and `traffic_drop` modes, inline output |
 
 ## Standalone skills
@@ -206,6 +206,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.74.5** — Suite additions from the review. Native verification builds on demand and cleans after: it records free disk space, keeps a ledger of the DerivedData, build output, simulators and AVDs it created, and removes them once evidence is captured. New references: the AI feature contract (versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance, tool permissions) with an AI provider external-setup profile; performance and cost budgets as NFR rows with capacity assumptions and load testing candidates; and a modular monolith architecture pattern with a module layout for many-module products.
+
 - **0.74.4** — Design-first flow. On the owner's request, an R0 exploration round of direction studies may run right after the Product Thesis, before Product Definition Approval. After direction selection the author maps the core journeys (`journeys.html`) and offers font pairings before any HiFi screen; HiFi is authored and grouped journey by journey; a first-run onboarding profile keeps the emotional peak before any paywall; and UI missions follow the approved journeys, with each mission brief carrying its journey's HiFi pages.
 
 - **0.74.3** — A [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) guide: an ordered checklist to run after every launch, what to track, how to define funnels, and the read-back that makes a GA4 measurement source verified.
@@ -213,7 +215,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.74.2** — Review fixes and Linux desktop. Product checks require the Toolchain decision for every toolchain surface class (MCP servers, skills and plugins, libraries, containers, internal services), and Linux desktop apps (`linux`) pass the release, UI, design-system, deployment and acceptance checks. `inspect_harness_run.py --session-id` lets a parent's own run lock lead `Next` to selection, document sync flags pointers to all six retired skills, the readiness card grants only the actions a run takes, and a test now catches dead heading links.
 
 - **0.74.1** — The document-sync inventory no longer fails as a whole on one file: a `docs/goal/PLAN.md` or `RUN.md` above the 2 MB per-file limit is stream-hashed with a quiet `oversized_document` finding, and the default Epic and PRD delta scans skip names that match the secret and history exclusion. Explicit paths stay strict.
-
-- **0.74.0** — Runs no longer stall in the middle. `inspect_harness_run.py` prints a `Next` block with one recommended command, and a `running` RUN without a lock needs an owner decision before selection. Seven short stage cards replace the long contracts as the routine reading, a signed launch brief carries authorizations and pre-recorded owner decisions into an autonomous loop, briefs and review packets are sized to each route's time, turn and byte caps, readiness probes the environment once, and every Epic ends with one `## Handoff` block that each skill entry reads first. The Product Definition reads back a Product Thesis, adds one independent read-only PRD review before approval and gives the owner a ten-question guide. Go To Market gains a messaging record, lifecycle messaging, developer, store and Hong Kong and Taiwan channel playbooks and a launch runbook, and the new standalone Customer Discovery skill turns user interviews into `RA-*` candidates.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).
