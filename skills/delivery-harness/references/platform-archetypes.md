@@ -326,6 +326,18 @@ Windows .NET:    dotnet test (unit/integration); dotnet build
 Desktop macOS:   xcodebuild test for a Swift app, or the cross-platform toolkit's own test runner
 ```
 
+These toolchains leave build output, devices and caches behind. After the evidence is copied into the repository evidence path, the verifier removes what the run created and nothing else, per the cleanup rule in `references/verification-gates.md`'s Changed-File Selection And Exact Execution Reuse section:
+
+```text
+iOS/macOS:     xcrun simctl delete <udid> for each device the run created; remove the run's DerivedData and build output (build with -derivedDataPath set to a run-owned directory so the ledger holds one known path)
+Android:       avdmanager delete avd -n <name> for the run's AVD; remove the project's Gradle build output (./gradlew clean)
+Flutter:       flutter clean, run inside the project only; remove any Simulator or AVD the run created
+Windows .NET:  remove the project's bin/ and obj/
+Linux desktop: remove the run's build directories and any Flatpak or Snap build cache the run made
+```
+
+The next run rebuilds from the same archetype steps.
+
 ## Browser Extension
 
 Use this profile when the target is a browser extension instead of a hosted web surface — a Chrome MV3 extension is the common case, and other Chromium-store targets follow the same shape. It has no URL model and no SEO metadata; its surfaces are the ones the manifest declares. Freeze the surfaces below before implementation.
