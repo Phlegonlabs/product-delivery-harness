@@ -71,7 +71,7 @@ Gitignore impact: none | update | needs owner decision
 Planned review points: <n> (<reasons>)
 ```
 
-For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images from the normal scan. Record candidate paths and hashes, then apply `references/design-input-updates.md`; only PRD-approved consequences and any required compiled design-system pair influence implementation.
+For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images from the normal scan, record candidate paths and hashes, then apply `references/design-input-updates.md`; only PRD-approved consequences and any required compiled design-system pair influence implementation.
 
 Classify each task's Gitignore impact with `references/gitignore-contract.md`; it applies to both direct and managed routes.
 
