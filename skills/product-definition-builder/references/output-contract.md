@@ -290,7 +290,7 @@ When `required`, record:
 | Fallback, shutoff, and incident path | [Degraded path, cancellation, disable switch, response owner] | [Owner/evidence] | [TEST-*] |
 | Injection and output validation | [Untrusted-input isolation, schema/policy checks, invalid-output handling] | [Owner/evidence] | [TEST-*] |
 
-Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI-SIDE-EFFECTS`, `AI-EVALUATION`, `AI-OPERATIONS`, `AI-FALLBACK`, and `AI-VALIDATION`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell.
+Each AI row has a stable test trace in order: `AI-CAPABILITY`, `AI-CONTEXT`, `AI-SIDE-EFFECTS`, `AI-EVALUATION`, `AI-OPERATIONS`, `AI-FALLBACK`, and `AI-VALIDATION`. At least one Required-Yes `TEST-*` named by the row includes that exact token in its Test Obligations upstream trace cell. Run each AI feature by the [AI Feature Contract](ai-feature-contract.md): versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance and tool manifest.
 
 ## Business Rules
 - [Rules, thresholds, approvals, calculations]
@@ -600,7 +600,7 @@ Describe in a few lines: service boundaries, API style, data access, and backgro
 [Implement the PRD Data and Trust Gate: data classification and ownership, source of truth, storage/processing regions, vendor boundaries, encryption, access/audit, retention, deletion/export, consent/policy, backup/recovery, and incident ownership. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
 
 ## AI and Automation Architecture
-[Implement the PRD AI and Automation Gate: model/provider and version boundary, allowed context and retrieval sources, prompt/tool trust boundaries, side-effect approvals, evaluation and output validation, cost/latency budgets, observability, fallback/shutoff, and incident handling. When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
+[Implement the PRD AI and Automation Gate: model/provider and version boundary, allowed context and retrieval sources, prompt/tool trust boundaries, side-effect approvals, evaluation and output validation, cost/latency budgets, observability, fallback/shutoff, and incident handling. Place the model matrix, cost budget, eval set lifecycle, review queue, retrieval governance and tool manifest by the [AI Feature Contract](ai-feature-contract.md). When the gate is `not_required`, state the PRD reason. A `blocked` gate cannot reach Product Definition Approval.]
 
 ## Integrations
 | System | Purpose | Data exchanged | Auth / scopes | Contract / limits | Failure / recovery | Owner |
