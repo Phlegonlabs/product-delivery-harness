@@ -1,10 +1,13 @@
 # Wireframe Guide
 
+Read by packages pinned below Harness 0.59 or holding a retained `ui-design/2` contract.
+Current `ui-design/3` packages do not read this guide.
+
 **Status: legacy inspection and validation only.** New `ui-design/2` packages skip this stage. Do not author, repair or validate a new wireframe for the PRD-to-directions flow. This guide remains for reading an existing schema-2 through schema-5 artifact, reproducing legacy checks, or migrating an approved product through an explicitly authorized old-package update. It grants no authority to relabel legacy approvals.
 
 Use this guide only after the core Product Definition package passes `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <approved PRD.md> --architecture <approved architecture.md> --stack-decisions <approved stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` from the repository root and records `Product Definition Approval: approved`. A legacy UI-design round owned one wireframe deliverable for every UI-bearing product: `docs/design/wireframes.html`. A current `ui-design/2` round owns directions and HiFi instead.
 
-Before new Wireframe authoring or repair, bind and load `frontend-design` as [Required Skills And Inputs](stages/ui-design.md#required-skills-and-inputs) states. Template assemblers and reviewers provide shell construction and validation, not structural product-design judgment.
+Before new Wireframe authoring or repair, bind and load `frontend-design` as [Required Skills And Inputs](../stages/ui-design.md#required-skills-and-inputs) states. Template assemblers and reviewers provide shell construction and validation, not structural product-design judgment.
 
 ## Ownership
 
@@ -57,7 +60,7 @@ Use `assets/templates/WIREFRAMES.template.html`. Generate one self-contained fil
 
 The current template starts with four web review widths: **390, 768, 1024, and 1440 px**. Each example screen includes a layout for every width. These are review targets, not mandatory CSS breakpoints. Use the exact approved PRD targets when authoring a product; this default does not replace existing contracts or native size classes. Retain historical schema-4 templates and approvals.
 
-For App + companion Web packages, follow `../../product-definition-builder/references/mobile-stack-selection.md#app-and-companion-web-contract`. The single wireframe includes the approved iOS, Android and Web screens, labeled by platform and bound to distinct `UI-*` entries. Use `responsiveBySurface` for every screen and omit global responsive keys. Native phone targets have their own named size classes and explicit canvas widths; Web uses its approved numeric viewports. Preserve platform navigation, safe areas, keyboard/text-scaling obligations and cross-surface journeys. Sharing a framework does not make Android behavior identical to iOS, and the showcase is not an app screen. Carry these same platform bindings into HiFi; HTML projections never substitute for native implementation tests.
+For App + companion Web packages, follow `../../../product-definition-builder/references/mobile-stack-selection.md#app-and-companion-web-contract`. The single wireframe includes the approved iOS, Android and Web screens, labeled by platform and bound to distinct `UI-*` entries. Use `responsiveBySurface` for every screen and omit global responsive keys. Native phone targets have their own named size classes and explicit canvas widths; Web uses its approved numeric viewports. Preserve platform navigation, safe areas, keyboard/text-scaling obligations and cross-surface journeys. Sharing a framework does not make Android behavior identical to iOS, and the showcase is not an app screen. Carry these same platform bindings into HiFi; HTML projections never substitute for native implementation tests.
 
 New and structurally revised files use schema `wireframes/5`; the checker keeps `wireframes/2` through `wireframes/4` read compatibility for unchanged historical files. Schema 5 must provide:
 

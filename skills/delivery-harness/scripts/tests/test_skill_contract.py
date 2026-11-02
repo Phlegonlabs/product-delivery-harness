@@ -1185,10 +1185,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "exact receipt-bound C..A archive verification passes",
             "Any product-path change or other difference makes A a new candidate",
             "Never relabel inherited candidate, security or CI results as fresh executions at S",
-            "legacy-pins.md#branch-protocols-before-063",
+            "legacy/legacy-pins.md#branch-protocols-before-063",
         ):
             self.assertIn(phrase, promotion)
-        self.assertIn("forward-integration SHA T and read-back", self.read("references/legacy-pins.md"))
+        self.assertIn("forward-integration SHA T and read-back", self.read("references/legacy/legacy-pins.md"))
         self.assertIn("initial-delivery and enhancement run branches", orchestration)
         self.assertIn("frozen remote `main` head for both ordinary work and hotfixes", orchestration)
         state = self.read("references/execution-state-model.md")
@@ -1790,7 +1790,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         verification = self.read("references/verification-gates.md")
         worker = self.read("references/worker-result-contract.md")
         self.assertIn("`host` policy", graph)
-        self.assertIn("legacy-pins.md#container-verifiers-before-066", graph)
+        self.assertIn("legacy/legacy-pins.md#container-verifiers-before-066", graph)
         for content in (verification, worker):
             self.assertIn("host", content)
             self.assertIn("container", content)
