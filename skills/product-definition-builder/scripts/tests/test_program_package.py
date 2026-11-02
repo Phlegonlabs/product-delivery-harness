@@ -381,5 +381,272 @@ class MigrationTests(ProgramCase):
         self.assertEqual(["program: Migration and Cutover requires TEST-MIG-004 as a Required Yes obligation"], problems)
 
 
+KERNEL = "modules/kernel/PRD.md"
+INVENTORY = "modules/inventory/PRD.md"
+CLERK_ROW = "| warehouse-clerk | inventory:post-receipt | Own warehouse | Within BR-INV-001 |\n"
+MANAGER_ROW = "| warehouse-manager | inventory:approve-adjustment | All warehouses | none |\n"
+SECURITY_GATE = "Security Requirements Gate: required — executable fixture input can create unsafe writes, decided by Owner"
+DATA_GATE = "Data and Trust Gate: not_required — no personal or regulated data, decided by Owner"
+
+
+class ModuleScopeTests(ProgramCase):
+    def test_ids_defined_in_a_module_must_use_its_scope(self) -> None:
+        self.edit(KERNEL, "| PRD-KRN-001 | Complete the fixture |", "| PRD-001 | Complete the fixture |")
+        self.assertFinding("KRN: PRD-001 does not use the module scope KRN", self.run_checks())
+
+    def test_architecture_ids_must_use_the_module_scope(self) -> None:
+        self.edit("modules/kernel/architecture.md", "| ARCH-KRN-001 |", "| ARCH-INV-001 |")
+        self.assertFinding("KRN: ARCH-INV-001 does not use the module scope KRN", self.run_checks())
+
+    def test_ui_and_ux_ids_must_use_the_module_scope(self) -> None:
+        self.edit(
+            KERNEL,
+            "## Test Obligations\n",
+            "## UI Surface Contract\n### UI-INV-001 — Home\n- Main purpose: Show fixture state.\n"
+            "## Test Obligations\n",
+        )
+        self.assertFinding("KRN: UI-INV-001 does not use the module scope KRN", self.run_checks())
+        self.setUp()
+        self.edit(
+            KERNEL,
+            "not_required — the fixture exposes no shipped user interface.",
+            "| ID | User / task | Requirement | Success and failure signal | Evidence status |\n"
+            "| --- | --- | --- | --- | --- |\n| UX-001 | Owner | Review state | Pass or fail shown | draft |",
+        )
+        self.assertFinding("KRN: UX-001 does not use the module scope KRN", self.run_checks())
+
+
+class BusinessRuleTests(ProgramCase):
+    ROW = "| BR-KRN-001 | Fixture package submitted | Package lacks owner approval | Package is rejected | none | Delivery owner | TEST-KRN-004 |"
+
+    def test_rule_with_a_required_test_that_names_it_passes(self) -> None:
+        self.assertEqual([], self.run_checks())
+
+    def test_rule_must_name_a_test(self) -> None:
+        self.edit(KERNEL, self.ROW, self.ROW.replace("TEST-KRN-004", "see the review"))
+        self.assertFinding("KRN: BR-KRN-001 names no TEST ID", self.run_checks())
+
+    def test_rule_test_must_exist(self) -> None:
+        self.edit(KERNEL, self.ROW, self.ROW.replace("TEST-KRN-004", "TEST-KRN-099"))
+        self.assertFinding("KRN: BR-KRN-001 references unknown TEST-KRN-099", self.run_checks())
+
+    def test_rule_test_must_be_required_yes(self) -> None:
+        row = "| integration | Yes | PRD-KRN-001, BR-KRN-001 |"
+        self.edit(KERNEL, row, row.replace("| Yes |", "| No |"))
+        self.assertFinding("KRN: BR-KRN-001 test TEST-KRN-004 must be Required Yes", self.run_checks())
+
+    def test_test_upstream_must_name_the_rule(self) -> None:
+        self.edit(KERNEL, "PRD-KRN-001, BR-KRN-001 |", "PRD-KRN-001 |")
+        self.assertFinding("KRN: TEST-KRN-004 upstream trace IDs must name BR-KRN-001", self.run_checks())
+
+    def test_bullet_list_is_not_the_rule_table(self) -> None:
+        self.edit(KERNEL, fx.BUSINESS_RULES.format(scope="KRN"), "## Business Rules\n- Reject unapproved packages.\n")
+        self.assertFinding("KRN: Business Rules must use the canonical table", self.run_checks())
+
+    def test_explicit_absence_is_allowed(self) -> None:
+        self.edit(KERNEL, fx.BUSINESS_RULES.format(scope="KRN"), "## Business Rules\nnot_required — kernel owns no business rules.\n")
+        self.assertEqual([], self.run_checks())
+
+
+class RoleTests(ProgramCase):
+    def test_document_state_roles_must_be_program_roles(self) -> None:
+        self.edit(INVENTORY, "| Post | warehouse-clerk |", "| Post | stranger |")
+        self.assertFinding("INV: Document States role 'stranger' is not in the program Roles table", self.run_checks())
+
+    def test_every_document_table_is_checked(self) -> None:
+        self.edit(
+            INVENTORY,
+            fx.DOCUMENT_STATES,
+            fx.DOCUMENT_STATES
+            + "Document: Stock transfer. Terminal states: Received.\n"
+            + fx.DOCUMENT_STATES.split("\n", 2)[2].replace("warehouse-clerk", "courier"),
+        )
+        self.assertFinding("INV: Document States role 'courier' is not in the program Roles table", self.run_checks())
+
+    def test_document_states_need_the_canonical_table(self) -> None:
+        self.edit(INVENTORY, "| From | To | Action |", "| From | To | Step |")
+        self.assertFinding("INV: Document States must use the canonical table", self.run_checks())
+
+    def test_permission_matrix_roles_must_be_program_roles(self) -> None:
+        self.edit(INVENTORY, CLERK_ROW, CLERK_ROW.replace("warehouse-clerk", "auditor"))
+        self.assertFinding("INV: Permission Matrix role 'auditor' is not in the program Roles table", self.run_checks())
+
+    def test_permission_matrix_actions_use_the_module_prefix(self) -> None:
+        self.edit(INVENTORY, CLERK_ROW, CLERK_ROW.replace("inventory:post-receipt", "sales:post-receipt"))
+        self.assertFinding("INV: Permission Matrix action 'sales:post-receipt' must start with 'inventory:'", self.run_checks())
+
+    def test_role_holding_both_duties_in_one_module_is_reported(self) -> None:
+        self.edit(INVENTORY, CLERK_ROW, CLERK_ROW + CLERK_ROW.replace("post-receipt", "approve-adjustment"))
+        self.assertFinding(
+            "INV: role 'warehouse-clerk' holds both inventory:post-receipt and inventory:approve-adjustment "
+            "(segregation of duties)",
+            self.run_checks(),
+        )
+
+    def test_role_holding_both_duties_across_modules_is_reported(self) -> None:
+        pair = "| inventory:post-receipt | inventory:approve-adjustment |"
+        self.edit("PRD.md", pair, "| kernel:maintain-party | inventory:approve-adjustment |")
+        self.edit(INVENTORY, MANAGER_ROW, MANAGER_ROW + MANAGER_ROW.replace("warehouse-manager", "kernel-admin"))
+        self.assertFinding(
+            "INV: role 'kernel-admin' holds both kernel:maintain-party and inventory:approve-adjustment",
+            self.run_checks(),
+        )
+
+    def test_roles_that_split_a_pair_pass(self) -> None:
+        self.assertEqual([], self.run_checks())
+
+
+class ReportsTests(ProgramCase):
+    def test_reports_heading_is_required(self) -> None:
+        self.edit(KERNEL, "## Reports\n", "## Report Notes\n")
+        self.assertFinding("KRN: missing required heading '## Reports'", self.run_checks())
+
+    def test_reports_need_the_canonical_header(self) -> None:
+        self.edit(KERNEL, "| PRD ID | Report | Audience |", "| PRD ID | Report | Readers |")
+        self.assertFinding("KRN: Reports must use the canonical table", self.run_checks())
+
+
+class GateTests(ProgramCase):
+    def test_module_gate_weaker_than_the_program_gate_fails(self) -> None:
+        self.edit(KERNEL, SECURITY_GATE, SECURITY_GATE.replace("required —", "not_required —"))
+        self.assertFinding("KRN: Security Requirements Gate is not_required but the program gate is required", self.run_checks())
+
+    def test_module_gate_stronger_than_the_program_gate_passes(self) -> None:
+        self.edit(KERNEL, DATA_GATE, DATA_GATE.replace("not_required —", "required —"))
+        self.assertEqual([], self.run_checks())
+
+    def test_blocked_module_gate_is_never_weaker(self) -> None:
+        self.edit(KERNEL, SECURITY_GATE, SECURITY_GATE.replace("required —", "blocked —"))
+        self.assertEqual([], self.run_checks())
+
+    def test_blocked_program_gate_only_fails_a_weaker_module_when_approval_is_required(self) -> None:
+        self.edit("PRD.md", DATA_GATE, DATA_GATE.replace("not_required —", "blocked —"))
+        self.assertEqual([], self.run_checks())
+        self.assertFinding(
+            "KRN: Data and Trust Gate is not_required but the program gate is blocked",
+            self.run_checks(require_approved=True),
+        )
+
+
+class CrossReferenceTests(ProgramCase):
+    KERNEL_TEST = "| Yes | PRD-KRN-001 | Completion observed |"
+    INVENTORY_TEST = "| Yes | PRD-INV-001, PRD-KRN-001 | Completion observed |"
+
+    def test_reference_to_a_dependency_and_to_program_ids_resolves(self) -> None:
+        self.edit(INVENTORY, self.INVENTORY_TEST, self.INVENTORY_TEST.replace("PRD-KRN-001", "PRD-KRN-001, PRD-PRG-001, TEST-E2E-001"))
+        self.assertEqual([], self.run_checks())
+
+    def test_reference_to_a_module_outside_depends_on_fails(self) -> None:
+        self.edit(KERNEL, self.KERNEL_TEST, self.KERNEL_TEST.replace("PRD-KRN-001", "PRD-KRN-001, PRD-INV-001"))
+        self.assertEqual(
+            ["KRN: references PRD-INV-001 but 'inventory' is not in Depends on"], self.run_checks()
+        )
+
+    def test_reference_that_does_not_resolve_fails(self) -> None:
+        for replacement, expected in (
+            ("PRD-KRN-099", "INV: references unknown PRD-KRN-099"),
+            ("TEST-E2E-099", "INV: references unknown TEST-E2E-099"),
+        ):
+            with self.subTest(replacement=replacement):
+                self.setUp()
+                self.edit(INVENTORY, self.INVENTORY_TEST, self.INVENTORY_TEST.replace("PRD-KRN-001", replacement))
+                self.assertFinding(expected, self.run_checks())
+
+    def test_reference_to_a_planned_module_has_no_ids_yet(self) -> None:
+        self.edit(
+            "PRD.md",
+            INVENTORY_ROW,
+            "| sales | SAL | Sales | Orders | kernel | 2 | planned |\n"
+            "| inventory | INV | Inventory | Stock ledger, warehouses | kernel, sales | 3 | approved |\n",
+        )
+        self.edit(INVENTORY, self.INVENTORY_TEST, self.INVENTORY_TEST.replace("PRD-KRN-001", "PRD-SAL-001"))
+        self.assertEqual(["INV: references unknown PRD-SAL-001"], self.run_checks())
+
+    def test_text_that_only_looks_like_an_id_is_ignored(self) -> None:
+        self.edit(INVENTORY, "## Test Obligations\n", "Latest delta: docs/product/deltas/PRD-DELTA-EPIC-001.md\n## Test Obligations\n")
+        self.assertEqual([], self.run_checks())
+
+    def test_architecture_references_are_checked_too(self) -> None:
+        self.edit("modules/inventory/architecture.md", "| ARCH-INV-001 | Fixture service | Complete fixture requests | PRD-INV-001 |", "| ARCH-INV-001 | Fixture service | Complete fixture requests | PRD-INV-001, PRD-KRN-099 |")
+        self.assertFinding("INV: references unknown PRD-KRN-099", self.run_checks())
+
+
+class ProgramRevisionTests(ProgramCase):
+    ZERO = "sha256:" + "0" * 64
+
+    def digest(self) -> str:
+        return "sha256:" + hashlib.sha256(
+            fx.contract_utils.canonical_product_bytes(self.files["PRD.md"], "", "")
+        ).hexdigest()
+
+    def revision(self, name: str) -> str:
+        return next(line for line in self.files[name].splitlines() if line.startswith("Program revision:"))
+
+    def test_matching_revision_gives_no_warning(self) -> None:
+        notes: list[str] = []
+        self.assertEqual([], self.run_checks(notes=notes))
+        self.assertEqual([], notes)
+        self.assertEqual(f"Program revision: {self.digest()}", self.revision(KERNEL))
+
+    def test_revision_line_is_required_and_must_be_a_sha256_digest(self) -> None:
+        expected = "KRN: At a Glance must record 'Program revision: sha256:<64 hex digits>'"
+        line = self.revision(KERNEL)
+        for replacement in ("", "Program revision: sha256:abc", "Program revision: latest"):
+            with self.subTest(replacement=replacement):
+                self.setUp()
+                self.edit(KERNEL, line + "\n", replacement + "\n" if replacement else "")
+                self.assertFinding(expected, self.run_checks())
+
+    def test_stale_revision_is_a_warning_not_a_failure(self) -> None:
+        self.edit(KERNEL, self.revision(KERNEL), f"Program revision: {self.ZERO}")
+        notes: list[str] = []
+        self.assertEqual([], self.run_checks(notes=notes))
+        self.assertEqual(
+            [f"warning: stale_program_revision KRN: module records {self.ZERO}, program PRD is {self.digest()}"],
+            notes,
+        )
+
+    def test_program_change_makes_every_recorded_revision_stale(self) -> None:
+        self.edit("PRD.md", "- Reject incomplete authority before implementation starts.", "- Reject incomplete authority before implementation starts.\n- Keep modules aligned.")
+        notes: list[str] = []
+        self.assertEqual([], self.run_checks(notes=notes))
+        self.assertEqual(["KRN", "INV"], [note.split()[2].rstrip(":") for note in notes])
+
+    def test_approval_block_change_does_not_stale_modules(self) -> None:
+        self.edit("PRD.md", "- Decision owner: Owner", "- Decision owner: Someone Else")
+        notes: list[str] = []
+        self.assertEqual([], self.run_checks(notes=notes))
+        self.assertEqual([], notes)
+
+    def test_notes_are_optional(self) -> None:
+        self.edit(KERNEL, self.revision(KERNEL), f"Program revision: {self.ZERO}")
+        self.assertEqual([], self.run_checks())
+
+
+class ModuleFilterTests(ProgramCase):
+    def break_both_modules(self) -> None:
+        self.edit(KERNEL, "| PRD-KRN-001 | Complete the fixture |", "| PRD-001 | Complete the fixture |")
+        self.edit(INVENTORY, "| PRD-INV-001 | Complete the fixture |", "| PRD-002 | Complete the fixture |")
+
+    def test_module_filter_limits_the_module_pass(self) -> None:
+        self.break_both_modules()
+        problems = self.run_checks(module="inventory")
+        self.assertFinding("INV: PRD-002 does not use the module scope INV", problems)
+        self.assertFalse(any(problem.startswith("KRN:") for problem in problems))
+
+    def test_without_a_filter_every_module_runs(self) -> None:
+        self.break_both_modules()
+        problems = self.run_checks()
+        self.assertFinding("KRN: PRD-001 does not use", problems)
+        self.assertFinding("INV: PRD-002 does not use", problems)
+
+    def test_program_checks_run_even_with_a_module_filter(self) -> None:
+        self.edit("PRD.md", INVENTORY_ROW, INVENTORY_ROW.replace("| 2 |", "| first |"))
+        self.assertFinding("Order of 'inventory' must be an integer", self.run_checks(module="kernel"))
+
+    def test_unknown_module_filter_is_reported(self) -> None:
+        self.assertFinding("program: unknown module 'billing'", self.run_checks(module="billing"))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -12,7 +12,7 @@ from pathlib import Path
 # Module-attribute access only: check_product_package imports this module too,
 # so nothing here may read it at import time.
 import check_product_package as cpp
-from contract_utils import canonical_product_bytes, safe_read_text, sha256_text
+from contract_utils import canonical_product_bytes, parse_digest, safe_read_text, sha256_text
 from markdown_contract import active_text
 from release_targets import KEBAB_RE
 
@@ -32,9 +32,19 @@ REGISTER_HEADER = (
     "reconciliation report", "error queue owner", "modules", "test ids",
 )
 PROCESS_HEADER = ("process", "modules in order", "test ids")
+RULES_HEADER = ("id", "trigger", "condition", "outcome", "exceptions", "owner", "test ids")
+STATES_HEADER = ("from", "to", "action", "who may trigger", "side effects", "guard")
+PERMISSION_HEADER = ("role", "action", "data scope", "condition")
+REPORTS_HEADER = (
+    "prd id", "report", "audience", "filters", "source entities", "freshness", "export",
+)
+GATES = ("Data and Trust Gate", "AI and Automation Gate", "Security Requirements Gate")
+GATE_RANK = {"not_required": 0, "required": 1, "blocked": 2}  # blocked is never weaker
 
 _ID_RE = re.compile(r"(?:PRD|UX|UI|ARCH|TEST|BR)-[A-Z0-9]+(?:-[A-Z0-9]+)*", re.I)
 _UI_HEADING_RE = re.compile(r"^###\s+(UI-[A-Z0-9]+(?:-[A-Z0-9]+)*)\b", re.I)
+_REF_RE = re.compile(r"\b(PRD|UI|ARCH|TEST|BR)-([A-Z][A-Z0-9]{1,4})-[A-Z0-9]+(?:-[A-Z0-9]+)*\b")
+_REVISION_RE = re.compile(r"(?im)^Program revision:\s*(\S+)\s*$")
 
 
 @dataclass(frozen=True)
@@ -414,6 +424,109 @@ def _check_program_ids(program: Program, problems: list[str]) -> None:
             cpp._add(problems, "program", f"{identifier} must use a program scope (PRG, E2E or MIG)")
 
 
+def _check_module(
+    program: Program, ref: ModuleRef, require_filled: bool, require_approved: bool,
+    problems: list[str], notes: list[str] | None,
+) -> None:
+    scope = ref.scope
+    prd, architecture = program.texts[ref.module_id]
+    context = module_context(program, ref.module_id)
+    add = partial(cpp._add, problems, scope)
+    rows = partial(_table, prd, scope, problems, require_filled)
+    program_roles = _table(program.prd, "program", [], False, "### Roles", ROLES_HEADER) or []
+    roles = {row[0].casefold() for row in program_roles}
+    for identifier in sorted(_defined_ids(prd) | _defined_ids(architecture)):
+        if _scope_of(identifier) != scope:
+            add(f"{identifier} does not use the module scope {scope}")
+
+    tests = _test_rows(prd)
+    for row in rows("## Business Rules", RULES_HEADER) or []:
+        rule, listed = row[0].upper(), cpp._ids(row[6], "TEST")
+        if not re.fullmatch(r"BR-[A-Z0-9-]+", rule):
+            add(f"invalid Business Rules ID {row[0]!r}")
+        if not listed:
+            add(f"{rule} names no TEST ID")
+        for identifier in sorted(listed):
+            if identifier not in tests:
+                add(f"{rule} references unknown {identifier}")
+            elif not _required(tests, identifier):
+                add(f"{rule} test {identifier} must be Required Yes")
+            elif rule not in cpp._ids(tests[identifier][4], "BR"):
+                add(f"{identifier} upstream trace IDs must name {rule}")
+
+    states = cpp._subsection(prd, "### Document States")
+    if states is not None:
+        chunks = re.split(r"(?m)^(?=Document:)", states)
+        tables = [t for t in (cpp._find_table(c, STATES_HEADER) for c in chunks) if t is not None]
+        if not tables:
+            add("Document States must use the canonical table")
+        for table in tables:
+            cpp._validate_table_rows(
+                table, len(STATES_HEADER), label="Document States",
+                require_filled=require_filled, problems=problems, path=scope,
+            )
+            for row in table:
+                for role in _split(row[3]) if len(row) == len(STATES_HEADER) else ():
+                    if role.casefold() not in roles:
+                        add(f"Document States role {role!r} is not in the program Roles table")
+
+    for role, action, *_ in rows("## Permission Matrix", PERMISSION_HEADER) or []:
+        if role.casefold() not in roles:
+            add(f"Permission Matrix role {role!r} is not in the program Roles table")
+        if action.split(":", 1)[0] != ref.module_id:
+            add(f"Permission Matrix action {action!r} must start with '{ref.module_id}:'")
+    if rows("## Reports", REPORTS_HEADER) is None:
+        add("missing required heading '## Reports'")
+
+    for label in GATES:
+        mine, theirs = cpp._gate_record(prd, label), cpp._gate_record(program.prd, label)
+        if (
+            mine and theirs and GATE_RANK[mine[0]] < GATE_RANK[theirs[0]]
+            and (theirs[0] != "blocked" or require_approved)
+        ):
+            add(f"{label} is {mine[0]} but the program gate is {theirs[0]}")
+
+    by_scope = {m.scope: m for m in program.modules if m.mapped}
+    seen: set[str] = set()
+    for match in _REF_RE.finditer(active_text(prd) + "\n" + active_text(architecture)):
+        identifier, family, other = match.group(0), match.group(1), match.group(2)
+        if identifier in seen or other == scope or not (other in by_scope or other in PROGRAM_SCOPES):
+            continue
+        seen.add(identifier)
+        if identifier not in context.registry.get(other, {}).get(family, ()):
+            add(f"references unknown {identifier}")
+        if other in by_scope and other not in context.depends_on:
+            add(f"references {identifier} but {by_scope[other].module_id!r} is not in Depends on")
+
+    found = _REVISION_RE.search(cpp._section(prd, "## At a Glance") or "")
+    digest = parse_digest(found.group(1)) if found else None
+    if digest is None:
+        add("At a Glance must record 'Program revision: sha256:<64 hex digits>'")
+    elif f"sha256:{digest}" != context.program_digest and notes is not None:
+        notes.append(
+            f"warning: stale_program_revision {scope}: module records sha256:{digest}, "
+            f"program PRD is {context.program_digest}"
+        )
+
+
+def _check_separation(program: Program, problems: list[str]) -> None:
+    """No role may hold both duties of a pair, in any one module or across modules."""
+
+    held: dict[str, dict[str, str]] = {}  # role -> action -> scope of the module granting it
+    for ref in program.modules:
+        if ref.module_id in program.texts:
+            matrix = program.texts[ref.module_id][0]
+            for role, action, *_ in _table(matrix, "", [], False, "## Permission Matrix", PERMISSION_HEADER) or []:
+                held.setdefault(role.casefold(), {})[action.casefold()] = ref.scope
+    for duty_a, duty_b, *_ in _table(program.prd, "", [], False, "### Segregation of Duties", SOD_HEADER) or []:
+        for role, actions in sorted(held.items()):
+            if duty_a.casefold() in actions and duty_b.casefold() in actions:
+                cpp._add(
+                    problems, actions[duty_b.casefold()],
+                    f"role {role!r} holds both {duty_a} and {duty_b} (segregation of duties)",
+                )
+
+
 def validate_program(
     product_root: Path,
     *,
@@ -436,4 +549,10 @@ def validate_program(
     _check_data(program, require_filled, problems)
     _check_flows(program, require_filled, problems)
     _check_program_ids(program, problems)
+    if module is not None and module not in _mapped(program):
+        cpp._add(problems, "program", f"unknown module {module!r}")
+    for ref in program.modules:
+        if ref.module_id in program.texts and module in (None, ref.module_id):
+            _check_module(program, ref, require_filled, require_approved, problems, notes)
+    _check_separation(program, problems)
     return problems
