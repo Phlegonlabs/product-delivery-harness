@@ -2004,6 +2004,25 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         bounded = self.read("references/bounded-enhancement.md")
         self.assertIn("PRD-DELTA-<EPIC-ID>.md", bounded)
 
+    def test_program_trace_ids_are_scoped_lenses(self) -> None:
+        contract = self.read("references/contract-and-traceability.md")
+        archetypes = self.read("references/platform-archetypes.md")
+        families = archetypes.split("## Trace ID Families", 1)[1].split(
+            "## Profile Selection Rule", 1
+        )[0]
+
+        self.assertIn("`<FAMILY>-<SCOPE>-<NNN>`", contract)
+        self.assertIn("`PRD-INV-001`", contract)
+        self.assertIn("uppercase Module Map token (2-5 characters, letter first, no hyphen)", contract)
+        self.assertIn("never equals a family name", contract)
+        self.assertIn("`PRG`, `E2E` and `MIG` are reserved program scopes", contract)
+        self.assertIn("`DS-*` stays program-wide and unscoped", contract)
+        self.assertIn("`standard` and `mvp` packages keep `PRD-001`", contract)
+        self.assertIn("A scoped ID is still one of the six core families", contract)
+        self.assertIn("`BR-*` business rule is a lens of this kind, like `TRUST-*` and `AI-*`", contract)
+        self.assertIn("names the BR in its upstream cell", contract)
+        self.assertIn("BR-* program module business rules, scoped like core IDs (BR-INV-001)", families)
+
     def test_growth_contract_foundations_are_documented_by_surface(self) -> None:
         foundations = self.read("references/initial-product-foundations.md")
         self.assertIn("### Required Early Missions By Surface", foundations)

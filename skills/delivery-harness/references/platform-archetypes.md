@@ -412,6 +412,7 @@ A11Y-* accessibility
 PERF-* performance budgets
 APPSHELL-* native app shell/navigation
 CAP-* platform capabilities (push, permissions, background tasks)
+BR-* program module business rules, scoped like core IDs (BR-INV-001)
 ```
 
 ## Profile Selection Rule
