@@ -185,7 +185,7 @@ Trace: [PRD/UI/TEST IDs for this complete journey]
 | PRD-002 | [Performance / reliability / availability / security / privacy / accessibility / scalability / maintainability / operability / compliance, or another applicable attribute] | [Surface, workflow, population, and condition covered] | [Measured signal with unit, population, window, and percentile where applicable] | [Numeric threshold or bounded outcome] | TEST-002 |
 | N/A | [Non-applicable quality category] | [Why it does not apply to this product or scope] | N/A | N/A | N/A |
 
-Record every applicable quality category as a measurable `PRD-*` requirement, or record the category as explicitly `N/A` with a reason. The `N/A` row is an applicability record, not an NFR obligation, and does not receive a requirement or TEST ID. Words such as `fast`, `secure`, `reliable`, `scalable`, or `accessible` do not pass without an observable measure and target. Include units, tested population or traffic shape, measurement window, and percentile where they affect the result.
+Record every applicable quality category as a measurable `PRD-*` requirement, or record the category as explicitly `N/A` with a reason. The `N/A` row is an applicability record, not an NFR obligation, and does not receive a requirement or TEST ID. Words such as `fast`, `secure`, `reliable`, `scalable`, or `accessible` do not pass without an observable measure and target. Include units, tested population or traffic shape, measurement window, and percentile where they affect the result. Write performance, scalability and cost rows from the capacity assumptions and surface-class budgets in [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md).
 
 ## UX Requirements
 | ID | User / task | Requirement | Success and failure signal | Evidence status |
@@ -672,8 +672,12 @@ Keep this section absent for legacy packages. A visible contract marker always v
 ## Observability
 [Logs, metrics, traces, alerts, dashboards, audit events.]
 
+Record the budget signals and cost alerts from [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md) here, with the `service_health` or `first_party` source that reads each one back.
+
 ## Scaling and Reliability
 [Expected load, bottlenecks, caching, retries, idempotency, disaster recovery.]
+
+Record the capacity assumptions, the budget table, the caching and queue limits, and the cost model from [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md) here; the NFR rows derive from them.
 
 ## Technical Risks and Tradeoffs
 | Decision | Options Considered | Recommendation | Reason |
