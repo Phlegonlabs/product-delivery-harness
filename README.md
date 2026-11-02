@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.75.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.75.1** — Thinner by default. Pin-only guides (`legacy-pins.md`, the retired `ui-design/2` wireframe guide) move under `references/legacy/`, are read only when a package pins an earlier version, and no longer count toward the docs weight (6,481 words excluded; they still install). `docs_duplicates.py` finds sentences repeated across skill files and can hold a line in CI with `--fail-over`.
+
 - **0.75.0** — The `program` delivery profile for ERP-scale products. A program PRD holds the module map with dependency order, shared data owned by a kernel, glossary, roles and segregation of duties, capacity assumptions, integrations register and cross-module business processes (`TEST-E2E-*` on a fixed `PF-BASE` fixture, including period close); each module has its own PRD and architecture under `docs/product/modules/<id>/` with scoped IDs (`PRD-INV-001`), a `BR-*` business-rules table with document states, a permission matrix and a report catalog; the program architecture adds Migration and Cutover with `TEST-MIG-*`. `check_product_package.py` validates the program once and each module (`--module <id>`), warns when a module's `Program revision` is stale, and leaves `standard`/`mvp` unchanged. Modules deliver one Epic and one PLAN/RUN at a time in map order; the interview asks the program questions; a jurisdiction compliance entry joins the option library.
 
 - **0.74.5** — Suite additions from the review. Native verification builds on demand and cleans after: it records free disk space, keeps a ledger of the DerivedData, build output, simulators and AVDs it created, and removes them once evidence is captured. New references: the AI feature contract (versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance, tool permissions) with an AI provider external-setup profile; performance and cost budgets as NFR rows with capacity assumptions and load testing candidates; and a modular monolith architecture pattern with a module layout for many-module products.
@@ -213,7 +215,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.74.4** — Design-first flow. On the owner's request, an R0 exploration round of direction studies may run right after the Product Thesis, before Product Definition Approval. After direction selection the author maps the core journeys (`journeys.html`) and offers font pairings before any HiFi screen; HiFi is authored and grouped journey by journey; a first-run onboarding profile keeps the emotional peak before any paywall; and UI missions follow the approved journeys, with each mission brief carrying its journey's HiFi pages.
 
 - **0.74.3** — A [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) guide: an ordered checklist to run after every launch, what to track, how to define funnels, and the read-back that makes a GA4 measurement source verified.
-
-- **0.74.2** — Review fixes and Linux desktop. Product checks require the Toolchain decision for every toolchain surface class (MCP servers, skills and plugins, libraries, containers, internal services), and Linux desktop apps (`linux`) pass the release, UI, design-system, deployment and acceptance checks. `inspect_harness_run.py --session-id` lets a parent's own run lock lead `Next` to selection, document sync flags pointers to all six retired skills, the readiness card grants only the actions a run takes, and a test now catches dead heading links.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).

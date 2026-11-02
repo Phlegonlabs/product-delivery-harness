@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.75.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.75.1** — 默认更薄。只有 pin 旧版才需要的指南（`legacy-pins.md`、已退役的 `ui-design/2` wireframe 指南）搬到 `references/legacy/`，只在项目 pin 旧版时才读，不再计入 docs weight（排除 6,481 字，仍会安装）。新增 `docs_duplicates.py` 找出跨文件重复的句子，可用 `--fail-over` 在 CI 守线。
+
 - **0.75.0** — ERP 规模产品用的 `program` 交付档。程序级 PRD 放模块地图与依赖顺序、由 kernel 拥有的共享数据、词汇表、角色与职责分离、容量假设、集成登记与跨模块业务流程（固定 `PF-BASE` 数据集上的 `TEST-E2E-*`，含期末结账）；每个模块在 `docs/product/modules/<id>/` 有自己的 PRD 与架构，ID 加模块代号（`PRD-INV-001`），并有 `BR-*` 业务规则表与单据状态、权限矩阵与报表目录；程序级架构新增 Migration and Cutover 与 `TEST-MIG-*`。`check_product_package.py` 校验一次程序级再逐模块（`--module <id>`），模块的 `Program revision` 过期时给 warning，`standard`/`mvp` 行为不变。模块按地图顺序一次一个 Epic 与 PLAN/RUN；访谈加入 program 问题；option library 新增司法管辖区合规条目。
 
 - **0.74.5** — 审查后的新增。原生验证改为用完即清：记录磁盘剩余空间，登记自己建立的 DerivedData、build 产物、模拟器与 AVD，取证后删除。新增 reference：AI 功能契约（prompt 与模型版本化、模型矩阵、成本上限、eval 数据集生命周期、人工审核、检索治理、工具权限）与 AI 供应商外部设置；性能与成本预算（NFR 行、容量假设、负载测试候选）；多模块产品的 modular monolith 架构模式与模块布局。
@@ -213,7 +215,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.74.4** — 设计先行流程。owner 要求时，可在 Product Thesis 之后、Product Definition 批准之前先跑一轮 R0 探索方向；选定方向后，作者先画核心旅程图（`journeys.html`）并提供字体配对，才开始 HiFi；HiFi 按旅程逐段制作与分组；新增首次使用（onboarding）设计档，情绪高点放在付费墙之前；UI mission 跟着批准的旅程切，每份 mission brief 带该旅程的 HiFi 页面。
 
 - **0.74.3** — 新增 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 指南：每次上线后依序执行的清单、该追踪什么、如何定义漏斗，以及让 GA4 测量来源算作已验证的验收方式。
-
-- **0.74.2** — 审查修正与 Linux 桌面。每一种工具链类型（MCP server、skill 与 plugin、函数库、容器、内部服务）都必须有 Toolchain 决策；Linux 桌面 app（`linux`）可通过 release、UI、design-system、部署与验收检查。`inspect_harness_run.py --session-id` 让 parent 持有自己的锁时 `Next` 直接进入选择；document-sync 会标出指向六个已退役 skills 的指引；readiness 卡只授权本次要用的动作；新增测试抓出失效的标题链接。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
