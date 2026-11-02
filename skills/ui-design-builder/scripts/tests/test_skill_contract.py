@@ -292,7 +292,7 @@ console.log("hybrid fallback and stale QA assertions completed");
                 self.assertNotIn("publication checkout", document)
                 self.assertIn("Do not collect approval on `.ui-staging` paths", document)
                 self.assertNotIn("Use staging paths for an unapproved staged draft", document)
-        self.assertIn("`stages/ui-design.md#workflow` step 7", contract)
+        self.assertIn("`stages/ui-design.md#workflow` step 8", contract)
         self.assertIn("at final repository paths on the task branch", contract)
         self.assertIn("never `.ui-staging` paths", contract)
         self.assertIn("Wait for the explicit human decision", stage)

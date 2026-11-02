@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.74.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.74.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -46,9 +46,9 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 当前起点 | Skill | 结果 |
 | --- | --- | --- |
 | 产品想法 | `product-definition-builder` | 已批准的 PRD、architecture、stack 与 TEST 义务 |
-| 已批准且包含 UI 的 Product Definition | `ui-design-builder` | 方向、完整 HiFi、浏览器证据与 Visual Approval |
+| 已批准且包含 UI 的 Product Definition（Product Thesis 之后即可开始设计，可先做可选的探索轮） | `ui-design-builder` | 方向、journey map、完整 HiFi、浏览器证据与 Visual Approval |
 | 已批准且需要设计系统的 HiFi | `design-system-compiler` | 冻结的 pair 与来源绑定派生 HTML |
-| 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN |
+| 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN；UI mission 按已批准的 journey 进行 |
 | 已发布且有任何可被发现 surface 的产品 | `growth-review` | 逐 surface 的只读增长 review，以及已路由后续工作 |
 
 五个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
@@ -105,9 +105,10 @@ Use $growth-review to read back every surface of this released product with its 
 
 ```mermaid
 flowchart LR
-  Product["Product Definition 与 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
+  Product["Product Definition 与 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向、journey map 与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
+  Product -.->|"Product Thesis 之后的可选探索轮 R0"| UI
   Product -->|"无 UI，或限域增强或维护"| Harness["Direct 或 managed 交付"]
-  Design --> Harness
+  Design -->|"mission 按已批准的 journey 进行"| Harness
   Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation"] --> C["固定候选 C"]
   C -->|managed| A["仅 managed：archive-only A"] --> Publish["已授权候选发布与适用 Preview"]
   C -->|direct| Publish
@@ -205,6 +206,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.74.4** — 设计先行流程。owner 要求时，可在 Product Thesis 之后、Product Definition 批准之前先跑一轮 R0 探索方向；选定方向后，作者先画核心旅程图（`journeys.html`）并提供字体配对，才开始 HiFi；HiFi 按旅程逐段制作与分组；新增首次使用（onboarding）设计档，情绪高点放在付费墙之前；UI mission 跟着批准的旅程切，每份 mission brief 带该旅程的 HiFi 页面。
+
 - **0.74.3** — 新增 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 指南：每次上线后依序执行的清单、该追踪什么、如何定义漏斗，以及让 GA4 测量来源算作已验证的验收方式。
 
 - **0.74.2** — 审查修正与 Linux 桌面。每一种工具链类型（MCP server、skill 与 plugin、函数库、容器、内部服务）都必须有 Toolchain 决策；Linux 桌面 app（`linux`）可通过 release、UI、design-system、部署与验收检查。`inspect_harness_run.py --session-id` 让 parent 持有自己的锁时 `Next` 直接进入选择；document-sync 会标出指向六个已退役 skills 的指引；readiness 卡只授权本次要用的动作；新增测试抓出失效的标题链接。
@@ -212,7 +215,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.74.1** — document-sync 盘点不再因单一文件整体失败：超过 2 MB 单文件上限的 `docs/goal/PLAN.md` 或 `RUN.md` 改以流式计算哈希并记录安静的 `oversized_document` 发现，默认的 Epic 与 PRD delta 扫描会跳过符合机密与历史排除规则的文件名。明确指定的路径保持严格。
 
 - **0.74.0** — 流程不再中途断掉。`inspect_harness_run.py` 先打印附一条建议命令的 `Next` 区块，没有 lock 的 `running` RUN 必须先由 owner 决定才能选工作。七张短 stage card 取代长 contract 成为日常读物，已签署的 launch brief 把授权与预先记录的 owner 决定带进自主循环，brief 与 review packet 按路线的时间、turn 与 byte 上限切好，readiness 先探一次环境，每个 Epic 结尾有一个 `## Handoff` 区块，每个 skill 进场先读它。Product Definition 先回读 Product Thesis，审批前多一次独立只读 PRD review，并给 owner 十题审阅指南。Go To Market 新增 messaging record、lifecycle messaging、开发者、商店与港台渠道 playbook 和 launch runbook，新的 standalone Customer Discovery skill 把用户访谈整理成 `RA-*` 候选。
-
-- **0.73.0** — 一个项目就是一组 surface。新的 [Surface Catalog](skills/delivery-harness/references/surface-catalog.md) 列出 22 种发布面（新增 MCP server、skill 与 plugin、library、messaging bot、marketplace app、assistant listing、container 与 internal service）和五种存在面（social、video channel、newsletter、community、docs site），存在面以 `platform:handle` 写在 PRD Growth Contract；Shape 行新增 `tool` 与 `content` track，Launch Window 新增 Destination 列。bundle 从七个 skills 缩成五个：`code-security-review` 成为 harness 的安全 lens（`references/security-review.md`），`product-activation` 收进 deployment record（External Console Setup 行加上 Measurement Sources 表，设置目录在 `references/external-setup.md`），`seo-growth-review` 改为 `growth-review`，逐一 surface 用各自的 lens 回读，并从项目自己的 stack decisions 解析供应商。`gtm-content` 并入 `go-to-market`，未使用的 templates、死代码与重复的 validator CLI 一并移除。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

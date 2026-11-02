@@ -25,7 +25,7 @@ Overflow requires a smaller scoped assignment or complete named source reads; ne
 ## Required Contents
 
 - Stage, approved Product/Stack sources, UI contract path/hash and exact assigned surfaces, states and targets.
-- Selected direction, its retained study HTML and screen captures, plus the current approved HiFi target when implementation requires it.
+- Selected direction, its retained study HTML and screen captures, plus the current approved HiFi target when implementation requires it. For a UI mission, the assigned journey's approved HiFi pages (repository path + SHA-256) and the journey map page are the primary input, alongside the mission's PRD/UI/TEST IDs; the PRD and architecture answer only what the design does not show.
 - Font declarations, weights, language coverage and fallbacks from Style Integration, Platform rules and the bound study/HiFi sources.
 - Approved image, icon, font and media locations or inline source identities from Motion And Media Intent and the bound studies/complete HiFi package.
 - Concrete visual features from the existing Design Brief, selected-direction rationale and Candidate theme.

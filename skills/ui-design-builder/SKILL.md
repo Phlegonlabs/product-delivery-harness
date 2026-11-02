@@ -17,7 +17,7 @@ Resolve `<ui-design-builder-skill-root>` and logical script paths as [Installed 
 
 At every invocation, run the [entry checklist](../delivery-harness/references/governance/task-and-handoff.md#project-entry-and-current-work). A repair that restores the frozen design does not repeat initial design choices. Model the PRD's synthetic personas and loading, empty, permission, expired-session, failure, and recovery states. A mockup or HTML native projection is not real-login or native E2E evidence; that belongs to Harness.
 
-Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
+Use this skill only after `product-definition-builder` has produced an owner-approved `PRD.md`, `architecture.md`, and `stack-decisions.md`, except for the owner-requested R0 exploration round below. Product Definition decides what the product does and which frontend, backend, data, auth, deployment, mobile, and commercial technologies it uses. This skill decides how the approved UI is structured and expressed.
 
 For every UI-bearing product, this skill owns:
 
@@ -43,6 +43,7 @@ Read the owning section before its matching action. Domain and direction guidanc
 
 - A new round requires the approved Product Definition and Stack Decision Checkpoint, with the package's exact UI contract.
 - Agent configuration designates the UI author; this skill does not choose its agent type or model. The actual writer loads the complete pinned `frontend-design` skill; a parent read does not author design.
+- On the owner's request only, an optional R0 exploration round may run before Product Definition Approval: exploratory studies, no selection, no approval authority, no HiFi, no scope change. See [Optional R0 Exploration Round](references/review-workflow.md#optional-r0-exploration-round).
 - Enhancements author only added or changed pages and necessary connecting flows. Routine maintenance does not rebuild historical HiFi or reopen frozen approvals.
 - Direction and HiFi authorship retain the required preflight, Impeccable critique/audit, browser evidence and H1-H9, then one human Visual Approval.
 

@@ -913,6 +913,17 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("does not add attempts on top of that budget", gates)
         self.assertIn("Final Visual Parity Loop", contract)
 
+    def test_ui_missions_follow_approved_journeys(self) -> None:
+        decomposition = self.read("references/execution-task-decomposition.md")
+        inputs = self.read("references/frontend-visual-inputs.md")
+        contract = self.read("references/ui-implementation-contract.md")
+
+        self.assertIn("a mission never mixes unrelated journeys", decomposition)
+        self.assertIn("docs/design/directions/<round>/journeys.html", decomposition)
+        self.assertIn("the assigned journey's approved HiFi pages", inputs)
+        self.assertIn("the journey map page are the primary input", inputs)
+        self.assertIn("a blocking finding that returns upstream", contract)
+
     def test_ui_impact_classification_and_deviation_ledger_are_binding(self) -> None:
         contract = self.read("references/ui-implementation-contract.md")
         gates = self.read("references/verification-gates.md")

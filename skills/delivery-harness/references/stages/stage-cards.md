@@ -48,7 +48,7 @@ python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run
 
 - The validator exits non-zero.
 - A frozen digest does not match current bytes.
-- One mission bundles unrelated features.
+- One mission bundles unrelated features or journeys.
 - `new_run.py` refuses because `<RUN.md>` exists.
 
 **Read on failure**
