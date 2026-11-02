@@ -1,6 +1,6 @@
 # External Setup
 
-The catalog of non-code setup a product needs outside its repository: accounts, consoles, stores, registries, DNS, analytics and monitoring. Select the sections that match the surface classes in `docs/product/architecture.md` Release Targets and the presence surfaces in the PRD Growth Contract, per the [Surface Catalog](surface-catalog.md). A section supplies candidate rows for `docs/DEPLOYMENT.md` External Console Setup and Measurement Sources; it never makes every row mandatory and never selects a provider for the owner.
+The catalog of non-code setup a product needs outside its repository: accounts, consoles, stores, registries, DNS, analytics and monitoring. Select the sections that match the surface classes in `docs/product/architecture.md` Release Targets, the presence surfaces in the PRD Growth Contract per the [Surface Catalog](surface-catalog.md), and a `required` PRD AI and Automation Gate. A section supplies candidate rows for `docs/DEPLOYMENT.md` External Console Setup and Measurement Sources; it never makes every row mandatory and never selects a provider for the owner.
 
 Before executing a fast-moving provider setup, fetch its current official documentation. Record the provider, retrieval date and any unresolved difference from this catalog. A remembered dashboard path is not execution evidence.
 
@@ -153,6 +153,21 @@ Apply to `cli`. Record the supported operating systems and shell boundary, packa
 ## Agent / Automation
 
 Apply to `agent` in addition to API / Backend. Record model and tool-provider ownership, prompt/context retention, approval gates for every side effect, evaluation and shutoff controls, cost limits, and a bounded behavior signal for each target. An agent profile never grants permission to execute a tool or publish an external change.
+
+## AI Provider
+
+Apply to every product whose PRD AI and Automation Gate is `required`, on any surface class. Run it with the [AI Feature Contract](../../product-definition-builder/references/ai-feature-contract.md). A self-hosted model records its host and weights source in place of the account rows.
+
+- Account: provider console, organization and billing owner, roles, MFA and recovery. Compare the organization identifier in the console with the PRD before acting.
+- Environments: one project or workspace each for development, preview and production, with its own keys, limits and usage view. A production key never serves preview or local work.
+- Keys: key names, placement surface, scope, rotation owner and expiry, never values. Create, rotate and revoke only with confirmation immediately before the action.
+- Spend and rate limits: a hard spend limit and an alert threshold per project, and rate limits per model, taken from the `AI-OPERATIONS` budget. Record whether each limit blocks requests or only notifies.
+- Data handling: the provider's retention period, training use of inputs and any zero-retention or opt-out arrangement, against the `AI-CONTEXT` row. Read each setting back from the console or agreement. Record an approval the provider requires, not assumed eligibility.
+- Model access: the models enabled per project, the owner of the provider's deprecation notices, and the retirement dates pinned in the model matrix.
+- Usage read-back: the measurement source for the cost budget. Compare the product's metering (`first_party`) with the provider's usage dashboard or usage API for the exact project and period. Use bounded aggregates, never prompts or outputs.
+- Status: a key with no spend limit is `configured`, not `verified`. Mark the row `verified` only after a read-back shows the limit, the alert, the data settings and the usage for the exact environment.
+
+Use current OpenAI [spend limits](https://developers.openai.com/api/docs/guides/spend-limits), [data controls](https://developers.openai.com/api/docs/guides/your-data) and [changelog](https://platform.openai.com/docs/changelog); Anthropic [workspaces](https://platform.claude.com/docs/en/build-with-claude/workspaces), [rate limits](https://platform.claude.com/docs/en/api/rate-limits), [data retention](https://platform.claude.com/docs/en/build-with-claude/api-and-data-retention) and [model deprecations](https://platform.claude.com/docs/en/about-claude/model-deprecations); and Gemini API [billing](https://ai.google.dev/gemini-api/docs/billing), [data logging and sharing](https://ai.google.dev/gemini-api/docs/logs-policy) and [deprecations](https://ai.google.dev/gemini-api/docs/deprecations) documentation before acting. Take limits and dates from the page at execution time, never from this file.
 
 ## MCP Server
 
