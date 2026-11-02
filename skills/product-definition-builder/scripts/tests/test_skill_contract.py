@@ -1056,6 +1056,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         expected = [
             ("AQ-ARCHETYPE", "independent", "Product archetype"),
             ("AQ-VALIDATION-DEPTH", "independent", "Validation depth"),
+            ("AQ-DELIVERY-PROFILE", "independent", "Delivery profile"),
             ("AQ-DEPLOYMENT-PLATFORM", "final", "Deployment platform"),
             ("AQ-MOBILE-TARGETS", "final", "Mobile target operating systems"),
             ("AQ-DESKTOP-TARGETS", "final", "Desktop target operating systems"),
@@ -1066,6 +1067,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             ("AQ-DATABASE-CATEGORY", "final", "Database category"),
             ("AQ-AUTH-STRATEGY", "final", "Auth strategy"),
             ("AQ-STACK-DECISION-MODE", "final", "How the owner wants unresolved technology choices decided"),
+            ("AQ-MODULE-ORDER", "final", "Which module ships first and which depend on it"),
+            ("AQ-MIGRATION-MODE", "final", "Legacy cutover mode"),
+            ("AQ-JURISDICTIONS", "final", "Tax and accounting jurisdictions"),
         ]
         self.assertEqual(expected, rows)
 
@@ -1096,6 +1100,20 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
                 ]
                 flattened.extend(item for batch in batches for item in batch)
             self.assertEqual(inventory_ids, flattened)
+
+    def test_program_questions_are_marked_for_askuserquestion(self) -> None:
+        interview = self.read("references/interview-guide.md")
+
+        for question_id in (
+            "AQ-DELIVERY-PROFILE",
+            "AQ-MODULE-ORDER",
+            "AQ-MIGRATION-MODE",
+            "AQ-JURISDICTIONS",
+        ):
+            self.assertRegex(
+                interview,
+                rf"(?m)^\s+- \[{question_id}\] .*\(AskUserQuestion(?:,|\))",
+            )
 
     def test_browser_extension_is_a_supported_archetype(self) -> None:
         skill = self.read(STAGE)

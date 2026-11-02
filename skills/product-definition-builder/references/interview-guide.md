@@ -6,8 +6,8 @@ Bullets marked `(AskUserQuestion)` are a closed, enumerable set. Do not include 
 
 Size each `AskUserQuestion` call to the question tool's actual per-call question and option limits. Batch each phase into the minimum number of calls the tool permits, never repeat an answered decision to reshape a call, and use the tool's built-in Other when its option limit cannot show the full candidate list; record that full list in `PRD.md`. There is no host-specific or cross-phase total-call cap. Start the closed-set phase only after the segmented free-text sequence is complete, in this order:
 
-1. The decisions that depend on no other answer: product archetype and validation depth. When the research assessment recommends `go`, its Research Gate decision leads this call.
-2. The decisions that depend on the archetype call's answer: deployment platform, mobile or desktop target platforms, client implementation strategy, browser-extension targets, monetization model, partner channel, database category, auth strategy, and stack decision mode.
+1. The decisions that depend on no other answer: product archetype, validation depth, and delivery profile. When the research assessment recommends `go`, its Research Gate decision leads this call.
+2. The decisions that depend on the archetype call's answer: deployment platform, mobile or desktop target platforms, client implementation strategy, browser-extension targets, monetization model, partner channel, database category, auth strategy, and stack decision mode. When the delivery profile is `program`, also module order, migration mode, and jurisdictions.
 
 This table is the canonical closed-decision inventory and phase order. Each applicable ID is asked exactly once by the matching `(AskUserQuestion)` bullet below. Batch only within one phase; a host with a smaller per-call capacity splits that phase without dropping or moving decisions.
 
@@ -15,6 +15,7 @@ This table is the canonical closed-decision inventory and phase order. Each appl
 | --- | --- | --- |
 | AQ-ARCHETYPE | independent | Product archetype |
 | AQ-VALIDATION-DEPTH | independent | Validation depth |
+| AQ-DELIVERY-PROFILE | independent | Delivery profile |
 | AQ-DEPLOYMENT-PLATFORM | final | Deployment platform |
 | AQ-MOBILE-TARGETS | final | Mobile target operating systems |
 | AQ-DESKTOP-TARGETS | final | Desktop target operating systems |
@@ -25,6 +26,9 @@ This table is the canonical closed-decision inventory and phase order. Each appl
 | AQ-DATABASE-CATEGORY | final | Database category |
 | AQ-AUTH-STRATEGY | final | Auth strategy |
 | AQ-STACK-DECISION-MODE | final | How the owner wants unresolved technology choices decided |
+| AQ-MODULE-ORDER | final | Which module ships first and which depend on it |
+| AQ-MIGRATION-MODE | final | Legacy cutover mode |
+| AQ-JURISDICTIONS | final | Tax and accounting jurisdictions |
 
 Never ask a final-phase question in the archetype call. The product surface is still unknown there, so the answer can be about a platform the product does not have — and a wrong deployment platform then freezes a wrong environment contract into `architecture.md`.
 
@@ -60,6 +64,17 @@ Ask the unresolved parts of these short prompts:
 
 Capture internally: top workflows, triggers, end states, data lifecycle, integrations, freshness, retention, classification, residency, deletion/export, consent, vendor and human access, security assets, entry points, trust boundaries, abuse cases, forbidden outcomes, prior incidents, required security evidence, owner, and residual risk, business rules, compliance boundaries, AI/automation permissions and evaluation, UI states, content responsibilities, and confirmation/recovery expectations. Leave database category, auth strategy, validation depth, and stack decision mode for `AskUserQuestion`.
 
+When the request, repository, or earlier replies point to a multi-module business system or the owner names a program, also ask the unresolved parts of these prompts in the same turn:
+
+- Which modules make up the product, who owns each one, and what does each own?
+- Which master data do modules share, and which module owns each entity?
+- Which document types does each module handle, and how does each move from creation to a final state?
+- Which approval rules apply, and who may create, approve, post, or reverse what?
+- Which reports do people run today, and which legacy systems and data must migrate?
+- Which external systems must it integrate with, and which business processes cross modules, such as order-to-cash, procure-to-pay, or period close?
+
+Capture internally, per module: name, owner, owned entities, and dependencies. Per shared entity: owner module, readers, and identity key. Per document type: states, terminal states, who may trigger each transition, and the guarding rule. Also roles and role pairs that must stay separate, reports with audience and freshness, legacy sources with owner and volume, external systems with direction, cadence, and error owner, and each cross-module process with its modules in order.
+
 ### Segment 3 — Delivery, success, and risk
 
 Ask the unresolved parts of these short prompts:
@@ -70,6 +85,14 @@ Ask the unresolved parts of these short prompts:
 - Which risks, unknowns, observability needs, background work, or operational concerns should be investigated first?
 
 Capture internally: scope and non-goals; architecture and build-versus-buy constraints; cost, licensing, and lock-in tolerances; expected deployable surfaces; stable development and production targets; source refs; artifacts and signing; channels; release gates; availability signals; rollout and recovery; success metrics with baseline, window, source, and owner; measurable NFRs; test obligations; risks; observability; audit; jobs; and queues. For multiple platforms, record the owner-selected whole-platform order and each required stage-completion TEST; a single platform may record a concrete not-required reason. Ask concise targeted follow-ups rather than exposing this entire capture list to the user.
+
+For a program, also ask the unresolved parts of these prompts in the same turn:
+
+- What load must it carry: named users, peak concurrent users, transactions per day, data growth per year, and years of retention?
+- Which jurisdictions does it operate in, for tax, e-invoicing, record retention, and data residency?
+- What cutover constraints apply: a parallel run, blackout dates such as period close or audits, and an agreed rollback window?
+
+Capture internally: each capacity driver with its value and basis, the jurisdictions, the parallel-run length, blackout dates, and the rollback window.
 
 ### Segment 4 — Ambition
 
@@ -151,6 +174,7 @@ Ask only questions that are not already answered. Route unresolved details into 
    - What is in scope for v1?
    - What is explicitly out of scope?
    - What timeline, milestone, or team constraint should shape the implementation plan?
+   - [AQ-DELIVERY-PROFILE] Which delivery profile fits: `standard`, `mvp`, or `program` (several modules delivered one at a time in dependency order)? (AskUserQuestion) For a new product with one owner or a small team, recommend `mvp` first and state what `standard` adds; recommend `program` when the replies name several modules with shared data. The owner still picks. Only `program` makes module order, migration mode, and jurisdictions applicable.
    - What is the complete inventory of expected deployable web, API, mobile, desktop, or browser-extension surfaces? Give each surface a stable ID, then name the exact development and production targets for every expected surface. Give each target its own stable ID, explicit lowercase kebab-case surface suffix, and lowercase kebab-case release name. Production uses the unqualified canonical `<product-slug>-<surface-suffix>` name with no `-prod`; development uses that exact name plus `-dev`; distinct surfaces never share a release name. Record `surface` separately from the stage-specific `provider`, and allow providers to differ between stages.
    - For a multi-platform product, ask the human owner whether to sequence whole-platform delivery. Record the order, stage completion tests, shared API/interface ARCH IDs, and owner decision. Do not infer the order or use a shared label to evade separate platform evidence.
    - New packages use `main-preview/1`: development is the exact candidate branch/ref and SHA, and production is `refs/heads/main` after separate authorization. Ordinary work and hotfixes both freeze remote main. Preserve historical package/RUN pins without migration. Record native Preview capability or an isolated alternative. Tags and alternative production refs are rejected.
@@ -166,6 +190,14 @@ Ask only questions that are not already answered. Route unresolved details into 
     - Who does this best today, and can we match their instruments, raw material, and access?
     - What is the unreasonable target, and who outside the team proves it?
     - Said as verbs, what is this work, and which fields belong on the crew?
+13. Program scale, when the delivery profile is `program`
+    - Modules and shared data: a dependency cycle means the split is wrong, so ask which module should own the shared piece. Every shared entity has exactly one owner module.
+    - Legacy sources: ask for the control totals that prove each load.
+    - Cross-module processes: ask for the result that proves each one end to end.
+    - Capacity and jurisdictions: numbers need a basis, and each jurisdiction implies its own tax, e-invoice, retention, and residency rules.
+    - [AQ-MODULE-ORDER] Which module ships first, and which modules depend on it? (AskUserQuestion, final phase) Offer the modules named in the Segment 2 reply and use the built-in Other when they exceed the option limit; record the full order in the PRD's Module Map. The shared kernel is the usual first candidate. Skip it unless the delivery profile is `program`, or when the reply already fixes the order.
+    - [AQ-MIGRATION-MODE] How does the program cut over from the legacy systems: big-bang cutover, parallel run, phased by module, or an evidence-backed recommendation? (AskUserQuestion, final phase) Skip it unless the delivery profile is `program`. When the program is greenfield with no data to migrate, skip it and record the migration section as `not_required` with that reason.
+    - [AQ-JURISDICTIONS] Which tax and accounting jurisdictions apply? (AskUserQuestion, final phase) Offer the countries or regions named in the Segment 3 reply, allow several, and use the built-in Other for the rest. Each answer seeds the Data and Trust rows: tax and e-invoice regime, record retention, data residency, and statutory filings. Skip it unless the delivery profile is `program`, or when the reply already names the complete set.
 
 ## Completeness Criteria
 
@@ -195,6 +227,7 @@ Discovery is complete enough to draft when the agent can state:
 - The Growth Contract: a north star with Day 7 and Day 30 targets, at least one re-engagement mechanism for web or app tracks, discovery surfaces including the social, video, newsletter or community accounts the team actually runs, and a launch window with a destination per row.
 - The applicable non-functional quality categories, each measurable target, and explicit reasons for categories that are `N/A`.
 - The release-blocking test obligations and the functional or non-functional requirements each one proves, ready for stable `TEST-*` IDs.
+- For `Delivery profile: program`, a program is complete only when the Module Map has an order, every module has an owner, shared data has an owner module, and each cross-module business process names its modules. The capacity numbers, jurisdictions, and migration mode (or a greenfield reason) are recorded too.
 
 If any item is missing and the user did not authorize assumptions, ask follow-up questions before drafting.
 
