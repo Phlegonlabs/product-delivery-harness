@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.2-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.75.3-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.75.3** — Correcciones de plantillas detectadas en la adopción de 0.75.2. `PROJECT_AGENTS.template.md` apunta ahora las reglas de runs gestionadas a `project-operating-rules.md` en lugar de una sección que la plantilla nunca tuvo; el ejemplo de presence de `DEPLOYMENT.template.md` ya no lo marca `check_deployment.py` como placeholder sin rellenar; la guía de GA4 indica que una fila `MS-*` queda en `available` hasta que Realtime o DebugView muestran el evento.
+
 - **0.75.2** — Lectura más ligera. `docs_reading_budget.py` mide las palabras que un agente debe leer antes de actuar en cada punto de entrada (enlaces obligatorios y condicionales por separado, `--budget N` para CI). Siete referencias se comprimieron sin eliminar ninguna regla: el output contract del PRD, las verification gates, el modelo de estado de ejecución, design input updates, el output contract de UI, el architecture playbook y la guía de entrevista (unas 8.600 palabras menos); `design-input-updates.md` se lee ahora solo para trabajo de UI, lo que quita 3,7k palabras a cada run directa y gestionada. El total contado queda por debajo de v0.74.1 pese a las adiciones de esta semana.
 
 - **0.75.1** — Más ligero por defecto. Las guías que solo necesita un paquete fijado a una versión anterior (`legacy-pins.md`, la guía de wireframes `ui-design/2` retirada) pasan a `references/legacy/`, se leen solo cuando el paquete fija una versión anterior y ya no cuentan en el docs weight (6.481 palabras excluidas; se siguen instalando). `docs_duplicates.py` encuentra frases repetidas entre archivos de skills y puede mantener un límite en CI con `--fail-over`.
@@ -213,7 +215,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.75.0** — El perfil de entrega `program` para productos a escala ERP. Un PRD de programa contiene el mapa de módulos con orden de dependencias, datos compartidos propiedad de un kernel, glosario, roles y segregación de funciones, supuestos de capacidad, registro de integraciones y procesos de negocio entre módulos (`TEST-E2E-*` sobre un fixture fijo `PF-BASE`, incluido el cierre de periodo); cada módulo tiene su propio PRD y arquitectura en `docs/product/modules/<id>/` con IDs con ámbito (`PRD-INV-001`), una tabla de reglas de negocio `BR-*` con estados de documento, una matriz de permisos y un catálogo de informes; la arquitectura del programa añade Migration and Cutover con `TEST-MIG-*`. `check_product_package.py` valida el programa una vez y cada módulo (`--module <id>`), avisa cuando el `Program revision` de un módulo está desactualizado y deja `standard`/`mvp` sin cambios. Los módulos se entregan con un Epic y un PLAN/RUN a la vez en el orden del mapa; la entrevista añade las preguntas de programa; una entrada de cumplimiento por jurisdicción se suma a la option library.
 
 - **0.74.5** — Adiciones tras la revisión. La verificación nativa construye bajo demanda y limpia después: registra el espacio libre en disco, lleva un libro de los DerivedData, salidas de build, simuladores y AVD que creó y los elimina una vez capturada la evidencia. Nuevas referencias: el contrato de funciones de IA (prompts y modelos versionados, matriz de modelos, presupuesto de coste, ciclo de vida del conjunto de evaluación, revisión humana, gobernanza de recuperación, permisos de herramientas) con un perfil de configuración externa del proveedor de IA; presupuestos de rendimiento y coste como filas NFR con supuestos de capacidad y candidatos de pruebas de carga; y un patrón de monolito modular con una disposición de módulos para productos de muchos módulos.
-
-- **0.74.4** — Flujo con el diseño primero. A petición del owner, una ronda de exploración R0 de direcciones puede correr justo después del Product Thesis, antes de aprobar la Product Definition. Tras elegir dirección, el autor mapea los journeys principales (`journeys.html`) y ofrece pares tipográficos antes de cualquier pantalla HiFi; el HiFi se escribe y agrupa journey por journey; un perfil de primer uso mantiene el pico emocional antes de cualquier paywall; y las misiones de UI siguen los journeys aprobados, cada brief con las páginas HiFi de su journey.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).

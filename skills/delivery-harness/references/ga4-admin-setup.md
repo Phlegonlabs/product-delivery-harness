@@ -109,6 +109,7 @@ A funnel counts how many people move through ordered steps toward one outcome. D
 
 ## Read-Back
 
+- Until then the `MS-*` row is `available` (Measurement Sources use `planned`, `available`, `verified`, `blocked`, `superseded` or `n/a`); `configured` belongs to External Console Setup rows.
 - The row is `verified` only when Realtime or DebugView shows each planned event from the exact release, and a Data API query returns it for the exact property and stream. Installing a tag verifies nothing.
 - After 24 to 48 hours, the Events report lists every planned event, every key event has data, and each funnel shows counts at step 1.
 - Record property ID, stream IDs, Measurement ID, retention choice, filter states, key events, custom dimensions, funnels, channel group, link states, report collection and check time.

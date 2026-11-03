@@ -32,6 +32,23 @@ class DocumentedCommandTests(unittest.TestCase):
             self.assertIn(obligation, research)
         self.assertNotIn("readonly_assignments.cjs", source)
 
+    def test_project_agents_template_points_at_real_managed_run_rules(self):
+        templates = SCRIPTS.parent / "assets/templates"
+        agents = (templates / "PROJECT_AGENTS.template.md").read_text(encoding="utf-8")
+        self.assertNotIn("this file's **Managed Product Delivery Harness Runs**", agents)
+        self.assertNotIn("Rules under **Managed Product Delivery Harness Runs**", agents)
+        self.assertIn("project-operating-rules.md#managed-product-delivery-harness-runs", agents)
+        rules = (SCRIPTS.parent / "references/project-operating-rules.md").read_text(encoding="utf-8")
+        self.assertIn("\n## Managed Product Delivery Harness Runs\n", rules.replace("\r\n", "\n"))
+
+    def test_deployment_template_prose_is_not_a_placeholder(self):
+        import check_deployment
+
+        template = (SCRIPTS.parent / "assets/templates/DEPLOYMENT.template.md").read_text(encoding="utf-8")
+        intro = [line for line in template.splitlines() if line.startswith("One row per `MS-*` source")]
+        self.assertEqual(1, len(intro))
+        self.assertFalse(check_deployment._is_placeholder(intro[0]))
+
     def test_readiness_card_keeps_unused_actions_and_push_unauthorized(self):
         cards = (SCRIPTS.parent / "references/stages/stage-cards.md").read_text(encoding="utf-8")
         self.assertNotIn("every action entry needs `authorized: true`", cards)
