@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.74.3. Current releases are in [README.md](README.md#version-history).
+English release history through 0.74.4. Current releases are in [README.md](README.md#version-history).
+
+- **0.74.4** — Design-first flow. On the owner's request, an R0 exploration round of direction studies may run right after the Product Thesis, before Product Definition Approval. After direction selection the author maps the core journeys (`journeys.html`) and offers font pairings before any HiFi screen; HiFi is authored and grouped journey by journey; a first-run onboarding profile keeps the emotional peak before any paywall; and UI missions follow the approved journeys, with each mission brief carrying its journey's HiFi pages.
 
 - **0.74.3** — A [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) guide: an ordered checklist to run after every launch, what to track, how to define funnels, and the read-back that makes a GA4 measurement source verified.
 
