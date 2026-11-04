@@ -27,7 +27,7 @@ Keep receipts, inspected captures and source artifacts tracked when they are req
 
 ## Diagnostic Wave Completeness
 
-Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier.
+Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier. The independent browser reviewer verifies these receipts and samples their PASS rows under [Verify-Then-Sample Review](../../delivery-harness/references/runtime-adapters.md#verify-then-sample-review); it does not re-judge the matrix.
 
 Complete observed FAIL results, low scores and fully observed defects may enter one consolidated repair batch under the existing write grant. Missing outputs, unscorable `BLOCKED` or `MISSING` rows, an absent H dimension, malformed captures or input drift block the handoff. These findings still fail strict final acceptance. None of this is a PASS or Visual Approval.
 

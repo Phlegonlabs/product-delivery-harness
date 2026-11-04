@@ -44,7 +44,7 @@ Re-check scope. The packet carries the prior reviewed head, blocking findings an
 
 Pre-review repair gate. Before a re-check is reserved (on the direct route, dispatched), the author presents the focused verifier PASS at the new head and, for a failure family, the family's acceptance matrix with each equivalence class exercised. A repair without that evidence returns to the author undispatched. This is author evidence, not a review attempt.
 
-Environment-blocked attempts. An attempt the reviewer could not perform — checkout or branch mismatch, sandbox permission denial, unavailable runtime, interrupted before inspection — is recorded `blocked` with `blocker_class: environment` and evidence. It consumes neither the node's attempt nor the repair budget: the transition refunds the node attempt, at most two per review lineage per RUN, and keeps the attempt log and worker entry. It is not a review verdict and never a PASS.
+Environment-blocked attempts. An attempt the reviewer could not perform — checkout or branch mismatch, sandbox permission denial, unavailable runtime, interrupted before a verdict — is recorded `blocked` with `blocker_class: environment` and evidence. It consumes neither the node's attempt nor the repair budget: the transition refunds the node attempt, at most two per review lineage per RUN, and keeps the attempt log and worker entry. It is not a review verdict and never a PASS.
 
 Scope-disjoint carry-forward. On the direct route only, a review PASS bound to SHA X, including its security lens, stays valid for a descendant commit Y when every path changed between X and Y is outside the review scope and non-executable: docs, Epic, evidence, README. Record the origin PASS SHA, the X..Y path list, and the reason; never relabel it as a fresh review. Any code, config, dependency, migration, or toolchain change is a new candidate. Managed runs do not use this rule: a bookkeeping child binds through `reconcile-coordination-head`, and any other head change invalidates every gate PASS (`execution-state-model.md`).
 
@@ -392,7 +392,7 @@ If verification fails:
 - Do not claim done, and do not commit failed work unless the commit is explicitly a harness/test artifact needed to expose the failure.
 - Record the failing command, exit code, and minimal error.
 - Decide whether the next action is code fix, test fix, environment fix, contract clarification, or user input.
-- A timeout or turn cap reached before inspection is an environment-blocked attempt. The next attempt uses smaller path groups or a smaller brief, never the same packet again.
+- A timeout or turn cap reached before a verdict is an environment-blocked attempt. The next attempt uses smaller path groups or a smaller brief, never the same packet again.
 - Treat repeated failure as a harness issue after two similar failed attempts.
 - Treat adjacent edge cases from one parsing, validation, serialization, protocol, state-machine, or boundary primitive as one failure family. Do not authorize another example-specific patch after that family survives a repair. Before another write, require a structural repair objective and an acceptance matrix covering the family's known equivalence classes; otherwise return `REFINEMENT_REQUEST` or `contract_gap`.
 - Preserve the mission + review surface + root-cause attempt count across PLAN revisions; a generic instruction to continue never authorizes an extra review.

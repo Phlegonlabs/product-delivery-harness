@@ -25,7 +25,7 @@ Combine missing design, image and motion preferences. Reuse supplied answers. Ru
 
 The PRD `Shape` row fixes the required surfaces by track: `web` → landing and the primary return surface; `app` → a landing or store-listing page, the store screenshot set, and the onboarding first three screens; `agent` → the public docs page and, when `console: operations`, the console's configuration, run-inspection and approval screens. The console is an internal-tool archetype: one direction, required surfaces only, full journeys. Review and the completeness preflight join coverage against those surfaces.
 
-Browser, critique, audit and grading are checks within one wave; repair and re-review follow the [rubric](ui-grading-rubric.md#repair-re-review-scope), and later defects use the same scoped review with no third wave. Managed mission, integration and security reviews follow their separate Harness contracts.
+Browser, critique, audit and grading are checks within one wave; repair and re-review follow the [rubric](ui-grading-rubric.md#repair-re-review-scope), and later defects use the same scoped review, capped at two scoped re-reviews in total, with no third wave. Managed mission, integration and security reviews follow their separate Harness contracts.
 
 Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and the evidence to record. PRD self-review belongs to Product Definition after market reconciliation and before its approval. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.
 
