@@ -95,6 +95,7 @@ class FakeDriver:
         self.open_events = {}    # page -> events
         self.open_error = {}     # page -> exception
         self.axis_events = {}    # axis -> events
+        self.axis_error = {}     # axis name (or "none") -> exception raised by the axis op
         self.paint = {}          # capture name -> text that changes its pixels
 
     def start(self):
@@ -119,6 +120,8 @@ class FakeDriver:
         return {"result": {}, "events": self.open_events.get(fields["page"], {})}
 
     def _axis(self, fields):
+        if fields["name"] in self.axis_error:
+            raise self.axis_error[fields["name"]]
         self.axis = None if fields["name"] == "none" else fields["name"]
         return {"result": {}, "events": {}}
 
@@ -522,6 +525,60 @@ class AxisTests(unittest.TestCase):
         self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
         self.assertEqual([], output["console"])
         self.assertTrue(all("console exception" in r["reasons"][0] for r in sidecar["axes"]))
+
+    def axis_rows(self, driver, *extra):
+        cli = Cli(self)
+        code, summary, out = cli.run(driver, *extra)
+        output, sidecar = cli.load(out)
+        return code, summary, output, sidecar["axes"]
+
+    def test_an_axis_that_cannot_be_set_up_gives_blocked_rows_and_a_failing_exit(self):
+        driver = FakeDriver()
+        driver.axis_error["forced-colors"] = m.DriverError("page.emulateMedia: forced colors are not supported")
+        code, summary, output, axes = self.axis_rows(driver, "--axes", "dark,forced-colors")
+        forced = [r for r in axes if r["axis"] == "forced-colors"]
+        self.assertEqual(1, code)
+        self.assertEqual((16, 8), (summary["axisCases"], summary["axisFail"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in axes if r["axis"] == "dark"})
+        self.assertEqual(8, len(forced))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in forced})
+        self.assertTrue(all("forced-colors could not be set up" in r["reasons"][0] and "not supported" in r["reasons"][0]
+                            and r["capture"] is None for r in forced))
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        # the next axis and page still start from the base state
+        self.assertEqual(["dark", "none", "forced-colors", "none"] * 2, [f["name"] for op, f in driver.calls if op == "axis"])
+
+    def test_an_axis_that_cannot_be_reset_restarts_the_browser_and_still_reports_every_row(self):
+        driver = FakeDriver()
+        driver.axis_error["none"] = m.DriverError("page.emulateMedia: target closed")
+        code, summary, _, axes = self.axis_rows(driver, "--axes", "dark,reduced-motion,zoom-200")
+        self.assertEqual(1, code)
+        self.assertEqual(2 * 3 * 4, len(axes))          # pages x axes x sampled cases: nothing is dropped
+        self.assertGreaterEqual(summary["restarts"], 1)
+        blocked = [r for r in axes if r["result"] == "BLOCKED"]
+        self.assertTrue(blocked)
+        self.assertTrue(all("restart limit" in r["reasons"][0] for r in blocked))
+
+    def test_axes_on_a_page_that_did_not_open_are_blocked_not_omitted(self):
+        driver = FakeDriver()
+        driver.open_error["details.html"] = m.DriverError("page did not load: details.html")
+        code, summary, _, axes = self.axis_rows(driver, "--axes", "dark")
+        ui2 = [r for r in axes if r["surface"] == "UI-002"]
+        self.assertEqual(1, code)
+        self.assertEqual((6, 2), (summary["axisCases"], summary["axisFail"]))   # ready at two targets for UI-002: no base geometry
+        self.assertEqual(2, len(ui2))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in ui2})
+        self.assertIn("page did not open", ui2[0]["reasons"][0])
+
+    def test_axes_after_an_aborted_run_are_blocked_not_omitted(self):
+        driver = FakeDriver()
+        for state in ("ready", "loading", "empty"):
+            for target in ("390", "1200"):
+                driver.overrides[("UI-001", state, target)] = {"raise": m.DriverTimeout("no reply")}
+        code, summary, _, axes = self.axis_rows(driver, "--axes", "dark")
+        self.assertEqual(1, code)
+        self.assertEqual((4, 4), (summary["axisCases"], summary["axisFail"]))
+        self.assertTrue(all(r["result"] == "BLOCKED" and "restart limit" in r["reasons"][0] for r in axes))
 
     def test_the_four_axes_are_supported_and_others_refused(self):
         self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200"), m.AXES)

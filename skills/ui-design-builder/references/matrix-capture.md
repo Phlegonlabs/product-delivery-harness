@@ -48,7 +48,7 @@ A case is carried when its render fingerprint equals the earlier one (both compl
 
 The sample, once per page, is `ready` (or the first state) and the state with the most product DOM nodes, at the smallest and largest target. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page.
 
-Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1.
+Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
 
 ## What it does not prove
 

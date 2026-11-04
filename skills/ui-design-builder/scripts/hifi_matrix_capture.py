@@ -755,7 +755,7 @@ class Runner:
                     self.recover(page)
         for case in cases:
             self.records[case.key] = self.observe(case)
-        if not self.axes or self.aborted or page in self.unopened:
+        if not self.axes:
             return
         rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
                 and any(c.surface == row["id"] for c in cases)]
@@ -766,21 +766,28 @@ class Runner:
                 counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
         sampled = sample_axis_cases(rows, page, self.package.widths[page], counts)
         for axis in self.axes:
+            self.run_axis(page, axis, sampled)
+
+    def run_axis(self, page, axis, sampled):
+        """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
+        blocked = f"page did not open, so axis {axis} was not applied" if page in self.unopened else None
+        if blocked is None and not self.aborted:
             try:
                 self.driver.call("axis", name=axis)
                 self.active_axis = axis
-            except DriverError:
-                self.active_axis = None
-                continue
-            for case in sampled:
-                self.axis_records.append(self.observe(replace(case, axis=axis)))
-            self.active_axis = None
-            try:
-                self.driver.call("axis", name="none")
-            except DriverError:
-                break
+            except DriverError as error:
+                blocked = f"axis {axis} could not be set up: {error}"
+        for case in sampled:
+            self.axis_records.append(self.observe(replace(case, axis=axis), blocked=blocked))
+        self.active_axis = None
+        if page in self.unopened or self.aborted:
+            return
+        try:
+            self.driver.call("axis", name="none")
+        except DriverError:
+            self.recover(page)      # a fresh browser, so the next axis or page does not start from this axis
 
-    def observe(self, case):
+    def observe(self, case, blocked=None):
         record = {"surface": case.surface, "state": case.state, "target": case.target, "axis": case.axis,
                   "page": case.page, "pageSha256": self.package.sha[case.page], "pageKey": self.package.keys[case.page],
                   "result": None, "reasons": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None,
@@ -788,9 +795,10 @@ class Runner:
                   "capture": None, "carriedFrom": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        if self.aborted:
+        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        if blocked:
             record["result"] = "BLOCKED"
-            reasons.append(f"browser driver restart limit ({MAX_RESTARTS}) reached")
+            reasons.append(blocked)
         else:
             reasons.extend(self.page_reasons.get(case.page, []))
             if case.page not in self.unopened:
