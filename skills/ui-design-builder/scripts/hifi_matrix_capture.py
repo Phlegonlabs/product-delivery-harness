@@ -507,8 +507,16 @@ def page_key(name, html, manifest, data):
     return sha256_bytes((html[:match.start("data")] + canonical(blanked) + html[match.end("data"):]).encode("utf-8"))
 
 
+def package_file(package_dir, name):
+    """A manifest path resolved inside the package. Traversal, absolute and drive paths and links fail before any read."""
+    try:
+        return safe_path(package_dir, name)
+    except (ValueError, TypeError) as error:
+        raise UsageError(f"unsafe package path {name!r}: {error}") from None
+
+
 def read_package(package_dir):
-    entry = package_dir / "index.html"
+    entry = package_file(package_dir, "index.html")
     if not entry.is_file():
         raise UsageError(f"{package_dir} has no index.html")
     html = entry.read_text(encoding="utf-8")
@@ -518,11 +526,14 @@ def read_package(package_dir):
     manifest = json.loads(found[0])
     if manifest.get("schema") != "ui-hifi/2" or not manifest.get("surfaces"):
         raise UsageError("the manifest must be ui-hifi/2 with surfaces")
-    names = ["index.html"] + [row["path"] for row in manifest.get("pages", [])]
+    try:
+        declared = {row["path"]: row["sha256"] for row in manifest.get("pages", [])}
+    except (KeyError, TypeError):
+        raise UsageError("every manifest page needs a path and a sha256") from None
+    names = ["index.html"] + list(declared)
     files, sha, keys, widths = {}, {}, {}, {}
-    declared = {row["path"]: row["sha256"] for row in manifest.get("pages", [])}
     for name in names:
-        path = package_dir / name
+        path = package_file(package_dir, name)
         if not path.is_file():
             raise UsageError(f"package page is missing: {name}")
         data = path.read_bytes()

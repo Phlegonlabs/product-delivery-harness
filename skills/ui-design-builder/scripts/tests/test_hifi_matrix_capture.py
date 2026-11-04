@@ -13,6 +13,7 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -58,6 +59,17 @@ def sha(text):
 def data_svg(color):
     svg = f"<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><rect width='4' height='4' fill='{color}'/></svg>"
     return "data:image/svg+xml," + urllib.parse.quote(svg, safe="")
+
+
+def make_dir_link(link, target):
+    """A directory symlink, or a junction on Windows without symlink rights. False when neither can be made."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        if os.name == "nt":
+            return subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, check=False).returncode == 0
+    return False
 
 
 class FakeDriver:
@@ -631,6 +643,49 @@ class UsageTests(unittest.TestCase):
         code, summary, _ = cli.run(FakeDriver())
         self.assertEqual(2, code)
         self.assertIn("manifest hash", summary["error"])
+
+    def set_first_page(self, cli, **fields):
+        entry = cli.package / "index.html"
+        html = entry.read_text(encoding="utf-8")
+        match = m.HIFI_MANIFEST_RE.search(html)
+        manifest = json.loads(match.group("data"))
+        manifest["pages"][0] = fields
+        entry.write_text(html[:match.start("data")] + json.dumps(manifest) + html[match.end("data"):], encoding="utf-8")
+
+    def test_manifest_paths_that_leave_the_package_are_refused_before_any_read(self):
+        cli = Cli(self)
+        (cli.package.parent / "outside.html").write_text("<html></html>", encoding="utf-8")
+        original, reads = Path.read_bytes, []
+
+        def spy(path):
+            reads.append(path.name)
+            return original(path)
+
+        for bad in ("../outside.html", "a/../details.html", "./details.html", "/outside.html", "C:/outside.html",
+                    "sub\\details.html", 5):
+            self.set_first_page(cli, path=bad, sha256="0" * 64)
+            with mock.patch.object(Path, "read_bytes", spy):
+                code, summary, _ = cli.run(FakeDriver())
+            self.assertEqual(2, code, bad)
+            self.assertIn("unsafe package path", summary["error"], bad)
+        self.assertNotIn("outside.html", reads)
+        self.set_first_page(cli, sha256="0" * 64)
+        code, summary, _ = cli.run(FakeDriver())
+        self.assertEqual(2, code)
+        self.assertIn("path and a sha256", summary["error"])
+
+    def test_a_manifest_page_behind_a_link_is_refused(self):
+        cli = Cli(self)
+        elsewhere = cli.root / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "page.html").write_text("<html></html>", encoding="utf-8")
+        if not make_dir_link(cli.package / "linked", elsewhere):
+            self.skipTest("neither symlinks nor junctions can be created here")
+        self.set_first_page(cli, path="linked/page.html", sha256="0" * 64)
+        code, summary, _ = cli.run(FakeDriver())
+        self.assertEqual(2, code)
+        self.assertIn("unsafe package path", summary["error"])
+        self.assertIn("links", summary["error"])
 
     def test_a_missing_shell_width_map_for_named_targets_is_refused(self):
         cli = Cli(self)
