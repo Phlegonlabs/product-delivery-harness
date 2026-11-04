@@ -187,11 +187,18 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
   const inputs = Array.from(surface.querySelectorAll('img, source, video, svg, use'))
     .filter(el => shown.has(el) || shown.has(el.parentElement)).map(imageInput).join('\n');
   const rects = boxes.map(b => [describe(b.el), round(b.x), round(b.y), round(b.w), round(b.h)].join(',')).join('\n');
-  const styles = boxes.map(b => {
-    const cs = getComputedStyle(b.el);
-    return describe(b.el) + '|' + props.map(p => cs.getPropertyValue(p)).join(';');
-  }).join('\n') + '\n' + surface.innerText;
-  return { geometry, rects, styles, inputs, incomplete: all.length > limit };
+  const styleLine = el => {
+    const cs = getComputedStyle(el);
+    return describe(el) + '|' + props.map(p => cs.getPropertyValue(p)).join(';');
+  };
+  const styles = boxes.map(b => styleLine(b.el)).join('\n') + '\n' + surface.innerText;
+  // The screenshot covers the whole canvas, so its own paint and every visible
+  // element outside the product surface join the fingerprint too.
+  const outside = Array.from(canvas.querySelectorAll('*'))
+    .filter(el => el !== surface && !surface.contains(el) && !['SCRIPT', 'STYLE', 'TEMPLATE'].includes(el.tagName) && visible(el));
+  const paint = [canvas].concat(outside.slice(0, limit)).map(styleLine).join('\n');
+  return { geometry, rects, styles: styles + '\n#canvas\n' + paint, inputs,
+           incomplete: all.length > limit || outside.length > limit };
 };
 
 async function start(request) {

@@ -1030,6 +1030,27 @@ class RealBrowserTests(unittest.TestCase):
             finally:
                 driver.stop()
 
+    def test_a_canvas_paint_change_changes_the_fingerprint_and_is_not_carried(self):
+        module = self.playwright()
+        red = lambda text: text.replace("[data-hifi-canvas]{container-type:inline-size;background:var(--paper)}",
+                                        "[data-hifi-canvas]{container-type:inline-size;background:#ff0000}", 1)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/a", "--only", "UI-002")
+            self.assertEqual(0, code, text)
+            before = json.loads((root / "docs/evidence/a" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            package = build_package(root, page_edit=red)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/b", "--only", "UI-002",
+                                       "--carry-from", "docs/evidence/a/" + m.OUTPUT_NAME)
+            self.assertEqual(0, code, text)
+            after = json.loads((root / "docs/evidence/b" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            key = lambda r: (r["surface"], r["state"], r["target"])
+            first = {key(r): r for r in before["cases"]}
+            for row in after["cases"]:
+                self.assertNotEqual(first[key(row)]["renderFingerprint"], row["renderFingerprint"], key(row))
+                self.assertIsNone(row["carriedFrom"], key(row))
+
     def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
         module = self.playwright()
         red, blue = data_svg("red"), data_svg("blue")
