@@ -489,6 +489,39 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(("identical", 0.0), tuple(diffs[("UI-001", "ready", "1200")][k] for k in ("status", "ratio")))
 
 
+@unittest.skipUnless(HAS_PILLOW, "Pillow is not installed")
+class PixelDiffTests(unittest.TestCase):
+    def png(self, directory, name, pixel, mode="RGB"):
+        from PIL import Image
+        path = Path(directory) / name
+        image = Image.new(mode, (6, 4), (10, 20, 30) if mode == "RGB" else (10, 20, 30, 255))
+        image.putpixel((2, 1), pixel)
+        image.save(path)
+        return path
+
+    def test_any_single_channel_step_counts_as_a_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = self.png(directory, "base.png", (10, 20, 30))
+            for label, pixel in (("red", (11, 20, 30)), ("green", (10, 21, 30)), ("blue", (10, 20, 31))):
+                diff = m.pixel_diff(base, self.png(directory, label + ".png", pixel))
+                self.assertEqual(("changed", round(1 / 24, 6)), (diff["status"], diff["ratio"]), label)
+            self.assertEqual(("identical", 0.0), tuple(m.pixel_diff(base, self.png(directory, "same.png", (10, 20, 30)))[k]
+                                                       for k in ("status", "ratio")))
+
+    def test_an_alpha_only_change_counts_and_modes_may_differ(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = self.png(directory, "base.png", (10, 20, 30, 255), mode="RGBA")
+            self.assertEqual("changed", m.pixel_diff(base, self.png(directory, "alpha.png", (10, 20, 30, 254), mode="RGBA"))["status"])
+            self.assertEqual("identical", m.pixel_diff(base, self.png(directory, "rgb.png", (10, 20, 30), mode="RGB"))["status"])
+
+    def test_a_different_size_is_a_full_change(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as directory:
+            base = self.png(directory, "base.png", (10, 20, 30))
+            Image.new("RGB", (7, 4)).save(Path(directory) / "wide.png")
+            self.assertEqual(("changed", 1.0), tuple(m.pixel_diff(base, Path(directory) / "wide.png")[k] for k in ("status", "ratio")))
+
+
 class AxisTests(unittest.TestCase):
     def test_axes_run_on_the_sampled_cases_and_stay_out_of_the_matrix(self):
         cli, driver = Cli(self), FakeDriver()

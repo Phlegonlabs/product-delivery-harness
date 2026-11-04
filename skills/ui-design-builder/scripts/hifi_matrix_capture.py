@@ -879,14 +879,17 @@ class Runner:
 
 
 def pixel_diff(before, after):
-    """Compare two PNGs with Pillow. The geometry fingerprint stays the primary signal."""
+    """Compare two PNGs with Pillow: a pixel is changed when any RGBA channel differs. The geometry fingerprint stays the primary signal."""
     from PIL import Image, ImageChops
     with Image.open(before) as old, Image.open(after) as new:
         if old.size != new.size:
             return {"against": before.name, "status": "changed", "ratio": 1.0}
-        histogram = ImageChops.difference(old.convert("RGB"), new.convert("RGB")).convert("L").histogram()
+        changed_bands = [band.point([0] + [255] * 255) for band in ImageChops.difference(old.convert("RGBA"), new.convert("RGBA")).split()]
+        any_channel = changed_bands[0]
+        for band in changed_bands[1:]:
+            any_channel = ImageChops.lighter(any_channel, band)
         total = new.size[0] * new.size[1]
-    changed = total - histogram[0]
+        changed = total - any_channel.histogram()[0]
     return {"against": before.name, "status": "changed" if changed else "identical", "ratio": round(changed / total, 6)}
 
 

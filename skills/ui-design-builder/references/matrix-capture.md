@@ -35,7 +35,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 | `--recapture-carried` | Screenshot carried cases too. |
 | `--axes dark,reduced-motion,forced-colors,zoom-200` | Run a sample under each axis. |
 | `--derived-once --derived <json>` | Observe the derived states once, at the smallest target. `<json>` maps surface ID to states: `{"UI-001": ["toast"]}`. The manifest declares none yet. |
-| `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio. |
+| `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio; a pixel is changed when any RGBA channel differs. |
 | `--overwrite` | Write into a non-empty `--out`. Refused (exit 2) with `--carry-from` when `--out` is, holds or sits inside the folder of the carry source or of a capture it carries. |
 
 `--only` and `--derived-once` write a smaller matrix than the Approved target scope, so the output is diagnostic, not the final surface check.
