@@ -90,12 +90,14 @@ Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, r
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
 For architecture-bearing reviews, apply [Architecture Method](delegation-contract.md#architecture-method) to the affected boundaries.
 
-When one review node's packet exceeds the reviewer route's caps, the parent dispatches that review as several scoped calls.
+When one review node's packet exceeds the reviewer route's caps, the parent dispatches that review as several scoped calls before launch.
+Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.
 Each call covers one disjoint path group of the same exact SHA.
 Each call carries the full finding contract and the lenses its paths need.
 Trust-boundary paths stay in one group so the security lens sees them together.
 The parent merges the returned sets into one consolidated finding set and records it as one review attempt.
 A path group that no call inspected blocks PASS.
+A deadline reached with no verdict follows [Assignment And Result Evidence](delegation-contract.md#assignment-and-result-evidence).
 This is one review point, not the multi-reviewer fan-out that needs an owner request.
 
 ### Verify-Then-Sample Review
