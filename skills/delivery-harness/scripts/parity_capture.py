@@ -30,6 +30,7 @@ import hashlib
 import html
 import json
 import os
+import urllib.parse
 import re
 import shutil
 import subprocess
@@ -725,6 +726,32 @@ def _can_carry(previous: dict[str, Any], job: dict[str, Any], tolerance: float) 
         return False
 
 
+_LOCAL_ASSET_RE = re.compile(r"""(?:src|href)\s*=\s*["']([^"'#?]+)""", re.IGNORECASE)
+
+
+def _reference_identity(reference: Path) -> str:
+    """SHA-256 over the reference HTML and every local file its src/href attributes name.
+
+    A closed HiFi package inlines everything, but a reference that links a CSS,
+    script, image or font file changes its render when that file changes, so the
+    linked bytes join the identity. A missing linked file is recorded as missing,
+    which still changes the identity when it later appears.
+    """
+
+    parts = [f"html:{_file_sha256(reference)}"]
+    text = reference.read_text(encoding="utf-8", errors="replace")
+    for raw in sorted(set(_LOCAL_ASSET_RE.findall(text))):
+        value = raw.strip()
+        if not value or value.startswith(("/", "data:", "#")) or "://" in value or value.startswith("//"):
+            continue
+        asset = (reference.parent / value).resolve()
+        if asset.is_file():
+            parts.append(f"{value}:{_file_sha256(asset)}")
+        else:
+            parts.append(f"{value}:missing")
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
 @dataclass
 class _Run:
     """State shared by the capture phases of one invocation."""
@@ -733,6 +760,7 @@ class _Run:
     reference_url: str
     reference_sha256: str
     full_page: bool
+    reference_identity: str = ""
     tolerance: float = 0.0
     previous: dict[str, dict[str, Any]] = field(default_factory=dict)
     carry_from: str | None = None
@@ -820,6 +848,7 @@ def _plan_job(
     target_inputs = json.dumps(
         {
             "reference_sha256": run.reference_sha256,
+            "reference_identity": run.reference_identity,
             "route": combo["route"],
             "reference": entry.get("reference"),
             "reference_eval": reference_eval,
@@ -983,9 +1012,12 @@ def _board_src(path: str, board_dir: Path) -> str:
     """Image URL relative to the board, so it opens from any directory."""
 
     try:
-        return Path(os.path.relpath(path, board_dir)).as_posix()
+        relative = Path(os.path.relpath(path, board_dir)).as_posix()
     except ValueError:  # another drive on Windows
         return Path(path).resolve().as_uri()
+    # Percent-encode each segment so '#', '?' or spaces in a directory name
+    # cannot be read as a fragment or query by the browser.
+    return "/".join(urllib.parse.quote(segment, safe="") if segment != ".." else ".." for segment in relative.split("/"))
 
 
 def _diff_note(item: dict[str, Any]) -> str:
@@ -1186,6 +1218,7 @@ def capture(args: argparse.Namespace) -> int:
         cli=cli,
         reference_url=reference.resolve().as_uri(),
         reference_sha256=_file_sha256(reference),
+        reference_identity=_reference_identity(reference),
         full_page=args.full_page,
         tolerance=getattr(args, "tolerance", 0.0),
         previous=previous,

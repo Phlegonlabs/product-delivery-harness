@@ -368,6 +368,10 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(
             "../old/x.png", parity_capture._board_src("docs/goal/evidence/old/x.png", Path("docs/goal/evidence/parity"))
         )
+        self.assertEqual(
+            "../parity%23baseline/x%20y.png",
+            parity_capture._board_src("docs/goal/evidence/parity#baseline/x y.png", Path("docs/goal/evidence/parity")),
+        )
         self.set_surfaces(["ready"], ["390"])
         route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
         old_cwd = os.getcwd()
@@ -643,6 +647,36 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual(0, code, output)
         self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
         self.assertEqual(1, self.reference_opens())
+
+    def test_a_changed_linked_reference_asset_is_recaptured_not_carried(self) -> None:
+        css = self.root / "theme.css"
+        css.write_text("body{color:black}", encoding="utf-8")
+        self.reference.write_text(
+            '<html><head><link rel="stylesheet" href="theme.css"></head><body>ref</body></html>', encoding="utf-8"
+        )
+        first = self.first_run()
+        css.write_text("body{color:red}", encoding="utf-8")   # the HTML bytes are unchanged
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
+        self.assertEqual(1, self.reference_opens())
+
+    def test_reference_identity_tracks_linked_local_files_only(self) -> None:
+        css = self.root / "theme.css"
+        css.write_text("a{}", encoding="utf-8")
+        self.reference.write_text(
+            '<html><head><link href="theme.css"><script src="https://cdn.example/x.js"></script>'
+            '<img src="data:image/png;base64,AA=="></head><body>ref</body></html>', encoding="utf-8"
+        )
+        before = parity_capture._reference_identity(self.reference)
+        css.write_text("b{}", encoding="utf-8")
+        self.assertNotEqual(before, parity_capture._reference_identity(self.reference))
+        self.reference.write_text(
+            '<html><head><link href="missing.css"></head><body>ref</body></html>', encoding="utf-8"
+        )
+        missing = parity_capture._reference_identity(self.reference)
+        (self.root / "missing.css").write_text("c{}", encoding="utf-8")
+        self.assertNotEqual(missing, parity_capture._reference_identity(self.reference))
 
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
