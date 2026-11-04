@@ -13,26 +13,85 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-SCRIPTS_DIR = Path(__file__).resolve().parents[1]
-if str(SCRIPTS_DIR) not in sys.path:
-    sys.path.insert(0, str(SCRIPTS_DIR))
+TESTS_DIR = Path(__file__).resolve().parent
+SCRIPTS_DIR = TESTS_DIR.parent
+for _directory in (SCRIPTS_DIR, TESTS_DIR):
+    if str(_directory) not in sys.path:
+        sys.path.insert(0, str(_directory))
 
 import parity_capture  # noqa: E402
+from test_harness_design_coverage import surface as design_surface  # noqa: E402
 
 STUB_PY = r"""
-import json, os, sys
+import json, os, struct, sys, zlib
 argv = sys.argv[1:]
 log = os.environ.get("STUB_LOG")
 if log:
     with open(log, "a", encoding="utf-8") as handle:
         handle.write(json.dumps(argv) + "\n")
+state_path = os.environ.get("STUB_STATE")
+state = {}
+if state_path and os.path.exists(state_path):
+    with open(state_path, encoding="utf-8") as handle:
+        state = json.load(handle)
+
+
+def save_state():
+    if state_path:
+        with open(state_path, "w", encoding="utf-8") as handle:
+            json.dump(state, handle)
+
+
+def solid_png(size, color, patch=None):
+    # A tiny truecolor PNG; an optional (w, h) patch at the top left is red.
+    width, height = (int(part) for part in size.split("x"))
+    red = (255, 0, 0)
+    rows = b""
+    for y in range(height):
+        row = b"\x00"
+        for x in range(width):
+            inside = patch and x < patch[0] and y < patch[1]
+            row += bytes(red if inside else color)
+        rows += row
+
+    def chunk(tag, data):
+        body = tag + data
+        return struct.pack(">I", len(data)) + body + struct.pack(">I", zlib.crc32(body))
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header)
+            + chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b""))
+
+
 if argv[:1] == ["--version"]:
     print("agent-browser 0.36.0-stub")
     raise SystemExit(0)
+if argv[:1] == ["open"]:
+    state["url"] = argv[1]
+    save_state()
+    print("stub ok")
+    raise SystemExit(0)
+if argv[:2] == ["set", "media"]:
+    state["scheme"] = argv[2]
+    state["reduced"] = "reduced-motion" in argv[3:]
+    save_state()
+    print("stub ok")
+    raise SystemExit(0)
 if argv[:1] == ["screenshot"]:
     path = argv[-1]
+    side = "TARGET" if state.get("url", "").startswith("file:") else "ACTUAL"
+    if os.environ.get("STUB_SHOT_MODE") == "garbage":
+        data = b"\x89PNG\r\n\x1a\nstub"
+    else:
+        color = bytes.fromhex(os.environ.get("STUB_SHOT_COLOR_" + side, "204060"))
+        patch = os.environ.get("STUB_SHOT_PATCH_" + side)
+        data = solid_png(
+            os.environ.get("STUB_SHOT_SIZE_" + side, "10x10"),
+            color,
+            tuple(int(part) for part in patch.split("x")) if patch else None,
+        )
     with open(path, "wb") as handle:
-        handle.write(b"\x89PNG\r\n\x1a\nstub")
+        handle.write(data)
     raise SystemExit(0)
 if argv[:1] == ["eval"]:
     body = sys.stdin.read() if "--stdin" in argv else " ".join(argv)
@@ -44,16 +103,26 @@ if argv[:1] == ["eval"]:
         if mode == "malformed":
             print("not json")
         else:
-            print('{"overflowX": 0, "scanned": 5, "overlaps": []}')
+            scanned = os.environ.get("STUB_GEOMETRY_SCANNED", "5")
+            print('{"overflowX": 0, "scanned": ' + scanned + ', "overlaps": []}')
     elif "a[href=" in body:
         print(os.environ.get("STUB_PROBE_RESULT", "false"))
     elif "prefers-reduced-motion" in body:
-        print("true")
+        print(json.dumps({"scheme": state.get("scheme", "light"),
+                          "reduced": state.get("reduced", False)}))
     else:
         print("undefined")
     raise SystemExit(0)
 print("stub ok")
 """
+
+STUB_ENV = (
+    "PATH", "STUB_LOG", "STUB_STATE", "STUB_PROBE_RESULT", "STUB_GEOMETRY_MODE",
+    "STUB_GEOMETRY_SCANNED", "STUB_SHOT_MODE",
+    "STUB_SHOT_SIZE_TARGET", "STUB_SHOT_SIZE_ACTUAL",
+    "STUB_SHOT_COLOR_TARGET", "STUB_SHOT_COLOR_ACTUAL",
+    "STUB_SHOT_PATCH_TARGET", "STUB_SHOT_PATCH_ACTUAL",
+)
 
 STUB_SH = """#!/bin/sh
 exec python3 "$(dirname "$0")/_stub_browser.py" "$@"
@@ -94,14 +163,13 @@ class ParityCaptureTests(unittest.TestCase):
         ]
         self.addCleanup(self._restore_resolve_cli)
         self.log_path = self.root / "calls.jsonl"
-        self._old_env = {
-            "PATH": os.environ.get("PATH"),
-            "STUB_LOG": os.environ.get("STUB_LOG"),
-            "STUB_PROBE_RESULT": os.environ.get("STUB_PROBE_RESULT"),
-            "STUB_GEOMETRY_MODE": os.environ.get("STUB_GEOMETRY_MODE"),
-        }
+        self._old_env = {name: os.environ.get(name) for name in STUB_ENV}
         os.environ["PATH"] = str(stub_dir) + os.pathsep + (self._old_env["PATH"] or "")
         os.environ["STUB_LOG"] = str(self.log_path)
+        os.environ["STUB_STATE"] = str(self.root / "stub-state.json")
+        for name in STUB_ENV:
+            if name.startswith("STUB_") and name not in ("STUB_LOG", "STUB_STATE"):
+                os.environ.pop(name, None)
         self.addCleanup(self._restore_env)
 
         self.plan = self.root / "PLAN.md"
@@ -151,6 +219,144 @@ class ParityCaptureTests(unittest.TestCase):
         if not self.log_path.exists():
             return []
         return [json.loads(line) for line in self.log_path.read_text().splitlines()]
+
+    def work_calls(self) -> list[list[str]]:
+        """Browser calls after the preflight, with screenshot paths named by side."""
+
+        work = []
+        for argv in self.calls():
+            if argv[:1] in (["--version"], ["close"]):
+                continue
+            if argv[:1] == ["screenshot"]:
+                argv = ["screenshot", "target" if argv[-1].endswith("-target.png") else "actual"]
+            work.append(argv)
+        return work
+
+    def write_route_map(self, payload: dict[str, object]) -> Path:
+        route_map = self.root / "route-map.json"
+        route_map.write_text(json.dumps(payload), encoding="utf-8")
+        return route_map
+
+    def set_surfaces(self, states: list[str], breakpoints: list[str], routes=("/home",)) -> None:
+        self.plan.write_text(plan_markdown([
+            {"id": f"UI-{index:03}", "trace_ids": ["REQ-001"], "route": route,
+             "breakpoints": breakpoints, "states": states, "evidence_gate": "required"}
+            for index, route in enumerate(routes, 1)
+        ]), encoding="utf-8")
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_trigger_free_tuples_load_each_side_once_per_route(self) -> None:
+        self.set_surfaces(["ready"], ["390", "768", "1200"])
+        route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, out)
+        app_pass = [["open", "http://localhost:3000/home"], ["wait", "--load", "networkidle"]]
+        reference_pass = [["open", self.reference.resolve().as_uri()],
+                          ["eval", 'document.querySelector("#nav")?.click()']]
+        for width in ("390", "768", "1200"):
+            app_pass += [["set", "viewport", width, "1000"], ["screenshot", "actual"], ["eval", "--stdin"]]
+            reference_pass += [["set", "viewport", width, "1000"], ["screenshot", "target"]]
+        self.assertEqual(app_pass + reference_pass, self.work_calls())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_each_route_loads_both_sides_again(self) -> None:
+        self.set_surfaces(["ready"], ["390", "768"], routes=("/home", "/settings"))
+        route_map = self.write_route_map({
+            "/home": {"reference": {"selector": "#a"}},
+            "/settings": {"reference": {"selector": "#b"}},
+        })
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, out)
+        opens = [argv[1] for argv in self.work_calls() if argv[:1] == ["open"]]
+        self.assertEqual(
+            ["http://localhost:3000/home", self.reference.resolve().as_uri(),
+             "http://localhost:3000/settings", self.reference.resolve().as_uri()],
+            opens,
+        )
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_state_triggers_get_a_fresh_app_page_after_the_first(self) -> None:
+        self.set_surfaces(["ready", "empty"], ["390", "768"])
+        route_map = self.write_route_map({"/home": {
+            "reference": {"selector": "#nav"},
+            "states": {"empty": {"app_eval": "window.__setEmpty()"}},
+        }})
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, out)
+        app_url = "http://localhost:3000/home"
+        load = [["open", app_url], ["wait", "--load", "networkidle"]]
+        # Trigger-free tuples run first on one load. The first triggered tuple
+        # still finds that page untouched; the second needs a fresh load.
+        app_pass = (
+            load
+            + [["set", "viewport", "390", "1000"], ["screenshot", "actual"], ["eval", "--stdin"]]
+            + [["set", "viewport", "768", "1000"], ["screenshot", "actual"], ["eval", "--stdin"]]
+            + [["set", "viewport", "390", "1000"], ["eval", "--stdin"],
+               ["screenshot", "actual"], ["eval", "--stdin"]]
+            + load
+            + [["set", "viewport", "768", "1000"], ["eval", "--stdin"],
+               ["screenshot", "actual"], ["eval", "--stdin"]]
+        )
+        # The reference side has no trigger, so one load serves all four tuples.
+        reference_pass = [["open", self.reference.resolve().as_uri()],
+                          ["eval", 'document.querySelector("#nav")?.click()']]
+        for width in ("390", "390", "768", "768"):
+            reference_pass += [["set", "viewport", width, "1000"], ["screenshot", "target"]]
+        self.assertEqual(app_pass + reference_pass, self.work_calls())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_reference_triggers_get_a_fresh_reference_page_after_the_first(self) -> None:
+        self.set_surfaces(["ready", "empty"], ["390", "768"])
+        route_map = self.write_route_map({"/home": {
+            "reference": {"selector": "#nav"},
+            "states": {"empty": {"app_eval": "window.__setEmpty()",
+                                 "reference_eval": "window.__refEmpty()"}},
+        }})
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, out)
+        reference_url = self.reference.resolve().as_uri()
+        self.assertEqual(2, sum(1 for argv in self.work_calls() if argv == ["open", reference_url]))
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(4, len(manifest["captured"]))
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_spawn_count_per_pair_drops_for_the_trigger_free_matrix(self) -> None:
+        self.set_surfaces(["ready"], ["390", "768", "1200"])
+        route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, out)
+        # The per-tuple order spent 9 spawns per pair (27 for these three pairs).
+        self.assertEqual(19, len(self.work_calls()))
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_unreachable_reference_route_is_tried_once(self) -> None:
+        os.environ["STUB_PROBE_RESULT"] = "false"
+        code, out = self.run_main()
+        self.assertEqual(1, code, out)
+        reference_url = self.reference.resolve().as_uri()
+        self.assertEqual(1, sum(1 for argv in self.work_calls() if argv == ["open", reference_url]))
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_motion_preference_is_set_once_per_scope_group(self) -> None:
+        self.plan.write_text(plan_markdown([design_surface("UI-004", ["ready"], "ready")]), encoding="utf-8")
+        route_map = self.write_route_map({"/ui-004": {
+            "reference": {"selector": "#nav"},
+            "conditions": {
+                "long-content": {"reference_eval": "window.__ref()", "app_eval": "window.__app()"},
+            },
+        }})
+        code, out = self.run_main("--route-map", str(route_map))
+        self.assertEqual(0, code, out)
+        manifest = json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(8, len(manifest["captured"]))
+        media = [argv for argv in self.work_calls() if argv[:2] == ["set", "media"]]
+        # Two scope groups (normal, reduced): one apply and one restore each,
+        # not one pair per tuple.
+        self.assertEqual(
+            [["set", "media", "light"], ["set", "media", "light"],
+             ["set", "media", "light", "reduced-motion"], ["set", "media", "light"]],
+            media,
+        )
 
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     def test_colliding_route_and_state_tokens_keep_distinct_evidence(self) -> None:

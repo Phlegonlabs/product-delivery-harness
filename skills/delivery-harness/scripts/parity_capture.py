@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 import errno
 import hashlib
 import html
@@ -488,16 +489,14 @@ def _navigate_reference(
     return False, f"no reference navigation found for {route}"
 
 
-def _shoot(
+def _prepare(
     cli: list[str],
     *,
     viewport: tuple[str, int],
-    screenshot: Path,
-    full_page: bool,
     state_eval: str | None,
     condition_eval: str | None = None,
 ) -> list[str]:
-    """Set viewport, apply an optional state trigger, and capture the shot."""
+    """Set the viewport and apply the optional state and condition triggers."""
 
     errors: list[str] = []
     sized = _run_browser(
@@ -513,20 +512,23 @@ def _shoot(
         triggered = _run_browser(cli, ["eval", "--stdin"], stdin=condition_eval)
         if triggered.returncode != 0:
             errors.append(f"condition eval failed: {triggered.stderr.strip()}")
+    return errors
+
+
+def _screenshot(cli: list[str], screenshot: Path, full_page: bool) -> list[str]:
     argv = ["screenshot", str(screenshot)]
     if full_page:
         argv.insert(1, "--full")
     shot = _run_browser(cli, argv)
     if shot.returncode != 0:
-        errors.append(f"screenshot failed: {shot.stderr.strip()}")
-    elif not screenshot.exists():
-        errors.append("screenshot reported success but wrote no file")
-    return errors
+        return [f"screenshot failed: {shot.stderr.strip()}"]
+    if not screenshot.exists():
+        return ["screenshot reported success but wrote no file"]
+    return []
 
 
-def _capture_app(
+def _shoot(
     cli: list[str],
-    url: str,
     *,
     viewport: tuple[str, int],
     screenshot: Path,
@@ -534,21 +536,23 @@ def _capture_app(
     state_eval: str | None,
     condition_eval: str | None = None,
 ) -> list[str]:
+    """Set viewport, apply an optional state trigger, and capture the shot."""
+
+    return _prepare(
+        cli, viewport=viewport, state_eval=state_eval, condition_eval=condition_eval
+    ) + _screenshot(cli, screenshot, full_page)
+
+
+def _open_app(cli: list[str], url: str) -> tuple[bool, list[str]]:
+    """Load the app page; return (opened, problems). A slow idle wait is not fatal."""
+
     opened = _run_browser(cli, ["open", url])
     if opened.returncode != 0:
-        return [f"open {url} failed: {opened.stderr.strip()}"]
+        return False, [f"open {url} failed: {opened.stderr.strip()}"]
     waited = _run_browser(cli, ["wait", "--load", "networkidle"], timeout=120)
-    wait_errors: list[str] = []
     if waited.returncode != 0:
-        wait_errors.append(f"networkidle wait failed: {waited.stderr.strip()}")
-    return wait_errors + _shoot(
-        cli,
-        viewport=viewport,
-        screenshot=screenshot,
-        full_page=full_page,
-        state_eval=state_eval,
-        condition_eval=condition_eval,
-    )
+        return True, [f"networkidle wait failed: {waited.stderr.strip()}"]
+    return True, []
 
 
 def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
@@ -577,6 +581,182 @@ def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
                 return None, "geometry probe returned an invalid overlaps value"
             return result, None
     return None, "geometry probe returned no valid JSON object"
+
+
+@dataclass
+class _Run:
+    """State shared by the capture phases of one invocation."""
+
+    cli: list[str]
+    reference_url: str
+    full_page: bool
+    errors: list[str] = field(default_factory=list)
+    skipped: list[dict[str, Any]] = field(default_factory=list)
+    nav_methods: dict[str, str] = field(default_factory=dict)
+
+
+def _app_dirty(job: dict[str, Any]) -> bool:
+    return bool(job["app_eval"] or job["condition_app_eval"])
+
+
+def _reference_dirty(job: dict[str, Any]) -> bool:
+    return bool(job["reference_eval"] or job["condition_reference_eval"])
+
+
+def _plan_job(
+    run: _Run,
+    combo: dict[str, Any],
+    index: int,
+    entry: dict[str, Any],
+    out_dir: Path,
+    height: int,
+    base_url: str,
+) -> dict[str, Any] | None:
+    """Resolve one matrix tuple into a capture job, or record why it is skipped."""
+
+    # Bind the filename to the exact tuple, not its lossy display tokens.
+    identity = json.dumps(combo, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    label = (
+        f"{_token(combo['route'])}-{_token(combo['state'])}-"
+        f"{_token(combo['breakpoint'])}"
+    )
+    name = f"{label[:64]}-{hashlib.sha256(identity).hexdigest()}"
+    is_condition = combo.get("kind") == "design-condition"
+    base_state = combo["base_state"] if is_condition else combo["state"]
+    states_map = entry.get("states") or {}
+    base_entry = states_map.get(base_state) or {}
+    if not isinstance(base_entry, dict):
+        base_entry = {}
+    condition_entry = _condition_entry(entry, combo)
+    app_eval = base_entry.get("app_eval")
+    condition_reference_eval = (
+        condition_entry.get("reference_eval") if is_condition else None
+    )
+    condition_app_eval = condition_entry.get("app_eval") if is_condition else None
+    if not app_eval and base_state != "ready":
+        run.skipped.append(
+            {
+                **combo,
+                "reason": (
+                    f"no app_eval trigger for {'base state' if is_condition else 'state'} {base_state!r} "
+                    "in the route map"
+                ),
+            }
+        )
+        return None
+    if is_condition and combo["state"] == "long-content":
+        if not all(isinstance(value, str) and value.strip() for value in (condition_reference_eval, condition_app_eval)):
+            run.skipped.append(
+                {
+                    **combo,
+                    "reason": (
+                        "long-content requires both reference_eval and "
+                        "app_eval in the route-map conditions"
+                    ),
+                }
+            )
+            return None
+    app_path = entry.get("app_path") or combo["route"]
+    return {
+        "combo": combo,
+        "index": index,
+        "route": combo["route"],
+        "entry": entry,
+        "name": name,
+        "target": out_dir / f"{name}-target.png",
+        "actual": out_dir / f"{name}-actual.png",
+        "viewport": (combo["breakpoint"], height),
+        "url": f"{base_url}{app_path}",
+        "reference_eval": base_entry.get("reference_eval"),
+        "app_eval": app_eval,
+        "condition_reference_eval": condition_reference_eval,
+        "condition_app_eval": condition_app_eval,
+        "app_ok": False,
+        "done": False,
+    }
+
+
+def _app_step(run: _Run, job: dict[str, Any], loaded: bool) -> bool:
+    """Capture one app page; return whether the loaded page is still untouched."""
+
+    name = job["name"]
+    problems: list[str] = []
+    if not loaded:
+        opened, problems = _open_app(run.cli, job["url"])
+        if not opened:
+            run.errors.extend(f"{name} actual: {problem}" for problem in problems)
+            return False
+    problems += _prepare(
+        run.cli,
+        viewport=job["viewport"],
+        state_eval=job["app_eval"],
+        condition_eval=job["condition_app_eval"],
+    )
+    problems += _screenshot(run.cli, job["actual"], run.full_page)
+    untouched = not _app_dirty(job)
+    if problems:
+        run.errors.extend(f"{name} actual: {problem}" for problem in problems)
+        return untouched
+    geometry, geometry_error = _geometry_probe(run.cli)
+    if geometry_error:
+        run.errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
+    job.update(app_ok=True, geometry=geometry, geometry_error=geometry_error)
+    return untouched
+
+
+def _app_phase(run: _Run, jobs: list[dict[str, Any]]) -> None:
+    """Capture every app page of one route, loading the page once while it stays clean.
+
+    A state or condition trigger changes the page, so those tuples load a fresh
+    page each; trigger-free tuples run first and share one load.
+    """
+
+    loaded = False
+    for job in sorted(jobs, key=lambda item: (_app_dirty(item), item["index"])):
+        loaded = _app_step(run, job, loaded)
+
+
+def _reference_step(
+    run: _Run, job: dict[str, Any], route: str, loaded: bool
+) -> tuple[bool, bool]:
+    """Capture one reference render; return (page still untouched, route unreachable)."""
+
+    if not loaded:
+        ok, method = _navigate_reference(run.cli, run.reference_url, route, job["entry"])
+        run.nav_methods[route] = method
+        if not ok:
+            run.skipped.append({**job["combo"], "reason": f"reference nav: {method}"})
+            return False, True
+    problems = _shoot(
+        run.cli,
+        viewport=job["viewport"],
+        screenshot=job["target"],
+        full_page=run.full_page,
+        state_eval=job["reference_eval"],
+        condition_eval=job["condition_reference_eval"],
+    )
+    untouched = not _reference_dirty(job)
+    if problems:
+        run.errors.extend(f"{job['name']} target: {problem}" for problem in problems)
+        return untouched, False
+    job["done"] = True
+    print(f"captured {job['name']}")
+    return untouched, False
+
+
+def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
+    """Capture the reference renders of one route, navigating once while it stays clean."""
+
+    loaded = False
+    unreachable = False
+    pending = [job for job in jobs if job["app_ok"]]
+    for job in sorted(pending, key=lambda item: (_reference_dirty(item), item["index"])):
+        if unreachable:
+            run.skipped.append(
+                {**job["combo"], "reason": f"reference nav: {run.nav_methods[route]}"}
+            )
+            continue
+        loaded, unreachable = _reference_step(run, job, route, loaded)
 
 
 def _board(
@@ -726,123 +906,62 @@ def capture(args: argparse.Namespace) -> int:
     session = args.session or f"parity-{uuid.uuid4().hex[:8]}"
     os.environ["AGENT_BROWSER_SESSION"] = session
 
-    reference_url = reference.resolve().as_uri()
+    run = _Run(
+        cli=cli,
+        reference_url=reference.resolve().as_uri(),
+        full_page=args.full_page,
+    )
     base_url: str = str(args.base_url).rstrip("/")
-
-    captured: list[dict[str, Any]] = []
-    skipped: list[dict[str, Any]] = []
-    errors: list[str] = []
-    nav_methods: dict[str, str] = {}
     routes = sorted({combo["route"] for combo in combos})
     original_media = None
     if any("kind" in combo for combo in combos):
         opened = _run_browser(cli, ["open", "about:blank"])
         original_media, media_problem = _read_media_preferences(cli)
         if opened.returncode or media_problem:
-            errors.append(media_problem or "could not open the private browser context")
+            run.errors.append(media_problem or "could not open the private browser context")
 
+    jobs: list[dict[str, Any]] = []
     for route in routes:
         entry = route_map.get(route) or {}
         if not isinstance(entry, dict):
             entry = {}
         for combo in (c for c in combos if c["route"] == route):
-            # Bind the filename to the exact tuple, not its lossy display tokens.
-            identity = json.dumps(combo, sort_keys=True, ensure_ascii=False).encode("utf-8")
-            label = (
-                f"{_token(route)}-{_token(combo['state'])}-"
-                f"{_token(combo['breakpoint'])}"
+            job = _plan_job(
+                run, combo, len(jobs), entry, out_dir,
+                args.height or VIEWPORT_HEIGHT, base_url,
             )
-            name = f"{label[:64]}-{hashlib.sha256(identity).hexdigest()}"
-            target = out_dir / f"{name}-target.png"
-            actual = out_dir / f"{name}-actual.png"
-            breakpoint = combo["breakpoint"]
-            viewport = (breakpoint, args.height or VIEWPORT_HEIGHT)
-            is_condition = combo.get("kind") == "design-condition"
-            base_state = combo["base_state"] if is_condition else combo["state"]
-            states_map = entry.get("states") or {}
-            base_entry = states_map.get(base_state) or {}
-            if not isinstance(base_entry, dict):
-                base_entry = {}
-            condition_entry = _condition_entry(entry, combo)
-            reference_eval = base_entry.get("reference_eval")
-            app_eval = base_entry.get("app_eval")
-            condition_reference_eval = (
-                condition_entry.get("reference_eval") if is_condition else None
-            )
-            condition_app_eval = condition_entry.get("app_eval") if is_condition else None
-            if not app_eval and base_state != "ready":
-                skipped.append(
-                    {
-                        **combo,
-                        "reason": (
-                            f"no app_eval trigger for {'base state' if is_condition else 'state'} {base_state!r} "
-                            "in the route map"
-                        ),
-                    }
-                )
-                continue
-            if is_condition and combo["state"] == "long-content":
-                if not all(isinstance(value, str) and value.strip() for value in (condition_reference_eval, condition_app_eval)):
-                    skipped.append(
-                        {
-                            **combo,
-                            "reason": (
-                                "long-content requires both reference_eval and "
-                                "app_eval in the route-map conditions"
-                            ),
-                        }
-                    )
-                    continue
+            if job:
+                jobs.append(job)
 
-            with _motion_scope(cli, combo, original_media, errors, name) as prepared:
-                if not prepared:
-                    continue
-                # Re-open the reference because the previous capture leaves
-                # the active tab on the application.
-                ok, method = _navigate_reference(cli, reference_url, route, entry)
-                nav_methods[route] = method
-                if not ok:
-                    skipped.append({**combo, "reason": f"reference nav: {method}"})
-                    continue
-                target_errors = _shoot(
-                    cli,
-                    viewport=viewport,
-                    screenshot=target,
-                    full_page=args.full_page,
-                    state_eval=reference_eval,
-                    condition_eval=condition_reference_eval,
-                )
-                if target_errors:
-                    errors.extend(f"{name} target: {problem}" for problem in target_errors)
-                    continue
-                app_path = entry.get("app_path") or combo["route"]
-                app_errors = _capture_app(
-                    cli,
-                    f"{base_url}{app_path}",
-                    viewport=viewport,
-                    screenshot=actual,
-                    full_page=args.full_page,
-                    state_eval=app_eval,
-                    condition_eval=condition_app_eval,
-                )
-                if app_errors:
-                    errors.extend(f"{name} actual: {problem}" for problem in app_errors)
-                    continue
-                geometry, geometry_error = _geometry_probe(cli)
-                if geometry_error:
-                    errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
-                captured.append(
-                    {
-                        **combo,
-                        "target": target.as_posix(),
-                        "actual": actual.as_posix(),
-                        "geometry": geometry,
-                        "geometry_error": geometry_error,
-                    }
-                )
-                print(f"captured {name}")
+    # One media-preference change covers every tuple that shares it.
+    scopes: dict[Any, list[dict[str, Any]]] = {}
+    for job in jobs:
+        scopes.setdefault(job["combo"].get("media_preference"), []).append(job)
+    for media, scope_jobs in scopes.items():
+        with _motion_scope(
+            cli, scope_jobs[0]["combo"], original_media, run.errors, f"{media} media"
+        ) as prepared:
+            if not prepared:
+                continue
+            for route in routes:
+                route_jobs = [job for job in scope_jobs if job["route"] == route]
+                if route_jobs:
+                    _app_phase(run, route_jobs)
+                    _reference_phase(run, route, route_jobs)
 
     _run_browser(cli, ["close"], timeout=30)
+    captured = [
+        {
+            **job["combo"],
+            "target": job["target"].as_posix(),
+            "actual": job["actual"].as_posix(),
+            "geometry": job["geometry"],
+            "geometry_error": job["geometry_error"],
+        }
+        for job in jobs
+        if job["done"]
+    ]
+    skipped, errors, nav_methods = run.skipped, run.errors, run.nav_methods
     if skipped:
         errors.extend(
             f"{item['route']} x {item['breakpoint']} x {item['state']}: "
