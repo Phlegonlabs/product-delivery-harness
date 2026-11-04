@@ -36,10 +36,15 @@ findings to the owning flow above.
 4. Broaden when affected behavior or unknown impact requires it; run the
    required mission/feature/platform/integration gates.
 5. On PASS, record the exact candidate, command or decision, actual result, and
-   evidence; then stop. Success does not require a minimum iteration count.
+   a reference to the evidence; then stop. Cite the receipt; do not copy its
+   matrix or hash lists. Success does not require a minimum iteration count.
 6. On failure, record expected result, actual result, exit or observation,
-   artifact or trace, and input identity. Do not hide the concrete difference.
+   artifact or trace reference, and input identity. Do not hide the concrete
+   difference.
 7. Wait for every required verifier and review result on the same candidate.
+   A review returns its verdict, the exact SHA, the findings with capture
+   references, the spot-check sample and the commands run. It does not restate
+   matrices, hash lists or the packet.
    Triage each review into blocking findings and non-blocking notes; only
    blocking findings repair. Group the blocking findings by root-cause family
    and send them to the owning corrector as one repair. Non-blocking
