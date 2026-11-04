@@ -17,10 +17,12 @@ Each page loads once. For every applicable case the tool clicks the target and s
 ## Outputs
 
 - `ui-output.json`: `ui-output/3`, check `hifi-browser`, tool `playwright`, method `sandboxed-offline-browser`. Matrix, results, transcript and an execution block with real timestamps, versions and path plus SHA-256 for the subject, every page, the sidecar and every capture. `review_evidence.py` builds the receipt from it.
-- `matrix-capture.json`: `hifi-matrix-capture/1`. Per case: `renderFingerprint`, `geometry`, `durationMs`, `startedAt`, `finishedAt`, `settle`, `capture`, `carriedFrom`, reasons. Result rows in `ui-output/3` are closed, so these live here.
+- `matrix-capture.json`: `hifi-matrix-capture/1`. Per case: `renderFingerprint`, `fingerprintIncomplete`, `geometry`, `durationMs`, `startedAt`, `finishedAt`, `settle`, `capture`, `carriedFrom`, reasons. Result rows in `ui-output/3` are closed, so these live here.
 - `<surface>-<state>-<target>-<hash>.png`: the canvas. `<hash>` is the first 10 hex characters of SHA-256 over the case tuple.
 
-The render fingerprint is the SHA-256 over the geometry probe, a digest of every scanned element rect and a digest of computed styles and visible text.
+The render fingerprint is the SHA-256 over the geometry probe, a digest of every scanned element rect, a digest of computed styles (including `background-image`, `mask-image`, `border-image`, `fill`, `stroke`, `stroke-width`) and visible text, and a digest of image inputs: `img` `src`/`srcset`/`sizes`/`currentSrc`, `source`, `video` `src`/`poster`, inline `svg` markup and `use` targets.
+
+The probe scans at most 400 elements; past that the case is marked `fingerprintIncomplete` in the sidecar and is never carried, so a fresh screenshot is taken and judged.
 
 Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 unusable input; 3 the written output failed validation.
 
@@ -40,7 +42,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 
 ## Carrying
 
-A case is carried when its render fingerprint equals the earlier one, the earlier result was PASS, the new observation is clean and the earlier capture still matches its hash. Page bytes are not the test: a token edit that leaves a case's geometry and computed styles unchanged still carries (`output-contract.md#render-fingerprint-carry-forward`). Console, geometry and fingerprint are always fresh; only the screenshot is skipped. `carriedFrom` names the source capture, the source output (path and SHA-256) and the earlier page SHA-256 for the defect ledger.
+A case is carried when its render fingerprint equals the earlier one (both complete), the earlier result was PASS, the new observation is clean and the earlier capture still matches its hash. Page bytes are not the test: a token edit that leaves a case's geometry and computed styles unchanged still carries (`output-contract.md#render-fingerprint-carry-forward`). Console, geometry and fingerprint are always fresh; only the screenshot is skipped. `carriedFrom` names the source capture, the source output (path and SHA-256) and the earlier page SHA-256 for the defect ledger.
 
 ## Axes
 

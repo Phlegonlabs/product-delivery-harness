@@ -16,6 +16,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+import urllib.parse
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -54,13 +55,18 @@ def sha(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def data_svg(color):
+    svg = f"<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><rect width='4' height='4' fill='{color}'/></svg>"
+    return "data:image/svg+xml," + urllib.parse.quote(svg, safe="")
+
+
 class FakeDriver:
     """Same call(op, **fields) surface as NodeDriver, answering from a script."""
 
     def __init__(self):
         self.environment = {"playwright": "fake", "chromium": "fake", "node": "fake"}
         self.calls, self.restarts, self.axis = [], 0, None
-        self.overrides = {}      # (surface, state, target) -> {"geometry": {...}, "events": {...}, "raise": exc, "style": text}
+        self.overrides = {}      # (surface, state, target) -> {"geometry", "events", "raise", "style", "inputs", "incomplete"}
         self.open_events = {}    # page -> events
         self.open_error = {}     # page -> exception
         self.axis_events = {}    # axis -> events
@@ -107,7 +113,8 @@ class FakeDriver:
         if self.axis in self.axis_events:
             events = self.axis_events[self.axis]
         probe = {"geometry": geometry, "rectsSha256": sha("rects" + "".join(key)),
-                 "styleSha256": sha("style" + script.get("style", "") + (self.axis or ""))}
+                 "styleSha256": sha("style" + script.get("style", "") + (self.axis or "")),
+                 "inputsSha256": sha("inputs" + script.get("inputs", "")), "incomplete": script.get("incomplete", False)}
         return {"result": {"problems": script.get("problems", []), "probe": None if script.get("problems") else probe,
                            "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}, "events": events}
 
@@ -215,12 +222,13 @@ class NamingAndFingerprintTests(unittest.TestCase):
         self.assertTrue(a.startswith("UI-001-needs_review-390-"))
         self.assertNotEqual(a, b)
 
-    def test_render_fingerprint_tracks_geometry_rects_and_styles(self):
-        probe = {"geometry": {"a": 1, "b": 2}, "rectsSha256": "r" * 64, "styleSha256": "s" * 64}
+    def test_render_fingerprint_tracks_geometry_rects_styles_and_image_inputs(self):
+        probe = {"geometry": {"a": 1, "b": 2}, "rectsSha256": "r" * 64, "styleSha256": "s" * 64, "inputsSha256": "i" * 64}
         fingerprint = m.render_fingerprint(probe)
         self.assertRegex(fingerprint, r"^[0-9a-f]{64}$")
         self.assertEqual(fingerprint, m.render_fingerprint(dict(probe, geometry={"b": 2, "a": 1})))
-        for change in ({"geometry": {"a": 2, "b": 2}}, {"rectsSha256": "x" * 64}, {"styleSha256": "x" * 64}):
+        for change in ({"geometry": {"a": 2, "b": 2}}, {"rectsSha256": "x" * 64}, {"styleSha256": "x" * 64},
+                       {"inputsSha256": "x" * 64}):
             self.assertNotEqual(fingerprint, m.render_fingerprint(dict(probe, **change)))
 
     def test_entry_page_identity_ignores_manifest_page_hashes_only(self):
@@ -355,6 +363,38 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(("UI-001", "loading", "390"), (changed[0]["surface"], changed[0]["state"], changed[0]["target"]))
         self.assertTrue(changed[0]["capture"])
         self.assertEqual(1, driver.count("shot"))
+
+    def test_a_changed_image_input_is_not_carried(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        driver = FakeDriver()
+        driver.overrides[("UI-002", "ready", "1200")] = {"inputs": "img src changed"}
+        _, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        changed = [r for r in sidecar["cases"] if r["carriedFrom"] is None]
+        self.assertEqual((11, 1), (summary["carried"], len(changed)))
+        self.assertEqual(("UI-002", "ready", "1200"), (changed[0]["surface"], changed[0]["state"], changed[0]["target"]))
+        self.assertEqual(1, driver.count("shot"))
+
+    def test_an_incomplete_fingerprint_is_marked_and_never_carried(self):
+        cli = Cli(self)
+        capped = ("UI-001", "empty", "390")
+        driver = FakeDriver()
+        driver.overrides[capped] = {"incomplete": True}
+        _, _, first = cli.run(driver)
+        _, previous = cli.load(first)
+        self.assertEqual([capped], [(r["surface"], r["state"], r["target"]) for r in previous["cases"]
+                                    if r["fingerprintIncomplete"]])
+        # still incomplete on the rerun: same fingerprint, but a fresh screenshot is taken and judged
+        again = FakeDriver()
+        again.overrides[capped] = {"incomplete": True}
+        _, summary, out = cli.run(again, "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        self.assertEqual((11, 1), (summary["carried"], again.count("shot")))
+        self.assertIsNone(next(r for r in sidecar["cases"] if (r["surface"], r["state"], r["target"]) == capped)["carriedFrom"])
+        # complete now, but the earlier observation was capped: still not carried
+        _, summary, _ = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))
+        self.assertEqual(11, summary["carried"])
 
     def test_an_edited_page_with_an_unchanged_fingerprint_still_carries(self):
         cli = Cli(self)
@@ -617,18 +657,20 @@ class RealBrowserTests(unittest.TestCase):
             self.skipTest(message)
         return module
 
+    def run_main(self, module, root, package, *extra):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer), mock.patch.dict(os.environ, {"PLAYWRIGHT_MODULE": module}):
+            code = m.main(["--repo-root", str(root), "--package", str(package), *extra])
+        return code, buffer.getvalue()
+
     def test_matrix_capture_in_real_chromium(self):
         module = self.playwright()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             package = build_package(root)
-            base = ["--repo-root", str(root), "--package", str(package)]
 
             def run(*extra):
-                buffer = io.StringIO()
-                with contextlib.redirect_stdout(buffer), mock.patch.dict(os.environ, {"PLAYWRIGHT_MODULE": module}):
-                    code = m.main(base + list(extra))
-                return code, buffer.getvalue()
+                return self.run_main(module, root, package, *extra)
 
             code, text = run("--out", "docs/evidence/first", "--axes", "dark,reduced-motion")
             self.assertEqual(0, code, text)
@@ -667,6 +709,54 @@ class RealBrowserTests(unittest.TestCase):
             details = package / "details.html"
             details.write_text(details.read_text(encoding="utf-8").replace("Next arrival 18:40.", "Next arrival 19:15."), encoding="utf-8")
             self.assertEqual(2, run("--out", "docs/evidence/stale")[0])   # the edited page no longer matches its manifest hash
+
+    def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
+        module = self.playwright()
+        red, blue = data_svg("red"), data_svg("blue")
+        box = "width:40px;height:40px"
+        pairs = {
+            "same": ("<p>x</p>", "<p>x</p>"),
+            "img-src": (f'<img width="40" height="40" src="{red}">', f'<img width="40" height="40" src="{blue}">'),
+            "img-srcset": (f'<img width="40" height="40" src="{red}" srcset="{red} 1x">',
+                           f'<img width="40" height="40" src="{red}" srcset="{blue} 1x">'),
+            "picture-source": (f'<picture><source srcset="{red}"><img width="40" height="40" src="{red}"></picture>',
+                               f'<picture><source srcset="{blue}"><img width="40" height="40" src="{red}"></picture>'),
+            "video-poster": (f'<video width="40" height="40" poster="{red}"></video>',
+                             f'<video width="40" height="40" poster="{blue}"></video>'),
+            "svg-fill": ('<svg width="40" height="40"><rect width="40" height="40" fill="red"/></svg>',
+                         '<svg width="40" height="40"><rect width="40" height="40" fill="blue"/></svg>'),
+            "svg-stroke-width": ('<svg width="40" height="40"><rect width="40" height="40" fill="none" stroke="red" stroke-width="2"/></svg>',
+                                 '<svg width="40" height="40"><rect width="40" height="40" fill="none" stroke="red" stroke-width="4"/></svg>'),
+            "use-href": ('<svg width="40" height="40"><use href="#sym-a"/></svg>', '<svg width="40" height="40"><use href="#sym-b"/></svg>'),
+            "background-image": (f'<div style="{box};background-image:url({red})"></div>',
+                                 f'<div style="{box};background-image:url({blue})"></div>'),
+            "mask-image": (f'<div style="{box};background:#000;mask-image:url({red})"></div>',
+                           f'<div style="{box};background:#000;mask-image:url({blue})"></div>'),
+            "border-image": (f'<div style="{box};border:4px solid;border-image:url({red}) 1 / 4px"></div>',
+                             f'<div style="{box};border:4px solid;border-image:url({blue}) 1 / 4px"></div>'),
+        }
+        names = [f"{kind}-{side}" for kind in pairs for side in "ab"] + ["capped"]
+        views = "".join(f'<section class="card" data-hifi-state-view="{kind}-{side}" hidden>{html}</section>'
+                        for kind, (a, b) in pairs.items() for side, html in (("a", a), ("b", b)))
+        views += ('<svg width="0" height="0" style="position:absolute"><symbol id="sym-a"><rect width="9" height="9" fill="red"/></symbol>'
+                  '<symbol id="sym-b"><circle r="4" fill="red"/></symbol></svg>')
+        views += '<section class="card" data-hifi-state-view="capped" hidden>' + '<b style="display:inline-block;width:2px;height:2px"></b>' * 450 + "</section>"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, details_extra=views, manifest_edit=lambda manifest: manifest["surfaces"][1].update(
+                states=["ready", *names]))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/inputs", "--only", "UI-002")
+            sidecar = json.loads((root / "docs/evidence/inputs" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            cases = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+            failed = {key: r["reasons"] for key, r in cases.items() if r["result"] != "PASS"}
+            self.assertEqual({}, failed, text)
+            for target in ("390", "1200"):
+                fingerprint = lambda state: cases[("UI-002", state, target)]["renderFingerprint"]
+                self.assertEqual(fingerprint("same-a"), fingerprint("same-b"))
+                for kind in pairs:
+                    if kind != "same":
+                        self.assertNotEqual(fingerprint(f"{kind}-a"), fingerprint(f"{kind}-b"), f"{kind} at {target}")
+                self.assertEqual(["capped"], [s for s in names if cases[("UI-002", s, target)]["fingerprintIncomplete"]])
 
 
 if __name__ == "__main__":

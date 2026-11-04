@@ -84,7 +84,7 @@ const STYLE_PROPS = ['display', 'position', 'color', 'background-color', 'backgr
   'border-top-color', 'border-top-style', 'border-radius', 'box-shadow', 'opacity', 'transform', 'overflow-x',
   'overflow-y', 'z-index', 'padding-top', 'padding-right', 'padding-bottom', 'padding-left', 'margin-top',
   'margin-right', 'margin-bottom', 'margin-left', 'gap', 'grid-template-columns', 'flex-direction',
-  'visibility', 'cursor'];
+  'visibility', 'cursor', 'mask-image', 'border-image', 'fill', 'stroke', 'stroke-width'];
 const sha = text => crypto.createHash('sha256').update(text).digest('hex');
 const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [], forms: [] });
 let events = emptyEvents();
@@ -167,12 +167,29 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
     stateViews: Array.from(surface.querySelectorAll('[data-hifi-state-view]'))
       .filter(v => v.dataset.hifiStateView === state && !v.hidden && visible(v)).length,
   };
+  const shown = new Set(all);
+  const attrs = (el, names) => names.map(n => n + '=' + (el.getAttribute(n) || '')).join(',');
+  const imageInput = el => {
+    const tag = el.tagName.toLowerCase();
+    if (tag === 'img') return attrs(el, ['src', 'srcset', 'sizes']) + ',currentSrc=' + el.currentSrc;
+    if (tag === 'video') return attrs(el, ['src', 'poster']) + ',currentSrc=' + el.currentSrc;
+    if (tag === 'source') return attrs(el, ['src', 'srcset', 'sizes', 'media', 'type']);
+    if (tag === 'svg') return el.outerHTML;
+    if (tag === 'use') {
+      const href = el.getAttribute('href') || el.getAttribute('xlink:href') || '';
+      const target = href.startsWith('#') ? document.getElementById(href.slice(1)) : null;
+      return 'use=' + href + (target ? target.outerHTML : '');
+    }
+    return '';
+  };
+  const inputs = Array.from(surface.querySelectorAll('img, source, video, svg, use'))
+    .filter(el => shown.has(el) || shown.has(el.parentElement)).map(imageInput).join('\n');
   const rects = boxes.map(b => [describe(b.el), round(b.x), round(b.y), round(b.w), round(b.h)].join(',')).join('\n');
   const styles = boxes.map(b => {
     const cs = getComputedStyle(b.el);
     return describe(b.el) + '|' + props.map(p => cs.getPropertyValue(p)).join(';');
   }).join('\n') + '\n' + surface.innerText;
-  return { geometry, rects, styles };
+  return { geometry, rects, styles, inputs, incomplete: all.length > limit };
 };
 
 async function start(request) {
@@ -274,7 +291,10 @@ async function runCase(request) {
   if (!probe) return { problems: ['product surface not found: ' + request.surface], settle, probe: null };
   return {
     problems, settle,
-    probe: { geometry: probe.geometry, rectsSha256: sha(probe.rects), styleSha256: sha(probe.styles) },
+    probe: {
+      geometry: probe.geometry, rectsSha256: sha(probe.rects), styleSha256: sha(probe.styles),
+      inputsSha256: sha(probe.inputs), incomplete: probe.incomplete,
+    },
   };
 }
 
@@ -605,9 +625,9 @@ def capture_name(case):
 
 
 def render_fingerprint(probe):
-    """SHA-256 over the geometry probe, the element rects and the computed-style/text digest."""
+    """SHA-256 over the geometry probe, the element rects, the computed-style/text digest and the image inputs."""
     return sha256_bytes(canonical({"geometry": probe["geometry"], "rects": probe["rectsSha256"],
-                                   "style": probe["styleSha256"]}).encode("utf-8"))
+                                   "style": probe["styleSha256"], "inputs": probe["inputsSha256"]}).encode("utf-8"))
 
 
 def console_row_fails(row):
@@ -731,7 +751,8 @@ class Runner:
         record = {"surface": case.surface, "state": case.state, "target": case.target, "axis": case.axis,
                   "page": case.page, "pageSha256": self.package.sha[case.page], "pageKey": self.package.keys[case.page],
                   "result": None, "reasons": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None,
-                  "renderFingerprint": None, "geometry": None, "settle": None, "capture": None, "carriedFrom": None}
+                  "renderFingerprint": None, "fingerprintIncomplete": False, "geometry": None, "settle": None,
+                  "capture": None, "carriedFrom": None}
         began = time.perf_counter()
         reasons = record["reasons"]
         if self.aborted:
@@ -768,7 +789,8 @@ class Runner:
         if probe is None:
             return
         geometry = probe["geometry"]
-        record.update(geometry=geometry, settle=result["settle"], renderFingerprint=render_fingerprint(probe))
+        record.update(geometry=geometry, settle=result["settle"], renderFingerprint=render_fingerprint(probe),
+                      fingerprintIncomplete=bool(probe.get("incomplete")))
         if geometry["overflowX"] > OVERFLOW_TOLERANCE_PX:
             reasons.append(f"horizontal overflow {geometry['overflowX']}px")
         if geometry["stateViews"] < 1:
@@ -781,6 +803,8 @@ class Runner:
     def carried(self, case, record):
         previous = self.carry.get(case.key)
         if not previous or previous.get("axis") or previous["result"] != "PASS" or record["reasons"]:
+            return None
+        if record["fingerprintIncomplete"] or previous.get("fingerprintIncomplete"):
             return None
         if previous["renderFingerprint"] != record["renderFingerprint"]:
             return None
