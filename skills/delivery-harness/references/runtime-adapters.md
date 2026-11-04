@@ -85,6 +85,9 @@ Transitions record lifecycle evidence; they do not perform lifecycle actions.
 
 A visual reviewer must attach a real browser and report the inspected surface in its evidence.
 The parent's browser session does not prove reviewer capability; missing required access blocks that review.
+Probe the reviewer route's own browser once per host session and route. Record the receipt in the existing attempt record.
+Every later review on that session and route reuses the receipt.
+A review re-proves capability only when the route or session changed, or a browser failure voided the receipt.
 
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
