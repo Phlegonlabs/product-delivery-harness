@@ -90,6 +90,7 @@ const sha = text => crypto.createHash('sha256').update(text).digest('hex');
 const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [], forms: [] });
 let events = emptyEvents();
 let browser, context, page, pages = {};
+let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 const level = type => (type === 'error' || type === 'assert') ? 'error' : (type === 'warning' ? 'warning' : 'info');
@@ -207,6 +208,8 @@ async function start(request) {
       ? decodeURIComponent(url.pathname.slice(5)) : null;
     if (name !== null && req.resourceType() === 'document' && req.method() === 'GET' && !url.search
         && Object.prototype.hasOwnProperty.call(pages, name)) {
+      if (opening === name) opening = null;
+      else events.navigation.push({ url: req.url(), method: req.method(), resourceType: 'document', allowlisted: true });
       return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: pages[name] });
     }
     const row = { url: req.url(), method: req.method(), resourceType: req.resourceType() };
@@ -242,7 +245,9 @@ async function start(request) {
 
 async function open(request) {
   page.setDefaultTimeout(request.timeoutMs);
-  const response = await page.goto(BASE + encodeURI(request.page), { waitUntil: 'load' });
+  opening = request.page;
+  let response;
+  try { response = await page.goto(BASE + encodeURI(request.page), { waitUntil: 'load' }); } finally { opening = null; }
   if (!response || response.status() !== 200) throw new Error('page did not load: ' + request.page);
   await page.locator('[data-hifi-reviewer-shell]').first().waitFor({ state: 'attached' });
   await page.locator('[data-hifi-canvas]').first().waitFor({ state: 'attached' });

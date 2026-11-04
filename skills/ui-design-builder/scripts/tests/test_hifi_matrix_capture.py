@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 import urllib.parse
 from dataclasses import replace
@@ -545,6 +546,15 @@ class FailureTests(unittest.TestCase):
         self.assertEqual((1, 1), (output["popupAttempts"], output["formAttempts"]))
         self.assertEqual("PASS", cases[("UI-002", "loading", "1200")]["result"])
 
+    def test_an_allowlisted_navigation_stays_in_the_transcript_and_fails_the_case(self):
+        row = {"url": "https://hifi.invalid/pkg/index.html", "method": "GET", "resourceType": "document", "allowlisted": True}
+        driver = FakeDriver()
+        driver.overrides[("UI-002", "ready", "390")] = {"events": {"navigation": [row]}}
+        code, _, output, cases = self.results(driver)
+        self.assertEqual(1, code)
+        self.assertEqual([dict(row, page="details.html")], output["navigation"])
+        self.assertEqual(["navigation attempt: https://hifi.invalid/pkg/index.html"], cases[("UI-002", "ready", "390")]["reasons"])
+
     def test_page_load_errors_fail_every_case_on_that_page(self):
         driver = FakeDriver()
         driver.open_events["details.html"] = {"console": [{"source": "javascript", "level": "exception", "message": "Uncaught"}]}
@@ -820,6 +830,25 @@ class RealBrowserTests(unittest.TestCase):
             wide = [r for k, r in cases.items() if k[2] == "1200"]
             self.assertEqual({"FAIL"}, {r["result"] for r in wide})
             self.assertTrue(all(1000 == r["geometry"]["canvasWidth"] and "1000" in r["reasons"][0] for r in wide))
+
+    def test_the_drivers_own_open_is_not_a_navigation_but_a_later_allowlisted_one_is(self):
+        module = self.playwright()
+        leave = "<script>setTimeout(() => { location.href = 'index.html'; }, 300);</script>"
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as scratch:
+            package = build_package(Path(temporary), details_extra=leave)
+            driver = m.NodeDriver(shutil.which("node"), module, m.read_package(package).files, scratch)
+            driver.start()
+            try:
+                opened = driver.call("open", page="details.html", timeoutMs=30000)
+                self.assertEqual([], opened["events"]["navigation"])
+                time.sleep(1.5)                      # the page leaves for an allowlisted page after 300 ms
+                later = driver.call("axis", name="none")
+                self.assertEqual([{"url": "https://hifi.invalid/pkg/index.html", "method": "GET", "resourceType": "document",
+                                   "allowlisted": True}], later["events"]["navigation"])
+                reopened = driver.call("open", page="index.html", timeoutMs=30000)
+                self.assertEqual([], reopened["events"]["navigation"])
+            finally:
+                driver.stop()
 
     def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
         module = self.playwright()
