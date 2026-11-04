@@ -30,9 +30,14 @@ A new bundle applies to the next RUN; do not migrate an active RUN by editing re
 Collect blocking source fixes into one reviewed release rather than installing each fix separately.
 Owner-directed model changes apply to new assignments only. Preserve existing reservations and record the decision once.
 
-A UI design round keeps the five-skill digest recorded at intake through Visual Approval.
-Only a blocking defect justifies one collected mid-round update, at a quiescent boundary with explicit installation authority.
-Record the new digest and restart before loading changed rules. Preserve prior decisions and evidence with their original identities.
+A UI design round pins the five-skill digest recorded at intake. It finishes on that entry pin, through Visual Approval.
+A later change to the shared install is observed drift. Record the drifted digest and the date.
+Drift does not set `restart_required` for the round. It does not block an in-flight review's exit identity check.
+That check compares against the entry pin, not the current install bytes.
+Never make a task-local copy of the bundle to hold the pin. A new round re-pins at its own intake.
+A deliberate mid-round update is the one exception. Only a blocking defect justifies it, collected into one update.
+Run it at a quiescent boundary with explicit installation authority.
+Record the new digest as the pin and restart before loading changed rules. Preserve prior decisions and evidence with their original identities.
 
 ## Safe Upgrade Sequence
 
