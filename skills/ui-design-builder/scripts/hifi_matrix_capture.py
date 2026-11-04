@@ -32,7 +32,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings
+from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
 
@@ -608,11 +608,14 @@ def expand_matrix(package, only=None, derived=None):
     return cases
 
 
-def sample_axis_cases(rows, page, widths, counts):
-    """`ready` (or the first state) plus the busiest state, at the smallest and largest target."""
+def sample_axis_cases(rows, page, widths, counts, derived=None):
+    """`ready` (or the first state) plus the busiest state, at the smallest and largest target.
+
+    A derived state takes no stress axis, so neither pick comes from the derived states."""
     cases = []
     for row in rows:
-        states = [str(s) for s in row["states"] if not _is_na_state(s)]
+        skipped = set((derived or {}).get(row["id"], ()))
+        states = [str(s) for s in row["states"] if not _is_na_state(s) and str(s) not in skipped]
         if not states:
             continue
         busiest = max(states, key=lambda s: counts.get((row["id"], s), -1))
@@ -706,10 +709,10 @@ def related(left, right):
 
 # --- The run --------------------------------------------------------------------
 class Runner:
-    def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None,
+    def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None, derived=None,
                  recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
         self.driver, self.package, self.root, self.out_dir = driver, package, root, out_dir
-        self.axes, self.carry, self.carry_source = tuple(axes), carry or {}, carry_source
+        self.axes, self.carry, self.carry_source, self.derived = tuple(axes), carry or {}, carry_source, derived
         self.recapture, self.diff_against = recapture, diff_against
         self.settle_cap_ms, self.case_timeout_s = settle_cap_ms, case_timeout_s
         self.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
@@ -764,7 +767,7 @@ class Runner:
             geometry = self.records[case.key].get("geometry")
             if geometry:
                 counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
-        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts)
+        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
         for axis in self.axes:
             self.run_axis(page, axis, sampled)
 
@@ -956,7 +959,8 @@ def parse_args(argv=None):
     parser.add_argument("--only", help="comma-separated surface IDs")
     parser.add_argument("--axes", default="", help="comma-separated: " + ", ".join(AXES))
     parser.add_argument("--derived-once", action="store_true", help="observe derived states once, at the smallest target")
-    parser.add_argument("--derived", type=Path, help='JSON map {"UI-001": ["state", ...]} of derived states')
+    parser.add_argument("--ui-design", type=Path, help="ui-design.md whose Approved target scope names the derived states")
+    parser.add_argument("--derived", type=Path, help='JSON map {"UI-001": ["state", ...]} that replaces the --ui-design set')
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
@@ -973,6 +977,20 @@ def inside(root, path, label):
     return resolved
 
 
+def derived_from_ui_design(path):
+    """{surface ID: [derived states]} from the Approved target scope of a ui-design.md, read by the checker's parser."""
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        raise UsageError(f"cannot read --ui-design: {error}") from None
+    view, problems = parse_ui_contract_view(text)
+    scope = view.get("target_scope")
+    if not scope:
+        raise UsageError("--ui-design has no readable Approved target scope" + (f": {problems[0]}" if problems else ""))
+    return {item["id"]: list(item["derivedStates"]) for item in scope["surfaces"]
+            if isinstance(item.get("derivedStates"), dict) and item["derivedStates"]}
+
+
 def node_driver(package, root, scratch):
     node = shutil.which("node")
     if node is None:
@@ -987,11 +1005,15 @@ def execute(args, make_driver=node_driver):
     unknown = [a for a in axes if a not in AXES]
     if unknown:
         raise UsageError(f"unknown axis {unknown[0]}; choose from {', '.join(AXES)}")
-    if args.derived and not args.derived_once:
-        raise UsageError("--derived needs --derived-once")
-    if args.derived_once and not args.derived:
-        raise UsageError("--derived-once needs --derived <json>: the manifest declares no derived states yet")
-    derived = json.loads(args.derived.read_text(encoding="utf-8")) if args.derived else None
+    for flag, value in (("--derived", args.derived), ("--ui-design", args.ui_design)):
+        if value and not args.derived_once:
+            raise UsageError(f"{flag} needs --derived-once")
+    if args.derived_once and not (args.derived or args.ui_design):
+        raise UsageError("--derived-once needs --ui-design <ui-design.md> or --derived <json>")
+    ui_design = inside(root, args.ui_design, "--ui-design") if args.ui_design else None
+    derived = derived_from_ui_design(ui_design) if ui_design else None
+    if args.derived:
+        derived = json.loads(args.derived.read_text(encoding="utf-8"))
     if out_dir.exists() and any(out_dir.iterdir()) and not args.overwrite:
         raise UsageError("--out is not empty; choose a new directory or pass --overwrite")
     diff_against = inside(root, args.diff_against, "--diff-against") if args.diff_against else None
@@ -1022,7 +1044,7 @@ def execute(args, make_driver=node_driver):
             except DriverError as error:
                 raise UsageError(f"browser could not start: {error}") from error
             runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
-                            recapture=args.recapture_carried, diff_against=diff_against)
+                            derived=derived, recapture=args.recapture_carried, diff_against=diff_against)
             runner.run(cases)
             environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
         finally:
@@ -1032,7 +1054,8 @@ def execute(args, make_driver=node_driver):
         if sha256_bytes(path.read_bytes()) != package.sha[name]:
             raise UsageError(f"{name} changed while it was being captured")
     options = {"only": sorted(only) if only else None, "axes": axes, "derivedOnce": bool(args.derived_once),
-               "derived": derived, "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried)}
+               "derived": derived, "derivedFrom": "--derived" if args.derived else ("--ui-design" if ui_design else None),
+               "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried)}
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)

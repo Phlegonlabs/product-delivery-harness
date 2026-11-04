@@ -26,6 +26,7 @@ from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
+import check_ui_design_contract as checker  # noqa: E402
 import hifi_matrix_capture as m  # noqa: E402
 from assemble_ui_review import assemble  # noqa: E402
 from review_evidence import build_receipt  # noqa: E402
@@ -72,6 +73,22 @@ def sha(text):
 def data_svg(color):
     svg = f"<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><rect width='4' height='4' fill='{color}'/></svg>"
     return "data:image/svg+xml," + urllib.parse.quote(svg, safe="")
+
+
+def write_ui_design(root, derived, relative="docs/design/ui-design.md"):
+    """A ui-design.md whose Approved target covers the fixture package; `derived` is {surface: {child: parent}}."""
+    surfaces = [{"id": "UI-001", "route": "/", "states": ["ready", "loading", "empty"]},
+                {"id": "UI-002", "route": "/details", "states": ["ready", "loading", "error"]}]
+    for surface in surfaces:
+        if surface["id"] in derived:
+            surface["derivedStates"] = derived[surface["id"]]
+    target = (f"{PACKAGE_DIR}/index.html @ sha256:{'a' * 64}; scope=surfaces={json.dumps(surfaces, separators=(',', ':'))}"
+              '|routes=["/","/details"]|states=["empty","error","loading","ready"]'
+              '|responsive={"kind":"viewports","targets":[390,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser')
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# UI Design\n\n## Visual Approval\n\nApproved target: {target}\n", encoding="utf-8")
+    return path
 
 
 def make_dir_link(link, target):
@@ -226,6 +243,16 @@ class MatrixExpansionTests(unittest.TestCase):
         self.assertEqual([("ready", "390"), ("ready", "1200"), ("empty", "390"), ("empty", "1200")],
                          [(c.state, c.target) for c in sampled])
 
+    def test_axis_sample_never_picks_a_derived_state(self):
+        widths = {"390": 390, "1200": 1200}
+        rows = [self.surface(states=("ready", "loading", "toast"))]
+        counts = {("UI-001", "ready"): 3, ("UI-001", "loading"): 4, ("UI-001", "toast"): 99}
+        self.assertEqual({"ready", "toast"}, {c.state for c in m.sample_axis_cases(rows, "index.html", widths, counts)})
+        sampled = m.sample_axis_cases(rows, "index.html", widths, counts, derived={"UI-001": ["toast"]})
+        self.assertEqual({"ready", "loading"}, {c.state for c in sampled})
+        first = m.sample_axis_cases([self.surface(states=("toast", "idle"))], "index.html", widths, {}, derived={"UI-001": ["toast"]})
+        self.assertEqual({"idle"}, {c.state for c in first})
+
     def test_axis_sample_does_not_repeat_ready_and_falls_back_to_the_first_state(self):
         widths = {"390": 390, "1200": 1200}
         busy_ready = m.sample_axis_cases([self.surface(states=("ready", "empty"))], "index.html", widths,
@@ -333,6 +360,44 @@ class RunOutputTests(unittest.TestCase):
         self.assertEqual(["390"], empty)
         self.assertTrue(sidecar["run"]["derivedOnce"])
         self.assertEqual(11, len(output["matrix"]["cases"]))
+
+
+    def test_ui_design_names_the_derived_states_and_the_matrix_is_the_one_the_checker_expects(self):
+        cli = Cli(self)
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        code, _, out = cli.run(FakeDriver(), "--derived-once", "--ui-design", str(design))
+        output, sidecar = cli.load(out)
+        scope = checker.parse_ui_contract_view(design.read_text(encoding="utf-8"))[0]["target_scope"]
+        self.assertEqual(0, code)
+        self.assertEqual(checker._evidence_matrix(scope)["cases"], output["matrix"]["cases"])
+        self.assertEqual(11, len(output["matrix"]["cases"]))
+        self.assertEqual(({"UI-001": ["empty"]}, "--ui-design"), (sidecar["run"]["derived"], sidecar["run"]["derivedFrom"]))
+
+    def test_derived_json_replaces_the_ui_design_set(self):
+        cli = Cli(self)
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        override = cli.root / "derived.json"
+        override.write_text(json.dumps({"UI-002": ["error"]}), encoding="utf-8")
+        code, _, out = cli.run(FakeDriver(), "--derived-once", "--ui-design", str(design), "--derived", str(override))
+        output, sidecar = cli.load(out)
+        targets = {(c["surface"], c["state"]): [] for c in output["matrix"]["cases"]}
+        for c in output["matrix"]["cases"]:
+            targets[(c["surface"], c["state"])].append(c["target"])
+        self.assertEqual(0, code)
+        self.assertEqual((["390", "1200"], ["390"]), (targets[("UI-001", "empty")], targets[("UI-002", "error")]))
+        self.assertEqual(("--derived", {"UI-002": ["error"]}), (sidecar["run"]["derivedFrom"], sidecar["run"]["derived"]))
+
+    def test_a_derived_state_takes_no_stress_axis_even_when_it_is_the_densest(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.overrides[("UI-001", "empty", "390")] = {"geometry": {"elementCount": 99}}
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        _, _, plain = cli.run(driver, "--axes", "dark")
+        self.assertIn("empty", {r["state"] for r in cli.load(plain)[1]["axes"] if r["surface"] == "UI-001"})
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "empty", "390")] = {"geometry": {"elementCount": 99}}
+        _, _, out = cli.run(driver, "--axes", "dark", "--derived-once", "--ui-design", str(design))
+        axis_states = {r["state"] for r in cli.load(out)[1]["axes"] if r["surface"] == "UI-001"}
+        self.assertEqual({"ready", "loading"}, axis_states)
 
 
 class CarryTests(unittest.TestCase):
@@ -769,10 +834,17 @@ class UsageTests(unittest.TestCase):
         driver = FakeDriver()
         derived = cli.root / "derived.json"
         derived.write_text("{}", encoding="utf-8")
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        no_target = cli.root / "plain.md"
+        no_target.write_text("# UI Design\n\nNothing approved yet.\n", encoding="utf-8")
         cases = [
             (("--only", "UI-999"), "unknown surfaces"),
+            (("--derived-once",), "--ui-design"),
             (("--derived-once",), "--derived"),
             (("--derived", str(derived)), "--derived-once"),
+            (("--ui-design", str(design)), "--derived-once"),
+            (("--derived-once", "--ui-design", str(cli.root / "missing.md")), "cannot read --ui-design"),
+            (("--derived-once", "--ui-design", str(no_target)), "no readable Approved target scope"),
         ]
         for extra, message in cases:
             code, summary, _ = cli.run(driver, *extra)

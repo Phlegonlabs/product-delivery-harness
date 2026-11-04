@@ -4,7 +4,7 @@
 
     python "<ui-design-builder-skill-root>/scripts/hifi_matrix_capture.py" --repo-root . --package docs/design/ui-references/<run-id> --out docs/evidence/<run-id>/surface-1
 
-Run it from the repository root. Relative `--package`, `--out`, `--carry-from` and `--diff-against` paths are repo-root relative. `--package` and `--out` stay inside the repository, and `--out` must be new unless `--overwrite` is given. The browser is Node Playwright with Chromium (`npm ci`, `npx playwright install chromium`, or `PLAYWRIGHT_MODULE`).
+Run it from the repository root. Relative `--package`, `--out`, `--carry-from`, `--ui-design` and `--diff-against` paths are repo-root relative. `--package` and `--out` stay inside the repository, and `--out` must be new unless `--overwrite` is given. The browser is Node Playwright with Chromium (`npm ci`, `npx playwright install chromium`, or `PLAYWRIGHT_MODULE`).
 
 ## What a run does
 
@@ -34,11 +34,12 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 | `--carry-from <ui-output.json>` | Carry unchanged cases from an earlier output of this tool. |
 | `--recapture-carried` | Screenshot carried cases too. |
 | `--axes dark,reduced-motion,forced-colors,zoom-200` | Run a sample under each axis. |
-| `--derived-once --derived <json>` | Observe the derived states once, at the smallest target. `<json>` maps surface ID to states: `{"UI-001": ["toast"]}`. The manifest declares none yet. |
+| `--derived-once --ui-design <ui-design.md>` | Observe each derived state once, at its surface's smallest target. The derived states are the `derivedStates` keys in the Approved target scope of `<ui-design.md>`, read with the checker's own parser. |
+| `--derived <json>` | With `--derived-once`: use this set instead of the `--ui-design` one. `<json>` maps surface ID to states: `{"UI-001": ["toast"]}`. |
 | `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio; a pixel is changed when any RGBA channel differs. |
 | `--overwrite` | Write into a non-empty `--out`. Refused (exit 2) with `--carry-from` when `--out` is, holds or sits inside the folder of the carry source or of a capture it carries. |
 
-`--only` and `--derived-once` write a smaller matrix than the Approved target scope, so the output is diagnostic, not the final surface check.
+`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. What the output still lacks is the `interactions` and `reviewer` objects (see below).
 
 ## Carrying
 
@@ -46,7 +47,7 @@ A case is carried when its render fingerprint equals the earlier one (both compl
 
 ## Axes
 
-The sample, once per page, is `ready` (or the first state) and the state with the most product DOM nodes, at the smallest and largest target. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page.
+The sample, once per page, is `ready` (or the first state) and the non-derived state with the most product DOM nodes, at the smallest and largest target. A derived state takes no axis. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page.
 
 Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
 
