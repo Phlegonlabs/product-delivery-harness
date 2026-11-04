@@ -737,6 +737,48 @@ class ParityCaptureTests(unittest.TestCase):
                 self.run_main("--recapture-carried")
         self.assertEqual(2, raised.exception.code)
 
+    def half_second_clock(self):
+        """A clock that moves 0.5 s on every reading, so durations are exact."""
+
+        readings = iter(range(10_000))
+        return patch.object(parity_capture, "_clock", side_effect=lambda: next(readings) * 0.5)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_manifest_records_a_duration_per_pair_and_in_total(self) -> None:
+        with self.half_second_clock():
+            code, out = self.run_ready_matrix()
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        # Each pair has one app block and one reference block (one reading
+        # at each end), so 2 x 0.5 s each; the total runs from the first
+        # reading to the last: 3 pairs x 4 readings + 1 more at each end.
+        self.assertEqual([1000, 1000, 1000], [row["duration_ms"] for row in manifest["captured"]])
+        self.assertEqual(6500, manifest["duration_ms"])
+        self.assertIn("in 6.5s;", out)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_carried_pair_only_spends_its_app_time(self) -> None:
+        first = self.first_run()
+        with self.half_second_clock():
+            code, out = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        self.assertEqual("carried", manifest["captured"][0]["classification"])
+        self.assertEqual(500, manifest["captured"][0]["duration_ms"])
+        self.assertEqual(1500, manifest["duration_ms"])
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_real_durations_are_whole_milliseconds(self) -> None:
+        code, out = self.run_ready_matrix()
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        self.assertIsInstance(manifest["duration_ms"], int)
+        for row in manifest["captured"]:
+            self.assertIsInstance(row["duration_ms"], int)
+            self.assertGreaterEqual(row["duration_ms"], 0)
+        self.assertGreaterEqual(manifest["duration_ms"], max(row["duration_ms"] for row in manifest["captured"]))
+
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     def test_colliding_route_and_state_tokens_keep_distinct_evidence(self) -> None:
         routes = ["/foo/bar", "/foo-bar", "/FOO-BAR", "/" + "long-route-" * 21]

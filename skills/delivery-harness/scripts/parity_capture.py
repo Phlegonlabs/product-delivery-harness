@@ -34,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Iterator
@@ -47,6 +48,7 @@ from harness_design_coverage import surface_capture_rows  # noqa: E402
 from harness_git import windows_machine_roots, windows_parent_user_writable  # noqa: E402
 
 DEFAULT_OUT = Path("docs/goal/evidence/parity")
+_clock = time.perf_counter  # tests replace this to get fixed durations
 VIEWPORT_HEIGHT = 1000
 GEOMETRY_PROBE_LIMIT = 400
 OVERLAP_REPORT_LIMIT = 10
@@ -739,6 +741,17 @@ class _Run:
     nav_methods: dict[str, str] = field(default_factory=dict)
 
 
+@contextmanager
+def _timed(job: dict[str, Any]) -> Iterator[None]:
+    """Add the time spent in the block, including any page load, to the tuple."""
+
+    began = _clock()
+    try:
+        yield
+    finally:
+        job["seconds"] += _clock() - began
+
+
 def _app_dirty(job: dict[str, Any]) -> bool:
     return bool(job["app_eval"] or job["condition_app_eval"])
 
@@ -836,6 +849,7 @@ def _plan_job(
         "app_ok": False,
         "done": False,
         "carried": None,
+        "seconds": 0.0,
     }
 
 
@@ -882,7 +896,8 @@ def _app_phase(run: _Run, jobs: list[dict[str, Any]]) -> None:
 
     loaded = False
     for job in sorted(jobs, key=lambda item: (_app_dirty(item), item["index"])):
-        loaded = _app_step(run, job, loaded)
+        with _timed(job):
+            loaded = _app_step(run, job, loaded)
 
 
 def _reference_step(
@@ -934,6 +949,7 @@ def _row(job: dict[str, Any], carry_from: str | None) -> dict[str, Any]:
         "pixel_diff": job.get("pixel_diff"),
         "pixel_diff_reason": job.get("pixel_diff_reason"),
         "classification": job.get("classification"),
+        "duration_ms": round(job["seconds"] * 1000),
     }
     if carried:
         row.update(
@@ -959,7 +975,8 @@ def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
                 {**job["combo"], "reason": f"reference nav: {run.nav_methods[route]}"}
             )
             continue
-        loaded, unreachable = _reference_step(run, job, route, loaded)
+        with _timed(job):
+            loaded, unreachable = _reference_step(run, job, route, loaded)
 
 
 def _board_src(path: str, board_dir: Path) -> str:
@@ -1080,6 +1097,7 @@ def _board(
 
 
 def capture(args: argparse.Namespace) -> int:
+    started = _clock()
     plan_path: Path = args.plan
     if not plan_path.is_file():
         print(f"error: PLAN not found: {plan_path}", file=sys.stderr)
@@ -1237,6 +1255,7 @@ def capture(args: argparse.Namespace) -> int:
         "required_combinations": len(all_combos),
         "selected_combinations": len(combos),
         "only_routes": [args.only] if args.only else [],
+        "duration_ms": round((_clock() - started) * 1000),
         "tolerance": run.tolerance,
         "carry_from": run.carry_from,
         "recapture_carried": recapture_carried,
@@ -1256,7 +1275,7 @@ def capture(args: argparse.Namespace) -> int:
         f"done: {len(captured)} of {len(combos)} selected pairs captured "
         f"({len(all_combos)} full-plan required), "
         f"{len(skipped)} skipped, "
-        f"{len(errors)} errors; board: {board}"
+        f"{len(errors)} errors in {manifest['duration_ms'] / 1000:.1f}s; board: {board}"
     )
     for problem in errors:
         print(f"error: {problem}", file=sys.stderr)
