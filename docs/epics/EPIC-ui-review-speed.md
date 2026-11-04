@@ -46,7 +46,7 @@ Kept unchanged: owner decisions, exact-SHA binding, read-only reviewers, securit
 | URS-2 | Sampling, cap, fingerprint and diff-first rules are stated once and cross-referenced | `test_review_matrix_docs.py`, `test_skill_contract.py` |
 | URS-3 | Matrix driver captures the fixture matrix in one context, carries unchanged fingerprints, samples axes, writes an accepted ui-output/3 | `test_hifi_matrix_capture.py` (41 tests, one real Chromium run) |
 | URS-4 | Motion receipts match one representative target per intent | `test_ui_design_contract.py` |
-| URS-5 | Parity script classifies pairs, carries identical tuples, records durations | `test_parity_capture*.py` (W4) |
+| URS-5 | Parity script classifies pairs, carries identical tuples, records durations | `test_parity_capture.py` (50 tests) |
 | URS-6 | READMEs describe the flow in four languages | `test_skill_contract.py` |
 
 ## Execution Record
@@ -57,7 +57,7 @@ Five Sonnet 5.5 writers (claude-t3-direct, effort xhigh) in separate worktrees w
 - W2 `t3/streamline-ui-review-evidence` c8f7acc5: fingerprint carry-forward, diff-first, one capture per case, motion, harness gates.
 - W3 `t3/hifi-matrix-capture` 74278da3: matrix driver, tests, `references/matrix-capture.md`.
 - W5 `t3/streamline-ui-review-lifecycle` 5a55568e: review method, packet sizing, capability receipts, acceptance closes the round, entry pin, tool-driven self-review, review record size.
-- W4 `t3/parity-capture-diff-first`: pending.
+- W4 `t3/parity-capture-diff-first` fdcb80f6: one load per side per route, board image paths, identical/changed/carried classification, `--carry-from`, durations. Round trips per pair 9.0 to 6.3, 3.7 when carried.
 - W6 READMEs: pending.
 
 Parent commits: SKILL.md cap sentence, CLI inventory, cross-reference reconciliation, fingerprint-only carry in the driver, one motion target in the checker.
