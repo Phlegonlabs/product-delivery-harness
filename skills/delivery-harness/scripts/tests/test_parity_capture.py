@@ -401,7 +401,6 @@ class ParityCaptureTests(unittest.TestCase):
         route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
         return self.run_main("--route-map", str(route_map), *extra)
 
-    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
     def test_a_small_missing_element_is_changed_even_under_the_tolerance(self) -> None:
         image_module, _ = parity_capture._load_pillow()
@@ -425,6 +424,7 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual("identical", parity_capture._classify(diff, 0.01))
         self.assertEqual("changed", parity_capture._classify(diff, 0.0))
 
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
     def test_identical_pairs_are_classified_and_fingerprinted(self) -> None:
         code, out = self.run_ready_matrix()
@@ -671,6 +671,8 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
         self.assertEqual(1, self.reference_opens())
 
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
     def test_a_changed_linked_reference_asset_is_recaptured_not_carried(self) -> None:
         css = self.root / "theme.css"
         css.write_text("body{color:black}", encoding="utf-8")
@@ -684,6 +686,8 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
         self.assertEqual(1, self.reference_opens())
 
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
     def test_a_changed_asset_behind_the_stylesheet_is_recaptured_not_carried(self) -> None:
         (self.root / "theme.css").write_text("body{background:url(bg.svg)}", encoding="utf-8")
         (self.root / "bg.svg").write_text("<svg><rect fill='red'/></svg>", encoding="utf-8")
