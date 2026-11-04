@@ -58,13 +58,13 @@ For motion craft (timing, easing, choreography), consult `motion-doctrine` or Im
 
 ## Motion Evidence Per Intent
 
-Observe each required motion intent at one representative responsive target: the smallest approved target of its surface, unless the intent names another. Its evidence is:
+Observe each required motion intent at one representative responsive target: the smallest approved target of its surface, unless the intent names another. Evidence is:
 
 - a trigger frame, taken when the declared trigger fires;
-- an end-state frame, taken when the effect rests in its approved end state; and
+- an end-state frame, taken at the approved resting state; and
 - a reduced-motion check that reads the computed animation and transition duration and confirms the end state arrives in place.
 
-The normal receipt holds the two frames and the reduced-motion receipt holds the check. Each required intent still gets both receipts. Video clips and frame sampling are optional supplements, never required.
+The normal receipt holds the frames and the reduced-motion receipt holds the check; each required intent gets both. Video clips and frame sampling are optional supplements.
 
 ## HiFi Embedding Limits
 
