@@ -27,9 +27,17 @@ The PRD `Shape` row fixes the required surfaces by track: `web` → landing and 
 
 Browser, critique, audit and grading are checks within one wave; repair and re-review follow the [rubric](ui-grading-rubric.md#repair-re-review-scope), and later defects use the same scoped review with no third wave. Managed mission, integration and security reviews follow their separate Harness contracts.
 
-Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and their evidence. PRD self-review belongs to Product Definition after market reconciliation and before its approval. In the existing Epic/task record, record the producing agent identity, equal self-check agent identity, final candidate hash, actual checks, findings and repairs, and link the current candidate and review evidence. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.
+Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and the evidence to record. PRD self-review belongs to Product Definition after market reconciliation and before its approval. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.
 
 A `ui-design/2` package has no wireframe, W1–W5, Copy Freeze or human Wireframe Approval stage. It reads the PRD's complete sourced wording and contract directly. The final HiFi review includes wording, structure, product menus, tabs, other interactions, visuals and all product tokens. Formal design-system compilation runs only when the Need Gate requires it.
+
+## Owner Acceptance Closes The Round
+
+Visual Approval closes the round, including acceptance with follow-ups. Record it as `approved`. Every open ledger row becomes a listed follow-up in the Epic. The round produces no further gate, receipt, reconciliation or playback record.
+
+Design-system compilation and the Harness handoff consume the accepted candidate. They do not wait on a waived gate. Record a block the owner explicitly waived as waived, with the owner's words and the date.
+
+Acceptance proves direction conformance, not usability ([UX Direction And Usability Evidence](../../delivery-harness/references/verification-gates.md#ux-direction-and-usability-evidence)).
 
 ## Optional R0 Exploration Round
 
@@ -67,7 +75,7 @@ New evidence uses ui-output/3 and ui-evidence/3; see review-evidence.md. Separat
 
 ## Versions And Migration
 
-Record source, installed and actually loaded skill identities separately; unknown loaded identity remains unknown. Pin each round. After a bundle change between rounds, rerun the UI checker on the unchanged artifacts, classify the changed rule as shell, format, validation or design, and renew only affected gates.
+Record source, installed and actually loaded skill identities separately; unknown loaded identity remains unknown. Pin each round at intake and finish it on that pin. A bundle change during the round is observed drift ([Run-Scoped Contract Pin](../../delivery-harness/references/runtime-upgrades.md#run-scoped-contract-pin)). A new round re-pins. After a bundle change between rounds, rerun the UI checker on the unchanged artifacts, classify the changed rule as shell, format, validation or design, and renew only affected gates.
 
 wireframes/2–5 and `ui-design` packages without `UI contract: ui-design/2` remain readable under their original meanings. A legacy approved artifact still uses its historical Copy Freeze, Wireframe Approval or Validation, W1–W5 and compiler inputs. Do not relabel it or fabricate a new human decision. The legacy heading does not keep old HiFi evidence rules. A legacy Visual Approval decided on or after 2026-09-27 (the 0.55.0 release), or with any HiFi Review or motion-effect receipt executed at or after 2026-09-27T00:00:00Z, always needs ui-evidence/3, reviewer shell version 3 and `direction`/`hifi` Frontend Design Usage rows, and its Decided on must not predate that evidence; committing or backdating it does not make it historical. An earlier approval keeps its ui-evidence/2 HiFi receipts only while its Approved target equals the one committed at HEAD; a new or changed target needs current evidence. The UI checker, the compiler preflight and Harness 0.55.1+ UI and pair joins enforce the dated rule. New initial and full-redesign packages use `ui-design/3`; `ui-design/2` packages keep their original meaning, including `not_required` gates. Existing products migrate gradually under authorized scope. Migrate through a fresh owner-selected direction and complete HiFi, rerun affected product checks, and preserve historical bytes/receipts. A shell-only update never authorizes product redesign.
 

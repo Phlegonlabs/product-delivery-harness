@@ -36,10 +36,15 @@ findings to the owning flow above.
 4. Broaden when affected behavior or unknown impact requires it; run the
    required mission/feature/platform/integration gates.
 5. On PASS, record the exact candidate, command or decision, actual result, and
-   evidence; then stop. Success does not require a minimum iteration count.
+   a reference to the evidence; then stop. Cite the receipt; do not copy its
+   matrix or hash lists. Success does not require a minimum iteration count.
 6. On failure, record expected result, actual result, exit or observation,
-   artifact or trace, and input identity. Do not hide the concrete difference.
+   artifact or trace reference, and input identity. Do not hide the concrete
+   difference.
 7. Wait for every required verifier and review result on the same candidate.
+   A review returns its verdict, the exact SHA, the findings with capture
+   references, the spot-check sample and the commands run. It does not restate
+   matrices, hash lists or the packet.
    Triage each review into blocking findings and non-blocking notes; only
    blocking findings repair. Group the blocking findings by root-cause family
    and send them to the owning corrector as one repair. Non-blocking
@@ -55,7 +60,10 @@ findings to the owning flow above.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, missing required capability, a contract gap, or an unsafe
-    repair. A failed re-check hands remaining defects to the Isolated Repair
+    repair. Stop when the owner records Visual Approval, including acceptance
+    with follow-ups ([Owner Acceptance Closes The
+    Round](../../ui-design-builder/references/review-workflow.md#owner-acceptance-closes-the-round)).
+    A failed re-check hands remaining defects to the Isolated Repair
     Protocol; it never starts another full review round on its own. An
     environment-blocked review attempt is
     not a round. Preserve history, candidate identity, and unresolved work.
