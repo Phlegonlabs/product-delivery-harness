@@ -13,9 +13,12 @@ import io
 import json
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
+import urllib.parse
 from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
@@ -23,6 +26,7 @@ from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
+import check_ui_design_contract as checker  # noqa: E402
 import hifi_matrix_capture as m  # noqa: E402
 from assemble_ui_review import assemble  # noqa: E402
 from review_evidence import build_receipt  # noqa: E402
@@ -32,17 +36,29 @@ HAS_PILLOW = importlib.util.find_spec("PIL") is not None
 PACKAGE_DIR = "docs/design/ui-references/matrix"
 
 
-def build_package(root, details_extra="", manifest_edit=None):
-    """Assemble the fixture (two surfaces, two targets, three states each) under root."""
+def size_classes(html):
+    """Rename the fixture's 390/1200 targets to the size classes compact/regular, with their width map."""
+    return (html.replace('data-hifi-targets="390 1200" data-hifi-target="390"',
+                         'data-hifi-targets="compact regular" data-hifi-target="compact" '
+                         "data-hifi-target-widths='{\"compact\":390,\"regular\":1200}'")
+            .replace('[data-hifi-target="390"]', '[data-hifi-target="compact"]')
+            .replace('[data-hifi-target="1200"]', '[data-hifi-target="regular"]'))
+
+
+def build_package(root, details_extra="", manifest_edit=None, page_edit=None):
+    """Assemble the fixture (two surfaces, two targets, three states each) under root.
+
+    page_edit rewrites both fixture pages before the manifest is embedded."""
+    page_edit = page_edit or (lambda html: html)
     manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
     if manifest_edit:
         manifest_edit(manifest)
     source = root / "_src"
     source.mkdir(parents=True, exist_ok=True)
     (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-    entry = (FIXTURE / "index.html").read_text(encoding="utf-8").replace("__MANIFEST__", json.dumps(manifest))
+    entry = page_edit((FIXTURE / "index.html").read_text(encoding="utf-8")).replace("__MANIFEST__", json.dumps(manifest))
     (source / "index.html").write_text(entry, encoding="utf-8")
-    details = (FIXTURE / "details.html").read_text(encoding="utf-8").replace("</main>", details_extra + "</main>", 1)
+    details = page_edit((FIXTURE / "details.html").read_text(encoding="utf-8")).replace("</main>", details_extra + "</main>", 1)
     (source / "details.html").write_text(details, encoding="utf-8")
     package = root / PACKAGE_DIR
     assemble(source / "manifest.json", [f"index.html={source / 'index.html'}", f"details.html={source / 'details.html'}"],
@@ -54,16 +70,49 @@ def sha(text):
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def data_svg(color):
+    svg = f"<svg xmlns='http://www.w3.org/2000/svg' width='4' height='4'><rect width='4' height='4' fill='{color}'/></svg>"
+    return "data:image/svg+xml," + urllib.parse.quote(svg, safe="")
+
+
+def write_ui_design(root, derived, relative="docs/design/ui-design.md"):
+    """A ui-design.md whose Approved target covers the fixture package; `derived` is {surface: {child: parent}}."""
+    surfaces = [{"id": "UI-001", "route": "/", "states": ["ready", "loading", "empty"]},
+                {"id": "UI-002", "route": "/details", "states": ["ready", "loading", "error"]}]
+    for surface in surfaces:
+        if surface["id"] in derived:
+            surface["derivedStates"] = derived[surface["id"]]
+    target = (f"{PACKAGE_DIR}/index.html @ sha256:{'a' * 64}; scope=surfaces={json.dumps(surfaces, separators=(',', ':'))}"
+              '|routes=["/","/details"]|states=["empty","error","loading","ready"]'
+              '|responsive={"kind":"viewports","targets":[390,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser')
+    path = root / relative
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"# UI Design\n\n## Visual Approval\n\nApproved target: {target}\n", encoding="utf-8")
+    return path
+
+
+def make_dir_link(link, target):
+    """A directory symlink, or a junction on Windows without symlink rights. False when neither can be made."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+        return True
+    except (OSError, NotImplementedError):
+        if os.name == "nt":
+            return subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, check=False).returncode == 0
+    return False
+
+
 class FakeDriver:
     """Same call(op, **fields) surface as NodeDriver, answering from a script."""
 
     def __init__(self):
         self.environment = {"playwright": "fake", "chromium": "fake", "node": "fake"}
         self.calls, self.restarts, self.axis = [], 0, None
-        self.overrides = {}      # (surface, state, target) -> {"geometry": {...}, "events": {...}, "raise": exc, "style": text}
+        self.overrides = {}      # (surface, state, target) -> {"geometry", "events", "raise", "style", "inputs", "incomplete"}
         self.open_events = {}    # page -> events
         self.open_error = {}     # page -> exception
         self.axis_events = {}    # axis -> events
+        self.axis_error = {}     # axis name (or "none") -> exception raised by the axis op
         self.paint = {}          # capture name -> text that changes its pixels
 
     def start(self):
@@ -88,6 +137,8 @@ class FakeDriver:
         return {"result": {}, "events": self.open_events.get(fields["page"], {})}
 
     def _axis(self, fields):
+        if fields["name"] in self.axis_error:
+            raise self.axis_error[fields["name"]]
         self.axis = None if fields["name"] == "none" else fields["name"]
         return {"result": {}, "events": {}}
 
@@ -107,7 +158,8 @@ class FakeDriver:
         if self.axis in self.axis_events:
             events = self.axis_events[self.axis]
         probe = {"geometry": geometry, "rectsSha256": sha("rects" + "".join(key)),
-                 "styleSha256": sha("style" + script.get("style", "") + (self.axis or ""))}
+                 "styleSha256": sha("style" + script.get("style", "") + (self.axis or "")),
+                 "inputsSha256": sha("inputs" + script.get("inputs", "")), "incomplete": script.get("incomplete", False)}
         return {"result": {"problems": script.get("problems", []), "probe": None if script.get("problems") else probe,
                            "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}, "events": events}
 
@@ -191,6 +243,16 @@ class MatrixExpansionTests(unittest.TestCase):
         self.assertEqual([("ready", "390"), ("ready", "1200"), ("empty", "390"), ("empty", "1200")],
                          [(c.state, c.target) for c in sampled])
 
+    def test_axis_sample_never_picks_a_derived_state(self):
+        widths = {"390": 390, "1200": 1200}
+        rows = [self.surface(states=("ready", "loading", "toast"))]
+        counts = {("UI-001", "ready"): 3, ("UI-001", "loading"): 4, ("UI-001", "toast"): 99}
+        self.assertEqual({"ready", "toast"}, {c.state for c in m.sample_axis_cases(rows, "index.html", widths, counts)})
+        sampled = m.sample_axis_cases(rows, "index.html", widths, counts, derived={"UI-001": ["toast"]})
+        self.assertEqual({"ready", "loading"}, {c.state for c in sampled})
+        first = m.sample_axis_cases([self.surface(states=("toast", "idle"))], "index.html", widths, {}, derived={"UI-001": ["toast"]})
+        self.assertEqual({"idle"}, {c.state for c in first})
+
     def test_axis_sample_does_not_repeat_ready_and_falls_back_to_the_first_state(self):
         widths = {"390": 390, "1200": 1200}
         busy_ready = m.sample_axis_cases([self.surface(states=("ready", "empty"))], "index.html", widths,
@@ -215,12 +277,13 @@ class NamingAndFingerprintTests(unittest.TestCase):
         self.assertTrue(a.startswith("UI-001-needs_review-390-"))
         self.assertNotEqual(a, b)
 
-    def test_render_fingerprint_tracks_geometry_rects_and_styles(self):
-        probe = {"geometry": {"a": 1, "b": 2}, "rectsSha256": "r" * 64, "styleSha256": "s" * 64}
+    def test_render_fingerprint_tracks_geometry_rects_styles_and_image_inputs(self):
+        probe = {"geometry": {"a": 1, "b": 2}, "rectsSha256": "r" * 64, "styleSha256": "s" * 64, "inputsSha256": "i" * 64}
         fingerprint = m.render_fingerprint(probe)
         self.assertRegex(fingerprint, r"^[0-9a-f]{64}$")
         self.assertEqual(fingerprint, m.render_fingerprint(dict(probe, geometry={"b": 2, "a": 1})))
-        for change in ({"geometry": {"a": 2, "b": 2}}, {"rectsSha256": "x" * 64}, {"styleSha256": "x" * 64}):
+        for change in ({"geometry": {"a": 2, "b": 2}}, {"rectsSha256": "x" * 64}, {"styleSha256": "x" * 64},
+                       {"inputsSha256": "x" * 64}):
             self.assertNotEqual(fingerprint, m.render_fingerprint(dict(probe, **change)))
 
     def test_entry_page_identity_ignores_manifest_page_hashes_only(self):
@@ -299,6 +362,44 @@ class RunOutputTests(unittest.TestCase):
         self.assertEqual(11, len(output["matrix"]["cases"]))
 
 
+    def test_ui_design_names_the_derived_states_and_the_matrix_is_the_one_the_checker_expects(self):
+        cli = Cli(self)
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        code, _, out = cli.run(FakeDriver(), "--derived-once", "--ui-design", str(design))
+        output, sidecar = cli.load(out)
+        scope = checker.parse_ui_contract_view(design.read_text(encoding="utf-8"))[0]["target_scope"]
+        self.assertEqual(0, code)
+        self.assertEqual(checker._evidence_matrix(scope)["cases"], output["matrix"]["cases"])
+        self.assertEqual(11, len(output["matrix"]["cases"]))
+        self.assertEqual(({"UI-001": ["empty"]}, "--ui-design"), (sidecar["run"]["derived"], sidecar["run"]["derivedFrom"]))
+
+    def test_derived_json_replaces_the_ui_design_set(self):
+        cli = Cli(self)
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        override = cli.root / "derived.json"
+        override.write_text(json.dumps({"UI-002": ["error"]}), encoding="utf-8")
+        code, _, out = cli.run(FakeDriver(), "--derived-once", "--ui-design", str(design), "--derived", str(override))
+        output, sidecar = cli.load(out)
+        targets = {(c["surface"], c["state"]): [] for c in output["matrix"]["cases"]}
+        for c in output["matrix"]["cases"]:
+            targets[(c["surface"], c["state"])].append(c["target"])
+        self.assertEqual(0, code)
+        self.assertEqual((["390", "1200"], ["390"]), (targets[("UI-001", "empty")], targets[("UI-002", "error")]))
+        self.assertEqual(("--derived", {"UI-002": ["error"]}), (sidecar["run"]["derivedFrom"], sidecar["run"]["derived"]))
+
+    def test_a_derived_state_takes_no_stress_axis_even_when_it_is_the_densest(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.overrides[("UI-001", "empty", "390")] = {"geometry": {"elementCount": 99}}
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        _, _, plain = cli.run(driver, "--axes", "dark")
+        self.assertIn("empty", {r["state"] for r in cli.load(plain)[1]["axes"] if r["surface"] == "UI-001"})
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "empty", "390")] = {"geometry": {"elementCount": 99}}
+        _, _, out = cli.run(driver, "--axes", "dark", "--derived-once", "--ui-design", str(design))
+        axis_states = {r["state"] for r in cli.load(out)[1]["axes"] if r["surface"] == "UI-001"}
+        self.assertEqual({"ready", "loading"}, axis_states)
+
+
 class CarryTests(unittest.TestCase):
     def first_run(self, cli, driver=None):
         driver = driver or FakeDriver()
@@ -356,6 +457,38 @@ class CarryTests(unittest.TestCase):
         self.assertTrue(changed[0]["capture"])
         self.assertEqual(1, driver.count("shot"))
 
+    def test_a_changed_image_input_is_not_carried(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        driver = FakeDriver()
+        driver.overrides[("UI-002", "ready", "1200")] = {"inputs": "img src changed"}
+        _, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        changed = [r for r in sidecar["cases"] if r["carriedFrom"] is None]
+        self.assertEqual((11, 1), (summary["carried"], len(changed)))
+        self.assertEqual(("UI-002", "ready", "1200"), (changed[0]["surface"], changed[0]["state"], changed[0]["target"]))
+        self.assertEqual(1, driver.count("shot"))
+
+    def test_an_incomplete_fingerprint_is_marked_and_never_carried(self):
+        cli = Cli(self)
+        capped = ("UI-001", "empty", "390")
+        driver = FakeDriver()
+        driver.overrides[capped] = {"incomplete": True}
+        _, _, first = cli.run(driver)
+        _, previous = cli.load(first)
+        self.assertEqual([capped], [(r["surface"], r["state"], r["target"]) for r in previous["cases"]
+                                    if r["fingerprintIncomplete"]])
+        # still incomplete on the rerun: same fingerprint, but a fresh screenshot is taken and judged
+        again = FakeDriver()
+        again.overrides[capped] = {"incomplete": True}
+        _, summary, out = cli.run(again, "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        self.assertEqual((11, 1), (summary["carried"], again.count("shot")))
+        self.assertIsNone(next(r for r in sidecar["cases"] if (r["surface"], r["state"], r["target"]) == capped)["carriedFrom"])
+        # complete now, but the earlier observation was capped: still not carried
+        _, summary, _ = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))
+        self.assertEqual(11, summary["carried"])
+
     def test_an_edited_page_with_an_unchanged_fingerprint_still_carries(self):
         cli = Cli(self)
         first = self.first_run(cli)
@@ -388,6 +521,24 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn(m.SIDECAR_NAME, summary["error"])
 
+    def test_overwrite_never_writes_over_around_or_inside_the_carry_source(self):
+        cli = Cli(self)
+        first = self.first_run(cli)                       # docs/evidence/run1
+        _, _, second = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))   # carries run1's captures
+        source = (first / m.OUTPUT_NAME).read_bytes()
+        for label, out, carry in (("equal", "docs/evidence/run1", first), ("inside", "docs/evidence/run1/sub", first),
+                                  ("holding", "docs/evidence", first),
+                                  ("a carried capture's folder", "docs/evidence/run1", second)):
+            driver = FakeDriver()
+            code, summary, _ = cli.run(driver, "--carry-from", str(carry / m.OUTPUT_NAME), "--overwrite", out=out)
+            self.assertEqual(2, code, label)
+            self.assertIn("--carry-from", summary["error"], label)
+            self.assertEqual([], driver.calls, label)
+            self.assertEqual(source, (first / m.OUTPUT_NAME).read_bytes(), label)
+        self.assertFalse((first / "sub").exists())
+        code, _, _ = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME), "--overwrite", out="docs/evidence/elsewhere")
+        self.assertEqual(0, code)
+
     @unittest.skipUnless(HAS_PILLOW, "Pillow is not installed")
     def test_diff_against_records_identical_and_changed_pixels(self):
         cli = Cli(self)
@@ -401,6 +552,39 @@ class CarryTests(unittest.TestCase):
         self.assertEqual("changed", diffs[("UI-001", "ready", "390")]["status"])
         self.assertGreater(diffs[("UI-001", "ready", "390")]["ratio"], 0)
         self.assertEqual(("identical", 0.0), tuple(diffs[("UI-001", "ready", "1200")][k] for k in ("status", "ratio")))
+
+
+@unittest.skipUnless(HAS_PILLOW, "Pillow is not installed")
+class PixelDiffTests(unittest.TestCase):
+    def png(self, directory, name, pixel, mode="RGB"):
+        from PIL import Image
+        path = Path(directory) / name
+        image = Image.new(mode, (6, 4), (10, 20, 30) if mode == "RGB" else (10, 20, 30, 255))
+        image.putpixel((2, 1), pixel)
+        image.save(path)
+        return path
+
+    def test_any_single_channel_step_counts_as_a_change(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = self.png(directory, "base.png", (10, 20, 30))
+            for label, pixel in (("red", (11, 20, 30)), ("green", (10, 21, 30)), ("blue", (10, 20, 31))):
+                diff = m.pixel_diff(base, self.png(directory, label + ".png", pixel))
+                self.assertEqual(("changed", round(1 / 24, 6)), (diff["status"], diff["ratio"]), label)
+            self.assertEqual(("identical", 0.0), tuple(m.pixel_diff(base, self.png(directory, "same.png", (10, 20, 30)))[k]
+                                                       for k in ("status", "ratio")))
+
+    def test_an_alpha_only_change_counts_and_modes_may_differ(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = self.png(directory, "base.png", (10, 20, 30, 255), mode="RGBA")
+            self.assertEqual("changed", m.pixel_diff(base, self.png(directory, "alpha.png", (10, 20, 30, 254), mode="RGBA"))["status"])
+            self.assertEqual("identical", m.pixel_diff(base, self.png(directory, "rgb.png", (10, 20, 30), mode="RGB"))["status"])
+
+    def test_a_different_size_is_a_full_change(self):
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as directory:
+            base = self.png(directory, "base.png", (10, 20, 30))
+            Image.new("RGB", (7, 4)).save(Path(directory) / "wide.png")
+            self.assertEqual(("changed", 1.0), tuple(m.pixel_diff(base, Path(directory) / "wide.png")[k] for k in ("status", "ratio")))
 
 
 class AxisTests(unittest.TestCase):
@@ -439,6 +623,60 @@ class AxisTests(unittest.TestCase):
         self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
         self.assertEqual([], output["console"])
         self.assertTrue(all("console exception" in r["reasons"][0] for r in sidecar["axes"]))
+
+    def axis_rows(self, driver, *extra):
+        cli = Cli(self)
+        code, summary, out = cli.run(driver, *extra)
+        output, sidecar = cli.load(out)
+        return code, summary, output, sidecar["axes"]
+
+    def test_an_axis_that_cannot_be_set_up_gives_blocked_rows_and_a_failing_exit(self):
+        driver = FakeDriver()
+        driver.axis_error["forced-colors"] = m.DriverError("page.emulateMedia: forced colors are not supported")
+        code, summary, output, axes = self.axis_rows(driver, "--axes", "dark,forced-colors")
+        forced = [r for r in axes if r["axis"] == "forced-colors"]
+        self.assertEqual(1, code)
+        self.assertEqual((16, 8), (summary["axisCases"], summary["axisFail"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in axes if r["axis"] == "dark"})
+        self.assertEqual(8, len(forced))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in forced})
+        self.assertTrue(all("forced-colors could not be set up" in r["reasons"][0] and "not supported" in r["reasons"][0]
+                            and r["capture"] is None for r in forced))
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        # the next axis and page still start from the base state
+        self.assertEqual(["dark", "none", "forced-colors", "none"] * 2, [f["name"] for op, f in driver.calls if op == "axis"])
+
+    def test_an_axis_that_cannot_be_reset_restarts_the_browser_and_still_reports_every_row(self):
+        driver = FakeDriver()
+        driver.axis_error["none"] = m.DriverError("page.emulateMedia: target closed")
+        code, summary, _, axes = self.axis_rows(driver, "--axes", "dark,reduced-motion,zoom-200")
+        self.assertEqual(1, code)
+        self.assertEqual(2 * 3 * 4, len(axes))          # pages x axes x sampled cases: nothing is dropped
+        self.assertGreaterEqual(summary["restarts"], 1)
+        blocked = [r for r in axes if r["result"] == "BLOCKED"]
+        self.assertTrue(blocked)
+        self.assertTrue(all("restart limit" in r["reasons"][0] for r in blocked))
+
+    def test_axes_on_a_page_that_did_not_open_are_blocked_not_omitted(self):
+        driver = FakeDriver()
+        driver.open_error["details.html"] = m.DriverError("page did not load: details.html")
+        code, summary, _, axes = self.axis_rows(driver, "--axes", "dark")
+        ui2 = [r for r in axes if r["surface"] == "UI-002"]
+        self.assertEqual(1, code)
+        self.assertEqual((6, 2), (summary["axisCases"], summary["axisFail"]))   # ready at two targets for UI-002: no base geometry
+        self.assertEqual(2, len(ui2))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in ui2})
+        self.assertIn("page did not open", ui2[0]["reasons"][0])
+
+    def test_axes_after_an_aborted_run_are_blocked_not_omitted(self):
+        driver = FakeDriver()
+        for state in ("ready", "loading", "empty"):
+            for target in ("390", "1200"):
+                driver.overrides[("UI-001", state, target)] = {"raise": m.DriverTimeout("no reply")}
+        code, summary, _, axes = self.axis_rows(driver, "--axes", "dark")
+        self.assertEqual(1, code)
+        self.assertEqual((4, 4), (summary["axisCases"], summary["axisFail"]))
+        self.assertTrue(all(r["result"] == "BLOCKED" and "restart limit" in r["reasons"][0] for r in axes))
 
     def test_the_four_axes_are_supported_and_others_refused(self):
         self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200"), m.AXES)
@@ -481,6 +719,15 @@ class FailureTests(unittest.TestCase):
         self.assertEqual((1, 1), (output["popupAttempts"], output["formAttempts"]))
         self.assertEqual("PASS", cases[("UI-002", "loading", "1200")]["result"])
 
+    def test_an_allowlisted_navigation_stays_in_the_transcript_and_fails_the_case(self):
+        row = {"url": "https://hifi.invalid/pkg/index.html", "method": "GET", "resourceType": "document", "allowlisted": True}
+        driver = FakeDriver()
+        driver.overrides[("UI-002", "ready", "390")] = {"events": {"navigation": [row]}}
+        code, _, output, cases = self.results(driver)
+        self.assertEqual(1, code)
+        self.assertEqual([dict(row, page="details.html")], output["navigation"])
+        self.assertEqual(["navigation attempt: https://hifi.invalid/pkg/index.html"], cases[("UI-002", "ready", "390")]["reasons"])
+
     def test_page_load_errors_fail_every_case_on_that_page(self):
         driver = FakeDriver()
         driver.open_events["details.html"] = {"console": [{"source": "javascript", "level": "exception", "message": "Uncaught"}]}
@@ -488,6 +735,35 @@ class FailureTests(unittest.TestCase):
         self.assertEqual({"FAIL"}, {r["result"] for k, r in cases.items() if k[0] == "UI-002"})
         self.assertEqual({"PASS"}, {r["result"] for k, r in cases.items() if k[0] == "UI-001"})
         self.assertTrue(cases[("UI-002", "ready", "390")]["reasons"][0].startswith("page load:"))
+
+    def test_a_viewport_case_at_the_wrong_canvas_width_fails_with_the_measured_width(self):
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "ready", "1200")] = {"geometry": {"canvasWidth": 1100.0}}
+        driver.overrides[("UI-001", "ready", "390")] = {"geometry": {"canvasWidth": 391.0}}       # 1 px rounding is allowed
+        driver.overrides[("UI-001", "loading", "390")] = {"geometry": {"canvasWidth": 391.5}}
+        code, _, _, cases = self.results(driver)
+        self.assertEqual(1, code)
+        self.assertEqual("PASS", cases[("UI-001", "ready", "390")]["result"])
+        wide = cases[("UI-001", "ready", "1200")]
+        self.assertEqual("FAIL", wide["result"])
+        self.assertIn("1100.0px wide", wide["reasons"][0])
+        self.assertIn("declared 1200px", wide["reasons"][0])
+        self.assertEqual("FAIL", cases[("UI-001", "loading", "390")]["result"])
+
+    def test_the_canvas_width_of_a_size_class_is_recorded_not_judged(self):
+        cli = Cli(self)
+        shutil.rmtree(cli.root / "docs")
+        cli.package = build_package(cli.root, page_edit=size_classes, manifest_edit=lambda manifest: [
+            row["responsive"].update(kind="sizeClasses", targets=["compact", "regular"]) for row in manifest["surfaces"]])
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "ready", "compact")] = {"geometry": {"canvasWidth": 377.5}}
+        code, _, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        cases = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+        self.assertEqual(0, code)
+        self.assertEqual(12, len(cases))
+        self.assertEqual({"PASS"}, {r["result"] for r in cases.values()})
+        self.assertEqual(377.5, cases[("UI-001", "ready", "compact")]["geometry"]["canvasWidth"])
 
     def test_horizontal_overflow_and_a_missing_state_view_fail_the_case(self):
         driver = FakeDriver()
@@ -558,10 +834,17 @@ class UsageTests(unittest.TestCase):
         driver = FakeDriver()
         derived = cli.root / "derived.json"
         derived.write_text("{}", encoding="utf-8")
+        design = write_ui_design(cli.root, {"UI-001": {"empty": "ready"}})
+        no_target = cli.root / "plain.md"
+        no_target.write_text("# UI Design\n\nNothing approved yet.\n", encoding="utf-8")
         cases = [
             (("--only", "UI-999"), "unknown surfaces"),
+            (("--derived-once",), "--ui-design"),
             (("--derived-once",), "--derived"),
             (("--derived", str(derived)), "--derived-once"),
+            (("--ui-design", str(design)), "--derived-once"),
+            (("--derived-once", "--ui-design", str(cli.root / "missing.md")), "cannot read --ui-design"),
+            (("--derived-once", "--ui-design", str(no_target)), "no readable Approved target scope"),
         ]
         for extra, message in cases:
             code, summary, _ = cli.run(driver, *extra)
@@ -592,6 +875,49 @@ class UsageTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("manifest hash", summary["error"])
 
+    def set_first_page(self, cli, **fields):
+        entry = cli.package / "index.html"
+        html = entry.read_text(encoding="utf-8")
+        match = m.HIFI_MANIFEST_RE.search(html)
+        manifest = json.loads(match.group("data"))
+        manifest["pages"][0] = fields
+        entry.write_text(html[:match.start("data")] + json.dumps(manifest) + html[match.end("data"):], encoding="utf-8")
+
+    def test_manifest_paths_that_leave_the_package_are_refused_before_any_read(self):
+        cli = Cli(self)
+        (cli.package.parent / "outside.html").write_text("<html></html>", encoding="utf-8")
+        original, reads = Path.read_bytes, []
+
+        def spy(path):
+            reads.append(path.name)
+            return original(path)
+
+        for bad in ("../outside.html", "a/../details.html", "./details.html", "/outside.html", "C:/outside.html",
+                    "sub\\details.html", 5):
+            self.set_first_page(cli, path=bad, sha256="0" * 64)
+            with mock.patch.object(Path, "read_bytes", spy):
+                code, summary, _ = cli.run(FakeDriver())
+            self.assertEqual(2, code, bad)
+            self.assertIn("unsafe package path", summary["error"], bad)
+        self.assertNotIn("outside.html", reads)
+        self.set_first_page(cli, sha256="0" * 64)
+        code, summary, _ = cli.run(FakeDriver())
+        self.assertEqual(2, code)
+        self.assertIn("path and a sha256", summary["error"])
+
+    def test_a_manifest_page_behind_a_link_is_refused(self):
+        cli = Cli(self)
+        elsewhere = cli.root / "elsewhere"
+        elsewhere.mkdir()
+        (elsewhere / "page.html").write_text("<html></html>", encoding="utf-8")
+        if not make_dir_link(cli.package / "linked", elsewhere):
+            self.skipTest("neither symlinks nor junctions can be created here")
+        self.set_first_page(cli, path="linked/page.html", sha256="0" * 64)
+        code, summary, _ = cli.run(FakeDriver())
+        self.assertEqual(2, code)
+        self.assertIn("unsafe package path", summary["error"])
+        self.assertIn("links", summary["error"])
+
     def test_a_missing_shell_width_map_for_named_targets_is_refused(self):
         cli = Cli(self)
         shutil.rmtree(cli.root / "docs")
@@ -617,18 +943,20 @@ class RealBrowserTests(unittest.TestCase):
             self.skipTest(message)
         return module
 
+    def run_main(self, module, root, package, *extra):
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer), mock.patch.dict(os.environ, {"PLAYWRIGHT_MODULE": module}):
+            code = m.main(["--repo-root", str(root), "--package", str(package), *extra])
+        return code, buffer.getvalue()
+
     def test_matrix_capture_in_real_chromium(self):
         module = self.playwright()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             package = build_package(root)
-            base = ["--repo-root", str(root), "--package", str(package)]
 
             def run(*extra):
-                buffer = io.StringIO()
-                with contextlib.redirect_stdout(buffer), mock.patch.dict(os.environ, {"PLAYWRIGHT_MODULE": module}):
-                    code = m.main(base + list(extra))
-                return code, buffer.getvalue()
+                return self.run_main(module, root, package, *extra)
 
             code, text = run("--out", "docs/evidence/first", "--axes", "dark,reduced-motion")
             self.assertEqual(0, code, text)
@@ -667,6 +995,88 @@ class RealBrowserTests(unittest.TestCase):
             details = package / "details.html"
             details.write_text(details.read_text(encoding="utf-8").replace("Next arrival 18:40.", "Next arrival 19:15."), encoding="utf-8")
             self.assertEqual(2, run("--out", "docs/evidence/stale")[0])   # the edited page no longer matches its manifest hash
+
+    def test_a_page_that_renders_the_wrong_width_fails_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, page_edit=lambda html: html.replace(
+                '[data-hifi-target="1200"]{width:1200px}', '[data-hifi-target="1200"]{width:1000px}'))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/width", "--only", "UI-001")
+            sidecar = json.loads((root / "docs/evidence/width" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            cases = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+            self.assertEqual(1, code, text)
+            self.assertEqual({"PASS"}, {r["result"] for k, r in cases.items() if k[2] == "390"})
+            wide = [r for k, r in cases.items() if k[2] == "1200"]
+            self.assertEqual({"FAIL"}, {r["result"] for r in wide})
+            self.assertTrue(all(1000 == r["geometry"]["canvasWidth"] and "1000" in r["reasons"][0] for r in wide))
+
+    def test_the_drivers_own_open_is_not_a_navigation_but_a_later_allowlisted_one_is(self):
+        module = self.playwright()
+        leave = "<script>setTimeout(() => { location.href = 'index.html'; }, 300);</script>"
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as scratch:
+            package = build_package(Path(temporary), details_extra=leave)
+            driver = m.NodeDriver(shutil.which("node"), module, m.read_package(package).files, scratch)
+            driver.start()
+            try:
+                opened = driver.call("open", page="details.html", timeoutMs=30000)
+                self.assertEqual([], opened["events"]["navigation"])
+                time.sleep(1.5)                      # the page leaves for an allowlisted page after 300 ms
+                later = driver.call("axis", name="none")
+                self.assertEqual([{"url": "https://hifi.invalid/pkg/index.html", "method": "GET", "resourceType": "document",
+                                   "allowlisted": True}], later["events"]["navigation"])
+                reopened = driver.call("open", page="index.html", timeoutMs=30000)
+                self.assertEqual([], reopened["events"]["navigation"])
+            finally:
+                driver.stop()
+
+    def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
+        module = self.playwright()
+        red, blue = data_svg("red"), data_svg("blue")
+        box = "width:40px;height:40px"
+        pairs = {
+            "same": ("<p>x</p>", "<p>x</p>"),
+            "img-src": (f'<img width="40" height="40" src="{red}">', f'<img width="40" height="40" src="{blue}">'),
+            "img-srcset": (f'<img width="40" height="40" src="{red}" srcset="{red} 1x">',
+                           f'<img width="40" height="40" src="{red}" srcset="{blue} 1x">'),
+            "picture-source": (f'<picture><source srcset="{red}"><img width="40" height="40" src="{red}"></picture>',
+                               f'<picture><source srcset="{blue}"><img width="40" height="40" src="{red}"></picture>'),
+            "video-poster": (f'<video width="40" height="40" poster="{red}"></video>',
+                             f'<video width="40" height="40" poster="{blue}"></video>'),
+            "svg-fill": ('<svg width="40" height="40"><rect width="40" height="40" fill="red"/></svg>',
+                         '<svg width="40" height="40"><rect width="40" height="40" fill="blue"/></svg>'),
+            "svg-stroke-width": ('<svg width="40" height="40"><rect width="40" height="40" fill="none" stroke="red" stroke-width="2"/></svg>',
+                                 '<svg width="40" height="40"><rect width="40" height="40" fill="none" stroke="red" stroke-width="4"/></svg>'),
+            "use-href": ('<svg width="40" height="40"><use href="#sym-a"/></svg>', '<svg width="40" height="40"><use href="#sym-b"/></svg>'),
+            "background-image": (f'<div style="{box};background-image:url({red})"></div>',
+                                 f'<div style="{box};background-image:url({blue})"></div>'),
+            "mask-image": (f'<div style="{box};background:#000;mask-image:url({red})"></div>',
+                           f'<div style="{box};background:#000;mask-image:url({blue})"></div>'),
+            "border-image": (f'<div style="{box};border:4px solid;border-image:url({red}) 1 / 4px"></div>',
+                             f'<div style="{box};border:4px solid;border-image:url({blue}) 1 / 4px"></div>'),
+        }
+        names = [f"{kind}-{side}" for kind in pairs for side in "ab"] + ["capped"]
+        views = "".join(f'<section class="card" data-hifi-state-view="{kind}-{side}" hidden>{html}</section>'
+                        for kind, (a, b) in pairs.items() for side, html in (("a", a), ("b", b)))
+        views += ('<svg width="0" height="0" style="position:absolute"><symbol id="sym-a"><rect width="9" height="9" fill="red"/></symbol>'
+                  '<symbol id="sym-b"><circle r="4" fill="red"/></symbol></svg>')
+        views += '<section class="card" data-hifi-state-view="capped" hidden>' + '<b style="display:inline-block;width:2px;height:2px"></b>' * 450 + "</section>"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, details_extra=views, manifest_edit=lambda manifest: manifest["surfaces"][1].update(
+                states=["ready", *names]))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/inputs", "--only", "UI-002")
+            sidecar = json.loads((root / "docs/evidence/inputs" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            cases = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+            failed = {key: r["reasons"] for key, r in cases.items() if r["result"] != "PASS"}
+            self.assertEqual({}, failed, text)
+            for target in ("390", "1200"):
+                fingerprint = lambda state: cases[("UI-002", state, target)]["renderFingerprint"]
+                self.assertEqual(fingerprint("same-a"), fingerprint("same-b"))
+                for kind in pairs:
+                    if kind != "same":
+                        self.assertNotEqual(fingerprint(f"{kind}-a"), fingerprint(f"{kind}-b"), f"{kind} at {target}")
+                self.assertEqual(["capped"], [s for s in names if cases[("UI-002", s, target)]["fingerprintIncomplete"]])
 
 
 if __name__ == "__main__":
