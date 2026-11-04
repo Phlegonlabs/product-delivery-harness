@@ -42,6 +42,24 @@
 2. 對外 API 加第三方登入：若系統簽發或接受 OAuth 權杖，先用 OAuth2 速查表決策權杖類型與流程邊界，再以 API Top 10 的 BOLA 與功能層授權條目產出拒絕測試案例。
 3. 行動 App 含本機金鑰或 AI 工具呼叫：若裝置端保存金鑰，採「伺服器端授權為主、平台完整性驗證為輔」；敏感操作前重新認證（Cornucopia AA4 提出的議題方向），工具權限以最小範圍與輸入輸出檢查約束。
 
+## 可組合的控制方案（依威脅選擇）
+
+標準、檢查表與工具不是互斥選項。以下是把它們轉成產品控制的候選方式，均為設計建議：
+
+| 控制方向 | 適用與反例 | 整合及可驗證證據 | 成本與退出考量 |
+| --- | --- | --- | --- |
+| 集中服務層授權 | 多入口存取同一業務資源；不靠前端隱藏 | actor、tenant、resource、action 共同判定；跨租戶測試沒有讀寫副作用 | 政策和測試維護；替換框架保留政策案例 |
+| DB row-level policy | 多租戶資料存取；不能保護資料庫外的副作用 | request context、service role 例外、policy migration 與拒絕測試 | SQL/DB 綁定與 policy 除錯；遷移需重建等價控制 |
+| 入口濫用控制 | 登入、搜尋、昂貴 API、上傳；不能取代業務授權 | rate/quota、大小與時間上限、429/拒絕回饋；驗證合法使用者不被錯誤封鎖 | WAF/限流成本、誤判處理；留標準錯誤契約 |
+| 第三方／URL 隔離 | webhook、外部 URL fetch、agent tool；資料可能惡意 | 簽章、重放、輸入 schema、網路出口與超時；測重複、錯簽、私網 URL | 營運規則與供應商差異；adapter 中集中限制 |
+| 秘密與依賴治理 | 全部部署；尤其 CI 與第三方元件 | secret 留服務端、最小 scope、輪替與依賴更新；確認 logs/artifacts 沒有值 | 修補與輪替人力；不可把掃描 PASS 當安全保證 |
+
+控制方向應對照 [OWASP API Security](https://owasp.org/API-Security/) 與 [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)。上述表格是我們的組合建議，沒有新設一套強制標準。
+
+## Cloudflare 可選組合
+
+平台內產品的責任邊界、搭配與替代路線見 [Cloudflare 參考](cloudflare-platform.md)。可只採用其中一項，不代表整套遷入 Cloudflare。
+
 ## 失敗與驗證檢查清單
 
 - 採納前：版本已鎖定（採用具名版本，不能混用不同版本 ID）；適用等級與排除項經負責人確認並寫入 PRD。
@@ -64,22 +82,4 @@
 
 ## 來源清單
 
-全部為上方內文已內連的官方頁面：ASVS 專案頁、API Top 10、Authorization／OAuth2／Mobile Cheat Sheet、SecurityRAT、Cornucopia AA4。
-
-## 可組合的控制方案（依威脅選擇）
-
-標準、檢查表與工具不是互斥選項。以下是把它們轉成產品控制的候選方式，均為設計建議：
-
-| 控制方向 | 適用與反例 | 整合及可驗證證據 | 成本與退出考量 |
-| --- | --- | --- | --- |
-| 集中服務層授權 | 多入口存取同一業務資源；不靠前端隱藏 | actor、tenant、resource、action 共同判定；跨租戶測試沒有讀寫副作用 | 政策和測試維護；替换框架保留政策案例 |
-| DB row-level policy | 多租戶資料存取；不能保護資料庫外的副作用 | request context、service role 例外、policy migration 與拒絕測試 | SQL/DB 綁定與 policy 除錯；遷移需重建等價控制 |
-| 入口濫用控制 | 登入、搜尋、昂貴 API、上傳；不能取代業務授權 | rate/quota、大小與時間上限、429/拒絕回饋；驗證合法使用者不被錯誤封鎖 | WAF/限流成本、誤判處理；留標準錯誤契約 |
-| 第三方／URL 隔離 | webhook、外部 URL fetch、agent tool；資料可能惡意 | 簽章、重放、輸入 schema、網路出口與超時；測重複、錯簽、私網 URL | 營運規則與供應商差異；adapter 中集中限制 |
-| 秘密與依賴治理 | 全部部署；尤其 CI 與第三方元件 | secret 留服務端、最小 scope、輪替與依賴更新；確認 logs/artifacts 沒有值 | 修補與輪替人力；不可把掃描 PASS 當安全保證 |
-
-控制方向應對照 [OWASP API Security](https://owasp.org/API-Security/) 與 [Authorization Cheat Sheet](https://cheatsheetseries.owasp.org/cheatsheets/Authorization_Cheat_Sheet.html)。上述表格是我們的組合建議，沒有新設一套強制標準。
-
-## Cloudflare 可選組合
-
-平台內產品的責任邊界、搭配與替代路線見 [Cloudflare 參考](cloudflare-platform.md)。可只採用其中一項，不代表整套遷入 Cloudflare。
+全部為上方內文已內連的官方頁面：ASVS 專案頁、API Top 10、Authorization／OAuth2／Mobile Cheat Sheet、SecurityRAT、Cornucopia AA4、OWASP API Security。
