@@ -51,7 +51,15 @@ Every specimen records its exact DOM identity including `sourcePage`, `sharedGro
 
 Assemble with `scripts/assemble_ui_review.py` and its documented CLI flags. The assembler derives `packageId` from the manifest and resolved output location; the version-3 reviewer stores each selection under `hifi-reviewer:<selection>:<packageId>:<platform>:<page>`, so equal manifests in different output directories do not share state, and an unknown stored selection recovers to the first valid target for the current page. `--overwrite` remains an explicit replacement boundary; assembly never grants publication or human approval.
 
-Record only observed results in `ui-output/3` and assemble `ui-evidence/3` as described in `review-evidence.md`; synthetic fixture rows test validators but are never real browser, native, auth or service evidence. Retain the exact source hashes and renew evidence after changes. After a repair, observe again every row that touches a changed page. A row that touches only pages whose bytes equal those under the last PASS receipt may carry forward into the new receipt with its original capture; `index.html` counts as unchanged when only its manifest page hashes changed. The defect ledger names each carried row's source receipt and page SHA-256. Browser and semantic review, not static checks, prove visibility, aesthetics, selector validity and arbitrary JavaScript behavior.
+Record only observed results in `ui-output/3` and assemble `ui-evidence/3` as described in `review-evidence.md`; synthetic fixture rows test validators but are never real browser, native, auth or service evidence. Retain the exact source hashes and renew evidence after changes. Browser and semantic review, not static checks, prove visibility, aesthetics, selector validity and arbitrary JavaScript behavior.
+
+### Render fingerprint carry-forward
+
+A case's `render fingerprint` is the lowercase SHA-256 over two browser measurements of that surface × state × target: the DOM geometry probe output (product-surface element rects, scroll versus client size, horizontal overflow) and a computed-style digest of the product surface.
+
+After a repair, observe again every case whose fingerprint differs from the one recorded under the last PASS receipt. A case with an equal fingerprint may carry forward into the new receipt with its original capture and verdict, whatever its page bytes. HiFi pages inline all CSS, so one token edit rewrites every page, but only the cases it restyles change fingerprint. The receipt records each carried row's source receipt, source page SHA-256 and fingerprint; the defect ledger names each carried row's source receipt and page SHA-256.
+
+A fingerprint shows that a case renders as it did when judged. It cannot prove that text is readable, that colour works or that a layer is usable. First-wave judgment of those still happens once, on the original capture.
 
 ## Human Review Presentation
 

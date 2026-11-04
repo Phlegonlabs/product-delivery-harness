@@ -31,7 +31,7 @@ Before one consolidated HiFi repair handoff, the lead confirms that the browser,
 
 Complete observed FAIL results, low scores and fully observed defects may enter one consolidated repair batch under the existing write grant. Missing outputs, unscorable `BLOCKED` or `MISSING` rows, an absent H dimension, malformed captures or input drift block the handoff. These findings still fail strict final acceptance. None of this is a PASS or Visual Approval.
 
-Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Every receipt still binds current candidate bytes. Rows for unchanged pages carry forward only under the output contract's carry-forward rule. Do not rebind an earlier PASS to repaired bytes.
+Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Every receipt still binds current candidate bytes. A case carries forward only when its render fingerprint equals the one under the last PASS receipt, as [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward) defines. Page bytes alone decide nothing. Do not rebind an earlier PASS to repaired bytes.
 
 ## Frontend Design Usage
 
