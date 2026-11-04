@@ -32,11 +32,10 @@ Owner-directed model changes apply to new assignments only. Preserve existing re
 
 A UI design round pins the five-skill digest recorded at intake. It finishes on that entry pin, through Visual Approval.
 A later change to the shared install is observed drift. Record the drifted digest and the date.
-Drift does not set `restart_required` for the round. It does not block an in-flight review's exit identity check.
+Drift does not set `restart_required` for the round or block an in-flight review's exit identity check.
 That check compares against the entry pin, not the current install bytes.
 Never make a task-local copy of the bundle to hold the pin. A new round re-pins at its own intake.
-A deliberate mid-round update is the one exception. Only a blocking defect justifies it, collected into one update.
-Run it at a quiescent boundary with explicit installation authority.
+Only a blocking defect justifies a deliberate mid-round update. Collect the fixes into one update at a quiescent boundary with explicit installation authority.
 Record the new digest as the pin and restart before loading changed rules. Preserve prior decisions and evidence with their original identities.
 
 ## Safe Upgrade Sequence

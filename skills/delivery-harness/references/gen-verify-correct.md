@@ -61,8 +61,7 @@ findings to the owning flow above.
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, missing required capability, a contract gap, or an unsafe
     repair. Stop when the owner records Visual Approval, including acceptance
-    with follow-ups: every open ledger row becomes an Epic follow-up, and the
-    round runs no further gate ([Owner Acceptance Closes The
+    with follow-ups ([Owner Acceptance Closes The
     Round](../../ui-design-builder/references/review-workflow.md#owner-acceptance-closes-the-round)).
     A failed re-check hands remaining defects to the Isolated Repair
     Protocol; it never starts another full review round on its own. An

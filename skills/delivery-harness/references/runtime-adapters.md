@@ -85,9 +85,9 @@ Transitions record lifecycle evidence; they do not perform lifecycle actions.
 
 A visual reviewer must attach a real browser and report the inspected surface in its evidence.
 The parent's browser session does not prove reviewer capability; missing required access blocks that review.
-Probe the reviewer route's own browser once per host session and route. Record the receipt in the existing attempt record.
-Every later review on that session and route reuses the receipt.
-A review re-proves capability only when the route or session changed, or a browser failure voided the receipt.
+Probe the reviewer route's own browser once per host session and route, and record the receipt in the existing attempt record.
+Later reviews on that session and route reuse it.
+Re-prove capability only when the route or session changed, or a browser failure voided the receipt.
 
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
@@ -100,19 +100,18 @@ Each call carries the full finding contract and the lenses its paths need.
 Trust-boundary paths stay in one group so the security lens sees them together.
 The parent merges the returned sets into one consolidated finding set and records it as one review attempt.
 A path group that no call inspected blocks PASS.
-A deadline reached with no verdict follows [Assignment And Result Evidence](delegation-contract.md#assignment-and-result-evidence).
 This is one review point, not the multi-reviewer fan-out that needs an owner request.
 
 ### Verify-Then-Sample Review
 
-A checker or matrix driver produces a browser matrix. The reviewer verifies that matrix; it does not re-judge it.
+The reviewer of a machine-produced browser matrix verifies it. The reviewer does not re-judge it.
 
-1. Read the checker output. Confirm that the receipt binds the exact candidate hashes and that the matrix is complete.
-2. Inspect every automated FAIL and every row the checker flags as changed from the prior reviewed candidate.
-3. Spot-check the PASS rows. For each page, inspect the `ready` state and the densest state at the smallest and largest target.
-4. Add a fixed random sample of at most 20 further PASS rows. Record the seed.
+1. Read the checker output. Confirm the receipt binds the exact candidate hashes and the matrix is complete.
+2. Inspect every automated FAIL and every row flagged as changed from the prior reviewed candidate.
+3. Spot-check PASS rows: per page, the `ready` state and the densest state at the smallest and largest target.
+4. Add a fixed random sample of at most 20 further PASS rows. Record the seed and the sampled rows in the review.
 
-The reviewer never re-clicks every operation and never re-opens every capture. The review records the sampled rows and the seed.
+Never re-click every operation or re-open every capture.
 
 ## Version, Handoff And Failure
 

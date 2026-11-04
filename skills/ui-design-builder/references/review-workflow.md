@@ -27,17 +27,17 @@ The PRD `Shape` row fixes the required surfaces by track: `web` → landing and 
 
 Browser, critique, audit and grading are checks within one wave; repair and re-review follow the [rubric](ui-grading-rubric.md#repair-re-review-scope), and later defects use the same scoped review with no third wave. Managed mission, integration and security reviews follow their separate Harness contracts.
 
-Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and their evidence. PRD self-review belongs to Product Definition after market reconciliation and before its approval. In the existing Epic/task record, record the producing agent identity, equal self-check agent identity, final candidate hash, actual checks, findings and repairs, and link the current candidate and review evidence. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.
+Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two checks by the same producing agent and the evidence to record. PRD self-review belongs to Product Definition after market reconciliation and before its approval. Complete repair and recheck before owner choice or approval; stale hashes do not count. An unresolved required finding blocks the next dependent stage; a structural checker PASS or the producing agent's own score does not replace independent review or human approval.
 
 A `ui-design/2` package has no wireframe, W1–W5, Copy Freeze or human Wireframe Approval stage. It reads the PRD's complete sourced wording and contract directly. The final HiFi review includes wording, structure, product menus, tabs, other interactions, visuals and all product tokens. Formal design-system compilation runs only when the Need Gate requires it.
 
 ## Owner Acceptance Closes The Round
 
-Visual Approval closes the round, including acceptance with follow-ups. Record it as `approved`. Every open ledger row then becomes a listed follow-up in the Epic. The round produces no further gate, receipt, reconciliation or playback record.
+Visual Approval closes the round, including acceptance with follow-ups. Record it as `approved`. Every open ledger row becomes a listed follow-up in the Epic. The round produces no further gate, receipt, reconciliation or playback record.
 
 Design-system compilation and the Harness handoff consume the accepted candidate. They do not wait on a waived gate. Record a block the owner explicitly waived as waived, with the owner's words and the date.
 
-Acceptance is direction conformance. It is not usability evidence ([UX Direction And Usability Evidence](../../delivery-harness/references/verification-gates.md#ux-direction-and-usability-evidence)).
+Acceptance proves direction conformance, not usability ([UX Direction And Usability Evidence](../../delivery-harness/references/verification-gates.md#ux-direction-and-usability-evidence)).
 
 ## Optional R0 Exploration Round
 
