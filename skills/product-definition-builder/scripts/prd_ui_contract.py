@@ -21,6 +21,10 @@ STATES_RE = re.compile(
     r"^\s*-\s*`states`\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
 )
+DERIVED_STATES_RE = re.compile(
+    r"^\s*-\s*`derivedStates`\s*:\s*(.+)$",
+    re.IGNORECASE | re.MULTILINE,
+)
 RESPONSIVE_RE = re.compile(
     r"^\s*-\s*`responsive`\s*:\s*(.+)$",
     re.IGNORECASE | re.MULTILINE,
@@ -86,6 +90,42 @@ def _state(value: str) -> str:
     if separator and marker.strip().casefold().startswith("n/a"):
         return f"{name.strip()}:n/a"
     return state
+
+
+def derived_state_errors(derived: Any, states: list[str]) -> list[str]:
+    """Rule messages for one surface's `derivedStates` map (derived state to parent).
+
+    `states` is the surface's state list as parsed, so an inapplicable state still
+    carries its `:n/a` marker and never counts as a live state.
+    """
+
+    if not isinstance(derived, dict) or not derived:
+        return ["must be a non-empty object of derived state to parent state"]
+    live = {
+        state
+        for state in (states if isinstance(states, list) else [])
+        if isinstance(state, str) and not state.endswith(":n/a")
+    }
+    errors: list[str] = []
+    for child, parent in derived.items():
+        if not isinstance(parent, str):
+            errors.append(f"state {child!r} needs a parent state name")
+            continue
+        if child not in live:
+            errors.append(f"derived state {child!r} must be a non-n/a state of the same surface")
+        if parent not in live:
+            errors.append(f"derived state {child!r} has unknown or n/a parent {parent!r}")
+    for start in derived:
+        path = [start]
+        while isinstance(derived.get(path[-1]), str) and derived[path[-1]] in derived:
+            following = derived[path[-1]]
+            if following in path:
+                loop = path[path.index(following):] + [following]
+                if start == min(loop[:-1]):
+                    errors.append("derived states form a cycle: " + " -> ".join(loop))
+                break
+            path.append(following)
+    return errors
 
 
 def _duplicate_values(values: list[str]) -> list[str]:
@@ -275,6 +315,28 @@ def parse_prd_ui_contract(
                 f"prd: UI surface {surface_id} has duplicate states: "
                 + ", ".join(duplicate_states)
             )
+        derived_states: dict[str, str] = {}
+        derived_matches = list(DERIVED_STATES_RE.finditer(surface_block))
+        if len(derived_matches) > 1:
+            errors.append(
+                f"prd: UI surface {surface_id} requires at most one `derivedStates` anchor"
+            )
+        elif derived_matches:
+            try:
+                decoded = json.loads(derived_matches[0].group(1).strip())
+            except json.JSONDecodeError:
+                decoded = None
+            derived_problems = (
+                derived_state_errors(decoded, states)
+                if decoded is not None
+                else ["must be one-line JSON mapping derived state to parent state"]
+            )
+            errors.extend(
+                f"prd: UI surface {surface_id} `derivedStates` {problem}"
+                for problem in derived_problems
+            )
+            if not derived_problems:
+                derived_states = dict(decoded)
         responsive_kind: str | None = None
         responsive_targets: list[str] = []
         if len(responsive_matches) == 1:
@@ -370,6 +432,7 @@ def parse_prd_ui_contract(
         entries[surface_id] = {
             "routes": routes,
             "states": states,
+            "derivedStates": derived_states,
             "responsiveKind": responsive_kind,
             "responsiveTargets": responsive_targets,
             "surfaceClass": surface_class,
