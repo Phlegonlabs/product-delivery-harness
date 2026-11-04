@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.74.5. Current releases are in [README.md](README.md#version-history).
+English release history through 0.75.0. Current releases are in [README.md](README.md#version-history).
+
+- **0.75.0** — The `program` delivery profile for ERP-scale products. A program PRD holds the module map with dependency order, shared data owned by a kernel, glossary, roles and segregation of duties, capacity assumptions, integrations register and cross-module business processes (`TEST-E2E-*` on a fixed `PF-BASE` fixture, including period close); each module has its own PRD and architecture under `docs/product/modules/<id>/` with scoped IDs (`PRD-INV-001`), a `BR-*` business-rules table with document states, a permission matrix and a report catalog; the program architecture adds Migration and Cutover with `TEST-MIG-*`. `check_product_package.py` validates the program once and each module (`--module <id>`), warns when a module's `Program revision` is stale, and leaves `standard`/`mvp` unchanged. Modules deliver one Epic and one PLAN/RUN at a time in map order; the interview asks the program questions; a jurisdiction compliance entry joins the option library.
 
 - **0.74.5** — Suite additions from the review. Native verification builds on demand and cleans after: it records free disk space, keeps a ledger of the DerivedData, build output, simulators and AVDs it created, and removes them once evidence is captured. New references: the AI feature contract (versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance, tool permissions) with an AI provider external-setup profile; performance and cost budgets as NFR rows with capacity assumptions and load testing candidates; and a modular monolith architecture pattern with a module layout for many-module products.
 

@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.76.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.76.0** — 更快的 UI review。PRD UI surface 可宣告 `derivedStates`，只在最小 target 取證一次；第一波 stress axes 改為代表性抽樣；isolated repair 最多兩次 scoped re-review。沿用改以 render fingerprint（幾何、computed styles 與媒體識別）而非頁面 bytes；re-review 與 parity 先 diff 再判，並加區域規則；一個 case 一張 capture 供所有觀察引用；motion 證據為單一代表 target 上的三項觀察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以單一瀏覽器 context 跑完整 HiFi 矩陣，`parity_capture.py` 每條路由兩側各載入一次、分類配對並沿用未變者。瀏覽器矩陣的獨立審查改為先驗收再抽樣，packet 在啟動前按路線上限切分，瀏覽器能力探測每 session 重用，必要檢查全過後 owner 接受即關閉該輪設計，一輪以進場時的 bundle pin 收尾。
+
 - **0.75.4** — Security 內容校訂。`security-review.md` 不再允許直接路線上的 inline security review，trust boundary 改從 PRD Security Requirements 列及其 `TEST-*` trace 取得，在受審 head 上確認每個 planned boundary 的 denial test，`scope` 逐字照抄 packet，並說明 environment block 的記錄方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到來源清單之前。
 
 - **0.75.3** — 修正 0.75.2 consumer 採用時發現的模板問題。`PROJECT_AGENTS.template.md` 的 managed-run 規則改指向 `project-operating-rules.md`，不再指向模板裏不存在的段落；`DEPLOYMENT.template.md` 的 presence 範例不再被 `check_deployment.py` 當成未填的 placeholder；GA4 指南寫明 `MS-*` 列在 Realtime 或 DebugView 看到事件之前維持 `available`。
@@ -213,7 +215,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.75.2** — 閱讀更薄。新增 `docs_reading_budget.py`，量出每個入口開工前必讀的字數（必讀與條件式連結分開，`--budget N` 可在 CI 守線）。七份 reference 在不刪任何規則的前提下壓縮：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（約減 8,600 字）；`design-input-updates.md` 改為只有 UI 工作才讀，每次 direct 與 managed run 少讀 3.7k 字。計入總字數已低於 v0.74.1，雖然本週新增了不少內容。
 
 - **0.75.1** — 預設更薄。只有 pin 舊版才需要的指南（`legacy-pins.md`、已退役的 `ui-design/2` wireframe 指南）搬到 `references/legacy/`，只在專案 pin 舊版時才讀，不再計入 docs weight（排除 6,481 字，仍會安裝）。新增 `docs_duplicates.py` 找出跨檔重複的句子，可用 `--fail-over` 在 CI 守線。
-
-- **0.75.0** — ERP 規模產品用的 `program` 交付檔。程式級 PRD 放模組地圖與依賴順序、由 kernel 擁有的共用資料、詞彙表、角色與職責分離、容量假設、整合登記與跨模組業務流程（固定 `PF-BASE` 資料集上的 `TEST-E2E-*`，含期末結帳）；每個模組在 `docs/product/modules/<id>/` 有自己的 PRD 與架構，ID 加模組代號（`PRD-INV-001`），並有 `BR-*` 業務規則表與單據狀態、權限矩陣與報表目錄；程式級架構新增 Migration and Cutover 與 `TEST-MIG-*`。`check_product_package.py` 驗證一次程式級再逐模組（`--module <id>`），模組的 `Program revision` 過期時給 warning，`standard`/`mvp` 行為不變。模組依地圖順序一次一個 Epic 與 PLAN/RUN；訪談加入 program 問題；option library 新增司法管轄區合規條目。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
