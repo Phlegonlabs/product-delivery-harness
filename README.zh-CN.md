@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.75.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.75.4** — Security 内容校订。`security-review.md` 不再允许直接路线上的 inline security review，trust boundary 改从 PRD Security Requirements 行及其 `TEST-*` trace 获取，在受审 head 上确认每个 planned boundary 的 denial test，`scope` 逐字照抄 packet，并说明 environment block 的记录方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到来源清单之前。
+
 - **0.75.3** — 修正 0.75.2 consumer 采用时发现的模板问题。`PROJECT_AGENTS.template.md` 的 managed-run 规则改指向 `project-operating-rules.md`，不再指向模板里不存在的段落；`DEPLOYMENT.template.md` 的 presence 示例不再被 `check_deployment.py` 当成未填的 placeholder；GA4 指南写明 `MS-*` 行在 Realtime 或 DebugView 看到事件之前保持 `available`。
 
 - **0.75.2** — 阅读更薄。新增 `docs_reading_budget.py`，量出每个入口开工前必读的字数（必读与条件式链接分开，`--budget N` 可在 CI 守线）。七份 reference 在不删任何规则的前提下压缩：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（约减 8,600 字）；`design-input-updates.md` 改为只有 UI 工作才读，每次 direct 与 managed run 少读 3.7k 字。计入总字数已低于 v0.74.1，尽管本周新增了不少内容。
@@ -213,7 +215,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.75.1** — 默认更薄。只有 pin 旧版才需要的指南（`legacy-pins.md`、已退役的 `ui-design/2` wireframe 指南）搬到 `references/legacy/`，只在项目 pin 旧版时才读，不再计入 docs weight（排除 6,481 字，仍会安装）。新增 `docs_duplicates.py` 找出跨文件重复的句子，可用 `--fail-over` 在 CI 守线。
 
 - **0.75.0** — ERP 规模产品用的 `program` 交付档。程序级 PRD 放模块地图与依赖顺序、由 kernel 拥有的共享数据、词汇表、角色与职责分离、容量假设、集成登记与跨模块业务流程（固定 `PF-BASE` 数据集上的 `TEST-E2E-*`，含期末结账）；每个模块在 `docs/product/modules/<id>/` 有自己的 PRD 与架构，ID 加模块代号（`PRD-INV-001`），并有 `BR-*` 业务规则表与单据状态、权限矩阵与报表目录；程序级架构新增 Migration and Cutover 与 `TEST-MIG-*`。`check_product_package.py` 校验一次程序级再逐模块（`--module <id>`），模块的 `Program revision` 过期时给 warning，`standard`/`mvp` 行为不变。模块按地图顺序一次一个 Epic 与 PLAN/RUN；访谈加入 program 问题；option library 新增司法管辖区合规条目。
-
-- **0.74.5** — 审查后的新增。原生验证改为用完即清：记录磁盘剩余空间，登记自己建立的 DerivedData、build 产物、模拟器与 AVD，取证后删除。新增 reference：AI 功能契约（prompt 与模型版本化、模型矩阵、成本上限、eval 数据集生命周期、人工审核、检索治理、工具权限）与 AI 供应商外部设置；性能与成本预算（NFR 行、容量假设、负载测试候选）；多模块产品的 modular monolith 架构模式与模块布局。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
