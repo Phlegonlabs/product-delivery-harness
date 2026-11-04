@@ -1,0 +1,4 @@
+{"schema":"ui-hifi/2","surfaces":[
+{"id":"UI-001","page":"index.html","route":"/","platformGroup":"Web","states":["ready","loading","empty"],"responsive":{"kind":"viewports","targets":[390,1200]},"navigation":[],"controls":[]},
+{"id":"UI-002","page":"details.html","route":"/details","platformGroup":"Web","states":["ready","loading","error"],"responsive":{"kind":"viewports","targets":[390,1200]},"navigation":[],"controls":[]}
+],"interactions":[]}
