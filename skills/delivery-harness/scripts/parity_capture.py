@@ -638,6 +638,7 @@ def _pixel_diff(target: Path, actual: Path) -> tuple[dict[str, Any] | None, str 
     changed = chops.lighter(chops.lighter(red, green), chops.lighter(blue, alpha))
     total = width * height
     differing = total - changed.histogram()[0]
+    box = changed.getbbox()   # bounding box of every differing pixel, or None
     return {
         "ratio": differing / total,
         "differing_pixels": differing,
@@ -645,6 +646,7 @@ def _pixel_diff(target: Path, actual: Path) -> tuple[dict[str, Any] | None, str 
         "sizes_matched": left.size == right.size,
         "target_size": list(left.size),
         "actual_size": list(right.size),
+        "diff_box": list(box) if box else None,
     }, None
 
 
@@ -655,16 +657,23 @@ def _ratio(text: str) -> float:
     return value
 
 
-def _classify(pixel_diff: dict[str, Any] | None, tolerance: float) -> str:
-    """`identical` only for a same-size pair at or under the tolerance; else review it."""
+REGION_PX = 4   # a differing region wider and taller than this is a structural change
 
-    if (
-        pixel_diff is not None
-        and pixel_diff["sizes_matched"]
-        and pixel_diff["ratio"] <= tolerance
-    ):
-        return "identical"
-    return "changed"
+
+def _classify(pixel_diff: dict[str, Any] | None, tolerance: float) -> str:
+    """`identical` only for a same-size pair at or under the tolerance whose
+    differing pixels do not form a region wider and taller than REGION_PX.
+
+    The tolerance absorbs scattered sub-pixel noise. A missing or moved element
+    changes a contiguous block, which the bounding box catches even when its
+    pixel share is under the tolerance, so such a pair is always reviewed."""
+
+    if pixel_diff is None or not pixel_diff["sizes_matched"] or pixel_diff["ratio"] > tolerance:
+        return "changed"
+    box = pixel_diff.get("diff_box")
+    if box and (box[2] - box[0]) > REGION_PX and (box[3] - box[1]) > REGION_PX:
+        return "changed"
+    return "identical"
 
 
 def _file_sha256(path: Path) -> str:

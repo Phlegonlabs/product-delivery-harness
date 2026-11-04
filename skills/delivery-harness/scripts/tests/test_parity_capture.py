@@ -403,6 +403,29 @@ class ParityCaptureTests(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_small_missing_element_is_changed_even_under_the_tolerance(self) -> None:
+        image_module, _ = parity_capture._load_pillow()
+        target, actual = self.root / "t.png", self.root / "a.png"
+        base = image_module.new("RGBA", (100, 100), (255, 255, 255, 255))
+        base.save(target)
+        missing = base.copy()
+        for x in range(40, 50):          # a 10 x 5 element dropped: 50 px = 0.5 %
+            for y in range(40, 45):
+                missing.putpixel((x, y), (0, 0, 0, 255))
+        missing.save(actual)
+        diff, reason = parity_capture._pixel_diff(target, actual)
+        self.assertIsNone(reason)
+        self.assertEqual([40, 40, 50, 45], diff["diff_box"])
+        self.assertEqual("changed", parity_capture._classify(diff, 0.01))
+        noise = base.copy()
+        for y in range(10, 40):          # a one-pixel-wide seam: 30 px = 0.3 %
+            noise.putpixel((20, y), (254, 255, 255, 255))
+        noise.save(actual)
+        diff, _ = parity_capture._pixel_diff(target, actual)
+        self.assertEqual("identical", parity_capture._classify(diff, 0.01))
+        self.assertEqual("changed", parity_capture._classify(diff, 0.0))
+
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
     def test_identical_pairs_are_classified_and_fingerprinted(self) -> None:
         code, out = self.run_ready_matrix()
         self.assertEqual(0, code, out)
@@ -416,7 +439,7 @@ class ParityCaptureTests(unittest.TestCase):
             self.assertEqual("identical", row["classification"])
             self.assertEqual(
                 {"ratio": 0.0, "differing_pixels": 0, "total_pixels": 100, "sizes_matched": True,
-                 "target_size": [10, 10], "actual_size": [10, 10]},
+                 "target_size": [10, 10], "actual_size": [10, 10], "diff_box": None},
                 row["pixel_diff"],
             )
             self.assertIsNone(row["pixel_diff_reason"])
