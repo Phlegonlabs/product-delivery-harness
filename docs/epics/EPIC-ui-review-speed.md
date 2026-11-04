@@ -44,7 +44,7 @@ Kept unchanged: owner decisions, exact-SHA binding, read-only reviewers, securit
 | --- | --- | --- |
 | URS-1 | `derivedStates` parses, joins PRD to target, rejects unknown parent and cycles; matrix holds derived states once | `test_prd_derived_states.py`, `test_derived_states.py` |
 | URS-2 | Sampling, cap, fingerprint and diff-first rules are stated once and cross-referenced | `test_review_matrix_docs.py`, `test_skill_contract.py` |
-| URS-3 | Matrix driver captures the fixture matrix in one context, carries unchanged fingerprints, samples axes, writes an accepted ui-output/3 | `test_hifi_matrix_capture.py` (41 tests, one real Chromium run) |
+| URS-3 | Matrix driver captures the fixture matrix in one context, carries unchanged fingerprints, samples axes, writes an accepted ui-output/3 | `test_hifi_matrix_capture.py` (62 tests, four real Chromium runs) |
 | URS-4 | Motion receipts match one representative target per intent | `test_ui_design_contract.py` |
 | URS-5 | Parity script classifies pairs, carries identical tuples, records durations | `test_parity_capture.py` (50 tests) |
 | URS-6 | READMEs describe the flow in four languages | `test_skill_contract.py` |
@@ -67,6 +67,5 @@ Parent commits: SKILL.md cap sentence, CLI inventory, cross-reference reconcilia
 
 - Docs weight is up about 2,500 words against v0.75.3, 832 of them the new matrix-capture page. The ratchet is visibility only.
 - `hifi_reviewer.py` still requires a state-view variant at every target for a derived state (authoring side). The PLAN parity matrix still treats derived states as ordinary states.
-- `--derived-once` in the matrix driver takes a `--derived <json>` map; it does not yet read `derivedStates` from the Approved target.
 - No script records an owner waiver of a required check before Visual Approval; the checker still rejects an approval dated before the newest receipt.
 - Verify-then-sample caps the random PASS sample at 20 rows.
