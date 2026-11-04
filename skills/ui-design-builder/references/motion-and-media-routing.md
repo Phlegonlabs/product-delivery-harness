@@ -56,6 +56,16 @@ A Higgsfield `generate_3d` model (GLB) can feed an approved Three.js region. The
 
 For motion craft (timing, easing, choreography), consult `motion-doctrine` or Impeccable's animate guidance when available. They inform the author; `frontend-design` stays the single design author.
 
+## Motion Evidence Per Intent
+
+Observe each required motion intent at one representative responsive target: the smallest approved target of its surface, unless the intent names another. Evidence is:
+
+- a trigger frame, taken when the declared trigger fires;
+- an end-state frame, taken at the approved resting state; and
+- a reduced-motion check that reads the computed animation and transition duration and confirms the end state arrives in place.
+
+The normal receipt holds the frames and the reduced-motion receipt holds the check; each required intent gets both. Video clips and frame sampling are optional supplements.
+
 ## HiFi Embedding Limits
 
 HiFi pages allow only embedded `data:` media. Keep each embedded clip short and compressed (aim for about 2 MB per clip) and always include its poster. A small library such as Motion's `animate()` may be inlined when the page still passes the offline surface check. When a library cannot run inside HiFi (the Three.js source, for example, contains network API names that the surface check rejects), never rename, strip or obfuscate library code to pass. Show the effect with a deterministic approximation instead: CSS 3D, canvas 2D or a short pre-rendered clip of the scene. The approximation still needs its normal and reduced-motion receipts. Mark the row as `HiFi approximation — <library> verified in first implementation slice` in the Style Integration notes and the Harness UI evidence; the real library behavior becomes an implementation obligation, like native proof.
