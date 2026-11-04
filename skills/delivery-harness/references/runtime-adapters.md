@@ -98,6 +98,17 @@ The parent merges the returned sets into one consolidated finding set and record
 A path group that no call inspected blocks PASS.
 This is one review point, not the multi-reviewer fan-out that needs an owner request.
 
+### Verify-Then-Sample Review
+
+A checker or matrix driver produces a browser matrix. The reviewer verifies that matrix; it does not re-judge it.
+
+1. Read the checker output. Confirm that the receipt binds the exact candidate hashes and that the matrix is complete.
+2. Inspect every automated FAIL and every row the checker flags as changed from the prior reviewed candidate.
+3. Spot-check the PASS rows. For each page, inspect the `ready` state and the densest state at the smallest and largest target.
+4. Add a fixed random sample of at most 20 further PASS rows. Record the seed.
+
+The reviewer never re-clicks every operation and never re-opens every capture. The review records the sampled rows and the seed.
+
 ## Version, Handoff And Failure
 
 Recover an unchanged PLAN in its existing RUN. Reconcile current Git, workers and relevant workspaces before dispatch.
