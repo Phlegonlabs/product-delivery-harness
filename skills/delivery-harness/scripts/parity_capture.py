@@ -15,6 +15,8 @@ RUN's ``target_comparison`` records; this tool never edits RUN state.
 Each pair is also diffed (Pillow, when importable) and classified
 ``identical`` or ``changed``; the board lists changed pairs first and folds
 the identical ones. The classification is reviewer input, not a verdict.
+``--carry-from`` records a pair as ``carried`` (and skips its reference
+capture) when nothing that shapes it changed since an identical one.
 """
 
 from __future__ import annotations
@@ -662,14 +664,76 @@ def _classify(pixel_diff: dict[str, Any] | None, tolerance: float) -> str:
     return "changed"
 
 
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _file_has_hash(path: Any, digest: Any) -> bool:
+    if not isinstance(path, str) or not isinstance(digest, str) or not Path(path).is_file():
+        return False
+    try:
+        return _file_sha256(Path(path)) == digest
+    except OSError:
+        return False
+
+
+def _load_carry_source(path: Path) -> dict[str, dict[str, Any]]:
+    """Index a previous manifest's captured rows by tuple hash.
+
+    Rows from a manifest written before this field existed have no key and
+    can never be carried.
+    """
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = data.get("captured") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise ManifestError(f"carry-from manifest {path} has no captured list")
+    return {
+        row["tuple_sha256"]: row
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("tuple_sha256"), str)
+    }
+
+
+def _can_carry(previous: dict[str, Any], job: dict[str, Any], tolerance: float) -> bool:
+    """True when nothing that shapes this pair changed since an identical one.
+
+    The geometry fingerprint alone cannot see a colour or text change, so the
+    fresh app screenshot must also hash the same as the previous one, and the
+    reference side (HTML file, route-map triggers, viewport) must be unchanged.
+    The previous files must still match their recorded hashes.
+    """
+
+    try:
+        return (
+            previous.get("classification") in ("identical", "carried")
+            and _classify(previous.get("pixel_diff"), tolerance) == "identical"
+            and job["geometry_fingerprint"] is not None
+            and previous.get("geometry_fingerprint") == job["geometry_fingerprint"]
+            and previous.get("actual_sha256") == job["actual_sha256"]
+            and previous.get("target_inputs_sha256") == job["target_inputs_sha256"]
+            and _file_has_hash(previous.get("target"), previous.get("target_sha256"))
+            and _file_has_hash(previous.get("actual"), previous.get("actual_sha256"))
+        )
+    except (KeyError, TypeError):
+        return False
+
+
 @dataclass
 class _Run:
     """State shared by the capture phases of one invocation."""
 
     cli: list[str]
     reference_url: str
+    reference_sha256: str
     full_page: bool
     tolerance: float = 0.0
+    previous: dict[str, dict[str, Any]] = field(default_factory=dict)
+    carry_from: str | None = None
     errors: list[str] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
     nav_methods: dict[str, str] = field(default_factory=dict)
@@ -700,7 +764,8 @@ def _plan_job(
         f"{_token(combo['route'])}-{_token(combo['state'])}-"
         f"{_token(combo['breakpoint'])}"
     )
-    name = f"{label[:64]}-{hashlib.sha256(identity).hexdigest()}"
+    tuple_sha256 = hashlib.sha256(identity).hexdigest()
+    name = f"{label[:64]}-{tuple_sha256}"
     is_condition = combo.get("kind") == "design-condition"
     base_state = combo["base_state"] if is_condition else combo["state"]
     states_map = entry.get("states") or {}
@@ -737,22 +802,40 @@ def _plan_job(
             )
             return None
     app_path = entry.get("app_path") or combo["route"]
+    reference_eval = base_entry.get("reference_eval")
+    # Everything that shapes the target image; a change forces a recapture.
+    target_inputs = json.dumps(
+        {
+            "reference_sha256": run.reference_sha256,
+            "route": combo["route"],
+            "reference": entry.get("reference"),
+            "reference_eval": reference_eval,
+            "condition_reference_eval": condition_reference_eval,
+            "viewport": [combo["breakpoint"], height],
+            "full_page": run.full_page,
+            "media_preference": combo.get("media_preference"),
+        },
+        sort_keys=True, ensure_ascii=False,
+    )
     return {
         "combo": combo,
         "index": index,
         "route": combo["route"],
         "entry": entry,
         "name": name,
+        "tuple_sha256": tuple_sha256,
+        "target_inputs_sha256": hashlib.sha256(target_inputs.encode("utf-8")).hexdigest(),
         "target": out_dir / f"{name}-target.png",
         "actual": out_dir / f"{name}-actual.png",
         "viewport": (combo["breakpoint"], height),
         "url": f"{base_url}{app_path}",
-        "reference_eval": base_entry.get("reference_eval"),
+        "reference_eval": reference_eval,
         "app_eval": app_eval,
         "condition_reference_eval": condition_reference_eval,
         "condition_app_eval": condition_app_eval,
         "app_ok": False,
         "done": False,
+        "carried": None,
     }
 
 
@@ -781,6 +864,12 @@ def _app_step(run: _Run, job: dict[str, Any], loaded: bool) -> bool:
     if geometry_error:
         run.errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
     job.update(app_ok=True, geometry=geometry, geometry_error=geometry_error)
+    job["geometry_fingerprint"] = _fingerprint(geometry)
+    job["actual_sha256"] = _file_sha256(job["actual"])
+    previous = run.previous.get(job["tuple_sha256"])
+    if previous is not None and _can_carry(previous, job, run.tolerance):
+        job.update(carried=previous, done=True)
+        print(f"carried {name}")
     return untouched
 
 
@@ -820,27 +909,42 @@ def _reference_step(
         run.errors.extend(f"{job['name']} target: {problem}" for problem in problems)
         return untouched, False
     job["done"] = True
-    job["geometry_fingerprint"] = _fingerprint(job["geometry"])
+    job["target_sha256"] = _file_sha256(job["target"])
     job["pixel_diff"], job["pixel_diff_reason"] = _pixel_diff(job["target"], job["actual"])
     job["classification"] = _classify(job["pixel_diff"], run.tolerance)
     print(f"captured {job['name']}")
     return untouched, False
 
 
-def _row(job: dict[str, Any]) -> dict[str, Any]:
-    """The manifest row of a captured pair."""
+def _row(job: dict[str, Any], carry_from: str | None) -> dict[str, Any]:
+    """The manifest row of a captured pair, or of one carried from a previous run."""
 
-    return {
+    carried = job["carried"]
+    row = {
         **job["combo"],
+        "tuple_sha256": job["tuple_sha256"],
         "target": job["target"].as_posix(),
         "actual": job["actual"].as_posix(),
+        "target_sha256": job.get("target_sha256"),
+        "actual_sha256": job["actual_sha256"],
+        "target_inputs_sha256": job["target_inputs_sha256"],
         "geometry": job["geometry"],
         "geometry_error": job["geometry_error"],
         "geometry_fingerprint": job["geometry_fingerprint"],
-        "pixel_diff": job["pixel_diff"],
-        "pixel_diff_reason": job["pixel_diff_reason"],
-        "classification": job["classification"],
+        "pixel_diff": job.get("pixel_diff"),
+        "pixel_diff_reason": job.get("pixel_diff_reason"),
+        "classification": job.get("classification"),
     }
+    if carried:
+        row.update(
+            {key: carried[key] for key in (
+                "target", "actual", "target_sha256", "actual_sha256",
+                "pixel_diff", "pixel_diff_reason",
+            )},
+            classification="carried",
+            carried_from={"manifest": carry_from, "classification": carried["classification"]},
+        )
+    return row
 
 
 def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
@@ -848,7 +952,7 @@ def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
 
     loaded = False
     unreachable = False
-    pending = [job for job in jobs if job["app_ok"]]
+    pending = [job for job in jobs if job["app_ok"] and not job["carried"]]
     for job in sorted(pending, key=lambda item: (_reference_dirty(item), item["index"])):
         if unreachable:
             run.skipped.append(
@@ -930,15 +1034,16 @@ def _board(
         (item for item in captured if item["classification"] == "changed"),
         key=unreviewed_first,
     )
-    identical = [item for item in captured if item["classification"] == "identical"]
     sections = [_pair_card(item, out_dir) for item in changed]
-    if identical:
-        sections.append(
-            f"<details class='identical'><summary>{len(identical)} identical "
-            f"{'pair' if len(identical) == 1 else 'pairs'}</summary>"
-            + "".join(_pair_card(item, out_dir) for item in identical)
-            + "</details>"
-        )
+    for kind in ("identical", "carried"):
+        folded = [item for item in captured if item["classification"] == kind]
+        if folded:
+            sections.append(
+                f"<details><summary>{len(folded)} {kind} "
+                f"{'pair' if len(folded) == 1 else 'pairs'}</summary>"
+                + "".join(_pair_card(item, out_dir) for item in folded)
+                + "</details>"
+            )
     for item in skipped:
         sections.append(
             "<section class='pair skipped'>"
@@ -960,8 +1065,8 @@ def _board(
         "figcaption{font-size:12px;color:#555;margin-top:4px}"
         ".diff{font-family:monospace;margin:4px 0 8px}"
         ".verdict{margin-top:8px;font-family:monospace}"
-        "details.identical{margin-bottom:16px}"
-        "details.identical>summary{cursor:pointer;font-weight:bold;margin-bottom:12px}"
+        "details{margin-bottom:16px}"
+        "summary{cursor:pointer;font-weight:bold;margin-bottom:12px}"
         "</style></head><body>"
         "<h1>Parity board — design reference vs implementation</h1>"
         "<p>Compare each pair item by item within ui-design.md's recorded "
@@ -989,6 +1094,16 @@ def capture(args: argparse.Namespace) -> int:
     except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    carry_from: Path | None = getattr(args, "carry_from", None)
+    recapture_carried: bool = getattr(args, "recapture_carried", False)
+    previous: dict[str, dict[str, Any]] = {}
+    if carry_from is not None and not recapture_carried:
+        try:
+            previous = _load_carry_source(carry_from)
+        except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
+            print(f"error: --carry-from {carry_from}: {exc}", file=sys.stderr)
+            return 1
 
     projection_errors = _capture_projection_errors(plan)
     if projection_errors:
@@ -1052,8 +1167,11 @@ def capture(args: argparse.Namespace) -> int:
     run = _Run(
         cli=cli,
         reference_url=reference.resolve().as_uri(),
+        reference_sha256=_file_sha256(reference),
         full_page=args.full_page,
         tolerance=getattr(args, "tolerance", 0.0),
+        previous=previous,
+        carry_from=carry_from.as_posix() if carry_from else None,
     )
     base_url: str = str(args.base_url).rstrip("/")
     routes = sorted({combo["route"] for combo in combos})
@@ -1094,7 +1212,7 @@ def capture(args: argparse.Namespace) -> int:
                     _reference_phase(run, route, route_jobs)
 
     _run_browser(cli, ["close"], timeout=30)
-    captured = [_row(job) for job in jobs if job["done"]]
+    captured = [_row(job, run.carry_from) for job in jobs if job["done"]]
     skipped, errors, nav_methods = run.skipped, run.errors, run.nav_methods
     if skipped:
         errors.extend(
@@ -1120,6 +1238,8 @@ def capture(args: argparse.Namespace) -> int:
         "selected_combinations": len(combos),
         "only_routes": [args.only] if args.only else [],
         "tolerance": run.tolerance,
+        "carry_from": run.carry_from,
+        "recapture_carried": recapture_carried,
         "classification_counts": dict(Counter(row["classification"] for row in captured)),
         "captured": captured,
         "skipped": skipped,
@@ -1180,7 +1300,18 @@ def main(argv: list[str] | None = None) -> int:
         help="largest fraction of differing pixels (0.0-1.0) still classed identical "
         "(default: 0.0, exact)",
     )
+    parser.add_argument(
+        "--carry-from", type=Path, metavar="MANIFEST",
+        help="previous manifest.json; a pair whose app page and reference inputs are "
+        "unchanged since an identical one is recorded as carried and not recaptured",
+    )
+    parser.add_argument(
+        "--recapture-carried", action="store_true",
+        help="with --carry-from, capture every pair again instead of carrying",
+    )
     args = parser.parse_args(argv)
+    if args.recapture_carried and args.carry_from is None:
+        parser.error("--recapture-carried needs --carry-from")
     try:
         return capture(args)
     except subprocess.TimeoutExpired as exc:

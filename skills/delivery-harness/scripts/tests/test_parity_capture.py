@@ -7,6 +7,7 @@ import hashlib
 import io
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -526,7 +527,7 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertIn("2 identical pairs</summary>", board)
         self.assertIn("30.0000% of pixels differ (30 of 100)", board)
         # The folded section is collapsed by default (no `open` attribute).
-        self.assertNotIn("<details class='identical' open", board)
+        self.assertNotRegex(board, r"<details[^>]* open")
         self.assertEqual(1, board.count("<details"))
 
     def test_board_with_one_identical_pair_uses_the_singular(self) -> None:
@@ -535,6 +536,206 @@ class ParityCaptureTests(unittest.TestCase):
             self.out, [self.board_row("only", "identical", 0.0)], []
         ).read_text(encoding="utf-8")
         self.assertIn("1 identical pair</summary>", board)
+
+    def carry_run(self, *extra: str, out: Path | None = None) -> tuple[int, str]:
+        """One-pair run; the log is cleared first so calls() covers this run only."""
+
+        self.set_surfaces(["ready"], ["390"])
+        route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
+        self.log_path.unlink(missing_ok=True)
+        args = ["--route-map", str(route_map), *extra]
+        if out is not None:
+            args += ["--out", str(out)]
+        return self.run_main(*args)
+
+    def first_run(self, *extra: str) -> Path:
+        code, output = self.carry_run(*extra)
+        self.assertEqual(0, code, output)
+        return self.out / "manifest.json"
+
+    def reference_opens(self) -> int:
+        return sum(1 for argv in self.work_calls() if argv == ["open", self.reference.resolve().as_uri()])
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_carry_from_skips_the_reference_for_an_unchanged_pair(self) -> None:
+        first = self.first_run()
+        before = json.loads(first.read_text(encoding="utf-8"))["captured"][0]
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        manifest = self.read_manifest()
+        self.assertEqual("PASS", manifest["status"])
+        self.assertTrue(manifest["gating_eligible"])
+        self.assertEqual({"carried": 1}, manifest["classification_counts"])
+        self.assertEqual(first.as_posix(), manifest["carry_from"])
+        row = manifest["captured"][0]
+        self.assertEqual("carried", row["classification"])
+        self.assertEqual({"manifest": first.as_posix(), "classification": "identical"}, row["carried_from"])
+        for key in ("target", "actual", "target_sha256", "actual_sha256", "pixel_diff", "tuple_sha256"):
+            self.assertEqual(before[key], row[key], key)
+        # The geometry is probed again, so layout_check keeps a fresh trace.
+        self.assertEqual(before["geometry_fingerprint"], row["geometry_fingerprint"])
+        self.assertEqual(
+            [["open", "http://localhost:3000/home"], ["wait", "--load", "networkidle"],
+             ["set", "viewport", "390", "1000"], ["screenshot", "actual"], ["eval", "--stdin"]],
+            self.work_calls(),
+        )
+        board = (self.out / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn("1 carried pair</summary>", board)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_carried_rows_keep_the_previous_paths_in_another_out_dir(self) -> None:
+        first = self.first_run()
+        before = json.loads(first.read_text(encoding="utf-8"))["captured"][0]
+        other = self.root / "next-run"
+        code, output = self.carry_run("--carry-from", str(first), out=other)
+        self.assertEqual(0, code, output)
+        row = json.loads((other / "manifest.json").read_text(encoding="utf-8"))["captured"][0]
+        self.assertEqual("carried", row["classification"])
+        self.assertEqual(before["target"], row["target"])
+        self.assertTrue(Path(row["target"]).is_file())
+        self.assertTrue(str(row["target"]).startswith(self.out.as_posix()))
+        board = (other / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn("../docs/goal/evidence/parity/", board)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_carried_pair_can_be_carried_again(self) -> None:
+        first = self.first_run()
+        second_out = self.root / "second"
+        self.assertEqual(0, self.carry_run("--carry-from", str(first), out=second_out)[0])
+        third_out = self.root / "third"
+        code, output = self.carry_run("--carry-from", str(second_out / "manifest.json"), out=third_out)
+        self.assertEqual(0, code, output)
+        row = json.loads((third_out / "manifest.json").read_text(encoding="utf-8"))["captured"][0]
+        self.assertEqual("carried", row["classification"])
+        self.assertEqual("carried", row["carried_from"]["classification"])
+        self.assertEqual(0, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_changed_page_is_recaptured_not_carried(self) -> None:
+        # A new geometry changes the fingerprint. New pixels with the same
+        # geometry are the case the fingerprint alone would miss.
+        cases = {
+            "geometry": ({"STUB_GEOMETRY_SCANNED": "6"}, "identical"),
+            "pixels": ({"STUB_SHOT_COLOR_ACTUAL": "ff0000"}, "changed"),
+        }
+        for name, (env, expected) in cases.items():
+            with self.subTest(name):
+                previous_out = self.root / f"previous-{name}"
+                self.assertEqual(0, self.carry_run(out=previous_out)[0])
+                with patch.dict(os.environ, env):
+                    code, output = self.carry_run(
+                        "--carry-from", str(previous_out / "manifest.json"), out=self.out
+                    )
+                self.assertEqual(0, code, output)
+                self.assertEqual(expected, self.read_manifest()["captured"][0]["classification"])
+                self.assertEqual(1, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_changed_reference_is_recaptured_not_carried(self) -> None:
+        first = self.first_run()
+        self.reference.write_text("<html><body>new design</body></html>", encoding="utf-8")
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
+        self.assertEqual(1, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_changed_route_map_trigger_is_recaptured_not_carried(self) -> None:
+        first = self.first_run()
+        self.set_surfaces(["ready"], ["390"])
+        route_map = self.write_route_map({"/home": {"reference": {"selector": "#other-nav"}}})
+        self.log_path.unlink()
+        code, output = self.run_main("--route-map", str(route_map), "--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
+        self.assertEqual(1, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_only_an_identical_previous_pair_is_carried(self) -> None:
+        os.environ["STUB_SHOT_PATCH_ACTUAL"] = "1x1"
+        first = self.first_run()
+        self.assertEqual("changed", self.read_manifest()["captured"][0]["classification"])
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertEqual("changed", self.read_manifest()["captured"][0]["classification"])
+        self.assertEqual(1, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_tighter_tolerance_stops_carrying(self) -> None:
+        os.environ["STUB_SHOT_PATCH_ACTUAL"] = "1x1"
+        first = self.first_run("--tolerance", "0.02")
+        self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
+        kept = self.root / "kept-manifest.json"
+        shutil.copy(first, kept)  # the next run rewrites manifest.json in the same directory
+        code, output = self.carry_run("--carry-from", str(kept), "--tolerance", "0.0")
+        self.assertEqual(0, code, output)
+        self.assertEqual("changed", self.read_manifest()["captured"][0]["classification"])
+        code, output = self.carry_run("--carry-from", str(kept), "--tolerance", "0.02")
+        self.assertEqual(0, code, output)
+        self.assertEqual("carried", self.read_manifest()["captured"][0]["classification"])
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_previous_images_that_changed_on_disk_are_not_carried(self) -> None:
+        first = self.first_run()
+        row = json.loads(first.read_text(encoding="utf-8"))["captured"][0]
+        Path(row["target"]).write_bytes(b"edited after the review")
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
+        self.assertEqual(1, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_recapture_carried_captures_every_pair_again(self) -> None:
+        first = self.first_run()
+        code, output = self.carry_run("--carry-from", str(first), "--recapture-carried")
+        self.assertEqual(0, code, output)
+        manifest = self.read_manifest()
+        self.assertEqual({"identical": 1}, manifest["classification_counts"])
+        self.assertTrue(manifest["recapture_carried"])
+        self.assertEqual(1, self.reference_opens())
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_an_old_manifest_without_tuple_hashes_carries_nothing(self) -> None:
+        first = self.first_run()
+        data = json.loads(first.read_text(encoding="utf-8"))
+        for row in data["captured"]:
+            for key in ("tuple_sha256", "geometry_fingerprint", "actual_sha256"):
+                row.pop(key)
+        first.write_text(json.dumps(data), encoding="utf-8")
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertNotIn("carried", self.read_manifest()["classification_counts"])
+        self.assertEqual(1, self.reference_opens())
+
+    def test_an_unusable_carry_source_is_refused_before_any_browser_work(self) -> None:
+        broken = self.root / "broken.json"
+        broken.write_text("{not json", encoding="utf-8")
+        no_rows = self.root / "no-rows.json"
+        no_rows.write_text(json.dumps({"captured": 5}), encoding="utf-8")
+        for source in (self.root / "missing.json", broken, no_rows):
+            with self.subTest(source=source.name):
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    code, _ = self.run_main("--carry-from", str(source))
+                self.assertEqual(1, code)
+                self.assertIn("--carry-from", stderr.getvalue())
+        self.assertEqual([], self.calls())
+
+    def test_recapture_carried_needs_a_carry_source(self) -> None:
+        with contextlib.redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as raised:
+                self.run_main("--recapture-carried")
+        self.assertEqual(2, raised.exception.code)
 
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     def test_colliding_route_and_state_tokens_keep_distinct_evidence(self) -> None:
