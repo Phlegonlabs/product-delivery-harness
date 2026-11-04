@@ -684,6 +684,35 @@ class ParityCaptureTests(unittest.TestCase):
         self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
         self.assertEqual(1, self.reference_opens())
 
+    def test_a_changed_asset_behind_the_stylesheet_is_recaptured_not_carried(self) -> None:
+        (self.root / "theme.css").write_text("body{background:url(bg.svg)}", encoding="utf-8")
+        (self.root / "bg.svg").write_text("<svg><rect fill='red'/></svg>", encoding="utf-8")
+        self.reference.write_text(
+            '<html><head><link rel="stylesheet" href="theme.css"></head><body>ref</body></html>', encoding="utf-8"
+        )
+        first = self.first_run()
+        (self.root / "bg.svg").write_text("<svg><rect fill='blue'/></svg>", encoding="utf-8")   # two links away
+        code, output = self.carry_run("--carry-from", str(first))
+        self.assertEqual(0, code, output)
+        self.assertEqual("identical", self.read_manifest()["captured"][0]["classification"])
+        self.assertEqual(1, self.reference_opens())
+
+    def test_reference_identity_follows_imports_and_inline_urls(self) -> None:
+        (self.root / "base.css").write_text("@font-face{src:url(font.woff2)}", encoding="utf-8")
+        (self.root / "theme.css").write_text('@import "base.css";', encoding="utf-8")
+        (self.root / "font.woff2").write_bytes(b"font-a")
+        (self.root / "hero.png").write_bytes(b"png-a")
+        self.reference.write_text(
+            '<html><head><link href="theme.css"><style>.hero{background:url("hero.png")}</style></head><body>ref</body></html>',
+            encoding="utf-8",
+        )
+        before = parity_capture._reference_identity(self.reference)
+        (self.root / "font.woff2").write_bytes(b"font-b")
+        changed_font = parity_capture._reference_identity(self.reference)
+        self.assertNotEqual(before, changed_font)
+        (self.root / "hero.png").write_bytes(b"png-b")
+        self.assertNotEqual(changed_font, parity_capture._reference_identity(self.reference))
+
     def test_reference_identity_tracks_linked_local_files_only(self) -> None:
         css = self.root / "theme.css"
         css.write_text("a{}", encoding="utf-8")

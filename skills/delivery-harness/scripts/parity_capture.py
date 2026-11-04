@@ -736,28 +736,46 @@ def _can_carry(previous: dict[str, Any], job: dict[str, Any], tolerance: float) 
 
 
 _LOCAL_ASSET_RE = re.compile(r"""(?:src|href)\s*=\s*["']([^"'#?]+)""", re.IGNORECASE)
+_CSS_REF_RE = re.compile(r"""url\(\s*["']?([^"')]+?)["']?\s*\)|@import\s+["']([^"']+)["']""", re.IGNORECASE)
+_TEXT_ASSET_SUFFIXES = {".html", ".htm", ".css", ".svg"}
 
 
 def _reference_identity(reference: Path) -> str:
-    """SHA-256 over the reference HTML and every local file its src/href attributes name.
+    """SHA-256 over the reference HTML and every local file it renders with.
 
     A closed HiFi package inlines everything, but a reference that links a CSS,
     script, image or font file changes its render when that file changes, so the
-    linked bytes join the identity. A missing linked file is recorded as missing,
-    which still changes the identity when it later appears.
+    linked bytes join the identity. HTML, CSS and SVG files are read for their own
+    src/href, url() and @import references, so a background image a stylesheet
+    names joins too. A missing linked file is recorded as missing, which still
+    changes the identity when it later appears.
     """
 
-    parts = [f"html:{_file_sha256(reference)}"]
-    text = reference.read_text(encoding="utf-8", errors="replace")
-    for raw in sorted(set(_LOCAL_ASSET_RE.findall(text))):
-        value = raw.strip()
-        if not value or value.startswith(("/", "data:", "#")) or "://" in value or value.startswith("//"):
-            continue
-        asset = (reference.parent / value).resolve()
-        if asset.is_file():
-            parts.append(f"{value}:{_file_sha256(asset)}")
-        else:
-            parts.append(f"{value}:missing")
+    parts: list[str] = []
+    seen: set[str] = set()
+
+    def local(value: str) -> bool:
+        return bool(value) and not value.startswith(("/", "data:", "#", "//")) and "://" not in value
+
+    def walk(path: Path, label: str, depth: int) -> None:
+        if label in seen or depth > 6:
+            return
+        seen.add(label)
+        if not path.is_file():
+            parts.append(f"{label}:missing")
+            return
+        parts.append(f"{label}:{_file_sha256(path)}")
+        if path.suffix.lower() not in _TEXT_ASSET_SUFFIXES:
+            return
+        text = path.read_text(encoding="utf-8", errors="replace")
+        refs = [] if path.suffix.lower() == ".css" else list(_LOCAL_ASSET_RE.findall(text))
+        refs += [first or second for first, second in _CSS_REF_RE.findall(text)]
+        for raw in sorted(set(refs)):
+            value = raw.strip()
+            if local(value):
+                walk((path.parent / value).resolve(), f"{label}>{value}", depth + 1)
+
+    walk(reference, "html", 0)
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
 
 
