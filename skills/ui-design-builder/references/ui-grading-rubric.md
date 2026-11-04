@@ -26,7 +26,7 @@ Base matrix: every page, every approved responsive target and every non-`n/a`, n
 - accessible names, roles and states, with labels that do not depend on placeholders; and
 - live regions and status announcements.
 
-A derived state (PRD `derivedStates`) is captured once, at its surface's smallest responsive target, with the geometry scan. It takes no other target and no stress axis.
+A derived state (PRD `derivedStates`) is captured once, at its surface's smallest responsive target (the lowest viewport width, or the first listed size class), with the geometry scan. It takes no other target and no stress axis.
 
 Stress axes, sampled: run these on each page's `ready` state and its densest non-derived state, each at the smallest and largest approved target. The lead names the densest state per page in the grading record.
 

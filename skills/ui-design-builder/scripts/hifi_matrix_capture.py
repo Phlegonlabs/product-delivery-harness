@@ -534,12 +534,22 @@ def canvas_widths(name, html, manifest):
     return widths
 
 
-def smallest_target(targets, widths):
-    return min(targets, key=lambda t: (widths[t], targets.index(t)))
+def representative_targets(targets):
+    """(smallest, largest) by the list rule check_ui_design_contract.representative_targets uses:
+    numeric widths compare by value; named size classes keep their listed order."""
+    values = [str(t) for t in targets]
+    if values and all(v.strip().lstrip("-").isdigit() for v in values):
+        ordered = sorted(values, key=lambda v: (int(v), values.index(v)))
+        return ordered[0], ordered[-1]
+    return values[0], values[-1]
 
 
-def largest_target(targets, widths):
-    return max(targets, key=lambda t: (widths[t], -targets.index(t)))
+def smallest_target(targets, widths=None):
+    return representative_targets(targets)[0]
+
+
+def largest_target(targets, widths=None):
+    return representative_targets(targets)[1]
 
 
 def expand_matrix(package, only=None, derived=None):

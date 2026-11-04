@@ -169,11 +169,19 @@ class MatrixExpansionTests(unittest.TestCase):
         self.assertEqual({"UI-002"}, {c.surface for c in m.expand_matrix(package, only={"UI-002"})})
 
     def test_derived_states_are_observed_once_at_the_smallest_target(self):
-        package = self.package([self.surface(states=("ready", "toast"), targets=("regular", "compact"))],
-                               {"index.html": {"regular": 820, "compact": 390}})
+        package = self.package([self.surface(states=("ready", "toast"), targets=("compact", "regular"))],
+                               {"index.html": {"compact": 390, "regular": 820}})
         cases = m.expand_matrix(package, derived={"UI-001": ["toast"]})
-        self.assertEqual([("ready", "regular"), ("ready", "compact"), ("toast", "compact")],
+        self.assertEqual([("ready", "compact"), ("ready", "regular"), ("toast", "compact")],
                          [(c.state, c.target) for c in cases])
+
+    def test_representative_targets_follow_the_checker_list_rule(self):
+        # Numeric widths compare by value whatever their order; size classes keep listed order.
+        self.assertEqual(("390", "1200"), m.representative_targets(["768", "1200", "390"]))
+        self.assertEqual(("regular", "compact"), m.representative_targets(["regular", "compact"]))
+        from check_ui_design_contract import representative_targets as checker_rule
+        for targets in (["768", "1200", "390"], ["regular", "compact"], ["phone-small", "phone-large"]):
+            self.assertEqual(checker_rule(targets), m.representative_targets(targets))
 
     def test_axis_sample_is_ready_plus_the_busiest_state_at_the_extreme_targets(self):
         rows = [self.surface(states=("ready", "loading", "empty"), targets=(768, 390, 1200))]

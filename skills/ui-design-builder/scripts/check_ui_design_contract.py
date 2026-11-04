@@ -931,6 +931,20 @@ def _target_source_syntax(value: str | None, label: str, problems: list[str]) ->
     return True
 
 
+def representative_targets(targets: list[str]) -> tuple[str, str]:
+    """(smallest, largest) by one list rule shared with hifi_matrix_capture.py.
+
+    Numeric viewport widths compare by value; named size classes keep their
+    listed order, so the first listed is the smallest and the last the largest.
+    """
+
+    values = [str(target) for target in targets]
+    if values and all(value.strip().lstrip("-").isdigit() for value in values):
+        ordered = sorted(values, key=lambda value: (int(value), values.index(value)))
+        return ordered[0], ordered[-1]
+    return values[0], values[-1]
+
+
 def _evidence_matrix(scope: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
     """Surface x state x target cases; a derived state keeps only its surface's smallest target."""
     responsive = scope.get("responsive", {})
@@ -943,7 +957,7 @@ def _evidence_matrix(scope: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
         targets = [str(item) for item in own.get("targets", [])] if isinstance(own, dict) else scope_targets
         derived = surface.get("derivedStates") if isinstance(surface.get("derivedStates"), dict) else {}
         for state in surface.get("states", []):
-            for target in targets[:1] if isinstance(state, str) and state in derived else targets:
+            for target in [representative_targets(targets)[0]] if isinstance(state, str) and state in derived and targets else targets:
                 cases.append({"surface": str(surface.get("id")), "state": str(state), "target": target})
     return {"cases": cases}
 
@@ -1959,6 +1973,7 @@ def _resolve_evidence(
     expected_matrix: dict[str, list[str]] | None = None,
     expected_motion: dict[str, Any] | None = None,
     require_machine: bool = False,
+    alternate_matrix: dict[str, list[str]] | None = None,
     recorded_scores: dict[str, int | None] | None = None,
     required_inputs: list[dict[str, str]] | None = None,
 ) -> None:
@@ -2026,6 +2041,8 @@ def _resolve_evidence(
                     _add(problems, f"{label} evidence reviewedArtifact must be {expected_artifact}")
     if not machine and evidence.get("attestation") != "human-attested":
         _add(problems, f"{label} evidence must be explicitly human-attested")
+    if alternate_matrix is not None and isinstance(receipt, dict) and receipt.get("matrix") == alternate_matrix:
+        expected_matrix = alternate_matrix   # a receipt that covers every target is accepted as a superset
     if not isinstance(receipt, dict) or set(receipt) != {"tool", "method", "matrix", "results", "outputArtifact", "executedAt"}:
         _add(problems, f"{label} evidence receipt must contain tool, method, matrix, results, outputArtifact, and executedAt")
     else:
@@ -2661,12 +2678,13 @@ def _resolve_motion_effect_evidence(
             else (target_scope or {}).get("responsive", {})
         )
         targets = responsive.get("targets", []) if isinstance(responsive, dict) else []
-        # One representative target per intent: the surface's smallest (first listed)
-        # target, per motion-and-media-routing.md "Motion Evidence Per Intent".
-        cases = [
-            {"surface": surface_id, "state": "normal" if motion_case == "normal" else "reduced-motion", "target": str(target)}
-            for target in targets[:1]
-        ]
+        # A receipt observes one representative target per intent (the surface's
+        # smallest, per motion-and-media-routing.md "Motion Evidence Per Intent").
+        # A receipt that covers every target, including retained historical
+        # ui-evidence/2 receipts, is accepted as a superset.
+        motion_state = "normal" if motion_case == "normal" else "reduced-motion"
+        all_cases = [{"surface": surface_id, "state": motion_state, "target": str(target)} for target in targets]
+        cases = [{"surface": surface_id, "state": motion_state, "target": representative_targets([str(t) for t in targets])[0]}] if targets else []
         capture_mode = (
             surface.get("captureMode", (target_scope or {}).get("captureMode"))
             if surface
@@ -2684,6 +2702,7 @@ def _resolve_motion_effect_evidence(
             ),
             expected_check=_evidence_check("motion", capture_mode),
             expected_matrix={"cases": cases},
+            alternate_matrix={"cases": all_cases},
             require_machine=require_machine,
             required_inputs=required_inputs,
             expected_motion={
