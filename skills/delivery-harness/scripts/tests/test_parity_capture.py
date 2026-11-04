@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import hashlib
 import io
 import json
 import os
@@ -386,6 +387,154 @@ class ParityCaptureTests(unittest.TestCase):
         board = (relative_out / "parity-board.html").read_text(encoding="utf-8")
         self.assertIn(f'src="{Path(row["target"]).name}"', board)
         self.assertNotIn("docs/goal/evidence/parity/", board)
+
+    def read_manifest(self) -> dict[str, object]:
+        return json.loads((self.out / "manifest.json").read_text(encoding="utf-8"))
+
+    def run_ready_matrix(self, *extra: str) -> tuple[int, str]:
+        self.set_surfaces(["ready"], ["390", "768", "1200"])
+        route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
+        return self.run_main("--route-map", str(route_map), *extra)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_identical_pairs_are_classified_and_fingerprinted(self) -> None:
+        code, out = self.run_ready_matrix()
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        # Classification is reviewer input; the manifest verdict is unchanged.
+        self.assertEqual("PASS", manifest["status"])
+        self.assertTrue(manifest["gating_eligible"])
+        self.assertEqual({"identical": 3}, manifest["classification_counts"])
+        self.assertEqual(0.0, manifest["tolerance"])
+        for row in manifest["captured"]:
+            self.assertEqual("identical", row["classification"])
+            self.assertEqual(
+                {"ratio": 0.0, "differing_pixels": 0, "total_pixels": 100, "sizes_matched": True,
+                 "target_size": [10, 10], "actual_size": [10, 10]},
+                row["pixel_diff"],
+            )
+            self.assertIsNone(row["pixel_diff_reason"])
+            canonical = json.dumps(row["geometry"], sort_keys=True, separators=(",", ":"))
+            self.assertEqual(hashlib.sha256(canonical.encode("utf-8")).hexdigest(), row["geometry_fingerprint"])
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_differing_pixels_make_the_pair_changed(self) -> None:
+        os.environ["STUB_SHOT_PATCH_ACTUAL"] = "1x1"
+        code, out = self.run_ready_matrix()
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        self.assertEqual({"changed": 3}, manifest["classification_counts"])
+        for row in manifest["captured"]:
+            self.assertEqual("changed", row["classification"])
+            self.assertEqual(1, row["pixel_diff"]["differing_pixels"])
+            self.assertEqual(0.01, row["pixel_diff"]["ratio"])
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_tolerance_sets_the_identical_threshold(self) -> None:
+        os.environ["STUB_SHOT_PATCH_ACTUAL"] = "1x1"
+        code, out = self.run_ready_matrix("--tolerance", "0.02")
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        self.assertEqual(0.02, manifest["tolerance"])
+        self.assertEqual({"identical": 3}, manifest["classification_counts"])
+        code, out = self.run_ready_matrix("--tolerance", "0.005")
+        self.assertEqual(0, code, out)
+        self.assertEqual({"changed": 3}, self.read_manifest()["classification_counts"])
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_a_size_mismatch_is_never_identical(self) -> None:
+        os.environ["STUB_SHOT_SIZE_ACTUAL"] = "10x12"
+        code, out = self.run_ready_matrix("--tolerance", "1.0")
+        self.assertEqual(0, code, out)
+        row = self.read_manifest()["captured"][0]
+        self.assertEqual("changed", row["classification"])
+        diff = row["pixel_diff"]
+        self.assertFalse(diff["sizes_matched"])
+        self.assertEqual([10, 10], diff["target_size"])
+        self.assertEqual([10, 12], diff["actual_size"])
+        # The two extra rows exist only on one side, so they count as differing.
+        self.assertEqual(20, diff["differing_pixels"])
+        self.assertEqual(120, diff["total_pixels"])
+        board = (self.out / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn("size mismatch: target 10\u00d710, actual 10\u00d712", board)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_without_pillow_the_diff_is_recorded_as_unavailable(self) -> None:
+        with patch.object(parity_capture, "_load_pillow", return_value=None):
+            code, out = self.run_ready_matrix()
+        self.assertEqual(0, code, out)
+        manifest = self.read_manifest()
+        self.assertEqual("PASS", manifest["status"])
+        for row in manifest["captured"]:
+            self.assertIsNone(row["pixel_diff"])
+            self.assertEqual("Pillow is not installed", row["pixel_diff_reason"])
+            self.assertEqual("changed", row["classification"])
+            self.assertIsNotNone(row["geometry_fingerprint"])
+        board = (self.out / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn("pixel diff unavailable: Pillow is not installed", board)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    @unittest.skipUnless(parity_capture._load_pillow(), "pixel diff needs Pillow")
+    def test_undecodable_images_never_fail_the_capture(self) -> None:
+        os.environ["STUB_SHOT_MODE"] = "garbage"
+        code, out = self.run_ready_matrix()
+        self.assertEqual(0, code, out)
+        for row in self.read_manifest()["captured"]:
+            self.assertIsNone(row["pixel_diff"])
+            self.assertTrue(row["pixel_diff_reason"].startswith("cannot decode the pair"))
+            self.assertEqual("changed", row["classification"])
+
+    def test_tolerance_must_be_a_fraction(self) -> None:
+        for bad in ("1.5", "-0.1", "abc"):
+            with self.subTest(bad=bad), contextlib.redirect_stderr(io.StringIO()):
+                with self.assertRaises(SystemExit) as raised:
+                    self.run_main("--tolerance", bad)
+                self.assertEqual(2, raised.exception.code)
+
+    def board_row(self, name: str, classification: str, ratio: float | None) -> dict[str, object]:
+        diff = None if ratio is None else {
+            "ratio": ratio, "differing_pixels": int(ratio * 100), "total_pixels": 100,
+            "sizes_matched": True, "target_size": [10, 10], "actual_size": [10, 10],
+        }
+        return {
+            "surface_id": "UI-001", "route": f"/{name}", "breakpoint": "390", "state": "ready",
+            "target": (self.out / f"{name}-target.png").as_posix(),
+            "actual": (self.out / f"{name}-actual.png").as_posix(),
+            "geometry": {"overflowX": 0, "scanned": 5, "overlaps": []}, "geometry_error": None,
+            "classification": classification, "pixel_diff": diff,
+            "pixel_diff_reason": None if diff else "Pillow is not installed",
+        }
+
+    def test_board_lists_changed_pairs_first_and_folds_identical_ones(self) -> None:
+        self.out.mkdir(parents=True)
+        captured = [
+            self.board_row("same-a", "identical", 0.0),
+            self.board_row("small", "changed", 0.02),
+            self.board_row("unknown", "changed", None),
+            self.board_row("same-b", "identical", 0.0),
+            self.board_row("large", "changed", 0.30),
+        ]
+        skipped = [{"route": "/skipped", "breakpoint": "390", "state": "empty", "reason": "no trigger"}]
+        board = parity_capture._board(self.out, captured, skipped).read_text(encoding="utf-8")
+        order = [board.index(marker) for marker in
+                 ("/unknown", "/large", "/small", "<details", "/same-a", "/same-b", "SKIPPED")]
+        self.assertEqual(sorted(order), order)
+        self.assertIn("2 identical pairs</summary>", board)
+        self.assertIn("30.0000% of pixels differ (30 of 100)", board)
+        # The folded section is collapsed by default (no `open` attribute).
+        self.assertNotIn("<details class='identical' open", board)
+        self.assertEqual(1, board.count("<details"))
+
+    def test_board_with_one_identical_pair_uses_the_singular(self) -> None:
+        self.out.mkdir(parents=True)
+        board = parity_capture._board(
+            self.out, [self.board_row("only", "identical", 0.0)], []
+        ).read_text(encoding="utf-8")
+        self.assertIn("1 identical pair</summary>", board)
 
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     def test_colliding_route_and_state_tokens_keep_distinct_evidence(self) -> None:

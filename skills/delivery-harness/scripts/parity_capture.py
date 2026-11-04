@@ -11,11 +11,16 @@ overlap findings) so ``layout_check`` attestations have a tool trace, and
 writes a self-contained ``parity-board.html`` for the item-by-item
 comparison judgment. Capture only — verdicts stay with the reviewer in
 RUN's ``target_comparison`` records; this tool never edits RUN state.
+
+Each pair is also diffed (Pillow, when importable) and classified
+``identical`` or ``changed``; the board lists changed pairs first and folds
+the identical ones. The classification is reviewer input, not a verdict.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 import errno
@@ -583,6 +588,80 @@ def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
     return None, "geometry probe returned no valid JSON object"
 
 
+def _load_pillow() -> tuple[Any, Any] | None:
+    """Pillow is optional: without it pairs are reviewed by eye, never failed."""
+
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        return None
+    return Image, ImageChops
+
+
+def _fingerprint(geometry: dict[str, Any] | None) -> str | None:
+    """Lowercase SHA-256 over the canonical geometry probe JSON of the app page."""
+
+    if geometry is None:
+        return None
+    canonical = json.dumps(geometry, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _pixel_diff(target: Path, actual: Path) -> tuple[dict[str, Any] | None, str | None]:
+    """Compare the pair; return (diff, None) or (None, why it could not run).
+
+    Sizes are normalised onto the larger canvas. Area that only one image
+    covers counts as differing, so a height mismatch shows up in the ratio.
+    """
+
+    pillow = _load_pillow()
+    if pillow is None:
+        return None, "Pillow is not installed"
+    image_module, chops = pillow
+    try:
+        with image_module.open(target) as target_file, image_module.open(actual) as actual_file:
+            left, right = target_file.convert("RGBA"), actual_file.convert("RGBA")
+    except (OSError, ValueError, image_module.DecompressionBombError) as exc:
+        return None, f"cannot decode the pair: {exc}"
+    width, height = max(left.width, right.width), max(left.height, right.height)
+    canvases = []
+    for image in (left, right):
+        canvas = image_module.new("RGBA", (width, height), (0, 0, 0, 0))
+        canvas.paste(image, (0, 0))
+        canvases.append(canvas)
+    red, green, blue, alpha = chops.difference(*canvases).split()
+    changed = chops.lighter(chops.lighter(red, green), chops.lighter(blue, alpha))
+    total = width * height
+    differing = total - changed.histogram()[0]
+    return {
+        "ratio": differing / total,
+        "differing_pixels": differing,
+        "total_pixels": total,
+        "sizes_matched": left.size == right.size,
+        "target_size": list(left.size),
+        "actual_size": list(right.size),
+    }, None
+
+
+def _ratio(text: str) -> float:
+    value = float(text)
+    if not 0.0 <= value <= 1.0:
+        raise argparse.ArgumentTypeError(f"{text} is not a fraction between 0.0 and 1.0")
+    return value
+
+
+def _classify(pixel_diff: dict[str, Any] | None, tolerance: float) -> str:
+    """`identical` only for a same-size pair at or under the tolerance; else review it."""
+
+    if (
+        pixel_diff is not None
+        and pixel_diff["sizes_matched"]
+        and pixel_diff["ratio"] <= tolerance
+    ):
+        return "identical"
+    return "changed"
+
+
 @dataclass
 class _Run:
     """State shared by the capture phases of one invocation."""
@@ -590,6 +669,7 @@ class _Run:
     cli: list[str]
     reference_url: str
     full_page: bool
+    tolerance: float = 0.0
     errors: list[str] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
     nav_methods: dict[str, str] = field(default_factory=dict)
@@ -740,8 +820,27 @@ def _reference_step(
         run.errors.extend(f"{job['name']} target: {problem}" for problem in problems)
         return untouched, False
     job["done"] = True
+    job["geometry_fingerprint"] = _fingerprint(job["geometry"])
+    job["pixel_diff"], job["pixel_diff_reason"] = _pixel_diff(job["target"], job["actual"])
+    job["classification"] = _classify(job["pixel_diff"], run.tolerance)
     print(f"captured {job['name']}")
     return untouched, False
+
+
+def _row(job: dict[str, Any]) -> dict[str, Any]:
+    """The manifest row of a captured pair."""
+
+    return {
+        **job["combo"],
+        "target": job["target"].as_posix(),
+        "actual": job["actual"].as_posix(),
+        "geometry": job["geometry"],
+        "geometry_error": job["geometry_error"],
+        "geometry_fingerprint": job["geometry_fingerprint"],
+        "pixel_diff": job["pixel_diff"],
+        "pixel_diff_reason": job["pixel_diff_reason"],
+        "classification": job["classification"],
+    }
 
 
 def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
@@ -768,48 +867,80 @@ def _board_src(path: str, board_dir: Path) -> str:
         return Path(path).resolve().as_uri()
 
 
+def _diff_note(item: dict[str, Any]) -> str:
+    """One line on how far the pair is from identical."""
+
+    diff = item.get("pixel_diff")
+    if diff is None:
+        return f"pixel diff unavailable: {item.get('pixel_diff_reason')}"
+    note = f"{diff['ratio'] * 100:.4f}% of pixels differ ({diff['differing_pixels']} of {diff['total_pixels']})"
+    if not diff["sizes_matched"]:
+        t, a = diff["target_size"], diff["actual_size"]
+        note += f" · size mismatch: target {t[0]}×{t[1]}, actual {a[0]}×{a[1]}"
+    return note
+
+
+def _pair_card(item: dict[str, Any], out_dir: Path) -> str:
+    label = (
+        f"{item['surface_id']} · {item['route']} · "
+        f"{item['breakpoint']}px · {item['state']}"
+    )
+    geometry = item.get("geometry") or {}
+    geometry_error = item.get("geometry_error")
+    findings = []
+    if geometry.get("overflowX", 0) > 1:
+        findings.append(f"horizontal overflow: {geometry['overflowX']}px")
+    for overlap in geometry.get("overlaps") or []:
+        findings.append(
+            f"overlap {overlap.get('a')} × {overlap.get('b')} "
+            f"({overlap.get('px')}×{overlap.get('py')}px)"
+        )
+    if geometry_error:
+        findings.append(f"geometry probe unavailable: {geometry_error}")
+    findings_html = (
+        "<ul>"
+        + "".join(f"<li>{html.escape(str(f))}</li>" for f in findings)
+        + "</ul>"
+    ) if findings else "<p>geometry probe: clean</p>"
+    return (
+        "<section class='pair'>"
+        f"<h3>{html.escape(label)}</h3>"
+        f"<p class='diff'>{html.escape(item['classification'])} · {html.escape(_diff_note(item))}</p>"
+        f"<div class='imgs'><figure><img src=\"{html.escape(_board_src(item['target'], out_dir))}\">"
+        "<figcaption>target (design reference)</figcaption></figure>"
+        f"<figure><img src=\"{html.escape(_board_src(item['actual'], out_dir))}\">"
+        "<figcaption>actual (implementation)</figcaption></figure></div>"
+        f"<div class='findings'>{findings_html}</div>"
+        "<div class='verdict'>verdict: pass / deviation — "
+        "differences: ______________________</div>"
+        "</section>"
+    )
+
+
 def _board(
     out_dir: Path,
     captured: list[dict[str, Any]],
     skipped: list[dict[str, Any]],
 ) -> Path:
-    rows = []
-    for item in captured:
-        label = (
-            f"{item['surface_id']} · {item['route']} · "
-            f"{item['breakpoint']}px · {item['state']}"
-        )
-        geometry = item.get("geometry") or {}
-        geometry_error = item.get("geometry_error")
-        findings = []
-        if geometry.get("overflowX", 0) > 1:
-            findings.append(f"horizontal overflow: {geometry['overflowX']}px")
-        for overlap in geometry.get("overlaps") or []:
-            findings.append(
-                f"overlap {overlap.get('a')} × {overlap.get('b')} "
-                f"({overlap.get('px')}×{overlap.get('py')}px)"
-            )
-        if geometry_error:
-            findings.append(f"geometry probe unavailable: {geometry_error}")
-        findings_html = (
-            "<ul>"
-            + "".join(f"<li>{html.escape(str(f))}</li>" for f in findings)
-            + "</ul>"
-        ) if findings else "<p>geometry probe: clean</p>"
-        rows.append(
-            "<section class='pair'>"
-            f"<h3>{html.escape(label)}</h3>"
-            f"<div class='imgs'><figure><img src=\"{html.escape(_board_src(item['target'], out_dir))}\">"
-            "<figcaption>target (design reference)</figcaption></figure>"
-            f"<figure><img src=\"{html.escape(_board_src(item['actual'], out_dir))}\">"
-            "<figcaption>actual (implementation)</figcaption></figure></div>"
-            f"<div class='findings'>{findings_html}</div>"
-            "<div class='verdict'>verdict: pass / deviation — "
-            "differences: ______________________</div>"
-            "</section>"
+    def unreviewed_first(item: dict[str, Any]) -> float:
+        diff = item.get("pixel_diff")
+        return -2.0 if diff is None else -diff["ratio"]
+
+    changed = sorted(
+        (item for item in captured if item["classification"] == "changed"),
+        key=unreviewed_first,
+    )
+    identical = [item for item in captured if item["classification"] == "identical"]
+    sections = [_pair_card(item, out_dir) for item in changed]
+    if identical:
+        sections.append(
+            f"<details class='identical'><summary>{len(identical)} identical "
+            f"{'pair' if len(identical) == 1 else 'pairs'}</summary>"
+            + "".join(_pair_card(item, out_dir) for item in identical)
+            + "</details>"
         )
     for item in skipped:
-        rows.append(
+        sections.append(
             "<section class='pair skipped'>"
             f"<h3>SKIPPED · {html.escape(str(item.get('route')))} · "
             f"{html.escape(str(item.get('breakpoint')))} · "
@@ -827,12 +958,15 @@ def _board(
         ".imgs{display:flex;gap:12px}.imgs figure{flex:1;margin:0}"
         ".imgs img{width:100%;border:1px solid #999}"
         "figcaption{font-size:12px;color:#555;margin-top:4px}"
+        ".diff{font-family:monospace;margin:4px 0 8px}"
         ".verdict{margin-top:8px;font-family:monospace}"
+        "details.identical{margin-bottom:16px}"
+        "details.identical>summary{cursor:pointer;font-weight:bold;margin-bottom:12px}"
         "</style></head><body>"
         "<h1>Parity board — design reference vs implementation</h1>"
         "<p>Compare each pair item by item within ui-design.md's recorded "
         "tolerance; record the verdict in RUN's target_comparison.</p>"
-        + "".join(rows)
+        + "".join(sections)
         + "</body></html>",
         encoding="utf-8",
         newline="\n",
@@ -919,6 +1053,7 @@ def capture(args: argparse.Namespace) -> int:
         cli=cli,
         reference_url=reference.resolve().as_uri(),
         full_page=args.full_page,
+        tolerance=getattr(args, "tolerance", 0.0),
     )
     base_url: str = str(args.base_url).rstrip("/")
     routes = sorted({combo["route"] for combo in combos})
@@ -959,17 +1094,7 @@ def capture(args: argparse.Namespace) -> int:
                     _reference_phase(run, route, route_jobs)
 
     _run_browser(cli, ["close"], timeout=30)
-    captured = [
-        {
-            **job["combo"],
-            "target": job["target"].as_posix(),
-            "actual": job["actual"].as_posix(),
-            "geometry": job["geometry"],
-            "geometry_error": job["geometry_error"],
-        }
-        for job in jobs
-        if job["done"]
-    ]
+    captured = [_row(job) for job in jobs if job["done"]]
     skipped, errors, nav_methods = run.skipped, run.errors, run.nav_methods
     if skipped:
         errors.extend(
@@ -994,6 +1119,8 @@ def capture(args: argparse.Namespace) -> int:
         "required_combinations": len(all_combos),
         "selected_combinations": len(combos),
         "only_routes": [args.only] if args.only else [],
+        "tolerance": run.tolerance,
+        "classification_counts": dict(Counter(row["classification"] for row in captured)),
         "captured": captured,
         "skipped": skipped,
         "unsupported_groups": unsupported_groups,
@@ -1048,6 +1175,11 @@ def main(argv: list[str] | None = None) -> int:
         help="capture full scroll height instead of the viewport",
     )
     parser.add_argument("--session", help="agent-browser session name (default: generated)")
+    parser.add_argument(
+        "--tolerance", type=_ratio, default=0.0,
+        help="largest fraction of differing pixels (0.0-1.0) still classed identical "
+        "(default: 0.0, exact)",
+    )
     args = parser.parse_args(argv)
     try:
         return capture(args)
