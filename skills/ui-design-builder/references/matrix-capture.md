@@ -40,7 +40,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 
 ## Carrying
 
-A case is carried when its fingerprint equals the earlier one, the earlier result was PASS, the page bytes are unchanged (an entry page ignores its manifest page hashes), the new observation is clean and the earlier capture still matches its hash. A changed page is re-observed even with an equal fingerprint. Console, geometry and fingerprint are always fresh; only the screenshot is skipped. `carriedFrom` names the source capture, the source output (path and SHA-256) and the earlier page SHA-256 for the defect ledger.
+A case is carried when its render fingerprint equals the earlier one, the earlier result was PASS, the new observation is clean and the earlier capture still matches its hash. Page bytes are not the test: a token edit that leaves a case's geometry and computed styles unchanged still carries (`output-contract.md#render-fingerprint-carry-forward`). Console, geometry and fingerprint are always fresh; only the screenshot is skipped. `carriedFrom` names the source capture, the source output (path and SHA-256) and the earlier page SHA-256 for the defect ledger.
 
 ## Axes
 

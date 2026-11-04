@@ -348,16 +348,15 @@ class CarryTests(unittest.TestCase):
         self.assertTrue(changed[0]["capture"])
         self.assertEqual(1, driver.count("shot"))
 
-    def test_edited_child_page_is_re_observed_but_the_entry_page_still_carries(self):
+    def test_an_edited_page_with_an_unchanged_fingerprint_still_carries(self):
         cli = Cli(self)
         first = self.first_run(cli)
-        build_package(cli.root, details_extra="<p>edit</p>")   # new child hash, so the entry's manifest changes too
-        _, _, out = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))
+        build_package(cli.root, details_extra="<p>edit</p>")   # new page bytes, same render fingerprint
+        driver = FakeDriver()
+        _, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
         _, sidecar = cli.load(out)
-        by_surface = {}
-        for record in sidecar["cases"]:
-            by_surface.setdefault(record["surface"], []).append(record["carriedFrom"] is not None)
-        self.assertEqual({"UI-001": [True] * 6, "UI-002": [False] * 6}, by_surface)
+        self.assertEqual((12, 0), (summary["carried"], driver.count("shot")))
+        self.assertTrue(all(record["carriedFrom"] is not None for record in sidecar["cases"]))
 
     def test_a_failed_previous_row_or_a_tampered_capture_is_not_carried(self):
         cli = Cli(self)

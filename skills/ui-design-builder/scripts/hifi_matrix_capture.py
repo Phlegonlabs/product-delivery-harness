@@ -772,7 +772,7 @@ class Runner:
         previous = self.carry.get(case.key)
         if not previous or previous.get("axis") or previous["result"] != "PASS" or record["reasons"]:
             return None
-        if previous["renderFingerprint"] != record["renderFingerprint"] or previous["pageKey"] != record["pageKey"]:
+        if previous["renderFingerprint"] != record["renderFingerprint"]:
             return None
         capture = previous.get("capture") or (previous.get("carriedFrom") or {}).get("capture")
         try:
