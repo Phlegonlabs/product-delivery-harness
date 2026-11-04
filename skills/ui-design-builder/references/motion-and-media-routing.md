@@ -58,7 +58,7 @@ For motion craft (timing, easing, choreography), consult `motion-doctrine` or Im
 
 ## Motion Evidence Per Intent
 
-Observe each required motion intent at one representative responsive target: the smallest approved target of its surface, unless the intent names another. Evidence is:
+Observe each required motion intent at one representative responsive target: the smallest approved target of its surface (the lowest viewport width, or the first listed size class). Evidence is:
 
 - a trigger frame, taken when the declared trigger fires;
 - an end-state frame, taken at the approved resting state; and

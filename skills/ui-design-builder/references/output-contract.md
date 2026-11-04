@@ -55,7 +55,7 @@ Record only observed results in `ui-output/3` and assemble `ui-evidence/3` as de
 
 ### Render fingerprint carry-forward
 
-A case's `render fingerprint` is the lowercase SHA-256 over two browser measurements of that surface × state × target: the DOM geometry probe output (product-surface element rects, scroll versus client size, horizontal overflow) and a computed-style digest of the product surface.
+A case's `render fingerprint` is the lowercase SHA-256 over two browser measurements of that surface × state × target: the DOM geometry probe output (product-surface element rects, scroll versus client size, horizontal overflow), a computed-style digest of the product surface, and the identity of every rendered media input (image sources and srcsets, video posters, SVG fill and stroke, CSS background, mask and border images). A probe that could not cover every element records the fingerprint as incomplete, and an incomplete fingerprint never carries.
 
 After a repair, observe again every case whose fingerprint differs from the one recorded under the last PASS receipt. A case with an equal fingerprint may carry forward into the new receipt with its original capture and verdict, whatever its page bytes. The receipt records each carried row's source receipt, source page SHA-256 and fingerprint; the defect ledger names each carried row's source receipt and page SHA-256.
 

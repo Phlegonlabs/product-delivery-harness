@@ -58,7 +58,8 @@ Five Sonnet 5.5 writers (claude-t3-direct, effort xhigh) in separate worktrees w
 - W3 `t3/hifi-matrix-capture` 74278da3: matrix driver, tests, `references/matrix-capture.md`.
 - W5 `t3/streamline-ui-review-lifecycle` 5a55568e: review method, packet sizing, capability receipts, acceptance closes the round, entry pin, tool-driven self-review, review record size.
 - W4 `t3/parity-capture-diff-first` fdcb80f6: one load per side per route, board image paths, identical/changed/carried classification, `--carry-from`, durations. Round trips per pair 9.0 to 6.3, 3.7 when carried.
-- W6 READMEs: pending.
+- W6 `t3/readme-faster-ui-review` f74b6285: four READMEs.
+- Review: five diff-scoped protected reviews (gpt-6.1-sol, read-only); two timed out at 540 s and were re-dispatched as four smaller scopes. Findings repaired by the parent (parity carry identity, board URLs, one smallest-target rule, superset motion receipts, parity region rule, acceptance waiver wording, motion exception, cap duplicates) and by W7 (driver fingerprint media identity, path safety, width check, navigation transcript, overwrite guard, axis failures, per-channel pixel diff, derived-aware sampling, `--ui-design`).
 
 Parent commits: SKILL.md cap sentence, CLI inventory, cross-reference reconciliation, fingerprint-only carry in the driver, one motion target in the checker.
 
