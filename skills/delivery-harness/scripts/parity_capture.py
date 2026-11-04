@@ -759,6 +759,15 @@ def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
         loaded, unreachable = _reference_step(run, job, route, loaded)
 
 
+def _board_src(path: str, board_dir: Path) -> str:
+    """Image URL relative to the board, so it opens from any directory."""
+
+    try:
+        return Path(os.path.relpath(path, board_dir)).as_posix()
+    except ValueError:  # another drive on Windows
+        return Path(path).resolve().as_uri()
+
+
 def _board(
     out_dir: Path,
     captured: list[dict[str, Any]],
@@ -790,9 +799,9 @@ def _board(
         rows.append(
             "<section class='pair'>"
             f"<h3>{html.escape(label)}</h3>"
-            f"<div class='imgs'><figure><img src='{item['target']}'>"
+            f"<div class='imgs'><figure><img src=\"{html.escape(_board_src(item['target'], out_dir))}\">"
             "<figcaption>target (design reference)</figcaption></figure>"
-            f"<figure><img src='{item['actual']}'>"
+            f"<figure><img src=\"{html.escape(_board_src(item['actual'], out_dir))}\">"
             "<figcaption>actual (implementation)</figcaption></figure></div>"
             f"<div class='findings'>{findings_html}</div>"
             "<div class='verdict'>verdict: pass / deviation — "

@@ -359,6 +359,35 @@ class ParityCaptureTests(unittest.TestCase):
         )
 
     @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
+    def test_board_images_resolve_from_the_board_directory(self) -> None:
+        self.assertEqual(
+            "x.png", parity_capture._board_src("docs/goal/evidence/parity/x.png", Path("docs/goal/evidence/parity"))
+        )
+        self.assertEqual(
+            "../old/x.png", parity_capture._board_src("docs/goal/evidence/old/x.png", Path("docs/goal/evidence/parity"))
+        )
+        self.set_surfaces(["ready"], ["390"])
+        route_map = self.write_route_map({"/home": {"reference": {"selector": "#nav"}}})
+        old_cwd = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, old_cwd)
+        relative_out = Path("docs/goal/evidence/parity")
+        stdout = io.StringIO()
+        with contextlib.redirect_stdout(stdout):
+            code = parity_capture.main([
+                "--plan", str(self.plan), "--reference", str(self.reference),
+                "--base-url", "http://localhost:3000", "--route-map", str(route_map),
+                "--out", str(relative_out),
+            ])
+        self.assertEqual(0, code, stdout.getvalue())
+        manifest = json.loads((relative_out / "manifest.json").read_text(encoding="utf-8"))
+        row = manifest["captured"][0]
+        self.assertTrue(row["target"].startswith("docs/goal/evidence/parity/"))
+        board = (relative_out / "parity-board.html").read_text(encoding="utf-8")
+        self.assertIn(f'src="{Path(row["target"]).name}"', board)
+        self.assertNotIn("docs/goal/evidence/parity/", board)
+
+    @unittest.skipIf(sys.platform == "darwin", DARWIN_FD_EXEC)
     def test_colliding_route_and_state_tokens_keep_distinct_evidence(self) -> None:
         routes = ["/foo/bar", "/foo-bar", "/FOO-BAR", "/" + "long-route-" * 21]
         states = ["ready", "error/value", "error-value"]
