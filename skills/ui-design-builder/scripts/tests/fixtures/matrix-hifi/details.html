@@ -1,0 +1,25 @@
+<!doctype html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'self'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Berth details</title>
+<style>
+:root{--ink:#16324f;--paper:#f4f7fa;--accent:#2f6f8f;--alarm:#b3261e}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+[data-hifi-canvas]{container-type:inline-size;background:var(--paper)}
+[data-hifi-canvas][data-hifi-target="390"]{width:390px}
+[data-hifi-canvas][data-hifi-target="1200"]{width:1200px}
+.desk{display:grid;gap:16px;padding:24px}
+.card{background:#fff;border:1px solid #c9d2df;border-radius:8px;padding:16px;transition:background-color 150ms ease}
+.alert{border-color:var(--alarm);color:var(--alarm)}
+@container (min-width:700px){.desk{grid-template-columns:2fr 1fr}.desk>h1{grid-column:1/-1}}
+@media (prefers-color-scheme:dark){body{background:#101820;color:#e8eef3}.card{background:#16222e;border-color:#31465c}[data-hifi-canvas]{background:#101820}}
+</style></head>
+<body>
+<div data-hifi-canvas data-hifi-targets="390 1200" data-hifi-target="390">
+<main data-ui-surface="UI-002" data-ui-route="/details" class="desk">
+<h1 tabindex="-1">Berth 4</h1>
+<section class="card" data-hifi-state-view="ready"><p>Depth 4.2 m at low tide. Power and water on the pier.</p><a href="index.html" data-navigation-id="to-desk">Back to the desk</a></section>
+<section class="card" data-hifi-state-view="ready"><p>Next arrival 18:40.</p></section>
+<section class="card" data-hifi-state-view="loading" hidden><p>Loading berth 4.</p></section>
+<section class="card alert" data-hifi-state-view="error" hidden><p>Berth 4 could not be loaded. Try again.</p></section>
+</main>
+</div>
+</body></html>

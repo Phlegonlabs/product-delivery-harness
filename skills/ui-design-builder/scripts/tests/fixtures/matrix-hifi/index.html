@@ -1,0 +1,32 @@
+<!doctype html><html lang="en"><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'self'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Harbor desk</title>
+<style>
+:root{--ink:#16324f;--paper:#f4f7fa;--accent:#2f6f8f}
+*{box-sizing:border-box}
+body{margin:0;font:16px/1.5 system-ui,sans-serif;color:var(--ink);background:var(--paper)}
+[data-hifi-canvas]{container-type:inline-size;background:var(--paper)}
+[data-hifi-canvas][data-hifi-target="390"]{width:390px}
+[data-hifi-canvas][data-hifi-target="1200"]{width:1200px}
+.desk{display:grid;gap:16px;padding:24px}
+.card{background:#fff;border:1px solid #c9d2df;border-radius:8px;padding:16px;transition:background-color 150ms ease}
+.card:hover{background:#eef3f5}
+.fade{animation:fade 200ms ease both}
+.spinner{width:20px;height:20px;border:3px solid var(--accent);border-top-color:transparent;border-radius:50%;animation:spin .9s linear infinite}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@container (min-width:700px){.desk{grid-template-columns:1fr 1fr}.desk>h1{grid-column:1/-1}}
+@media (prefers-color-scheme:dark){body{background:#101820;color:#e8eef3}.card{background:#16222e;border-color:#31465c}[data-hifi-canvas]{background:#101820}}
+</style></head>
+<body data-hifi-default-surface="UI-001">
+<div data-hifi-canvas data-hifi-targets="390 1200" data-hifi-target="390">
+<main data-ui-surface="UI-001" data-ui-route="/" class="desk">
+<h1 tabindex="-1">Harbor desk</h1>
+<section class="card fade" data-hifi-state-view="ready"><p>Berth 4 is ready for the evening tide.</p><a href="details.html" data-navigation-id="to-details">Berth details</a></section>
+<section class="card" data-hifi-state-view="ready"><p>Two vessels arrive before nine.</p></section>
+<section class="card" data-hifi-state-view="loading" hidden><div class="spinner" role="status" aria-label="Loading"></div><p>Loading the berth list.</p></section>
+<section class="card" data-hifi-state-view="empty" hidden><p>No berths are booked today.</p></section>
+</main>
+</div>
+<section data-hifi-panel="overview" hidden><h1 tabindex="-1">Overview</h1></section>
+<section data-hifi-panel="design-tokens" hidden><h1 tabindex="-1">Design Tokens</h1></section>
+<script id="ui-hifi-manifest" type="application/json">__MANIFEST__</script>
+</body></html>

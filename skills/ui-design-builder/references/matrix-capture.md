@@ -1,0 +1,57 @@
+# HiFi Matrix Capture
+
+`scripts/hifi_matrix_capture.py` observes the surface × state × target matrix of an assembled `ui-hifi/2` package in one browser session. It replaces the per-project browser harness for the case matrix of the HiFi surface check.
+
+    python "<ui-design-builder-skill-root>/scripts/hifi_matrix_capture.py" --repo-root . --package docs/design/ui-references/<run-id> --out docs/evidence/<run-id>/surface-1
+
+Run it from the repository root. Relative `--package`, `--out`, `--carry-from` and `--diff-against` paths are repo-root relative. `--package` and `--out` stay inside the repository, and `--out` must be new unless `--overwrite` is given. The browser is Node Playwright with Chromium (`npm ci`, `npx playwright install chromium`, or `PLAYWRIGHT_MODULE`).
+
+## What a run does
+
+The package bytes are served from one closed same-origin context. Every other request, popup, form submit and download is blocked and recorded. CDP `Log` and `Runtime` are on before the first load and are never cleared.
+
+Each page loads once. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. After three restarts the rest are BLOCKED.
+
+`n/a` states are skipped. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
+
+## Outputs
+
+- `ui-output.json`: `ui-output/3`, check `hifi-browser`, tool `playwright`, method `sandboxed-offline-browser`. Matrix, results, transcript and an execution block with real timestamps, versions and path plus SHA-256 for the subject, every page, the sidecar and every capture. `review_evidence.py` builds the receipt from it.
+- `matrix-capture.json`: `hifi-matrix-capture/1`. Per case: `renderFingerprint`, `geometry`, `durationMs`, `startedAt`, `finishedAt`, `settle`, `capture`, `carriedFrom`, reasons. Result rows in `ui-output/3` are closed, so these live here.
+- `<surface>-<state>-<target>-<hash>.png`: the canvas. `<hash>` is the first 10 hex characters of SHA-256 over the case tuple.
+
+The render fingerprint is the SHA-256 over the geometry probe, a digest of every scanned element rect and a digest of computed styles and visible text.
+
+Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 unusable input; 3 the written output failed validation.
+
+## Flags
+
+| Flag | Effect |
+| --- | --- |
+| `--only UI-003,UI-004` | Only these surfaces. |
+| `--carry-from <ui-output.json>` | Carry unchanged cases from an earlier output of this tool. |
+| `--recapture-carried` | Screenshot carried cases too. |
+| `--axes dark,reduced-motion,forced-colors,zoom-200` | Run a sample under each axis. |
+| `--derived-once --derived <json>` | Observe the derived states once, at the smallest target. `<json>` maps surface ID to states: `{"UI-001": ["toast"]}`. The manifest declares none yet. |
+| `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio. |
+| `--overwrite` | Write into a non-empty `--out`. |
+
+`--only` and `--derived-once` write a smaller matrix than the Approved target scope, so the output is diagnostic, not the final surface check.
+
+## Carrying
+
+A case is carried when its fingerprint equals the earlier one, the earlier result was PASS, the page bytes are unchanged (an entry page ignores its manifest page hashes), the new observation is clean and the earlier capture still matches its hash. A changed page is re-observed even with an equal fingerprint. Console, geometry and fingerprint are always fresh; only the screenshot is skipped. `carriedFrom` names the source capture, the source output (path and SHA-256) and the earlier page SHA-256 for the defect ledger.
+
+## Axes
+
+The sample, once per page, is `ready` (or the first state) and the state with the most product DOM nodes, at the smallest and largest target. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page.
+
+Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1.
+
+## What it does not prove
+
+- Product interaction. No product control is clicked or keyboard-activated, so the output has no `interactions` rows and no `reviewer` object, both of which the checker's `ui-output/3` for a HiFi surface check requires.
+- Appearance. A fingerprint or pixel diff shows change, not correctness. A screenshot is evidence for a reviewer and grades nothing.
+- Motion quality. Use the `motion-preview` check.
+- Native, real-login or service behavior.
+- Overlap and overflow are geometry heuristics: a pass can hide a defect, and an intentional overlay reads as an overlap.
