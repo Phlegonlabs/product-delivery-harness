@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.3-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.75.4-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.75.4** — Security content review. `security-review.md` no longer allows an inline security review on the direct route, takes trust boundaries from the PRD Security Requirements rows and their `TEST-*` traces, confirms each planned boundary's denial test at the reviewed head, copies `scope` from the packet verbatim, and says how an environment-blocked attempt is recorded. The option library's index routes exact-scope review to the delivery-harness security lens instead of the retired `code-security-review`, and `security.md` puts its controls before the sources list.
+
 - **0.75.3** — Template fixes found during the 0.75.2 consumer adoption. `PROJECT_AGENTS.template.md` now points managed-run rules at `project-operating-rules.md` instead of a section the template never had; the `DEPLOYMENT.template.md` presence example no longer trips `check_deployment.py` as an unfilled placeholder; the GA4 guide says an `MS-*` row stays `available` until Realtime or DebugView shows the event.
 
 - **0.75.2** — Thinner reading. `docs_reading_budget.py` measures the words an agent must read before acting at each entry point (mandatory vs conditional links, `--budget N` for CI). Seven references were compressed without removing a rule: the PRD output contract, verification gates, the execution state model, design input updates, the UI output contract, the architecture playbook and the interview guide (about 8,600 words cut); `design-input-updates.md` is now read only for UI work, which takes 3.7k words off every direct and managed run. The counted total is below v0.74.1 despite this week's additions.
@@ -213,7 +215,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.75.1** — Thinner by default. Pin-only guides (`legacy-pins.md`, the retired `ui-design/2` wireframe guide) move under `references/legacy/`, are read only when a package pins an earlier version, and no longer count toward the docs weight (6,481 words excluded; they still install). `docs_duplicates.py` finds sentences repeated across skill files and can hold a line in CI with `--fail-over`.
 
 - **0.75.0** — The `program` delivery profile for ERP-scale products. A program PRD holds the module map with dependency order, shared data owned by a kernel, glossary, roles and segregation of duties, capacity assumptions, integrations register and cross-module business processes (`TEST-E2E-*` on a fixed `PF-BASE` fixture, including period close); each module has its own PRD and architecture under `docs/product/modules/<id>/` with scoped IDs (`PRD-INV-001`), a `BR-*` business-rules table with document states, a permission matrix and a report catalog; the program architecture adds Migration and Cutover with `TEST-MIG-*`. `check_product_package.py` validates the program once and each module (`--module <id>`), warns when a module's `Program revision` is stale, and leaves `standard`/`mvp` unchanged. Modules deliver one Epic and one PLAN/RUN at a time in map order; the interview asks the program questions; a jurisdiction compliance entry joins the option library.
-
-- **0.74.5** — Suite additions from the review. Native verification builds on demand and cleans after: it records free disk space, keeps a ledger of the DerivedData, build output, simulators and AVDs it created, and removes them once evidence is captured. New references: the AI feature contract (versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance, tool permissions) with an AI provider external-setup profile; performance and cost budgets as NFR rows with capacity assumptions and load testing candidates; and a modular monolith architecture pattern with a module layout for many-module products.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).

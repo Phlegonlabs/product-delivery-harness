@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.74.4. Current releases are in [README.md](README.md#version-history).
+English release history through 0.74.5. Current releases are in [README.md](README.md#version-history).
+
+- **0.74.5** — Suite additions from the review. Native verification builds on demand and cleans after: it records free disk space, keeps a ledger of the DerivedData, build output, simulators and AVDs it created, and removes them once evidence is captured. New references: the AI feature contract (versioned prompts and models, model matrix, cost budget, eval set lifecycle, human review, retrieval governance, tool permissions) with an AI provider external-setup profile; performance and cost budgets as NFR rows with capacity assumptions and load testing candidates; and a modular monolith architecture pattern with a module layout for many-module products.
 
 - **0.74.4** — Design-first flow. On the owner's request, an R0 exploration round of direction studies may run right after the Product Thesis, before Product Definition Approval. After direction selection the author maps the core journeys (`journeys.html`) and offers font pairings before any HiFi screen; HiFi is authored and grouped journey by journey; a first-run onboarding profile keeps the emotional peak before any paywall; and UI missions follow the approved journeys, with each mission brief carrying its journey's HiFi pages.
 
