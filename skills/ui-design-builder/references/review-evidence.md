@@ -33,6 +33,14 @@ Complete observed FAIL results, low scores and fully observed defects may enter 
 
 Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Every receipt still binds current candidate bytes. A case carries forward only when its render fingerprint equals the one under the last PASS receipt, as [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward) defines. Page bytes alone decide nothing. Do not rebind an earlier PASS to repaired bytes.
 
+## Diff-first re-review
+
+A repair re-review compares each recaptured case with its capture under the last receipt. An automated geometry diff plus pixel diff within the recorded tolerance auto-records the row as `identical`. It keeps its earlier verdict and cites both captures and the diff value. The reviewer judges only the rows the diff flagged.
+
+Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second tolerance table. A case with no earlier capture, a failed geometry scan or an unreadable capture is flagged, never `identical`.
+
+The first diagnostic wave is not diff-first. The reviewer inspects every case there, and a scan with zero findings is still not evidence.
+
 ## Frontend Design Usage
 
 Record the `### Frontend Design Usage` table under the direction/HiFi handoff as [output-contract.md](output-contract.md) shows. The source path is a retained repository snapshot of the actually observed `frontend-design` `SKILL.md` with `name: frontend-design`. Every stage's Skill SHA-256 equals this snapshot hash. The validator checks the snapshot bytes and current artifact bindings; it cannot prove that an agent truly used the skill. Use repair-1, repair-2 for actual design repairs with their resulting artifact and applied decisions. Current direction/hifi rows bind the exact current candidates, not a convenient other file; a legacy package may retain its historical `wireframe` row. Record only work actually performed. Human direction and final Visual Approval stay in their dedicated sections of ui-design.md.
