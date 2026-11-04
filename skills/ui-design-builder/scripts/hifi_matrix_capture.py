@@ -46,6 +46,7 @@ SETTLE_MARGIN_MS = 50
 CASE_TIMEOUT_S = 30
 MAX_RESTARTS = 3
 OVERFLOW_TOLERANCE_PX = 1
+WIDTH_TOLERANCE_PX = 1
 SANDBOX = {"network": "disabled", "topNavigation": "allowlisted-local-pages",
            "popups": "blocked", "forms": "blocked"}
 TRANSCRIPT_KINDS = ("console", "network", "navigation", "popups", "forms")
@@ -695,6 +696,7 @@ class Runner:
         self.records, self.axis_records = {}, []
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
+        self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
 
     # events: base-case events join the transcript; axis-case events only decide that case
     def absorb(self, events, page, keep=True):
@@ -802,6 +804,10 @@ class Runner:
         geometry = probe["geometry"]
         record.update(geometry=geometry, settle=result["settle"], renderFingerprint=render_fingerprint(probe),
                       fingerprintIncomplete=bool(probe.get("incomplete")))
+        if self.kinds[case.surface] == "viewports":
+            declared = self.package.widths[case.page][case.target]
+            if abs(geometry["canvasWidth"] - declared) > WIDTH_TOLERANCE_PX:
+                reasons.append(f"product canvas is {geometry['canvasWidth']}px wide at target {case.target}, declared {declared}px")
         if geometry["overflowX"] > OVERFLOW_TOLERANCE_PX:
             reasons.append(f"horizontal overflow {geometry['overflowX']}px")
         if geometry["stateViews"] < 1:

@@ -12,7 +12,7 @@ Every manifest page path must be a plain file inside the package folder: `..`, a
 
 Each page loads once. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. After three restarts the rest are BLOCKED.
 
-`n/a` states are skipped. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
+`n/a` states are skipped. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, a measured canvas width more than 1 px from a numeric viewport target (a size class records `geometry.canvasWidth` only), horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
 
 ## Outputs
 

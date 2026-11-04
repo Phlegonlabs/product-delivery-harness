@@ -34,17 +34,29 @@ HAS_PILLOW = importlib.util.find_spec("PIL") is not None
 PACKAGE_DIR = "docs/design/ui-references/matrix"
 
 
-def build_package(root, details_extra="", manifest_edit=None):
-    """Assemble the fixture (two surfaces, two targets, three states each) under root."""
+def size_classes(html):
+    """Rename the fixture's 390/1200 targets to the size classes compact/regular, with their width map."""
+    return (html.replace('data-hifi-targets="390 1200" data-hifi-target="390"',
+                         'data-hifi-targets="compact regular" data-hifi-target="compact" '
+                         "data-hifi-target-widths='{\"compact\":390,\"regular\":1200}'")
+            .replace('[data-hifi-target="390"]', '[data-hifi-target="compact"]')
+            .replace('[data-hifi-target="1200"]', '[data-hifi-target="regular"]'))
+
+
+def build_package(root, details_extra="", manifest_edit=None, page_edit=None):
+    """Assemble the fixture (two surfaces, two targets, three states each) under root.
+
+    page_edit rewrites both fixture pages before the manifest is embedded."""
+    page_edit = page_edit or (lambda html: html)
     manifest = json.loads((FIXTURE / "manifest.json").read_text(encoding="utf-8"))
     if manifest_edit:
         manifest_edit(manifest)
     source = root / "_src"
     source.mkdir(parents=True, exist_ok=True)
     (source / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
-    entry = (FIXTURE / "index.html").read_text(encoding="utf-8").replace("__MANIFEST__", json.dumps(manifest))
+    entry = page_edit((FIXTURE / "index.html").read_text(encoding="utf-8")).replace("__MANIFEST__", json.dumps(manifest))
     (source / "index.html").write_text(entry, encoding="utf-8")
-    details = (FIXTURE / "details.html").read_text(encoding="utf-8").replace("</main>", details_extra + "</main>", 1)
+    details = page_edit((FIXTURE / "details.html").read_text(encoding="utf-8")).replace("</main>", details_extra + "</main>", 1)
     (source / "details.html").write_text(details, encoding="utf-8")
     package = root / PACKAGE_DIR
     assemble(source / "manifest.json", [f"index.html={source / 'index.html'}", f"details.html={source / 'details.html'}"],
@@ -541,6 +553,35 @@ class FailureTests(unittest.TestCase):
         self.assertEqual({"PASS"}, {r["result"] for k, r in cases.items() if k[0] == "UI-001"})
         self.assertTrue(cases[("UI-002", "ready", "390")]["reasons"][0].startswith("page load:"))
 
+    def test_a_viewport_case_at_the_wrong_canvas_width_fails_with_the_measured_width(self):
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "ready", "1200")] = {"geometry": {"canvasWidth": 1100.0}}
+        driver.overrides[("UI-001", "ready", "390")] = {"geometry": {"canvasWidth": 391.0}}       # 1 px rounding is allowed
+        driver.overrides[("UI-001", "loading", "390")] = {"geometry": {"canvasWidth": 391.5}}
+        code, _, _, cases = self.results(driver)
+        self.assertEqual(1, code)
+        self.assertEqual("PASS", cases[("UI-001", "ready", "390")]["result"])
+        wide = cases[("UI-001", "ready", "1200")]
+        self.assertEqual("FAIL", wide["result"])
+        self.assertIn("1100.0px wide", wide["reasons"][0])
+        self.assertIn("declared 1200px", wide["reasons"][0])
+        self.assertEqual("FAIL", cases[("UI-001", "loading", "390")]["result"])
+
+    def test_the_canvas_width_of_a_size_class_is_recorded_not_judged(self):
+        cli = Cli(self)
+        shutil.rmtree(cli.root / "docs")
+        cli.package = build_package(cli.root, page_edit=size_classes, manifest_edit=lambda manifest: [
+            row["responsive"].update(kind="sizeClasses", targets=["compact", "regular"]) for row in manifest["surfaces"]])
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "ready", "compact")] = {"geometry": {"canvasWidth": 377.5}}
+        code, _, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        cases = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+        self.assertEqual(0, code)
+        self.assertEqual(12, len(cases))
+        self.assertEqual({"PASS"}, {r["result"] for r in cases.values()})
+        self.assertEqual(377.5, cases[("UI-001", "ready", "compact")]["geometry"]["canvasWidth"])
+
     def test_horizontal_overflow_and_a_missing_state_view_fail_the_case(self):
         driver = FakeDriver()
         driver.overrides[("UI-001", "empty", "390")] = {"geometry": {"overflowX": 40}}
@@ -764,6 +805,21 @@ class RealBrowserTests(unittest.TestCase):
             details = package / "details.html"
             details.write_text(details.read_text(encoding="utf-8").replace("Next arrival 18:40.", "Next arrival 19:15."), encoding="utf-8")
             self.assertEqual(2, run("--out", "docs/evidence/stale")[0])   # the edited page no longer matches its manifest hash
+
+    def test_a_page_that_renders_the_wrong_width_fails_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, page_edit=lambda html: html.replace(
+                '[data-hifi-target="1200"]{width:1200px}', '[data-hifi-target="1200"]{width:1000px}'))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/width", "--only", "UI-001")
+            sidecar = json.loads((root / "docs/evidence/width" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            cases = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+            self.assertEqual(1, code, text)
+            self.assertEqual({"PASS"}, {r["result"] for k, r in cases.items() if k[2] == "390"})
+            wide = [r for k, r in cases.items() if k[2] == "1200"]
+            self.assertEqual({"FAIL"}, {r["result"] for r in wide})
+            self.assertTrue(all(1000 == r["geometry"]["canvasWidth"] and "1000" in r["reasons"][0] for r in wide))
 
     def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
         module = self.playwright()
