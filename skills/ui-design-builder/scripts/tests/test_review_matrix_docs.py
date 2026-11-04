@@ -34,6 +34,25 @@ class ReviewMatrixDocsTests(unittest.TestCase):
                 self.assertNotIn("densest", text)
                 self.assertNotIn("smallest and largest", text)
 
+    def test_repair_loop_is_capped_and_names_the_carry_forward_and_diff_first_rules(self):
+        rubric = read(RUBRIC)
+        scope = section(rubric, "## Repair Re-review Scope")
+        for phrase in (
+            "at most two scoped re-reviews in total may follow",
+            "a block still blocks",
+            "[Render fingerprint carry-forward]",
+            "[Diff-first re-review]",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, scope)
+        reporting = section(rubric, "## Reporting And Reconciliation")
+        self.assertIn("then at most two scoped re-reviews in total", reporting)
+        self.assertIn("a block still blocks", reporting)
+        self.assertNotIn("record one scoped re-review of those pages", rubric)
+        for source in POINTERS:
+            with self.subTest(source=source):
+                self.assertIn("within the cap in", read(source))
+
 
 if __name__ == "__main__":
     unittest.main()

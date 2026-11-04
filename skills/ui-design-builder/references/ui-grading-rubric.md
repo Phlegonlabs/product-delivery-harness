@@ -122,7 +122,7 @@ Apply these internal rules during authoring and the existing Technical Hard Gate
 3. Inspect full-canvas screenshots and close views of dense controls and open layers. Stress the approved longest content, required languages, text scaling, narrow layouts and fallback fonts. Check consistent baselines, spacing and control dimensions across sibling screens. A clean default screenshot or a scan with zero findings is insufficient without these observations.
 4. Retain findings in the existing ui-output/3 assessment and consolidated defect ledger. Each names candidate identity, surface/state/actual target, exact element pair or clipping ancestor, expected rule, observed geometry or hit-test result, inspected capture path/hash, root cause, repair and acceptance cases. Keep extra measurements inside referenced captures rather than adding fields to the fixed receipt schema. Missing browser access or uninspected cases remain MISSING/BLOCKED, never PASS.
 
-Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause, inspect its direct consumers and rerun the affected cases within the existing repair budget; the re-review's browser receipt covers the final matrix. Do not reuse earlier screenshots to clear a repaired layout.
+Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause under Repair Re-review Scope below. Do not reuse earlier screenshots to clear a repaired layout.
 
 ### Product-Specific Visual Judgment
 
@@ -135,16 +135,16 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 - Preserve every Impeccable finding, rubric `block`, and grader disagreement. Failed overall or dimension thresholds, blocks and disputes prevent readiness. An Impeccable severity alone does not decide readiness: the lead maps each finding to its `H` dimension and records a `block` only under a block rule.
 - Before any edit, the parent reconciles the complete Impeccable critique/audit and grading wave into one consolidated defect ledger grouped by semantic root cause. Each family names all known variants, affected surfaces and states, the repair objective, and the acceptance-matrix cases that prove closure. Do not send separate reports to separate writers for the same HTML.
 - A below-threshold candidate gets one repair batch by `frontend-design` and one re-review on the new SHA-256. Apply Repair Re-review Scope below. Do not present a below-threshold candidate for Visual Approval.
-- The review budget is one diagnostic wave and one re-review of the consolidated repair. If the re-review finds another variant of a family claimed closed, another block, or a disputed dimension, the author repairs it in isolation: fix the affected pages and states, rerun their affected browser captures and Impeccable axes, and record one scoped re-review of those pages under Repair Re-review Scope below. Return a missing or contradictory obligation to the PRD flow. No third wave, whole-HiFi re-grade, or owner-granted extra round exists.
+- The review budget is one diagnostic wave and one re-review of the consolidated repair, then at most two scoped re-reviews in total. If the re-review finds another variant of a family claimed closed, another block, or a disputed dimension, the author repairs it in isolation under Repair Re-review Scope below: fix the affected pages and states, and rerun their affected browser captures and Impeccable axes. Any ledger row still open after the two goes to the owner's Visual Approval as a listed advisory or block; a block still blocks. Return a missing or contradictory obligation to the PRD flow. No third wave, whole-HiFi re-grade, or owner-granted extra round exists.
 - A grader initialization, browser-access, interruption, or report-completion failure is an execution failure inside the current diagnostic wave, not a new grading or repair round. Replace the failed slot at most once when its lens is still required; otherwise record the capability gap. Never dispatch another same-scope review on an unchanged SHA.
-- Record the initial diagnostic wave and, when needed, the one repair batch and one re-review with their input and output HTML SHA-256 values, scores, consolidated root-cause families, acceptance cases, and outcome. An owner-requested product or design change after a pass starts a named new revision cycle; it does not extend the completed grading lineage.
+- Record the initial diagnostic wave and, when needed, the repair batch, its re-review and each scoped re-review with their input and output HTML SHA-256 values, scores, consolidated root-cause families, acceptance cases, and outcome. An owner-requested product or design change after a pass starts a named new revision cycle; it does not extend the completed grading lineage.
 - The owning flow records one `UI grading:` line in the matching `ui-design.md` gate: grader count and lenses, rubric scope, frozen PRD and UI-design identities, current candidate HTML SHA-256, Impeccable evidence when HiFi applies, Technical Hard Gate and DOM geometry results, per-dimension grader scores, medians and statuses when applicable, overall score, advisories, disputed dimensions, overall and H1-H9 threshold results, consolidated defect ledger, repair/re-review outcome or blocked owner decision, and the location of the inline detail rows.
 
 ## Repair Re-review Scope
 
 The initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis.
 Its repair re-review follows the same lineage and attempt budget; it does not open another broad qualitative search.
-The repair packet contains the existing defect ledger, the source diff, direct consumers and observable closure cases.
+The repair packet contains the existing defect ledger, the source diff, direct consumers and observable closure cases. Read the diff first, as [Diff-first re-review](review-evidence.md#diff-first-re-review) states.
 Direct consumers are the pages and states that render a changed source, including shared styles, navigation and motion dependencies.
 Use one consolidated response for Impeccable and rubric findings. Do not commission separate aesthetic or scoring reviews after that response.
 
@@ -154,14 +154,15 @@ Classify the repair by its diff. A copy or metadata repair changes only product 
 2. Give every requested repair its inspected capture, concrete defect, applicable requirement or dimension threshold, and observable completion criteria.
 3. Recheck each ledger row on the current candidate. For a visual repair, also inspect every direct consumer. For a copy or metadata repair, the scripted browser receipt and geometry scan cover the direct consumers.
 4. Run Impeccable critique and audit again on the affected pages and states, under their required workflow and existing authorization.
-5. Run the Technical Hard Gate on the affected pages. The browser receipt still covers the complete required browser matrix on the current candidate; rows for unchanged pages carry forward under [output-contract.md](output-contract.md#reviewer-navigation-and-design-specifications).
+5. Run the Technical Hard Gate on the affected pages. The browser receipt still covers the complete required browser matrix on the current candidate; unchanged rows carry forward under [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward).
 6. Inspect changed dimensions and confirm unaffected dimensions against current evidence and the reviewed source diff.
 7. Return a complete current `H1`–`H9` assessment, including remaining advisories. Do not copy old scores into a new result without inspection.
 
-A new finding outside the ledger rows, changed sources and direct consumers goes into the ledger as a next-round advisory. It does not block Visual Approval unless it is a block: a PRD contradiction, a dead control, an inaccessible required flow, or required content that overlaps, clips or is unreachable. A block gets an isolated repair and one scoped re-review of the affected pages; it never reopens the diagnostic wave or a whole-HiFi re-grade.
+A new finding outside the ledger rows, changed sources and direct consumers goes into the ledger as a next-round advisory. It does not block Visual Approval unless it is a block: a PRD contradiction, a dead control, an inaccessible required flow, or required content that overlaps, clips or is unreachable. A block gets an isolated repair and one scoped re-review of the affected pages, within the cap below; it never reopens the diagnostic wave or a whole-HiFi re-grade.
+
+Cap: after the one diagnostic wave and its one re-review, at most two scoped re-reviews in total may follow. Any later open ledger row goes to the owner's Visual Approval as a listed advisory or block; a block still blocks.
 
 Retain every current-candidate receipt, capture and input identity required by `review-evidence.md`.
 Do not relabel old captures, refresh stale receipt hashes, or treat a partial inspection as complete coverage.
 Missing impact evidence requires broader inspection; unresolved coverage remains `blocked`.
 Preference-only suggestions remain advisories unless evidence proves an accepted requirement or dimension threshold fails.
-After required checks pass, present the candidate for Visual Approval without another same-scope review wave.
