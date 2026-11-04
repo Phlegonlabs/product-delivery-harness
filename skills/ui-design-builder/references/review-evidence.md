@@ -4,7 +4,7 @@ New HiFi completeness, browser and full HiFi gates consume ui-evidence/3. Legacy
 
 ## Observation Output
 
-An actual tool run writes ui-output/3 with check, subject, matrix and results, retaining the applicable offline sandbox, interaction, reviewer and motion transcript fields from output-contract.md. Add execution with exactly:
+An actual tool run writes ui-output/3 with check, subject, matrix and results, retaining the applicable offline sandbox, interaction, reviewer and motion transcript fields from output-contract.md. Add execution with exactly: `scripts/hifi_matrix_capture.py` writes the case matrix of this observation; see [Matrix Capture](matrix-capture.md).
 
 - startedAt and finishedAt: actual timezone-aware start/finish timestamps, never derived from a hash or invented duration;
 - tool and method: the tool/method that actually performed the observation;

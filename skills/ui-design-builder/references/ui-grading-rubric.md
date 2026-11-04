@@ -12,7 +12,7 @@ A missing or contradictory product obligation returns to `product-definition-bui
 
 - Run one complete diagnostic wave before any repair. Agent policy selects fresh grading executors and a lead responsible for the [First-Wave Audit Axes](#first-wave-audit-axes) cases and one consolidated finding set. Browser checks, Impeccable critique/audit and H1-H9 use the same frozen candidate within that wave.
 - Unless agent policy sets another topology, the wave has two fresh reviewers: a lead grader who also produces the browser receipt, and one Impeccable operator who runs critique and audit. Neither reviews its own work.
-- Reuse covered browser observations for identical bytes and cases. Add a specialist grader only on an owner request or a recorded high risk, with a non-overlapping lens over the same frozen inputs.
+- Reuse covered browser observations for cases with an equal render fingerprint. Add a specialist grader only on an owner request or a recorded high risk, with a non-overlapping lens over the same frozen inputs.
 - Graders return evidence only: they do not publish, mint trace IDs, contact the owner, or approve the artifact.
 - Missing grading capability or authorization blocks the grading gate; it never becomes a PASS. [Parent-Owned Delegation](../../delivery-harness/references/delegation-contract.md) and the [runtime adapter](../../delivery-harness/references/runtime-adapters.md) own capability, spawn grants and replacement.
 
@@ -152,7 +152,7 @@ Classify the repair by its diff. A copy or metadata repair changes only product 
 
 1. Record the class, changed sources, affected dimensions, surfaces, states, targets and direct consumers in the existing defect ledger.
 2. Give every requested repair its inspected capture, concrete defect, applicable requirement or dimension threshold, and observable completion criteria.
-3. Recheck each ledger row on the current candidate. For a visual repair, also inspect every direct consumer. For a copy or metadata repair, the scripted browser receipt and geometry scan cover the direct consumers.
+3. Recheck each ledger row on the current candidate. For a visual repair, also inspect every direct consumer the diff flags; an `identical` row needs no new inspection ([Diff-first re-review](review-evidence.md#diff-first-re-review)). For a copy or metadata repair, the scripted browser receipt and geometry scan cover the direct consumers.
 4. Run Impeccable critique and audit again on the affected pages and states, under their required workflow and existing authorization.
 5. Run the Technical Hard Gate on the affected pages. The browser receipt still covers the complete required browser matrix on the current candidate; unchanged rows carry forward under [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward).
 6. Inspect changed dimensions and confirm unaffected dimensions against current evidence and the reviewed source diff.

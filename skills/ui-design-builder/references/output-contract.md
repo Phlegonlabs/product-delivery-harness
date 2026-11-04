@@ -311,7 +311,7 @@ Decided on: [YYYY-MM-DD]
 
 Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=[{"id":"UI-001","route":"/path","states":["ready"]}]|routes=["/path"]|states=["ready"]|responsive={"kind":"viewports","targets":[390,768,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser]
 
-For a hybrid target, each surface object additionally records `releaseSurface`, `surfaceClass`, `captureMode`, and its own `responsive` object. Use `captureMode=mixed` only with complete per-surface fields; a global mode or responsive set never substitutes for a surface's platform contract.
+For a hybrid target, each surface object additionally records `releaseSurface`, `surfaceClass`, `captureMode`, and its own `responsive` object. Use `captureMode=mixed` only with complete per-surface fields; a global mode or responsive set never substitutes for a surface's platform contract. A surface whose PRD entry declares `derivedStates` records the identical object as `derivedStates` in its surface object; the checker rejects a mismatch. The matrix of the HiFi Review receipts (Impeccable critique and audit, UI grading, HiFi surface check) then holds each derived state once, at that surface's smallest responsive target.
 
 ## Design System Need Gate
 
