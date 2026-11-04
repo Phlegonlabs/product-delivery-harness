@@ -325,7 +325,7 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
             f"evidence=docs/evidence/{name} @ sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}",
         )
     for name, state in (("motion-normal.json", "normal"), ("motion-reduced.json", "reduced-motion")):
-        motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in (390, 768, 1200)]
+        motion_cases = [{"surface": "UI-001", "state": state, "target": "390"}]   # one representative target per intent
         output_path = evidence_dir / name.replace(".json", "-output.json")
         output = bundle_output(json.loads(manifest), component_types=("a", "input"), version=reviewer_version)
         output.update({
@@ -760,9 +760,9 @@ class UiDesignContractTests(unittest.TestCase):
             output_path = root / "docs/evidence/motion-normal-output.json"
             evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
             output = json.loads(output_path.read_text(encoding="utf-8"))
-            evidence["receipt"]["matrix"]["cases"].pop()
+            evidence["receipt"]["matrix"]["cases"][0]["target"] = "768"   # not the representative target
             output["matrix"] = evidence["receipt"]["matrix"]
-            output["results"] = output["results"][:-1]
+            output["results"][0]["target"] = "768"
             output_path.write_text(json.dumps(output), encoding="utf-8")
             evidence["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
             evidence_path.write_text(json.dumps(evidence), encoding="utf-8")

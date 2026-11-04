@@ -2661,9 +2661,11 @@ def _resolve_motion_effect_evidence(
             else (target_scope or {}).get("responsive", {})
         )
         targets = responsive.get("targets", []) if isinstance(responsive, dict) else []
+        # One representative target per intent: the surface's smallest (first listed)
+        # target, per motion-and-media-routing.md "Motion Evidence Per Intent".
         cases = [
             {"surface": surface_id, "state": "normal" if motion_case == "normal" else "reduced-motion", "target": str(target)}
-            for target in targets
+            for target in targets[:1]
         ]
         capture_mode = (
             surface.get("captureMode", (target_scope or {}).get("captureMode"))
