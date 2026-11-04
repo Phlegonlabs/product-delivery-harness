@@ -4,7 +4,7 @@
 Each page loads once. Targets and states change through the real reviewer shell
 controls, never by reloading. Output: one PNG per case, ``ui-output.json``
 (``ui-output/3``, matrix portion) and ``matrix-capture.json`` (per-case
-fingerprints and geometry).
+fingerprints, geometry, carried rows and axis runs).
 
 The browser is Node Playwright, the repo's pinned test dependency
 (``PLAYWRIGHT_MODULE`` or ``node_modules/playwright`` under ``--repo-root``).
@@ -14,7 +14,9 @@ from __future__ import annotations
 
 import argparse
 import collections
+import copy
 import hashlib
+import importlib.util
 import json
 import os
 import platform
@@ -26,18 +28,19 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths
-from review_evidence import HIFI_MANIFEST_RE, build_receipt
+from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
 OUTPUT_NAME = "ui-output.json"
 SIDECAR_NAME = "matrix-capture.json"
 CHECK = "hifi-browser"
+AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200")
 SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
 CASE_TIMEOUT_S = 30
@@ -281,12 +284,27 @@ async function shot(request) {
   return {};
 }
 
+async function axis(request) {
+  const name = request.name;
+  await page.emulateMedia({
+    colorScheme: name === 'dark' ? 'dark' : 'light',
+    reducedMotion: name === 'reduced-motion' ? 'reduce' : 'no-preference',
+    forcedColors: name === 'forced-colors' ? 'active' : 'none',
+  });
+  await page.evaluate(zoom => {
+    for (const surface of document.querySelectorAll('[data-ui-surface]')) {
+      if (zoom) surface.style.setProperty('zoom', '2'); else surface.style.removeProperty('zoom');
+    }
+  }, name === 'zoom-200');
+  return {};
+}
+
 async function close() {
   if (browser) await browser.close();
   return {};
 }
 
-const handlers = { start, open, case: runCase, shot, close };
+const handlers = { start, open, case: runCase, shot, axis, close };
 let chain = Promise.resolve();
 const lines = readline.createInterface({ input: process.stdin });
 lines.on('line', line => {
@@ -454,7 +472,19 @@ class Package:
     manifest: dict
     files: dict
     sha: dict
+    keys: dict
     widths: dict
+
+
+def page_key(name, html, manifest, data):
+    """Identity used for carry-forward. An entry page ignores its manifest page hashes."""
+    if name != "index.html":
+        return sha256_bytes(data)
+    blanked = copy.deepcopy(manifest)
+    for row in blanked.get("pages", []):
+        row["sha256"] = ""
+    match = HIFI_MANIFEST_RE.search(html)
+    return sha256_bytes((html[:match.start("data")] + canonical(blanked) + html[match.end("data"):]).encode("utf-8"))
 
 
 def read_package(package_dir):
@@ -469,7 +499,7 @@ def read_package(package_dir):
     if manifest.get("schema") != "ui-hifi/2" or not manifest.get("surfaces"):
         raise UsageError("the manifest must be ui-hifi/2 with surfaces")
     names = ["index.html"] + [row["path"] for row in manifest.get("pages", [])]
-    files, sha, widths = {}, {}, {}
+    files, sha, keys, widths = {}, {}, {}, {}
     declared = {row["path"]: row["sha256"] for row in manifest.get("pages", [])}
     for name in names:
         path = package_dir / name
@@ -480,11 +510,12 @@ def read_package(package_dir):
             raise UsageError(f"{name} differs from its manifest hash; assemble the package again")
         page_html = data.decode("utf-8")
         files[name], sha[name] = path, sha256_bytes(data)
+        keys[name] = page_key(name, page_html, manifest, data)
         widths[name] = canvas_widths(name, page_html, manifest)
     for row in manifest["surfaces"]:
         if row["page"] not in files:
             raise UsageError(f"surface {row['id']} names a page that is not in the package: {row['page']}")
-    return Package(manifest, files, sha, widths)
+    return Package(manifest, files, sha, keys, widths)
 
 
 def canvas_widths(name, html, manifest):
@@ -507,6 +538,10 @@ def smallest_target(targets, widths):
     return min(targets, key=lambda t: (widths[t], targets.index(t)))
 
 
+def largest_target(targets, widths):
+    return max(targets, key=lambda t: (widths[t], -targets.index(t)))
+
+
 def expand_matrix(package, only=None, derived=None):
     """Applicable surface x state x target cases in manifest order.
 
@@ -523,6 +558,21 @@ def expand_matrix(package, only=None, derived=None):
             if derived and str(state) in derived.get(row["id"], ()):
                 chosen = [smallest_target(targets, package.widths[row["page"]])]
             cases.extend(Case(row["id"], row["page"], str(state), target) for target in chosen)
+    return cases
+
+
+def sample_axis_cases(rows, page, widths, counts):
+    """`ready` (or the first state) plus the busiest state, at the smallest and largest target."""
+    cases = []
+    for row in rows:
+        states = [str(s) for s in row["states"] if not _is_na_state(s)]
+        if not states:
+            continue
+        busiest = max(states, key=lambda s: counts.get((row["id"], s), -1))
+        targets = [str(t) for t in row["responsive"]["targets"]]
+        picks = list(dict.fromkeys([smallest_target(targets, widths), largest_target(targets, widths)]))
+        for state in dict.fromkeys(["ready" if "ready" in states else states[0], busiest]):
+            cases.extend(Case(row["id"], page, state, target) for target in picks)
     return cases
 
 
@@ -570,19 +620,46 @@ def event_reasons(events):
     return reasons
 
 
+# --- Carry-forward ------------------------------------------------------------
+def load_carry(root, carry_path):
+    """Previous base-case records keyed by (surface, state, target), plus the source output identity."""
+    output_rel = carry_path.resolve().relative_to(root).as_posix()
+    data = safe_path(root, output_rel).read_bytes()
+    output = json.loads(data.decode("utf-8"))
+    if output.get("schema") != "ui-output/3":
+        raise UsageError("--carry-from must be a ui-output/3 file")
+    binding = next((b for b in output.get("execution", {}).get("artifacts", [])
+                    if b.get("path", "").rsplit("/", 1)[-1] == SIDECAR_NAME), None)
+    if binding is None:
+        raise UsageError(f"--carry-from output does not bind a {SIDECAR_NAME}")
+    sidecar_bytes = safe_path(root, binding["path"]).read_bytes()
+    if sha256_bytes(sidecar_bytes) != binding["sha256"]:
+        raise UsageError(f"{binding['path']} differs from the hash in the previous output")
+    sidecar = json.loads(sidecar_bytes.decode("utf-8"))
+    if sidecar.get("schema") != SIDECAR_SCHEMA:
+        raise UsageError(f"{binding['path']} is not a {SIDECAR_SCHEMA} file")
+    records = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+    return records, {"path": output_rel, "sha256": sha256_bytes(data)}
+
+
 # --- The run --------------------------------------------------------------------
 class Runner:
-    def __init__(self, driver, package, root, out_dir, *, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
+    def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None,
+                 recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
         self.driver, self.package, self.root, self.out_dir = driver, package, root, out_dir
+        self.axes, self.carry, self.carry_source = tuple(axes), carry or {}, carry_source
+        self.recapture, self.diff_against = recapture, diff_against
         self.settle_cap_ms, self.case_timeout_s = settle_cap_ms, case_timeout_s
         self.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
-        self.records = {}
+        self.records, self.axis_records = {}, []
         self.page_reasons, self.unopened = {}, set()
-        self.restarts, self.aborted = 0, False
+        self.restarts, self.aborted, self.active_axis = 0, False, None
 
-    def absorb(self, events, page):
-        for kind in TRANSCRIPT_KINDS:
-            self.transcript[kind].extend(dict(row, page=page) for row in events.get(kind, []))
+    # events: base-case events join the transcript; axis-case events only decide that case
+    def absorb(self, events, page, keep=True):
+        if keep:
+            for kind in TRANSCRIPT_KINDS:
+                self.transcript[kind].extend(dict(row, page=page) for row in events.get(kind, []))
         return event_reasons(events)
 
     def recover(self, page):
@@ -593,7 +670,9 @@ class Runner:
         try:
             self.driver.restart()
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
-            self.absorb(reply["events"], page)
+            self.absorb(reply["events"], page, keep=not self.active_axis)
+            if self.active_axis:
+                self.driver.call("axis", name=self.active_axis)
         except DriverError:
             self.aborted = True
 
@@ -613,12 +692,36 @@ class Runner:
                     self.recover(page)
         for case in cases:
             self.records[case.key] = self.observe(case)
+        if not self.axes or self.aborted or page in self.unopened:
+            return
+        rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
+                and any(c.surface == row["id"] for c in cases)]
+        counts = {}
+        for case in cases:
+            geometry = self.records[case.key].get("geometry")
+            if geometry:
+                counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
+        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts)
+        for axis in self.axes:
+            try:
+                self.driver.call("axis", name=axis)
+                self.active_axis = axis
+            except DriverError:
+                self.active_axis = None
+                continue
+            for case in sampled:
+                self.axis_records.append(self.observe(replace(case, axis=axis)))
+            self.active_axis = None
+            try:
+                self.driver.call("axis", name="none")
+            except DriverError:
+                break
 
     def observe(self, case):
         record = {"surface": case.surface, "state": case.state, "target": case.target, "axis": case.axis,
-                  "page": case.page, "pageSha256": self.package.sha[case.page],
+                  "page": case.page, "pageSha256": self.package.sha[case.page], "pageKey": self.package.keys[case.page],
                   "result": None, "reasons": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None,
-                  "renderFingerprint": None, "geometry": None, "settle": None, "capture": None}
+                  "renderFingerprint": None, "geometry": None, "settle": None, "capture": None, "carriedFrom": None}
         began = time.perf_counter()
         reasons = record["reasons"]
         if self.aborted:
@@ -634,21 +737,21 @@ class Runner:
         return record
 
     def run_case(self, case, record):
-        reasons = record["reasons"]
+        reasons, keep = record["reasons"], case.axis is None
         try:
             reply = self.driver.call("case", timeout=self.case_timeout_s + 10, surface=case.surface, state=case.state,
                                      target=case.target, settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
                                      timeoutMs=self.case_timeout_s * 1000)
         except DriverTimeout as error:
             reasons.append(f"case timed out after {self.case_timeout_s}s")
-            reasons.extend(self.absorb(error.events, case.page))
+            reasons.extend(self.absorb(error.events, case.page, keep))
             self.recover(case.page)
             return
         except DriverError as error:
             reasons.append(f"driver error: {error}")
-            reasons.extend(self.absorb(error.events, case.page))
+            reasons.extend(self.absorb(error.events, case.page, keep))
             return
-        reasons.extend(self.absorb(reply["events"], case.page))
+        reasons.extend(self.absorb(reply["events"], case.page, keep))
         result = reply["result"]
         reasons.extend(result["problems"])
         probe = result.get("probe")
@@ -660,9 +763,26 @@ class Runner:
             reasons.append(f"horizontal overflow {geometry['overflowX']}px")
         if geometry["stateViews"] < 1:
             reasons.append(f"no visible data-hifi-state-view=\"{case.state}\" variant")
-        self.capture(case, record)
+        if case.axis is None:
+            record["carriedFrom"] = self.carried(case, record)
+        if record["carriedFrom"] is None or self.recapture:
+            self.capture(case, record, keep)
 
-    def capture(self, case, record):
+    def carried(self, case, record):
+        previous = self.carry.get(case.key)
+        if not previous or previous.get("axis") or previous["result"] != "PASS" or record["reasons"]:
+            return None
+        if previous["renderFingerprint"] != record["renderFingerprint"] or previous["pageKey"] != record["pageKey"]:
+            return None
+        capture = previous.get("capture") or (previous.get("carriedFrom") or {}).get("capture")
+        try:
+            if not capture or sha256_bytes(safe_path(self.root, capture["path"]).read_bytes()) != capture["sha256"]:
+                return None
+        except (OSError, ValueError):
+            return None
+        return {"result": "PASS", "pageSha256": previous["pageSha256"], "capture": capture, "sourceOutput": self.carry_source}
+
+    def capture(self, case, record, keep):
         path = self.out_dir / capture_name(case)
         try:
             reply = self.driver.call("shot", path=str(path), timeoutMs=self.case_timeout_s * 1000)
@@ -673,8 +793,22 @@ class Runner:
         except DriverError as error:
             record["reasons"].append(f"screenshot failed: {error}")
             return
-        record["reasons"].extend(self.absorb(reply["events"], case.page))
+        record["reasons"].extend(self.absorb(reply["events"], case.page, keep))
         record["capture"] = {"path": path.relative_to(self.root).as_posix(), "sha256": sha256_bytes(path.read_bytes())}
+        if self.diff_against is not None and (self.diff_against / path.name).is_file():
+            record["pixelDiff"] = pixel_diff(self.diff_against / path.name, path)
+
+
+def pixel_diff(before, after):
+    """Compare two PNGs with Pillow. The geometry fingerprint stays the primary signal."""
+    from PIL import Image, ImageChops
+    with Image.open(before) as old, Image.open(after) as new:
+        if old.size != new.size:
+            return {"against": before.name, "status": "changed", "ratio": 1.0}
+        histogram = ImageChops.difference(old.convert("RGB"), new.convert("RGB")).convert("L").histogram()
+        total = new.size[0] * new.size[1]
+    changed = total - histogram[0]
+    return {"against": before.name, "status": "changed" if changed else "identical", "ratio": round(changed / total, 6)}
 
 
 # --- Output -----------------------------------------------------------------------
@@ -682,10 +816,13 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
     records = [runner.records.get(case.key) for case in cases]
     summary = {
         "cases": len(cases), "pass": sum(1 for r in records if r and r["result"] == "PASS"),
+        "carried": sum(1 for r in records if r and r["carriedFrom"]),
+        "axisCases": len(runner.axis_records),
+        "axisFail": sum(1 for r in runner.axis_records if r["result"] != "PASS"),
     }
     sidecar = {"schema": SIDECAR_SCHEMA, "subject": subject,
                "run": dict(options, startedAt=started, finishedAt=finished, **summary),
-               "cases": [r for r in records if r]}
+               "cases": [r for r in records if r], "axes": runner.axis_records}
     sidecar_bytes = (json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sidecar_path = out_dir / SIDECAR_NAME
     sidecar_path.write_bytes(sidecar_bytes)
@@ -693,11 +830,11 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
                               "sha256": package.sha[name]} for name in package.files if name != "index.html"]
     artifacts.append({"path": sidecar_path.relative_to(root).as_posix(), "sha256": sha256_bytes(sidecar_bytes)})
     seen = {a["path"].casefold() for a in artifacts}
-    for record in records:
-        capture = (record or {}).get("capture")
-        if capture and capture["path"].casefold() not in seen:
-            seen.add(capture["path"].casefold())
-            artifacts.append(dict(capture))
+    for record in list(records) + runner.axis_records:
+        for capture in (record or {}).get("capture"), ((record or {}).get("carriedFrom") or {}).get("capture"):
+            if capture and capture["path"].casefold() not in seen:
+                seen.add(capture["path"].casefold())
+                artifacts.append(dict(capture))
     matrix = [{"surface": c.surface, "state": c.state, "target": c.target} for c in cases]
     output = {
         "schema": "ui-output/3", "check": CHECK, "subject": subject, "matrix": {"cases": matrix},
@@ -733,9 +870,13 @@ def parse_args(argv=None):
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--package", type=Path, required=True, help="directory with index.html and its sibling pages")
     parser.add_argument("--out", type=Path, required=True, help="evidence directory inside the repository")
+    parser.add_argument("--carry-from", type=Path, help="previous ui-output.json written by this tool")
     parser.add_argument("--only", help="comma-separated surface IDs")
+    parser.add_argument("--axes", default="", help="comma-separated: " + ", ".join(AXES))
     parser.add_argument("--derived-once", action="store_true", help="observe derived states once, at the smallest target")
     parser.add_argument("--derived", type=Path, help='JSON map {"UI-001": ["state", ...]} of derived states')
+    parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
+    parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
     return parser.parse_args(argv)
 
@@ -760,6 +901,10 @@ def node_driver(package, root, scratch):
 def execute(args, make_driver=node_driver):
     root = args.repo_root.resolve()
     package_dir, out_dir = inside(root, args.package, "--package"), inside(root, args.out, "--out")
+    axes = [a for a in args.axes.split(",") if a]
+    unknown = [a for a in axes if a not in AXES]
+    if unknown:
+        raise UsageError(f"unknown axis {unknown[0]}; choose from {', '.join(AXES)}")
     if args.derived and not args.derived_once:
         raise UsageError("--derived needs --derived-once")
     if args.derived_once and not args.derived:
@@ -767,6 +912,9 @@ def execute(args, make_driver=node_driver):
     derived = json.loads(args.derived.read_text(encoding="utf-8")) if args.derived else None
     if out_dir.exists() and any(out_dir.iterdir()) and not args.overwrite:
         raise UsageError("--out is not empty; choose a new directory or pass --overwrite")
+    diff_against = inside(root, args.diff_against, "--diff-against") if args.diff_against else None
+    if diff_against is not None and importlib.util.find_spec("PIL") is None:
+        raise UsageError("--diff-against needs Pillow (pip install Pillow)")
     package = read_package(package_dir)
     only = set(args.only.split(",")) if args.only else None
     known = {row["id"] for row in package.manifest["surfaces"]}
@@ -775,6 +923,8 @@ def execute(args, make_driver=node_driver):
     cases = expand_matrix(package, only, derived)
     if not cases:
         raise UsageError("the selection has no applicable cases")
+    carry, carry_source = (load_carry(root, inside(root, args.carry_from, "--carry-from"))
+                           if args.carry_from else (None, None))
     out_dir.mkdir(parents=True, exist_ok=True)
     subject_dir = package_dir.relative_to(root).as_posix()
     subject = {"path": (subject_dir + "/" if subject_dir != "." else "") + "index.html", "sha256": package.sha["index.html"]}
@@ -786,7 +936,8 @@ def execute(args, make_driver=node_driver):
                 driver.start()
             except DriverError as error:
                 raise UsageError(f"browser could not start: {error}") from error
-            runner = Runner(driver, package, root, out_dir)
+            runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
+                            recapture=args.recapture_carried, diff_against=diff_against)
             runner.run(cases)
             environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
         finally:
@@ -795,11 +946,12 @@ def execute(args, make_driver=node_driver):
     for name, path in package.files.items():
         if sha256_bytes(path.read_bytes()) != package.sha[name]:
             raise UsageError(f"{name} changed while it was being captured")
-    options = {"only": sorted(only) if only else None, "derivedOnce": bool(args.derived_once), "derived": derived}
+    options = {"only": sorted(only) if only else None, "axes": axes, "derivedOnce": bool(args.derived_once),
+               "derived": derived, "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried)}
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)
-    failed = any(row["result"] != "PASS" for row in output["results"])
+    failed = any(row["result"] != "PASS" for row in output["results"]) or summary["axisFail"]
     print(json.dumps({"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
                       "output": output_path.relative_to(root).as_posix(), **summary,
                       "restarts": runner.restarts, "problems": problems[:5]}))

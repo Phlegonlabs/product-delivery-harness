@@ -152,7 +152,7 @@ class Cli:
 class MatrixExpansionTests(unittest.TestCase):
     def package(self, surfaces, widths=None):
         widths = widths or {"index.html": {"390": 390, "1200": 1200}}
-        return m.Package({"surfaces": surfaces}, {}, {}, widths)
+        return m.Package({"surfaces": surfaces}, {}, {}, {}, widths)
 
     def surface(self, ident="UI-001", states=("ready", "loading"), targets=(390, 1200), page="index.html"):
         return {"id": ident, "page": page, "route": "/", "states": list(states), "responsive": {"targets": list(targets)}}
@@ -174,6 +174,22 @@ class MatrixExpansionTests(unittest.TestCase):
         cases = m.expand_matrix(package, derived={"UI-001": ["toast"]})
         self.assertEqual([("ready", "regular"), ("ready", "compact"), ("toast", "compact")],
                          [(c.state, c.target) for c in cases])
+
+    def test_axis_sample_is_ready_plus_the_busiest_state_at_the_extreme_targets(self):
+        rows = [self.surface(states=("ready", "loading", "empty"), targets=(768, 390, 1200))]
+        widths = {"390": 390, "768": 768, "1200": 1200}
+        counts = {("UI-001", "ready"): 9, ("UI-001", "loading"): 4, ("UI-001", "empty"): 30}
+        sampled = m.sample_axis_cases(rows, "index.html", widths, counts)
+        self.assertEqual([("ready", "390"), ("ready", "1200"), ("empty", "390"), ("empty", "1200")],
+                         [(c.state, c.target) for c in sampled])
+
+    def test_axis_sample_does_not_repeat_ready_and_falls_back_to_the_first_state(self):
+        widths = {"390": 390, "1200": 1200}
+        busy_ready = m.sample_axis_cases([self.surface(states=("ready", "empty"))], "index.html", widths,
+                                         {("UI-001", "ready"): 50, ("UI-001", "empty"): 2})
+        self.assertEqual(2, len(busy_ready))
+        no_ready = m.sample_axis_cases([self.surface(states=("idle", "busy:n/a"))], "index.html", widths, {})
+        self.assertEqual({"idle"}, {c.state for c in no_ready})
 
 
 class NamingAndFingerprintTests(unittest.TestCase):
@@ -198,6 +214,18 @@ class NamingAndFingerprintTests(unittest.TestCase):
         self.assertEqual(fingerprint, m.render_fingerprint(dict(probe, geometry={"b": 2, "a": 1})))
         for change in ({"geometry": {"a": 2, "b": 2}}, {"rectsSha256": "x" * 64}, {"styleSha256": "x" * 64}):
             self.assertNotEqual(fingerprint, m.render_fingerprint(dict(probe, **change)))
+
+    def test_entry_page_identity_ignores_manifest_page_hashes_only(self):
+        manifest = {"schema": "ui-hifi/2", "surfaces": [{"id": "UI-001"}], "pages": [{"path": "a.html", "sha256": "1" * 64}]}
+        html = '<html><script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + "</script></html>"
+        moved = dict(manifest, pages=[{"path": "a.html", "sha256": "2" * 64}])
+        moved_html = html.replace("1" * 64, "2" * 64)
+        self.assertEqual(m.page_key("index.html", html, manifest, html.encode()),
+                         m.page_key("index.html", moved_html, moved, moved_html.encode()))
+        edited = html.replace("</html>", "<p>edit</p></html>")
+        self.assertNotEqual(m.page_key("index.html", html, manifest, html.encode()),
+                            m.page_key("index.html", edited, manifest, edited.encode()))
+        self.assertEqual(hashlib.sha256(b"child").hexdigest(), m.page_key("a.html", "child", manifest, b"child"))
 
 
 class RunOutputTests(unittest.TestCase):
@@ -229,6 +257,7 @@ class RunOutputTests(unittest.TestCase):
             self.assertRegex(record["renderFingerprint"], r"^[0-9a-f]{64}$")
             self.assertTrue(record["geometry"]["elementCount"] and isinstance(record["durationMs"], int))
             self.assertLessEqual(datetime.fromisoformat(record["startedAt"]), datetime.fromisoformat(record["finishedAt"]))
+            self.assertIsNone(record["carriedFrom"])
             self.assertEqual(hashlib.sha256((cli.root / record["capture"]["path"]).read_bytes()).hexdigest(),
                              record["capture"]["sha256"])
         receipt = build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")
@@ -260,6 +289,155 @@ class RunOutputTests(unittest.TestCase):
         self.assertEqual(["390"], empty)
         self.assertTrue(sidecar["run"]["derivedOnce"])
         self.assertEqual(11, len(output["matrix"]["cases"]))
+
+
+class CarryTests(unittest.TestCase):
+    def first_run(self, cli, driver=None):
+        driver = driver or FakeDriver()
+        code, _, out = cli.run(driver)
+        self.assertEqual(0, code)
+        return out
+
+    def test_unchanged_cases_are_carried_without_a_new_screenshot(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        driver = FakeDriver()
+        code, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        output, sidecar = cli.load(out)
+        _, previous = cli.load(first)
+        self.assertEqual((0, 12), (code, summary["carried"]))
+        self.assertEqual(0, driver.count("shot"))
+        self.assertEqual([], [p for p in (a["path"] for a in output["execution"]["artifacts"]) if p.startswith("docs/evidence/run2/") and p.endswith(".png")])
+        source = {"path": f"docs/evidence/run1/{m.OUTPUT_NAME}",
+                  "sha256": hashlib.sha256((first / m.OUTPUT_NAME).read_bytes()).hexdigest()}
+        for record, before in zip(sidecar["cases"], previous["cases"]):
+            self.assertIsNone(record["capture"])
+            self.assertEqual({"result": "PASS", "pageSha256": before["pageSha256"], "capture": before["capture"],
+                              "sourceOutput": source}, record["carriedFrom"])
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run2/{m.OUTPUT_NAME}")["result"])
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+
+    def test_carried_captures_stay_bound_in_the_execution_artifacts(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        _, _, out = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))
+        output, _ = cli.load(out)
+        carried = [a["path"] for a in output["execution"]["artifacts"] if a["path"].endswith(".png")]
+        self.assertEqual(12, len(carried))
+        self.assertTrue(all(p.startswith("docs/evidence/run1/") for p in carried))
+
+    def test_recapture_carried_takes_a_new_screenshot_and_keeps_the_carry_record(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        driver = FakeDriver()
+        _, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME), "--recapture-carried")
+        _, sidecar = cli.load(out)
+        self.assertEqual((12, 12), (summary["carried"], driver.count("shot")))
+        self.assertTrue(all(r["capture"] and r["carriedFrom"] for r in sidecar["cases"]))
+
+    def test_a_changed_fingerprint_is_not_carried(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        driver = FakeDriver()
+        driver.overrides[("UI-001", "loading", "390")] = {"style": "new colour"}
+        _, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        changed = [r for r in sidecar["cases"] if r["carriedFrom"] is None]
+        self.assertEqual((11, 1), (summary["carried"], len(changed)))
+        self.assertEqual(("UI-001", "loading", "390"), (changed[0]["surface"], changed[0]["state"], changed[0]["target"]))
+        self.assertTrue(changed[0]["capture"])
+        self.assertEqual(1, driver.count("shot"))
+
+    def test_edited_child_page_is_re_observed_but_the_entry_page_still_carries(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        build_package(cli.root, details_extra="<p>edit</p>")   # new child hash, so the entry's manifest changes too
+        _, _, out = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        by_surface = {}
+        for record in sidecar["cases"]:
+            by_surface.setdefault(record["surface"], []).append(record["carriedFrom"] is not None)
+        self.assertEqual({"UI-001": [True] * 6, "UI-002": [False] * 6}, by_surface)
+
+    def test_a_failed_previous_row_or_a_tampered_capture_is_not_carried(self):
+        cli = Cli(self)
+        driver = FakeDriver()
+        driver.overrides[("UI-002", "error", "1200")] = {"geometry": {"overflowX": 30}}
+        code, _, first = cli.run(driver)
+        self.assertEqual(1, code)
+        _, previous = cli.load(first)
+        tampered = next(r for r in previous["cases"] if (r["surface"], r["state"], r["target"]) == ("UI-001", "ready", "390"))
+        (cli.root / tampered["capture"]["path"]).write_bytes(b"changed after the fact")
+        _, _, out = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))
+        _, sidecar = cli.load(out)
+        not_carried = {(r["surface"], r["state"], r["target"]) for r in sidecar["cases"] if r["carriedFrom"] is None}
+        self.assertEqual({("UI-002", "error", "1200"), ("UI-001", "ready", "390")}, not_carried)
+
+    def test_a_carry_source_that_is_not_this_tools_output_is_refused(self):
+        cli = Cli(self)
+        bogus = cli.root / "other.json"
+        bogus.write_text(json.dumps({"schema": "ui-output/3", "execution": {"artifacts": []}}), encoding="utf-8")
+        code, summary, _ = cli.run(FakeDriver(), "--carry-from", str(bogus))
+        self.assertEqual(2, code)
+        self.assertIn(m.SIDECAR_NAME, summary["error"])
+
+    @unittest.skipUnless(HAS_PILLOW, "Pillow is not installed")
+    def test_diff_against_records_identical_and_changed_pixels(self):
+        cli = Cli(self)
+        first = self.first_run(cli)
+        driver = FakeDriver()
+        name = m.capture_name(m.Case("UI-001", "index.html", "ready", "390"))
+        driver.paint[name] = "different"
+        _, _, out = cli.run(driver, "--diff-against", str(first))
+        _, sidecar = cli.load(out)
+        diffs = {(r["surface"], r["state"], r["target"]): r["pixelDiff"] for r in sidecar["cases"]}
+        self.assertEqual("changed", diffs[("UI-001", "ready", "390")]["status"])
+        self.assertGreater(diffs[("UI-001", "ready", "390")]["ratio"], 0)
+        self.assertEqual(("identical", 0.0), tuple(diffs[("UI-001", "ready", "1200")][k] for k in ("status", "ratio")))
+
+
+class AxisTests(unittest.TestCase):
+    def test_axes_run_on_the_sampled_cases_and_stay_out_of_the_matrix(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver, "--axes", "dark,zoom-200")
+        output, sidecar = cli.load(out)
+        self.assertEqual(0, code)
+        self.assertEqual(12, len(output["matrix"]["cases"]))
+        # per surface: ready + the busiest state (loading, most nodes), smallest and largest target, two axes
+        self.assertEqual(2 * 2 * 4, len(sidecar["axes"]))
+        self.assertEqual(16, summary["axisCases"])
+        self.assertEqual({"dark", "zoom-200"}, {r["axis"] for r in sidecar["axes"]})
+        names = [r["capture"]["path"].rsplit("/", 1)[1] for r in sidecar["axes"]]
+        self.assertTrue(all("-dark-" in n or "-zoom-200-" in n for n in names))
+        base = {(r["surface"], r["state"], r["target"]): r["renderFingerprint"] for r in sidecar["cases"]}
+        dark = next(r for r in sidecar["axes"] if r["axis"] == "dark")
+        self.assertNotEqual(base[(dark["surface"], dark["state"], dark["target"])], dark["renderFingerprint"])
+        applied = [f["name"] for op, f in driver.calls if op == "axis"]
+        self.assertEqual(["dark", "none", "zoom-200", "none"] * 2, applied)
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_axis_artifacts_are_bound_in_the_execution_block(self):
+        cli = Cli(self)
+        _, _, out = cli.run(FakeDriver(), "--axes", "dark")
+        output, sidecar = cli.load(out)
+        paths = {a["path"] for a in output["execution"]["artifacts"]}
+        self.assertTrue({r["capture"]["path"] for r in sidecar["axes"]} <= paths)
+
+    def test_an_axis_failure_fails_the_run_but_not_the_base_transcript(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.axis_events["forced-colors"] = {"console": [{"source": "javascript", "level": "exception", "message": "Uncaught x"}]}
+        code, summary, out = cli.run(driver, "--axes", "forced-colors")
+        output, sidecar = cli.load(out)
+        self.assertEqual((1, 8), (code, summary["axisFail"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual([], output["console"])
+        self.assertTrue(all("console exception" in r["reasons"][0] for r in sidecar["axes"]))
+
+    def test_the_four_axes_are_supported_and_others_refused(self):
+        self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200"), m.AXES)
+        code, summary, _ = Cli(self).run(FakeDriver(), "--axes", "sepia")
+        self.assertEqual(2, code)
+        self.assertIn("sepia", summary["error"])
 
 
 class FailureTests(unittest.TestCase):
@@ -417,7 +595,7 @@ class UsageTests(unittest.TestCase):
 
 
 class RealBrowserTests(unittest.TestCase):
-    """Real Chromium over the fixture package: two surfaces, two targets, three states."""
+    """Real Chromium over the fixture package: two surfaces, two targets, three states, a dark axis."""
 
     def playwright(self):
         node = shutil.which("node")
@@ -445,7 +623,7 @@ class RealBrowserTests(unittest.TestCase):
                     code = m.main(base + list(extra))
                 return code, buffer.getvalue()
 
-            code, text = run("--out", "docs/evidence/first")
+            code, text = run("--out", "docs/evidence/first", "--axes", "dark,reduced-motion")
             self.assertEqual(0, code, text)
             first = root / "docs/evidence/first"
             output = json.loads((first / m.OUTPUT_NAME).read_text(encoding="utf-8"))
@@ -464,6 +642,20 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual(len({r["renderFingerprint"] for r in cases.values()}), 12)
             for record in cases.values():
                 self.assertEqual(b"\x89PNG", (root / record["capture"]["path"]).read_bytes()[:4])
+            dark = [r for r in sidecar["axes"] if r["axis"] == "dark"]
+            self.assertEqual(4, len(dark))   # ready is the busiest state here: two surfaces x two targets
+            for record in dark:
+                self.assertNotEqual(cases[(record["surface"], record["state"], record["target"])]["renderFingerprint"],
+                                    record["renderFingerprint"])
+            reduced = next(r for r in sidecar["axes"] if r["axis"] == "reduced-motion")
+            self.assertEqual(cases[(reduced["surface"], reduced["state"], reduced["target"])]["renderFingerprint"],
+                             reduced["renderFingerprint"])
+
+            code, text = run("--out", "docs/evidence/second", "--carry-from", str(first / m.OUTPUT_NAME))
+            self.assertEqual(0, code, text)
+            second = json.loads((root / "docs/evidence/second" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual(12, second["run"]["carried"])
+            self.assertEqual([], list((root / "docs/evidence/second").glob("*.png")))
 
             details = package / "details.html"
             details.write_text(details.read_text(encoding="utf-8").replace("Next arrival 18:40.", "Next arrival 19:15."), encoding="utf-8")
