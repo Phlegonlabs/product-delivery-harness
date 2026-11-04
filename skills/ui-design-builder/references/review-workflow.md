@@ -31,6 +31,14 @@ Use `../../delivery-harness/references/pre-delivery-self-review.md` for the two 
 
 A `ui-design/2` package has no wireframe, W1–W5, Copy Freeze or human Wireframe Approval stage. It reads the PRD's complete sourced wording and contract directly. The final HiFi review includes wording, structure, product menus, tabs, other interactions, visuals and all product tokens. Formal design-system compilation runs only when the Need Gate requires it.
 
+## Owner Acceptance Closes The Round
+
+Visual Approval closes the round, including acceptance with follow-ups. Record it as `approved`. Every open ledger row then becomes a listed follow-up in the Epic. The round produces no further gate, receipt, reconciliation or playback record.
+
+Design-system compilation and the Harness handoff consume the accepted candidate. They do not wait on a waived gate. Record a block the owner explicitly waived as waived, with the owner's words and the date.
+
+Acceptance is direction conformance. It is not usability evidence ([UX Direction And Usability Evidence](../../delivery-harness/references/verification-gates.md#ux-direction-and-usability-evidence)).
+
 ## Optional R0 Exploration Round
 
 Only when the owner asks, direction studies may run before Product Definition Approval, after the Product Thesis readback and the At a Glance `Shape` row. The default sequence is unchanged without that request. Round ID `R0` (`VD-R0-<n>`): three materially different directions over 2-3 representative screens of the thesis's first useful journey, authored by the same resolved `frontend-design` author under the same [Frontend Visual Inputs](../../delivery-harness/references/frontend-visual-inputs.md) rule. Preflight runs `check_product_package.py` with `--require-filled` and without `--require-approved`; the PRD must already carry the `Shape` row and a drafted UI Surface Contract for the screens shown.
