@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.75.4-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.76.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -124,8 +124,8 @@ flowchart LR
 Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。owner 选择 `Delivery profile: mvp` 时，小型项目或一周 MVP 走压缩路线：stack 与产品批准一次合并调用、必要页面才做 HiFi、一次合并交付 review 并入 Final UI Acceptance，owner gate 最多四个；证据、安全与数据保护规则不变。
 
 - [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。managed run 从 inspector 的 `Next` 区块恢复；停滞的 `running` RUN 先要 owner 决定，自主执行从已签署的 launch brief 开始。
-- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 与 review packet 在启动前先按路线的时间、turn 与 byte 上限切好大小。
-- [验证](skills/delivery-harness/references/verification-gates.md)：必要证据绑定准确候选；缺能力或证据维持 blocked。
+- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 与 review packet 在启动前先按路线的时间、turn 与 byte 上限切好大小。期限已到却没有 verdict，视为环境受阻，改以较小的 scoped 调用重新分派。
+- [验证](skills/delivery-harness/references/verification-gates.md)：必要证据绑定准确候选；缺能力或证据维持 blocked。浏览器矩阵的独立 review 采用先验证再抽样：验证 receipt，检查 FAIL 与经 diff 标记的行，再抽样 PASS 行。浏览器能力探测在同一 session 内重复使用。
 - [候选发布与晋升](skills/delivery-harness/references/branch-promotion-contract.md)：保留准确 target、授权与远端回读，不得 force-push。
 - [源码维护](skills/delivery-harness/references/governance/source-maintenance.md)：每个 atomic task 跑聚焦检查，固定候选跑一次完整 matrix。
 
@@ -135,14 +135,14 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 | --- | --- |
 | Product Definition | 封闭式决策前先回读 Product Thesis。草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。At a Glance 的 `Shape` 行声明 track、companion 界面与 console，由 checker 验证；`## Growth Contract` 记录 north star、再触达、discovery surfaces 与 launch window。套件预算是作者自查、一次独立 review 与一次定向复查；之后的缺陷走隔离修复加 scoped review。 |
 | 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
-| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变证据连同身份沿用。此阶段保有同样的两次 review 预算；之后的缺陷走隔离修复，并对修复差异做 scoped review。 |
-| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes，另加一次定向复查。复查后每个剩余或新缺陷各成一笔有界修复，附自己的聚焦 verifier，并只对修复差异做 scoped review（finding、修复差异、直接消费者）；差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径，scoped review 不占用 attempt 预算。除非修复碰到 UI 页面，否则不重跑 Final UI Acceptance，碰到时只重跑该页面；broad final validation 每个候选于最后跑一次。环境受阻的 attempt 不占用预算。 |
+| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。自查由工具驱动：运行矩阵 driver、修正几何 FAIL 与 console 错误，并阅读有改动页面的渲染图。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变的 case 依 render fingerprint（几何加计算样式）而非页面 bytes 连同身份沿用。此阶段保有同样的两次 review 预算；之后的缺陷走隔离修复，并对修复差异做 scoped review，最多两次 scoped 复查。其后仍未结的行，以列出的 advisory 或 block 交给 Visual Approval。 |
+| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes，另加一次定向复查。复查后每个剩余或新缺陷各成一笔有界修复，附自己的聚焦 verifier，并只对修复差异做 scoped review（finding、修复差异、直接消费者）；差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径，scoped review 不占用 attempt 预算。除非修复碰到 UI 页面，否则不重跑 Final UI Acceptance，碰到时只重新采集该页面的条目，其余依 render fingerprint 沿用，并以 diff 优先判定 parity（`parity_capture.py` 会分类 pair）；broad final validation 每个候选于最后跑一次。环境受阻的 attempt 不占用预算。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
 | 外部设置 | `docs/DEPLOYMENT.md` 每个动作一行 External Console Setup，另有 Measurement Sources 表。逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |
 
-缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。预算用完后，剩余缺陷走隔离修复，并对每个修复差异做 scoped review；没有额外 review 轮次。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审涵盖每个 audit 轴；复查只在受影响页面与状态重跑 critique 和 audit，仍保留完整证据矩阵。
+缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。预算用完后，剩余缺陷走隔离修复，并对每个修复差异做 scoped review；没有额外 review 轮次。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审跑基础矩阵，并在代表性 case 上抽样压力轴：200% 文字、forced colors、长文案、中间宽度、320 px reflow 与 reduced motion。每个 surface × state × target case 只采集一次，供该 case 上所有观察共用。PRD 的 UI surface 可声明 `derivedStates`：布局相同的 overlay 或子状态，每个只在该 surface 最小的 target 采集一次。每个 motion intent 在一个代表性 target 上留下 trigger frame、end-state frame 与 reduced-motion 时长检查。矩阵 driver `hifi_matrix_capture.py` 在同一个浏览器 context 内走完整个矩阵，附几何探测、render fingerprint、从先前运行沿用与抽样轴，并写出 `ui-output/3` 结果。复查在受影响页面与状态重跑 critique 和 audit，只重新观察 render fingerprint（几何、computed styles 与媒体识别）有变的 case，不完整的 fingerprint 不得沿用，并以 diff 优先：相同的行自动记录，reviewer 只判定被标记的行。沿用让完整证据矩阵得以保留。
 
-HiFi 仍须使用 Impeccable，但它不是默认的只读实现 reviewer。其 workflow 的 subagent、浏览器／server、snapshot 写入与可选下载须另有授权。产品、stack、方向与 Visual Approval 决定仍属原 owner。
+HiFi 仍须使用 Impeccable，但它不是默认的只读实现 reviewer。其 workflow 的 subagent、浏览器／server、snapshot 写入与可选下载须另有授权。产品、stack、方向与 Visual Approval 决定仍属原 owner。Owner 的 Visual Approval（含附后续事项的接受）会结束该设计轮次；未结的行成为 Epic 的后续事项。一轮以进场时的 bundle pin 完成；轮次中途安装造成的 drift 只记录，不阻塞。
 
 ## 通用 runtime adapter
 
@@ -206,6 +206,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.76.0** — 更快的 UI review。PRD UI surface 可声明 `derivedStates`，只在最小 target 取证一次；第一波 stress axes 改为代表性抽样；isolated repair 最多两次 scoped re-review。沿用改以 render fingerprint（几何、computed styles 与媒体识别）而非页面 bytes；re-review 与 parity 先 diff 再判，并加区域规则；一个 case 一张 capture 供所有观察引用；motion 证据为单一代表 target 上的三项观察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以单一浏览器 context 跑完整 HiFi 矩阵，`parity_capture.py` 每条路由两侧各加载一次、分类配对并沿用未变者。浏览器矩阵的独立审查改为先验收再抽样，packet 在启动前按路线上限切分，浏览器能力探测每 session 重用，必要检查全过后 owner 接受即关闭该轮设计，一轮以进场时的 bundle pin 收尾。
+
 - **0.75.4** — Security 内容校订。`security-review.md` 不再允许直接路线上的 inline security review，trust boundary 改从 PRD Security Requirements 行及其 `TEST-*` trace 获取，在受审 head 上确认每个 planned boundary 的 denial test，`scope` 逐字照抄 packet，并说明 environment block 的记录方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到来源清单之前。
 
 - **0.75.3** — 修正 0.75.2 consumer 采用时发现的模板问题。`PROJECT_AGENTS.template.md` 的 managed-run 规则改指向 `project-operating-rules.md`，不再指向模板里不存在的段落；`DEPLOYMENT.template.md` 的 presence 示例不再被 `check_deployment.py` 当成未填的 placeholder；GA4 指南写明 `MS-*` 行在 Realtime 或 DebugView 看到事件之前保持 `available`。
@@ -213,7 +215,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.75.2** — 阅读更薄。新增 `docs_reading_budget.py`，量出每个入口开工前必读的字数（必读与条件式链接分开，`--budget N` 可在 CI 守线）。七份 reference 在不删任何规则的前提下压缩：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（约减 8,600 字）；`design-input-updates.md` 改为只有 UI 工作才读，每次 direct 与 managed run 少读 3.7k 字。计入总字数已低于 v0.74.1，尽管本周新增了不少内容。
 
 - **0.75.1** — 默认更薄。只有 pin 旧版才需要的指南（`legacy-pins.md`、已退役的 `ui-design/2` wireframe 指南）搬到 `references/legacy/`，只在项目 pin 旧版时才读，不再计入 docs weight（排除 6,481 字，仍会安装）。新增 `docs_duplicates.py` 找出跨文件重复的句子，可用 `--fail-over` 在 CI 守线。
-
-- **0.75.0** — ERP 规模产品用的 `program` 交付档。程序级 PRD 放模块地图与依赖顺序、由 kernel 拥有的共享数据、词汇表、角色与职责分离、容量假设、集成登记与跨模块业务流程（固定 `PF-BASE` 数据集上的 `TEST-E2E-*`，含期末结账）；每个模块在 `docs/product/modules/<id>/` 有自己的 PRD 与架构，ID 加模块代号（`PRD-INV-001`），并有 `BR-*` 业务规则表与单据状态、权限矩阵与报表目录；程序级架构新增 Migration and Cutover 与 `TEST-MIG-*`。`check_product_package.py` 校验一次程序级再逐模块（`--module <id>`），模块的 `Program revision` 过期时给 warning，`standard`/`mvp` 行为不变。模块按地图顺序一次一个 Epic 与 PLAN/RUN；访谈加入 program 问题；option library 新增司法管辖区合规条目。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

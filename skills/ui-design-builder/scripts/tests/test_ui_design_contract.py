@@ -163,7 +163,7 @@ def wireframe_html(data: object) -> str:
     )
 
 
-def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False, motion_route: str = "CSS-WAAPI", reviewer_version: int = 2, visual_decided_on: str = "2026-09-13", hifi_executed_at: str = "2020-01-01T00:00:00Z") -> tuple[Path, Path, Path, Path, Path, Path | None]:
+def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = False, motion_route: str = "CSS-WAAPI", reviewer_version: int = 2, visual_decided_on: str = "2026-09-13", hifi_executed_at: str = "2020-01-01T00:00:00Z", motion_targets: tuple[int, ...] = (390, 768, 1200)) -> tuple[Path, Path, Path, Path, Path, Path | None]:
     from test_product_package_checker import valid_prd, valid_stack, ui_contract
     from test_wireframe_contract import render_html, wireframe_data
 
@@ -325,7 +325,8 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
             f"evidence=docs/evidence/{name} @ sha256:{hashlib.sha256(evidence_path.read_bytes()).hexdigest()}",
         )
     for name, state in (("motion-normal.json", "normal"), ("motion-reduced.json", "reduced-motion")):
-        motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in (390, 768, 1200)]
+        # One representative target per intent is the rule; a receipt covering every target is an accepted superset.
+        motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in motion_targets]
         output_path = evidence_dir / name.replace(".json", "-output.json")
         output = bundle_output(json.loads(manifest), component_types=("a", "input"), version=reviewer_version)
         output.update({
@@ -760,9 +761,9 @@ class UiDesignContractTests(unittest.TestCase):
             output_path = root / "docs/evidence/motion-normal-output.json"
             evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
             output = json.loads(output_path.read_text(encoding="utf-8"))
-            evidence["receipt"]["matrix"]["cases"].pop()
+            evidence["receipt"]["matrix"]["cases"][0]["target"] = "768"   # not the representative target
             output["matrix"] = evidence["receipt"]["matrix"]
-            output["results"] = output["results"][:-1]
+            output["results"][0]["target"] = "768"
             output_path.write_text(json.dumps(output), encoding="utf-8")
             evidence["receipt"]["outputArtifact"]["sha256"] = hashlib.sha256(output_path.read_bytes()).hexdigest()
             evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
@@ -776,6 +777,17 @@ class UiDesignContractTests(unittest.TestCase):
                 require_filled=True, require_wireframe_approved=True, require_visual_approved=True,
             )
             self.assertTrue(any("receipt.matrix must exactly match" in item for item in problems), problems)
+
+    def test_motion_evidence_at_the_representative_target_alone_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            product, wireframe, hifi, _, _, _ = materialize_publication(root, required=False, motion_targets=(390,))
+            ui_path = root / "docs/design/ui-design.md"
+            problems = checker.validate(
+                ui_path, repo_root=root, prd_path=product, wireframes_path=wireframe, hifi_path=hifi,
+                require_filled=True, require_wireframe_approved=True, require_visual_approved=True,
+            )
+            self.assertEqual([], [item for item in problems if "motion evidence" in item], problems)
 
     def test_shared_contract_view_exposes_authority_without_filesystem_io(self):
         view, problems = checker.parse_ui_contract_view(contract())

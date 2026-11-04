@@ -4,7 +4,7 @@ New HiFi completeness, browser and full HiFi gates consume ui-evidence/3. Legacy
 
 ## Observation Output
 
-An actual tool run writes ui-output/3 with check, subject, matrix and results, retaining the applicable offline sandbox, interaction, reviewer and motion transcript fields from output-contract.md. Add execution with exactly:
+An actual tool run writes ui-output/3 with check, subject, matrix and results, retaining the applicable offline sandbox, interaction, reviewer and motion transcript fields from output-contract.md. Add execution with exactly: `scripts/hifi_matrix_capture.py` writes the case matrix of this observation; see [Matrix Capture](matrix-capture.md).
 
 - startedAt and finishedAt: actual timezone-aware start/finish timestamps, never derived from a hash or invented duration;
 - tool and method: the tool/method that actually performed the observation;
@@ -13,7 +13,7 @@ An actual tool run writes ui-output/3 with check, subject, matrix and results, r
 
 Each expected matrix case names surface, state and target. Results contain observed PASS, FAIL, BLOCKED or MISSING. Missing rows remain missing. A static schema check cannot emit browser, accessibility, visual quality or native PASS.
 
-For grading, critique and audit, add assessment with scores, observations and blocks. Each observation names the exact surface/state/target, a concrete finding and its own inspected, hashed screenshot, DOM or native capture (`.png`, `.jpg`, `.jpeg`, `.webp`, `.json` or `.html`). The capture is distinct from the reviewed subject and execution input sources; reusing an input hash as case evidence fails. Synthetic tests write explicit per-case JSON captures and make no browser or native claim. Current H1–H9 scores contain every actual dimension. The UI record's overall, lowest and required dimension values must equal that assessment. Numeric thresholds do not override a block, broken interaction or missing observation. Qualitative findings remain the reviewer's judgment; hashes establish identity, not honesty or beauty.
+For grading, critique and audit, add assessment with scores, observations and blocks. Each observation names the exact surface/state/target, a concrete finding and its own inspected, hashed screenshot, DOM or native capture (`.png`, `.jpg`, `.jpeg`, `.webp`, `.json` or `.html`). "Its own" means the case's own: one capture per surface × state × target, cited by every H dimension and Impeccable observation on that case, not one per dimension. The capture is distinct from the reviewed subject and execution input sources; reusing an input hash as case evidence fails. Synthetic tests write explicit per-case JSON captures and make no browser or native claim. Current H1–H9 scores contain every actual dimension. The UI record's overall, lowest and required dimension values must equal that assessment. Numeric thresholds do not override a block, broken interaction or missing observation. Qualitative findings remain the reviewer's judgment; hashes establish identity, not honesty or beauty.
 
 ## Receipt Assembly
 
@@ -27,11 +27,17 @@ Keep receipts, inspected captures and source artifacts tracked when they are req
 
 ## Diagnostic Wave Completeness
 
-Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier.
+Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier. The independent browser reviewer verifies these receipts and samples their PASS rows under [Verify-Then-Sample Review](../../delivery-harness/references/runtime-adapters.md#verify-then-sample-review); it does not re-judge the matrix.
 
 Complete observed FAIL results, low scores and fully observed defects may enter one consolidated repair batch under the existing write grant. Missing outputs, unscorable `BLOCKED` or `MISSING` rows, an absent H dimension, malformed captures or input drift block the handoff. These findings still fail strict final acceptance. None of this is a PASS or Visual Approval.
 
-Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Every receipt still binds current candidate bytes. Rows for unchanged pages carry forward only under the output contract's carry-forward rule. Do not rebind an earlier PASS to repaired bytes.
+Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Every receipt still binds current candidate bytes. A case carries forward only under [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward). Do not rebind an earlier PASS to repaired bytes.
+
+## Diff-first re-review
+
+In a repair re-review, diff each recaptured case against its capture under the last receipt. A geometry diff plus pixel diff within the recorded tolerance auto-records the row as `identical`: it keeps its earlier verdict and cites both captures and the diff value. The reviewer judges only flagged rows. A case with no earlier capture, a failed geometry scan or an unreadable capture is flagged.
+
+Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect every case there, and a scan with zero findings is still not evidence.
 
 ## Frontend Design Usage
 

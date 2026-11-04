@@ -45,7 +45,7 @@ if str(DESIGN_SYSTEM_SCRIPTS) not in sys.path:
 
 from markdown_contract import active_text  # noqa: E402
 from release_targets import parse_release_targets  # noqa: E402
-from prd_ui_contract import parse_prd_ui_contract  # noqa: E402
+from prd_ui_contract import derived_state_errors, parse_prd_ui_contract  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
 from operation_coverage import coverage_findings  # noqa: E402
 from hifi_product_contract import hifi_prd_findings  # noqa: E402
@@ -931,6 +931,37 @@ def _target_source_syntax(value: str | None, label: str, problems: list[str]) ->
     return True
 
 
+def representative_targets(targets: list[str]) -> tuple[str, str]:
+    """(smallest, largest) by one list rule shared with hifi_matrix_capture.py.
+
+    Numeric viewport widths compare by value; named size classes keep their
+    listed order, so the first listed is the smallest and the last the largest.
+    """
+
+    values = [str(target) for target in targets]
+    if values and all(value.strip().lstrip("-").isdigit() for value in values):
+        ordered = sorted(values, key=lambda value: (int(value), values.index(value)))
+        return ordered[0], ordered[-1]
+    return values[0], values[-1]
+
+
+def _evidence_matrix(scope: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
+    """Surface x state x target cases; a derived state keeps only its surface's smallest target."""
+    responsive = scope.get("responsive", {})
+    scope_targets = [str(item) for item in responsive.get("targets", [])] if isinstance(responsive, dict) else []
+    cases = []
+    for surface in scope.get("surfaces", []):
+        if not isinstance(surface, dict):
+            continue
+        own = surface.get("responsive")
+        targets = [str(item) for item in own.get("targets", [])] if isinstance(own, dict) else scope_targets
+        derived = surface.get("derivedStates") if isinstance(surface.get("derivedStates"), dict) else {}
+        for state in surface.get("states", []):
+            for target in [representative_targets(targets)[0]] if isinstance(state, str) and state in derived and targets else targets:
+                cases.append({"surface": str(surface.get("id")), "state": str(state), "target": target})
+    return {"cases": cases}
+
+
 def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[str, Any] | None:
     match = TARGET_SOURCE_RE.fullmatch((value or "").strip()) if value else None
     if match is None:
@@ -961,6 +992,7 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
         "captureMode",
         "responsive",
         "stackSemantics",
+        "derivedStates",
     }
     if (
         not isinstance(surfaces, list)
@@ -998,6 +1030,9 @@ def _target_scope(value: str | None, label: str, problems: list[str]) -> dict[st
     for item in surfaces if isinstance(surfaces, list) else []:
         if not isinstance(item, dict):
             continue
+        if "derivedStates" in item:
+            for problem in derived_state_errors(item["derivedStates"], item.get("states", [])):
+                _add(problems, f"{label} surface {item.get('id')} derivedStates {problem}")
         if "surfaceClass" in item and (not isinstance(item["surfaceClass"], str) or not item["surfaceClass"].strip()):
             _add(problems, f"{label} surfaceClass must be a non-empty string")
         if "releaseSurface" in item and (not isinstance(item["releaseSurface"], str) or not item["releaseSurface"].strip()):
@@ -1725,6 +1760,8 @@ def _validate_target_scope_join(
         expected_states = list(prd.get("states", []))
         if target.get("route") != (prd.get("routes") or [None])[0] or target.get("states") != expected_states:
             _add(problems, f"Approved target surface {surface_id} route/states differ from PRD")
+        if (target.get("derivedStates") or {}) != prd.get("derivedStates", {}):
+            _add(problems, f"Approved target surface {surface_id} derivedStates differ from PRD")
         for target_field, prd_field in (
             ("releaseSurface", "releaseSurface"),
             ("surfaceClass", "surfaceClass"),
@@ -1936,6 +1973,7 @@ def _resolve_evidence(
     expected_matrix: dict[str, list[str]] | None = None,
     expected_motion: dict[str, Any] | None = None,
     require_machine: bool = False,
+    alternate_matrix: dict[str, list[str]] | None = None,
     recorded_scores: dict[str, int | None] | None = None,
     required_inputs: list[dict[str, str]] | None = None,
 ) -> None:
@@ -2003,6 +2041,8 @@ def _resolve_evidence(
                     _add(problems, f"{label} evidence reviewedArtifact must be {expected_artifact}")
     if not machine and evidence.get("attestation") != "human-attested":
         _add(problems, f"{label} evidence must be explicitly human-attested")
+    if alternate_matrix is not None and isinstance(receipt, dict) and receipt.get("matrix") == alternate_matrix:
+        expected_matrix = alternate_matrix   # a receipt that covers every target is accepted as a superset
     if not isinstance(receipt, dict) or set(receipt) != {"tool", "method", "matrix", "results", "outputArtifact", "executedAt"}:
         _add(problems, f"{label} evidence receipt must contain tool, method, matrix, results, outputArtifact, and executedAt")
     else:
@@ -2638,10 +2678,13 @@ def _resolve_motion_effect_evidence(
             else (target_scope or {}).get("responsive", {})
         )
         targets = responsive.get("targets", []) if isinstance(responsive, dict) else []
-        cases = [
-            {"surface": surface_id, "state": "normal" if motion_case == "normal" else "reduced-motion", "target": str(target)}
-            for target in targets
-        ]
+        # A receipt observes one representative target per intent (the surface's
+        # smallest, per motion-and-media-routing.md "Motion Evidence Per Intent").
+        # A receipt that covers every target, including retained historical
+        # ui-evidence/2 receipts, is accepted as a superset.
+        motion_state = "normal" if motion_case == "normal" else "reduced-motion"
+        all_cases = [{"surface": surface_id, "state": motion_state, "target": str(target)} for target in targets]
+        cases = [{"surface": surface_id, "state": motion_state, "target": representative_targets([str(t) for t in targets])[0]}] if targets else []
         capture_mode = (
             surface.get("captureMode", (target_scope or {}).get("captureMode"))
             if surface
@@ -2659,6 +2702,7 @@ def _resolve_motion_effect_evidence(
             ),
             expected_check=_evidence_check("motion", capture_mode),
             expected_matrix={"cases": cases},
+            alternate_matrix={"cases": all_cases},
             require_machine=require_machine,
             required_inputs=required_inputs,
             expected_motion={
@@ -3307,23 +3351,7 @@ def _validate_impl(
         if isinstance(target_scope_for_evidence, dict)
         else None
     )
-    evidence_matrix = None
-    if isinstance(target_scope_for_evidence, dict):
-        responsive = target_scope_for_evidence.get("responsive", {})
-        responsive_targets = [str(item) for item in responsive.get("targets", [])] if isinstance(responsive, dict) else []
-        evidence_matrix = {
-            "cases": [
-                {"surface": str(surface.get("id")), "state": str(state), "target": target}
-                for surface in target_scope_for_evidence.get("surfaces", [])
-                if isinstance(surface, dict)
-                for state in surface.get("states", [])
-                for target in (
-                    [str(item) for item in surface.get("responsive", {}).get("targets", [])]
-                    if isinstance(surface.get("responsive"), dict)
-                    else responsive_targets
-                )
-            ]
-        }
+    evidence_matrix = _evidence_matrix(target_scope_for_evidence) if isinstance(target_scope_for_evidence, dict) else None
     # Legacy wireframe receipts keep their historical target-derived contract.
     wireframe_capture_mode, wireframe_matrix = capture_mode, evidence_matrix
     if not current and modern and checked_wireframe is not None:

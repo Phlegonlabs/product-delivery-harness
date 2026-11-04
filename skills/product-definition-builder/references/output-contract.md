@@ -212,7 +212,7 @@ Omit this section only when the product has no shipped UI surface. Define one en
 
 For App + companion Web products, apply `mobile-stack-selection.md#app-and-companion-web-contract`: bind every platform to its own release surface and `UI-*` entries; shared client source code does not merge platform requirements, native/browser evidence or release targets.
 
-The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `releaseSurface` ``, `` `surfaceClass` ``, `` `captureMode` ``, `` `states` ``, `` `responsive` ``, and `` `copy` `` field names are invariant machine anchors for new or revised packages. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it. Use a separate `UI-*` entry when another addressable route needs the same presentation. Legacy single-platform packages without the three platform-binding anchors remain readable, but an approved new or revised package records them on every surface.
+The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, `` `releaseSurface` ``, `` `surfaceClass` ``, `` `captureMode` ``, `` `states` ``, `` `responsive` ``, and `` `copy` `` field names are invariant machine anchors for new or revised packages; `` `derivedStates` `` is an optional anchor. A UI-bearing PRD contains exactly one non-empty matched boundary pair around the complete surface contract; every `UI-*` heading in the document is inside it. Use a separate `UI-*` entry when another addressable route needs the same presentation. Legacy single-platform packages without the three platform-binding anchors remain readable, but an approved new or revised package records them on every surface.
 
 ### UI-001 — [Surface name]
 
@@ -225,6 +225,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 - Actions and transitions: [Primary, secondary, destructive, navigation, success, and failure paths]
 - `operations`: [JSON list of operation objects using the review-workflow fields below, or `none — <concrete reason of at least 12 characters>`; review task completeness, then verify HiFi joins at the UI approval gates (legacy packages also join Wireframe flows)]
 - `states`: [Comma-separated state IDs. Record an inapplicable state as `<state>:n/a — <reason>` so the PLAN join can preserve the decision]
+- `derivedStates`: [Optional one-line JSON object `{"<derived state>": "<parent state>"}` for each state that keeps its parent's layout, such as an overlay or loading sub-state. Omit the line when none]
 - `responsive`: [This surface's exact responsive set: at least three ascending numeric viewports for hosted web/extensions, default `viewports: 390, 768, 1024, 1440`; or at least two ordered named size classes for native/desktop, such as `sizeClasses: phone-small, phone-large` for phone-only apps. Hybrid surfaces keep separate sets; preserve existing approved targets]
 - `copy`: [draft / approved / revision_requested / blocked] — [Static strings are implementation-bound after copy completeness; dynamic values follow their approved source/order/format/count/length/fallback contracts]
 - Responsive obligations: [Content/actions that never drop, required interaction modes, long-content behavior, and overlay focus/dismissal requirements; layout order, grid, spans, and reflow remain UI-design decisions]
@@ -235,6 +236,8 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 <!-- ui-surface-contract:end -->
 
 Every route maps to exactly one `UI-*` entry. Every required content responsibility states what it displays, where the content comes from, and what the user should understand or do. The `` `copy` `` status records the PRD's copy responsibility: `draft` means ui-design-builder may propose and approve exact wording during copy completeness; `approved` means that responsibility and its display contract are already product-approved. `revision_requested` and `blocked` stop UI work. A full HiFi approval may advance a PRD `draft` responsibility to approved exact copy without rewriting the PRD status; `ui-design-builder` owns that final full HiFi approval and returns any changed responsibility or display contract for renewed Product Definition Approval.
+
+A derived state and its parent are both listed, non-`n/a` states of the same surface. A parent may itself be derived; an unknown or `n/a` parent, or a cycle, fails the checker. The UI review captures a derived state once, at the surface's smallest responsive target, as [First-Wave Audit Axes](../../ui-design-builder/references/ui-grading-rubric.md#first-wave-audit-axes) states. The state still needs its own HiFi state control.
 
 SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description. Site-level SEO obligations are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement.
 

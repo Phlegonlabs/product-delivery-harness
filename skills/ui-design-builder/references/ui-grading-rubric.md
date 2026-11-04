@@ -10,25 +10,32 @@ A missing or contradictory product obligation returns to `product-definition-bui
 
 ## Capability And Authorization
 
-- Run one complete diagnostic wave before any repair. Agent policy selects fresh grading executors and a lead responsible for the complete in-scope `UI-* × responsive target × non-n/a state` matrix and one consolidated finding set. Browser checks, Impeccable critique/audit and H1-H9 use the same frozen candidate within that wave.
+- Run one complete diagnostic wave before any repair. Agent policy selects fresh grading executors and a lead responsible for the [First-Wave Audit Axes](#first-wave-audit-axes) cases and one consolidated finding set. Browser checks, Impeccable critique/audit and H1-H9 use the same frozen candidate within that wave.
 - Unless agent policy sets another topology, the wave has two fresh reviewers: a lead grader who also produces the browser receipt, and one Impeccable operator who runs critique and audit. Neither reviews its own work.
-- Reuse covered browser observations for identical bytes and cases. Add a specialist grader only on an owner request or a recorded high risk, with a non-overlapping lens over the same frozen inputs.
+- Reuse covered browser observations for cases with an equal render fingerprint. Add a specialist grader only on an owner request or a recorded high risk, with a non-overlapping lens over the same frozen inputs.
 - Graders return evidence only: they do not publish, mint trace IDs, contact the owner, or approve the artifact.
 - Missing grading capability or authorization blocks the grading gate; it never becomes a PASS. [Parent-Owned Delegation](../../delivery-harness/references/delegation-contract.md) and the [runtime adapter](../../delivery-harness/references/runtime-adapters.md) own capability, spawn grants and replacement.
 
 ## First-Wave Audit Axes
 
-The first diagnostic wave checks every axis below on every page, approved target and non-`n/a` state. The Impeccable audit, `H4` and `H8` use this one list. A re-review adds no axis.
+The first diagnostic wave runs the base matrix and samples the stress axes. The Impeccable audit, `H4` and `H8` use this one list. A re-review adds no axis.
 
-- every approved responsive target, the intermediate Web widths and the 320 CSS px reflow case;
-- each theme in scope, including focus visibility and contrast in each theme;
-- text enlarged to 200%, and fluid type or spacing (such as `clamp()`) at the smallest and largest targets;
-- forced colors;
+Base matrix: every page, every approved responsive target and every non-`n/a`, non-derived state, each with the automated DOM geometry scan. Add each theme in scope, with focus visibility and contrast in that theme. Check on each case:
+
 - keyboard-only use: focus order, visible focus, and focus containment and return in layers;
-- accessible names, roles and states, with labels that do not depend on placeholders;
-- live regions and status announcements;
-- reduced motion; and
-- long and localized copy.
+- accessible names, roles and states, with labels that do not depend on placeholders; and
+- live regions and status announcements.
+
+A derived state (PRD `derivedStates`) is captured once, at its surface's smallest responsive target (the lowest viewport width, or the first listed size class), with the geometry scan. It takes no other target and no stress axis.
+
+Stress axes, sampled: run these on each page's `ready` state and its densest non-derived state, each at the smallest and largest approved target. The lead names the densest state per page in the grading record.
+
+- text enlarged to 200%, and fluid type or spacing (such as `clamp()`);
+- forced colors;
+- long and localized copy; and
+- the intermediate Web widths and the 320 CSS px reflow case, swept on those two states in place of a fixed target.
+
+Run reduced motion only on pages with a motion region or a required motion intent, on the states that show it.
 
 ## Scores
 
@@ -57,14 +64,14 @@ The legacy `W1 PRD conformance` through `W5 Structural clarity and evidence` dim
 
 ## Reading And Cross-Screen Cases
 
-Within H4/H8/H9, inspect long real copy, bilingual pairs and language-specific wrapping where required. Check text enlargement, dates/numbers, RTL only when in scope, and repeated component appearance/meaning across pages. Verify motion boundaries and fallback separately from produced motion. iPhone review targets are smaller/larger phone cases, not an automatic iPad obligation. Preserve complete PRD-required matrices; representative language stress checks do not waive them. Screenshots identify exact spacing/type/reading failures; an unchanged score cannot hide one.
+Within H4/H8/H9, inspect long real copy, bilingual pairs and language-specific wrapping where required. Check text enlargement, dates/numbers, RTL only when in scope, and repeated component appearance/meaning across pages. Verify motion boundaries and fallback separately from produced motion. iPhone review targets are smaller/larger phone cases, not an automatic iPad obligation. A matrix the PRD requires in full stays complete; sampling the stress axes does not waive it. Screenshots identify exact spacing/type/reading failures; an unchanged score cannot hide one.
 
 ## Design-Reference HTML Scope
 
 - `H1 Product, copy, and direction conformance`: every included surface follows the frozen PRD UI Surface Contract, `ui-design.md`, its accepted Design Brief/page-purpose/profile decisions, and the selected `VD-*` direction. Every confirmed journey step reaches a real screen or state, in the mapped order. Login, registration, recovery, and authentication-error previews are excluded only when the UI design contract records them as `n/a` for this visual pass. Any design-stage wording change is a block until its copy delta is approved through Product Definition and the full HiFi copy review.
 - `H2 Layout safety`: inspect all visible peer elements, controls, text blocks, media placeholders, and overlays in the retained all-screens HTML. No required element may unintentionally overlap another, clip, become occluded, collide through broken spacing or wrapping, leave its container, or force horizontal page overflow. Intended overlays pass only with their recorded stacking, focus, safe-area, and dismissal behavior. Any such failure on required content is a `block`.
 - `H3 Interaction wiring`: every visible product control responds by navigating, switching a declared state, opening a documented overlay, or showing recorded inline feedback. Dead controls and isolated stills are blocks.
-- `H4 Responsive and edge states`: repeat the element-level `H2` inspection at every PRD-declared viewport or size class and every non-`n/a` state. Long labels, localized copy, validation errors, empty data, and dense data stay readable and usable; layout reflows in the recorded order, spacing remains intentional, and resizing never strands focus, hides a required action, creates clipping, or introduces horizontal overflow. Any failure on required content is a `block`.
+- `H4 Responsive and edge states`: repeat the element-level `H2` inspection over the First-Wave Audit Axes cases. Long labels, localized copy, validation errors, empty data, and dense data stay readable and usable; layout reflows in the recorded order, spacing remains intentional, and resizing never strands focus, hides a required action, creates clipping, or introduces horizontal overflow. Any failure on required content is a `block`.
 - `H5 Visual slop`: apply the visual items below against the selected `VD-*` direction.
 - `H6 Media and motion fit`: apply `ui-design.md`'s Motion and Media Intent. Required functional UI motion is represented locally with its trigger, purpose, timing intent, and reduced-motion fallback; its absence or a fallback that loses meaning is a `block`. A `not_required` surface adds no decorative motion beyond platform-standard functional feedback. Each image, motion, or combined treatment matches its recorded MM intent and approved generation route. A Higgsfield or other provider asset is accepted only with recorded authorization, output identity, placement, usage constraints, and fallback; otherwise it remains a static deferred placeholder. The HTML never invokes an unapproved provider or pretends generated output exists. Also judge motion craft on every played effect: durations and easing follow the motion tokens, related movements share one rhythm, the effect can be interrupted or replayed as specified, it causes no layout shift or jank, and the reduced-motion path keeps the same meaning. Record each craft failure as an H6 finding with its capture so the consolidated repair batch fixes it, and lower the H6 score to match.
 - `H7 Creative distinction`: composition, hierarchy, interaction concepts, and content presentation feel intentional and specific to the product rather than interchangeable with a generic template. The approved direction has one coherent thesis and a complementary reference-role map; it does not splice unrelated source aesthetics into a collage. Creativity must support the frozen PRD, accepted Design Brief/profile decisions, and selected `VD-*` direction; it earns no credit by adding unapproved scope, rewriting copy, obscuring content, weakening accessibility, breaking familiar controls, or pretending deferred media exists.
@@ -110,12 +117,12 @@ Apply these internal rules during authoring and the existing Technical Hard Gate
 
 ### Browser Inspection Procedure
 
-1. Render every required page, target and state at its actual canvas width, with fonts settled and intended transitions complete. Exercise open layers, focus and validation states through real product controls. Sweep between Web review targets and record any intermediate failure with its actual width; this supplements rather than changes the approved responsive set. Native size classes retain their own platform evidence requirements.
+1. Render every required base-matrix case at its actual canvas width, with fonts settled and intended transitions complete. Exercise open layers, focus and validation states through real product controls. Record any intermediate-width failure with its actual width; this supplements rather than changes the approved responsive set. Native size classes retain their own platform evidence requirements.
 2. For visible controls, text and panels, inspect bounding rectangles, text line rectangles, scroll versus client dimensions, clipping ancestors and containing bounds. Compare peer pairs for unintended intersection; inspect child content for clipping even though parent-child containment is not a collision. Use hit testing at visible actionable points plus actual click/keyboard activation to detect occlusion. An icon inside its own button is not a competing target. Rectangles alone cannot prove that text is readable or a layer is usable.
 3. Inspect full-canvas screenshots and close views of dense controls and open layers. Stress the approved longest content, required languages, text scaling, narrow layouts and fallback fonts. Check consistent baselines, spacing and control dimensions across sibling screens. A clean default screenshot or a scan with zero findings is insufficient without these observations.
 4. Retain findings in the existing ui-output/3 assessment and consolidated defect ledger. Each names candidate identity, surface/state/actual target, exact element pair or clipping ancestor, expected rule, observed geometry or hit-test result, inspected capture path/hash, root cause, repair and acceptance cases. Keep extra measurements inside referenced captures rather than adding fields to the fixed receipt schema. Missing browser access or uninspected cases remain MISSING/BLOCKED, never PASS.
 
-Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause, inspect its direct consumers and rerun the affected cases within the existing repair budget; the re-review's browser receipt covers the final matrix. Do not reuse earlier screenshots to clear a repaired layout.
+Required content that overlaps, collapses, clips or becomes unreachable blocks readiness under H2/H4 regardless of the overall score. Repair the shared cause under Repair Re-review Scope below. Do not reuse earlier screenshots to clear a repaired layout.
 
 ### Product-Specific Visual Judgment
 
@@ -128,16 +135,16 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 - Preserve every Impeccable finding, rubric `block`, and grader disagreement. Failed overall or dimension thresholds, blocks and disputes prevent readiness. An Impeccable severity alone does not decide readiness: the lead maps each finding to its `H` dimension and records a `block` only under a block rule.
 - Before any edit, the parent reconciles the complete Impeccable critique/audit and grading wave into one consolidated defect ledger grouped by semantic root cause. Each family names all known variants, affected surfaces and states, the repair objective, and the acceptance-matrix cases that prove closure. Do not send separate reports to separate writers for the same HTML.
 - A below-threshold candidate gets one repair batch by `frontend-design` and one re-review on the new SHA-256. Apply Repair Re-review Scope below. Do not present a below-threshold candidate for Visual Approval.
-- The review budget is one diagnostic wave and one re-review of the consolidated repair. If the re-review finds another variant of a family claimed closed, another block, or a disputed dimension, the author repairs it in isolation: fix the affected pages and states, rerun their affected browser captures and Impeccable axes, and record one scoped re-review of those pages under Repair Re-review Scope below. Return a missing or contradictory obligation to the PRD flow. No third wave, whole-HiFi re-grade, or owner-granted extra round exists.
-- A grader initialization, browser-access, interruption, or report-completion failure is an execution failure inside the current diagnostic wave, not a new grading or repair round. Replace the failed slot at most once when its lens is still required; otherwise record the capability gap. Never dispatch another same-scope review on an unchanged SHA.
-- Record the initial diagnostic wave and, when needed, the one repair batch and one re-review with their input and output HTML SHA-256 values, scores, consolidated root-cause families, acceptance cases, and outcome. An owner-requested product or design change after a pass starts a named new revision cycle; it does not extend the completed grading lineage.
+- The review budget is one diagnostic wave and one re-review of the consolidated repair, then at most two scoped re-reviews in total. If the re-review finds another variant of a family claimed closed, another block, or a disputed dimension, the author repairs it in isolation under Repair Re-review Scope below: fix the affected pages and states, and rerun their affected browser captures and Impeccable axes. Any ledger row still open after the two goes to the owner's Visual Approval as a listed advisory or block; a block still blocks. Return a missing or contradictory obligation to the PRD flow. No third wave, whole-HiFi re-grade, or owner-granted extra round exists.
+- A grader initialization, browser-access, interruption, or report-completion failure is an execution failure inside the current diagnostic wave, not a new grading or repair round. Replace the failed slot at most once when its lens is still required; otherwise record the capability gap. A deadline reached with no verdict is an environment-blocked attempt, not a failed slot: re-dispatch it as smaller scoped calls ([Assignment And Result Evidence](../../delivery-harness/references/delegation-contract.md#assignment-and-result-evidence)). Never dispatch another same-scope review on an unchanged SHA.
+- Record the initial diagnostic wave and, when needed, the repair batch, its re-review and each scoped re-review with their input and output HTML SHA-256 values, scores, consolidated root-cause families, acceptance cases, and outcome. An owner-requested product or design change after a pass starts a named new revision cycle; it does not extend the completed grading lineage.
 - The owning flow records one `UI grading:` line in the matching `ui-design.md` gate: grader count and lenses, rubric scope, frozen PRD and UI-design identities, current candidate HTML SHA-256, Impeccable evidence when HiFi applies, Technical Hard Gate and DOM geometry results, per-dimension grader scores, medians and statuses when applicable, overall score, advisories, disputed dimensions, overall and H1-H9 threshold results, consolidated defect ledger, repair/re-review outcome or blocked owner decision, and the location of the inline detail rows.
 
 ## Repair Re-review Scope
 
 The initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis.
 Its repair re-review follows the same lineage and attempt budget; it does not open another broad qualitative search.
-The repair packet contains the existing defect ledger, the source diff, direct consumers and observable closure cases.
+The repair packet contains the existing defect ledger, the source diff, direct consumers and observable closure cases. Read the diff first, as [Diff-first re-review](review-evidence.md#diff-first-re-review) states.
 Direct consumers are the pages and states that render a changed source, including shared styles, navigation and motion dependencies.
 Use one consolidated response for Impeccable and rubric findings. Do not commission separate aesthetic or scoring reviews after that response.
 
@@ -145,16 +152,17 @@ Classify the repair by its diff. A copy or metadata repair changes only product 
 
 1. Record the class, changed sources, affected dimensions, surfaces, states, targets and direct consumers in the existing defect ledger.
 2. Give every requested repair its inspected capture, concrete defect, applicable requirement or dimension threshold, and observable completion criteria.
-3. Recheck each ledger row on the current candidate. For a visual repair, also inspect every direct consumer. For a copy or metadata repair, the scripted browser receipt and geometry scan cover the direct consumers.
+3. Recheck each ledger row on the current candidate. For a visual repair, also inspect every direct consumer the diff flags; an `identical` row needs no new inspection ([Diff-first re-review](review-evidence.md#diff-first-re-review)). For a copy or metadata repair, the scripted browser receipt and geometry scan cover the direct consumers.
 4. Run Impeccable critique and audit again on the affected pages and states, under their required workflow and existing authorization.
-5. Run the Technical Hard Gate on the affected pages. The browser receipt still covers the complete required browser matrix on the current candidate; rows for unchanged pages carry forward under [output-contract.md](output-contract.md#reviewer-navigation-and-design-specifications).
+5. Run the Technical Hard Gate on the affected pages. The browser receipt still covers the complete required browser matrix on the current candidate; unchanged rows carry forward under [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward).
 6. Inspect changed dimensions and confirm unaffected dimensions against current evidence and the reviewed source diff.
 7. Return a complete current `H1`–`H9` assessment, including remaining advisories. Do not copy old scores into a new result without inspection.
 
-A new finding outside the ledger rows, changed sources and direct consumers goes into the ledger as a next-round advisory. It does not block Visual Approval unless it is a block: a PRD contradiction, a dead control, an inaccessible required flow, or required content that overlaps, clips or is unreachable. A block gets an isolated repair and one scoped re-review of the affected pages; it never reopens the diagnostic wave or a whole-HiFi re-grade.
+A new finding outside the ledger rows, changed sources and direct consumers goes into the ledger as a next-round advisory. It does not block Visual Approval unless it is a block: a PRD contradiction, a dead control, an inaccessible required flow, or required content that overlaps, clips or is unreachable. A block gets an isolated repair and one scoped re-review of the affected pages, within the cap below; it never reopens the diagnostic wave or a whole-HiFi re-grade.
+
+Cap: after the one diagnostic wave and its one re-review, at most two scoped re-reviews in total may follow. Any later open ledger row goes to the owner's Visual Approval as a listed advisory or block; a block still blocks.
 
 Retain every current-candidate receipt, capture and input identity required by `review-evidence.md`.
 Do not relabel old captures, refresh stale receipt hashes, or treat a partial inspection as complete coverage.
 Missing impact evidence requires broader inspection; unresolved coverage remains `blocked`.
 Preference-only suggestions remain advisories unless evidence proves an accepted requirement or dimension threshold fails.
-After required checks pass, present the candidate for Visual Approval without another same-scope review wave.
