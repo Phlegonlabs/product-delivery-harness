@@ -689,6 +689,21 @@ def load_carry(root, carry_path):
     return records, {"path": output_rel, "sha256": sha256_bytes(data)}
 
 
+def carry_folders(root, carry_path, records):
+    """Folders that hold the carry source: its output and the captures it points at."""
+    folders = {carry_path.parent}
+    for record in records.values():
+        for capture in (record.get("capture"), (record.get("carriedFrom") or {}).get("capture")):
+            if capture:
+                folders.add((root / capture["path"]).resolve().parent)
+    return folders
+
+
+def related(left, right):
+    """True when the folders are the same or one sits inside the other."""
+    return left == right or left in right.parents or right in left.parents
+
+
 # --- The run --------------------------------------------------------------------
 class Runner:
     def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None,
@@ -979,8 +994,11 @@ def execute(args, make_driver=node_driver):
     cases = expand_matrix(package, only, derived)
     if not cases:
         raise UsageError("the selection has no applicable cases")
-    carry, carry_source = (load_carry(root, inside(root, args.carry_from, "--carry-from"))
-                           if args.carry_from else (None, None))
+    carry_path = inside(root, args.carry_from, "--carry-from") if args.carry_from else None
+    carry, carry_source = load_carry(root, carry_path) if carry_path else (None, None)
+    if carry and args.overwrite and any(related(out_dir, folder) for folder in carry_folders(root, carry_path, carry)):
+        raise UsageError("--overwrite would replace the carry source: --out must not be, hold or sit inside the folder "
+                         "of --carry-from or of a capture it carries")
     out_dir.mkdir(parents=True, exist_ok=True)
     subject_dir = package_dir.relative_to(root).as_posix()
     subject = {"path": (subject_dir + "/" if subject_dir != "." else "") + "index.html", "sha256": package.sha["index.html"]}

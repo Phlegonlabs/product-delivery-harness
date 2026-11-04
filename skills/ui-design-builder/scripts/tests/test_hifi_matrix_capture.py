@@ -453,6 +453,24 @@ class CarryTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn(m.SIDECAR_NAME, summary["error"])
 
+    def test_overwrite_never_writes_over_around_or_inside_the_carry_source(self):
+        cli = Cli(self)
+        first = self.first_run(cli)                       # docs/evidence/run1
+        _, _, second = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME))   # carries run1's captures
+        source = (first / m.OUTPUT_NAME).read_bytes()
+        for label, out, carry in (("equal", "docs/evidence/run1", first), ("inside", "docs/evidence/run1/sub", first),
+                                  ("holding", "docs/evidence", first),
+                                  ("a carried capture's folder", "docs/evidence/run1", second)):
+            driver = FakeDriver()
+            code, summary, _ = cli.run(driver, "--carry-from", str(carry / m.OUTPUT_NAME), "--overwrite", out=out)
+            self.assertEqual(2, code, label)
+            self.assertIn("--carry-from", summary["error"], label)
+            self.assertEqual([], driver.calls, label)
+            self.assertEqual(source, (first / m.OUTPUT_NAME).read_bytes(), label)
+        self.assertFalse((first / "sub").exists())
+        code, _, _ = cli.run(FakeDriver(), "--carry-from", str(first / m.OUTPUT_NAME), "--overwrite", out="docs/evidence/elsewhere")
+        self.assertEqual(0, code)
+
     @unittest.skipUnless(HAS_PILLOW, "Pillow is not installed")
     def test_diff_against_records_identical_and_changed_pixels(self):
         cli = Cli(self)
