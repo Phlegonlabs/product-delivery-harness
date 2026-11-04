@@ -11,12 +11,20 @@ overlap findings) so ``layout_check`` attestations have a tool trace, and
 writes a self-contained ``parity-board.html`` for the item-by-item
 comparison judgment. Capture only — verdicts stay with the reviewer in
 RUN's ``target_comparison`` records; this tool never edits RUN state.
+
+Each pair is also diffed (Pillow, when importable) and classified
+``identical`` or ``changed``; the board lists changed pairs first and folds
+the identical ones. The classification is reviewer input, not a verdict.
+``--carry-from`` records a pair as ``carried`` (and skips its reference
+capture) when nothing that shapes it changed since an identical one.
 """
 
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 from contextlib import contextmanager
+from dataclasses import dataclass, field
 import errno
 import hashlib
 import html
@@ -26,6 +34,7 @@ import re
 import shutil
 import subprocess
 import sys
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Iterator
@@ -39,6 +48,7 @@ from harness_design_coverage import surface_capture_rows  # noqa: E402
 from harness_git import windows_machine_roots, windows_parent_user_writable  # noqa: E402
 
 DEFAULT_OUT = Path("docs/goal/evidence/parity")
+_clock = time.perf_counter  # tests replace this to get fixed durations
 VIEWPORT_HEIGHT = 1000
 GEOMETRY_PROBE_LIMIT = 400
 OVERLAP_REPORT_LIMIT = 10
@@ -488,16 +498,14 @@ def _navigate_reference(
     return False, f"no reference navigation found for {route}"
 
 
-def _shoot(
+def _prepare(
     cli: list[str],
     *,
     viewport: tuple[str, int],
-    screenshot: Path,
-    full_page: bool,
     state_eval: str | None,
     condition_eval: str | None = None,
 ) -> list[str]:
-    """Set viewport, apply an optional state trigger, and capture the shot."""
+    """Set the viewport and apply the optional state and condition triggers."""
 
     errors: list[str] = []
     sized = _run_browser(
@@ -513,20 +521,23 @@ def _shoot(
         triggered = _run_browser(cli, ["eval", "--stdin"], stdin=condition_eval)
         if triggered.returncode != 0:
             errors.append(f"condition eval failed: {triggered.stderr.strip()}")
+    return errors
+
+
+def _screenshot(cli: list[str], screenshot: Path, full_page: bool) -> list[str]:
     argv = ["screenshot", str(screenshot)]
     if full_page:
         argv.insert(1, "--full")
     shot = _run_browser(cli, argv)
     if shot.returncode != 0:
-        errors.append(f"screenshot failed: {shot.stderr.strip()}")
-    elif not screenshot.exists():
-        errors.append("screenshot reported success but wrote no file")
-    return errors
+        return [f"screenshot failed: {shot.stderr.strip()}"]
+    if not screenshot.exists():
+        return ["screenshot reported success but wrote no file"]
+    return []
 
 
-def _capture_app(
+def _shoot(
     cli: list[str],
-    url: str,
     *,
     viewport: tuple[str, int],
     screenshot: Path,
@@ -534,21 +545,23 @@ def _capture_app(
     state_eval: str | None,
     condition_eval: str | None = None,
 ) -> list[str]:
+    """Set viewport, apply an optional state trigger, and capture the shot."""
+
+    return _prepare(
+        cli, viewport=viewport, state_eval=state_eval, condition_eval=condition_eval
+    ) + _screenshot(cli, screenshot, full_page)
+
+
+def _open_app(cli: list[str], url: str) -> tuple[bool, list[str]]:
+    """Load the app page; return (opened, problems). A slow idle wait is not fatal."""
+
     opened = _run_browser(cli, ["open", url])
     if opened.returncode != 0:
-        return [f"open {url} failed: {opened.stderr.strip()}"]
+        return False, [f"open {url} failed: {opened.stderr.strip()}"]
     waited = _run_browser(cli, ["wait", "--load", "networkidle"], timeout=120)
-    wait_errors: list[str] = []
     if waited.returncode != 0:
-        wait_errors.append(f"networkidle wait failed: {waited.stderr.strip()}")
-    return wait_errors + _shoot(
-        cli,
-        viewport=viewport,
-        screenshot=screenshot,
-        full_page=full_page,
-        state_eval=state_eval,
-        condition_eval=condition_eval,
-    )
+        return True, [f"networkidle wait failed: {waited.stderr.strip()}"]
+    return True, []
 
 
 def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
@@ -579,48 +592,477 @@ def _geometry_probe(cli: list[str]) -> tuple[dict[str, Any] | None, str | None]:
     return None, "geometry probe returned no valid JSON object"
 
 
+def _load_pillow() -> tuple[Any, Any] | None:
+    """Pillow is optional: without it pairs are reviewed by eye, never failed."""
+
+    try:
+        from PIL import Image, ImageChops
+    except ImportError:
+        return None
+    return Image, ImageChops
+
+
+def _fingerprint(geometry: dict[str, Any] | None) -> str | None:
+    """Lowercase SHA-256 over the canonical geometry probe JSON of the app page."""
+
+    if geometry is None:
+        return None
+    canonical = json.dumps(geometry, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def _pixel_diff(target: Path, actual: Path) -> tuple[dict[str, Any] | None, str | None]:
+    """Compare the pair; return (diff, None) or (None, why it could not run).
+
+    Sizes are normalised onto the larger canvas. Area that only one image
+    covers counts as differing, so a height mismatch shows up in the ratio.
+    """
+
+    pillow = _load_pillow()
+    if pillow is None:
+        return None, "Pillow is not installed"
+    image_module, chops = pillow
+    try:
+        with image_module.open(target) as target_file, image_module.open(actual) as actual_file:
+            left, right = target_file.convert("RGBA"), actual_file.convert("RGBA")
+    except (OSError, ValueError, image_module.DecompressionBombError) as exc:
+        return None, f"cannot decode the pair: {exc}"
+    width, height = max(left.width, right.width), max(left.height, right.height)
+    canvases = []
+    for image in (left, right):
+        canvas = image_module.new("RGBA", (width, height), (0, 0, 0, 0))
+        canvas.paste(image, (0, 0))
+        canvases.append(canvas)
+    red, green, blue, alpha = chops.difference(*canvases).split()
+    changed = chops.lighter(chops.lighter(red, green), chops.lighter(blue, alpha))
+    total = width * height
+    differing = total - changed.histogram()[0]
+    return {
+        "ratio": differing / total,
+        "differing_pixels": differing,
+        "total_pixels": total,
+        "sizes_matched": left.size == right.size,
+        "target_size": list(left.size),
+        "actual_size": list(right.size),
+    }, None
+
+
+def _ratio(text: str) -> float:
+    value = float(text)
+    if not 0.0 <= value <= 1.0:
+        raise argparse.ArgumentTypeError(f"{text} is not a fraction between 0.0 and 1.0")
+    return value
+
+
+def _classify(pixel_diff: dict[str, Any] | None, tolerance: float) -> str:
+    """`identical` only for a same-size pair at or under the tolerance; else review it."""
+
+    if (
+        pixel_diff is not None
+        and pixel_diff["sizes_matched"]
+        and pixel_diff["ratio"] <= tolerance
+    ):
+        return "identical"
+    return "changed"
+
+
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _file_has_hash(path: Any, digest: Any) -> bool:
+    if not isinstance(path, str) or not isinstance(digest, str) or not Path(path).is_file():
+        return False
+    try:
+        return _file_sha256(Path(path)) == digest
+    except OSError:
+        return False
+
+
+def _load_carry_source(path: Path) -> dict[str, dict[str, Any]]:
+    """Index a previous manifest's captured rows by tuple hash.
+
+    Rows from a manifest written before this field existed have no key and
+    can never be carried.
+    """
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    rows = data.get("captured") if isinstance(data, dict) else None
+    if not isinstance(rows, list):
+        raise ManifestError(f"carry-from manifest {path} has no captured list")
+    return {
+        row["tuple_sha256"]: row
+        for row in rows
+        if isinstance(row, dict) and isinstance(row.get("tuple_sha256"), str)
+    }
+
+
+def _can_carry(previous: dict[str, Any], job: dict[str, Any], tolerance: float) -> bool:
+    """True when nothing that shapes this pair changed since an identical one.
+
+    The geometry fingerprint alone cannot see a colour or text change, so the
+    fresh app screenshot must also hash the same as the previous one, and the
+    reference side (HTML file, route-map triggers, viewport) must be unchanged.
+    The previous files must still match their recorded hashes.
+    """
+
+    try:
+        return (
+            previous.get("classification") in ("identical", "carried")
+            and _classify(previous.get("pixel_diff"), tolerance) == "identical"
+            and job["geometry_fingerprint"] is not None
+            and previous.get("geometry_fingerprint") == job["geometry_fingerprint"]
+            and previous.get("actual_sha256") == job["actual_sha256"]
+            and previous.get("target_inputs_sha256") == job["target_inputs_sha256"]
+            and _file_has_hash(previous.get("target"), previous.get("target_sha256"))
+            and _file_has_hash(previous.get("actual"), previous.get("actual_sha256"))
+        )
+    except (KeyError, TypeError):
+        return False
+
+
+@dataclass
+class _Run:
+    """State shared by the capture phases of one invocation."""
+
+    cli: list[str]
+    reference_url: str
+    reference_sha256: str
+    full_page: bool
+    tolerance: float = 0.0
+    previous: dict[str, dict[str, Any]] = field(default_factory=dict)
+    carry_from: str | None = None
+    errors: list[str] = field(default_factory=list)
+    skipped: list[dict[str, Any]] = field(default_factory=list)
+    nav_methods: dict[str, str] = field(default_factory=dict)
+
+
+@contextmanager
+def _timed(job: dict[str, Any]) -> Iterator[None]:
+    """Add the time spent in the block, including any page load, to the tuple."""
+
+    began = _clock()
+    try:
+        yield
+    finally:
+        job["seconds"] += _clock() - began
+
+
+def _app_dirty(job: dict[str, Any]) -> bool:
+    return bool(job["app_eval"] or job["condition_app_eval"])
+
+
+def _reference_dirty(job: dict[str, Any]) -> bool:
+    return bool(job["reference_eval"] or job["condition_reference_eval"])
+
+
+def _plan_job(
+    run: _Run,
+    combo: dict[str, Any],
+    index: int,
+    entry: dict[str, Any],
+    out_dir: Path,
+    height: int,
+    base_url: str,
+) -> dict[str, Any] | None:
+    """Resolve one matrix tuple into a capture job, or record why it is skipped."""
+
+    # Bind the filename to the exact tuple, not its lossy display tokens.
+    identity = json.dumps(combo, sort_keys=True, ensure_ascii=False).encode("utf-8")
+    label = (
+        f"{_token(combo['route'])}-{_token(combo['state'])}-"
+        f"{_token(combo['breakpoint'])}"
+    )
+    tuple_sha256 = hashlib.sha256(identity).hexdigest()
+    name = f"{label[:64]}-{tuple_sha256}"
+    is_condition = combo.get("kind") == "design-condition"
+    base_state = combo["base_state"] if is_condition else combo["state"]
+    states_map = entry.get("states") or {}
+    base_entry = states_map.get(base_state) or {}
+    if not isinstance(base_entry, dict):
+        base_entry = {}
+    condition_entry = _condition_entry(entry, combo)
+    app_eval = base_entry.get("app_eval")
+    condition_reference_eval = (
+        condition_entry.get("reference_eval") if is_condition else None
+    )
+    condition_app_eval = condition_entry.get("app_eval") if is_condition else None
+    if not app_eval and base_state != "ready":
+        run.skipped.append(
+            {
+                **combo,
+                "reason": (
+                    f"no app_eval trigger for {'base state' if is_condition else 'state'} {base_state!r} "
+                    "in the route map"
+                ),
+            }
+        )
+        return None
+    if is_condition and combo["state"] == "long-content":
+        if not all(isinstance(value, str) and value.strip() for value in (condition_reference_eval, condition_app_eval)):
+            run.skipped.append(
+                {
+                    **combo,
+                    "reason": (
+                        "long-content requires both reference_eval and "
+                        "app_eval in the route-map conditions"
+                    ),
+                }
+            )
+            return None
+    app_path = entry.get("app_path") or combo["route"]
+    reference_eval = base_entry.get("reference_eval")
+    # Everything that shapes the target image; a change forces a recapture.
+    target_inputs = json.dumps(
+        {
+            "reference_sha256": run.reference_sha256,
+            "route": combo["route"],
+            "reference": entry.get("reference"),
+            "reference_eval": reference_eval,
+            "condition_reference_eval": condition_reference_eval,
+            "viewport": [combo["breakpoint"], height],
+            "full_page": run.full_page,
+            "media_preference": combo.get("media_preference"),
+        },
+        sort_keys=True, ensure_ascii=False,
+    )
+    return {
+        "combo": combo,
+        "index": index,
+        "route": combo["route"],
+        "entry": entry,
+        "name": name,
+        "tuple_sha256": tuple_sha256,
+        "target_inputs_sha256": hashlib.sha256(target_inputs.encode("utf-8")).hexdigest(),
+        "target": out_dir / f"{name}-target.png",
+        "actual": out_dir / f"{name}-actual.png",
+        "viewport": (combo["breakpoint"], height),
+        "url": f"{base_url}{app_path}",
+        "reference_eval": reference_eval,
+        "app_eval": app_eval,
+        "condition_reference_eval": condition_reference_eval,
+        "condition_app_eval": condition_app_eval,
+        "app_ok": False,
+        "done": False,
+        "carried": None,
+        "seconds": 0.0,
+    }
+
+
+def _app_step(run: _Run, job: dict[str, Any], loaded: bool) -> bool:
+    """Capture one app page; return whether the loaded page is still untouched."""
+
+    name = job["name"]
+    problems: list[str] = []
+    if not loaded:
+        opened, problems = _open_app(run.cli, job["url"])
+        if not opened:
+            run.errors.extend(f"{name} actual: {problem}" for problem in problems)
+            return False
+    problems += _prepare(
+        run.cli,
+        viewport=job["viewport"],
+        state_eval=job["app_eval"],
+        condition_eval=job["condition_app_eval"],
+    )
+    problems += _screenshot(run.cli, job["actual"], run.full_page)
+    untouched = not _app_dirty(job)
+    if problems:
+        run.errors.extend(f"{name} actual: {problem}" for problem in problems)
+        return untouched
+    geometry, geometry_error = _geometry_probe(run.cli)
+    if geometry_error:
+        run.errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
+    job.update(app_ok=True, geometry=geometry, geometry_error=geometry_error)
+    job["geometry_fingerprint"] = _fingerprint(geometry)
+    job["actual_sha256"] = _file_sha256(job["actual"])
+    previous = run.previous.get(job["tuple_sha256"])
+    if previous is not None and _can_carry(previous, job, run.tolerance):
+        job.update(carried=previous, done=True)
+        print(f"carried {name}")
+    return untouched
+
+
+def _app_phase(run: _Run, jobs: list[dict[str, Any]]) -> None:
+    """Capture every app page of one route, loading the page once while it stays clean.
+
+    A state or condition trigger changes the page, so those tuples load a fresh
+    page each; trigger-free tuples run first and share one load.
+    """
+
+    loaded = False
+    for job in sorted(jobs, key=lambda item: (_app_dirty(item), item["index"])):
+        with _timed(job):
+            loaded = _app_step(run, job, loaded)
+
+
+def _reference_step(
+    run: _Run, job: dict[str, Any], route: str, loaded: bool
+) -> tuple[bool, bool]:
+    """Capture one reference render; return (page still untouched, route unreachable)."""
+
+    if not loaded:
+        ok, method = _navigate_reference(run.cli, run.reference_url, route, job["entry"])
+        run.nav_methods[route] = method
+        if not ok:
+            run.skipped.append({**job["combo"], "reason": f"reference nav: {method}"})
+            return False, True
+    problems = _shoot(
+        run.cli,
+        viewport=job["viewport"],
+        screenshot=job["target"],
+        full_page=run.full_page,
+        state_eval=job["reference_eval"],
+        condition_eval=job["condition_reference_eval"],
+    )
+    untouched = not _reference_dirty(job)
+    if problems:
+        run.errors.extend(f"{job['name']} target: {problem}" for problem in problems)
+        return untouched, False
+    job["done"] = True
+    job["target_sha256"] = _file_sha256(job["target"])
+    job["pixel_diff"], job["pixel_diff_reason"] = _pixel_diff(job["target"], job["actual"])
+    job["classification"] = _classify(job["pixel_diff"], run.tolerance)
+    print(f"captured {job['name']}")
+    return untouched, False
+
+
+def _row(job: dict[str, Any], carry_from: str | None) -> dict[str, Any]:
+    """The manifest row of a captured pair, or of one carried from a previous run."""
+
+    carried = job["carried"]
+    row = {
+        **job["combo"],
+        "tuple_sha256": job["tuple_sha256"],
+        "target": job["target"].as_posix(),
+        "actual": job["actual"].as_posix(),
+        "target_sha256": job.get("target_sha256"),
+        "actual_sha256": job["actual_sha256"],
+        "target_inputs_sha256": job["target_inputs_sha256"],
+        "geometry": job["geometry"],
+        "geometry_error": job["geometry_error"],
+        "geometry_fingerprint": job["geometry_fingerprint"],
+        "pixel_diff": job.get("pixel_diff"),
+        "pixel_diff_reason": job.get("pixel_diff_reason"),
+        "classification": job.get("classification"),
+        "duration_ms": round(job["seconds"] * 1000),
+    }
+    if carried:
+        row.update(
+            {key: carried[key] for key in (
+                "target", "actual", "target_sha256", "actual_sha256",
+                "pixel_diff", "pixel_diff_reason",
+            )},
+            classification="carried",
+            carried_from={"manifest": carry_from, "classification": carried["classification"]},
+        )
+    return row
+
+
+def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
+    """Capture the reference renders of one route, navigating once while it stays clean."""
+
+    loaded = False
+    unreachable = False
+    pending = [job for job in jobs if job["app_ok"] and not job["carried"]]
+    for job in sorted(pending, key=lambda item: (_reference_dirty(item), item["index"])):
+        if unreachable:
+            run.skipped.append(
+                {**job["combo"], "reason": f"reference nav: {run.nav_methods[route]}"}
+            )
+            continue
+        with _timed(job):
+            loaded, unreachable = _reference_step(run, job, route, loaded)
+
+
+def _board_src(path: str, board_dir: Path) -> str:
+    """Image URL relative to the board, so it opens from any directory."""
+
+    try:
+        return Path(os.path.relpath(path, board_dir)).as_posix()
+    except ValueError:  # another drive on Windows
+        return Path(path).resolve().as_uri()
+
+
+def _diff_note(item: dict[str, Any]) -> str:
+    """One line on how far the pair is from identical."""
+
+    diff = item.get("pixel_diff")
+    if diff is None:
+        return f"pixel diff unavailable: {item.get('pixel_diff_reason')}"
+    note = f"{diff['ratio'] * 100:.4f}% of pixels differ ({diff['differing_pixels']} of {diff['total_pixels']})"
+    if not diff["sizes_matched"]:
+        t, a = diff["target_size"], diff["actual_size"]
+        note += f" · size mismatch: target {t[0]}×{t[1]}, actual {a[0]}×{a[1]}"
+    return note
+
+
+def _pair_card(item: dict[str, Any], out_dir: Path) -> str:
+    label = (
+        f"{item['surface_id']} · {item['route']} · "
+        f"{item['breakpoint']}px · {item['state']}"
+    )
+    geometry = item.get("geometry") or {}
+    geometry_error = item.get("geometry_error")
+    findings = []
+    if geometry.get("overflowX", 0) > 1:
+        findings.append(f"horizontal overflow: {geometry['overflowX']}px")
+    for overlap in geometry.get("overlaps") or []:
+        findings.append(
+            f"overlap {overlap.get('a')} × {overlap.get('b')} "
+            f"({overlap.get('px')}×{overlap.get('py')}px)"
+        )
+    if geometry_error:
+        findings.append(f"geometry probe unavailable: {geometry_error}")
+    findings_html = (
+        "<ul>"
+        + "".join(f"<li>{html.escape(str(f))}</li>" for f in findings)
+        + "</ul>"
+    ) if findings else "<p>geometry probe: clean</p>"
+    return (
+        "<section class='pair'>"
+        f"<h3>{html.escape(label)}</h3>"
+        f"<p class='diff'>{html.escape(item['classification'])} · {html.escape(_diff_note(item))}</p>"
+        f"<div class='imgs'><figure><img src=\"{html.escape(_board_src(item['target'], out_dir))}\">"
+        "<figcaption>target (design reference)</figcaption></figure>"
+        f"<figure><img src=\"{html.escape(_board_src(item['actual'], out_dir))}\">"
+        "<figcaption>actual (implementation)</figcaption></figure></div>"
+        f"<div class='findings'>{findings_html}</div>"
+        "<div class='verdict'>verdict: pass / deviation — "
+        "differences: ______________________</div>"
+        "</section>"
+    )
+
+
 def _board(
     out_dir: Path,
     captured: list[dict[str, Any]],
     skipped: list[dict[str, Any]],
 ) -> Path:
-    rows = []
-    for item in captured:
-        label = (
-            f"{item['surface_id']} · {item['route']} · "
-            f"{item['breakpoint']}px · {item['state']}"
-        )
-        geometry = item.get("geometry") or {}
-        geometry_error = item.get("geometry_error")
-        findings = []
-        if geometry.get("overflowX", 0) > 1:
-            findings.append(f"horizontal overflow: {geometry['overflowX']}px")
-        for overlap in geometry.get("overlaps") or []:
-            findings.append(
-                f"overlap {overlap.get('a')} × {overlap.get('b')} "
-                f"({overlap.get('px')}×{overlap.get('py')}px)"
+    def unreviewed_first(item: dict[str, Any]) -> float:
+        diff = item.get("pixel_diff")
+        return -2.0 if diff is None else -diff["ratio"]
+
+    changed = sorted(
+        (item for item in captured if item["classification"] == "changed"),
+        key=unreviewed_first,
+    )
+    sections = [_pair_card(item, out_dir) for item in changed]
+    for kind in ("identical", "carried"):
+        folded = [item for item in captured if item["classification"] == kind]
+        if folded:
+            sections.append(
+                f"<details><summary>{len(folded)} {kind} "
+                f"{'pair' if len(folded) == 1 else 'pairs'}</summary>"
+                + "".join(_pair_card(item, out_dir) for item in folded)
+                + "</details>"
             )
-        if geometry_error:
-            findings.append(f"geometry probe unavailable: {geometry_error}")
-        findings_html = (
-            "<ul>"
-            + "".join(f"<li>{html.escape(str(f))}</li>" for f in findings)
-            + "</ul>"
-        ) if findings else "<p>geometry probe: clean</p>"
-        rows.append(
-            "<section class='pair'>"
-            f"<h3>{html.escape(label)}</h3>"
-            f"<div class='imgs'><figure><img src='{item['target']}'>"
-            "<figcaption>target (design reference)</figcaption></figure>"
-            f"<figure><img src='{item['actual']}'>"
-            "<figcaption>actual (implementation)</figcaption></figure></div>"
-            f"<div class='findings'>{findings_html}</div>"
-            "<div class='verdict'>verdict: pass / deviation — "
-            "differences: ______________________</div>"
-            "</section>"
-        )
     for item in skipped:
-        rows.append(
+        sections.append(
             "<section class='pair skipped'>"
             f"<h3>SKIPPED · {html.escape(str(item.get('route')))} · "
             f"{html.escape(str(item.get('breakpoint')))} · "
@@ -638,12 +1080,15 @@ def _board(
         ".imgs{display:flex;gap:12px}.imgs figure{flex:1;margin:0}"
         ".imgs img{width:100%;border:1px solid #999}"
         "figcaption{font-size:12px;color:#555;margin-top:4px}"
+        ".diff{font-family:monospace;margin:4px 0 8px}"
         ".verdict{margin-top:8px;font-family:monospace}"
+        "details{margin-bottom:16px}"
+        "summary{cursor:pointer;font-weight:bold;margin-bottom:12px}"
         "</style></head><body>"
         "<h1>Parity board — design reference vs implementation</h1>"
         "<p>Compare each pair item by item within ui-design.md's recorded "
         "tolerance; record the verdict in RUN's target_comparison.</p>"
-        + "".join(rows)
+        + "".join(sections)
         + "</body></html>",
         encoding="utf-8",
         newline="\n",
@@ -652,6 +1097,7 @@ def _board(
 
 
 def capture(args: argparse.Namespace) -> int:
+    started = _clock()
     plan_path: Path = args.plan
     if not plan_path.is_file():
         print(f"error: PLAN not found: {plan_path}", file=sys.stderr)
@@ -666,6 +1112,16 @@ def capture(args: argparse.Namespace) -> int:
     except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
+
+    carry_from: Path | None = getattr(args, "carry_from", None)
+    recapture_carried: bool = getattr(args, "recapture_carried", False)
+    previous: dict[str, dict[str, Any]] = {}
+    if carry_from is not None and not recapture_carried:
+        try:
+            previous = _load_carry_source(carry_from)
+        except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
+            print(f"error: --carry-from {carry_from}: {exc}", file=sys.stderr)
+            return 1
 
     projection_errors = _capture_projection_errors(plan)
     if projection_errors:
@@ -726,123 +1182,56 @@ def capture(args: argparse.Namespace) -> int:
     session = args.session or f"parity-{uuid.uuid4().hex[:8]}"
     os.environ["AGENT_BROWSER_SESSION"] = session
 
-    reference_url = reference.resolve().as_uri()
+    run = _Run(
+        cli=cli,
+        reference_url=reference.resolve().as_uri(),
+        reference_sha256=_file_sha256(reference),
+        full_page=args.full_page,
+        tolerance=getattr(args, "tolerance", 0.0),
+        previous=previous,
+        carry_from=carry_from.as_posix() if carry_from else None,
+    )
     base_url: str = str(args.base_url).rstrip("/")
-
-    captured: list[dict[str, Any]] = []
-    skipped: list[dict[str, Any]] = []
-    errors: list[str] = []
-    nav_methods: dict[str, str] = {}
     routes = sorted({combo["route"] for combo in combos})
     original_media = None
     if any("kind" in combo for combo in combos):
         opened = _run_browser(cli, ["open", "about:blank"])
         original_media, media_problem = _read_media_preferences(cli)
         if opened.returncode or media_problem:
-            errors.append(media_problem or "could not open the private browser context")
+            run.errors.append(media_problem or "could not open the private browser context")
 
+    jobs: list[dict[str, Any]] = []
     for route in routes:
         entry = route_map.get(route) or {}
         if not isinstance(entry, dict):
             entry = {}
         for combo in (c for c in combos if c["route"] == route):
-            # Bind the filename to the exact tuple, not its lossy display tokens.
-            identity = json.dumps(combo, sort_keys=True, ensure_ascii=False).encode("utf-8")
-            label = (
-                f"{_token(route)}-{_token(combo['state'])}-"
-                f"{_token(combo['breakpoint'])}"
+            job = _plan_job(
+                run, combo, len(jobs), entry, out_dir,
+                args.height or VIEWPORT_HEIGHT, base_url,
             )
-            name = f"{label[:64]}-{hashlib.sha256(identity).hexdigest()}"
-            target = out_dir / f"{name}-target.png"
-            actual = out_dir / f"{name}-actual.png"
-            breakpoint = combo["breakpoint"]
-            viewport = (breakpoint, args.height or VIEWPORT_HEIGHT)
-            is_condition = combo.get("kind") == "design-condition"
-            base_state = combo["base_state"] if is_condition else combo["state"]
-            states_map = entry.get("states") or {}
-            base_entry = states_map.get(base_state) or {}
-            if not isinstance(base_entry, dict):
-                base_entry = {}
-            condition_entry = _condition_entry(entry, combo)
-            reference_eval = base_entry.get("reference_eval")
-            app_eval = base_entry.get("app_eval")
-            condition_reference_eval = (
-                condition_entry.get("reference_eval") if is_condition else None
-            )
-            condition_app_eval = condition_entry.get("app_eval") if is_condition else None
-            if not app_eval and base_state != "ready":
-                skipped.append(
-                    {
-                        **combo,
-                        "reason": (
-                            f"no app_eval trigger for {'base state' if is_condition else 'state'} {base_state!r} "
-                            "in the route map"
-                        ),
-                    }
-                )
-                continue
-            if is_condition and combo["state"] == "long-content":
-                if not all(isinstance(value, str) and value.strip() for value in (condition_reference_eval, condition_app_eval)):
-                    skipped.append(
-                        {
-                            **combo,
-                            "reason": (
-                                "long-content requires both reference_eval and "
-                                "app_eval in the route-map conditions"
-                            ),
-                        }
-                    )
-                    continue
+            if job:
+                jobs.append(job)
 
-            with _motion_scope(cli, combo, original_media, errors, name) as prepared:
-                if not prepared:
-                    continue
-                # Re-open the reference because the previous capture leaves
-                # the active tab on the application.
-                ok, method = _navigate_reference(cli, reference_url, route, entry)
-                nav_methods[route] = method
-                if not ok:
-                    skipped.append({**combo, "reason": f"reference nav: {method}"})
-                    continue
-                target_errors = _shoot(
-                    cli,
-                    viewport=viewport,
-                    screenshot=target,
-                    full_page=args.full_page,
-                    state_eval=reference_eval,
-                    condition_eval=condition_reference_eval,
-                )
-                if target_errors:
-                    errors.extend(f"{name} target: {problem}" for problem in target_errors)
-                    continue
-                app_path = entry.get("app_path") or combo["route"]
-                app_errors = _capture_app(
-                    cli,
-                    f"{base_url}{app_path}",
-                    viewport=viewport,
-                    screenshot=actual,
-                    full_page=args.full_page,
-                    state_eval=app_eval,
-                    condition_eval=condition_app_eval,
-                )
-                if app_errors:
-                    errors.extend(f"{name} actual: {problem}" for problem in app_errors)
-                    continue
-                geometry, geometry_error = _geometry_probe(cli)
-                if geometry_error:
-                    errors.append(f"{name} actual: geometry probe failed: {geometry_error}")
-                captured.append(
-                    {
-                        **combo,
-                        "target": target.as_posix(),
-                        "actual": actual.as_posix(),
-                        "geometry": geometry,
-                        "geometry_error": geometry_error,
-                    }
-                )
-                print(f"captured {name}")
+    # One media-preference change covers every tuple that shares it.
+    scopes: dict[Any, list[dict[str, Any]]] = {}
+    for job in jobs:
+        scopes.setdefault(job["combo"].get("media_preference"), []).append(job)
+    for media, scope_jobs in scopes.items():
+        with _motion_scope(
+            cli, scope_jobs[0]["combo"], original_media, run.errors, f"{media} media"
+        ) as prepared:
+            if not prepared:
+                continue
+            for route in routes:
+                route_jobs = [job for job in scope_jobs if job["route"] == route]
+                if route_jobs:
+                    _app_phase(run, route_jobs)
+                    _reference_phase(run, route, route_jobs)
 
     _run_browser(cli, ["close"], timeout=30)
+    captured = [_row(job, run.carry_from) for job in jobs if job["done"]]
+    skipped, errors, nav_methods = run.skipped, run.errors, run.nav_methods
     if skipped:
         errors.extend(
             f"{item['route']} x {item['breakpoint']} x {item['state']}: "
@@ -866,6 +1255,11 @@ def capture(args: argparse.Namespace) -> int:
         "required_combinations": len(all_combos),
         "selected_combinations": len(combos),
         "only_routes": [args.only] if args.only else [],
+        "duration_ms": round((_clock() - started) * 1000),
+        "tolerance": run.tolerance,
+        "carry_from": run.carry_from,
+        "recapture_carried": recapture_carried,
+        "classification_counts": dict(Counter(row["classification"] for row in captured)),
         "captured": captured,
         "skipped": skipped,
         "unsupported_groups": unsupported_groups,
@@ -881,7 +1275,7 @@ def capture(args: argparse.Namespace) -> int:
         f"done: {len(captured)} of {len(combos)} selected pairs captured "
         f"({len(all_combos)} full-plan required), "
         f"{len(skipped)} skipped, "
-        f"{len(errors)} errors; board: {board}"
+        f"{len(errors)} errors in {manifest['duration_ms'] / 1000:.1f}s; board: {board}"
     )
     for problem in errors:
         print(f"error: {problem}", file=sys.stderr)
@@ -920,7 +1314,23 @@ def main(argv: list[str] | None = None) -> int:
         help="capture full scroll height instead of the viewport",
     )
     parser.add_argument("--session", help="agent-browser session name (default: generated)")
+    parser.add_argument(
+        "--tolerance", type=_ratio, default=0.0,
+        help="largest fraction of differing pixels (0.0-1.0) still classed identical "
+        "(default: 0.0, exact)",
+    )
+    parser.add_argument(
+        "--carry-from", type=Path, metavar="MANIFEST",
+        help="previous manifest.json; a pair whose app page and reference inputs are "
+        "unchanged since an identical one is recorded as carried and not recaptured",
+    )
+    parser.add_argument(
+        "--recapture-carried", action="store_true",
+        help="with --carry-from, capture every pair again instead of carrying",
+    )
     args = parser.parse_args(argv)
+    if args.recapture_carried and args.carry_from is None:
+        parser.error("--recapture-carried needs --carry-from")
     try:
         return capture(args)
     except subprocess.TimeoutExpired as exc:
