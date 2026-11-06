@@ -7,11 +7,13 @@ import contextlib
 import hashlib
 import io
 import json
+import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 if str(SCRIPTS_DIR) not in sys.path:
@@ -179,6 +181,38 @@ class ReviewInputTests(unittest.TestCase):
         self.assertEqual(2, code)
         self.assertIn("duplicate --scope", stderr)
         self.assertFalse(self.out.exists())
+
+    def test_dirty_clone_is_refused(self) -> None:
+        original = review_input.git
+        clone = (self.out / "clone").resolve()
+        for label, status in (("untracked", b"?? stray.txt\n"), ("tracked", b" M src/app.py\n")):
+            with self.subTest(label):
+                def fake(repo: Path, *args: str, _status: bytes = status) -> bytes:
+                    if args[0] == "status" and Path(repo).resolve() == clone:
+                        return _status
+                    return original(repo, *args)
+
+                with mock.patch.object(review_input, "git", fake):
+                    code, stdout, stderr = self.run_main()
+                self.assertEqual(2, code)
+                self.assertEqual("", stdout)
+                self.assertIn("clone is not clean", stderr)
+                self.assertFalse((clone / "review-input").exists())
+                shutil.rmtree(self.out)
+
+    def test_enumeration_error_aborts_the_packet(self) -> None:
+        def walk(top: str, onerror=None, **_: object):
+            error = OSError(13, "denied")
+            error.filename = str(Path(top) / "nested")
+            onerror(error)
+            return iter(())
+
+        with mock.patch.object(review_input.os, "walk", walk):
+            code, stdout, stderr = self.run_main()
+        self.assertEqual(2, code)
+        self.assertEqual("", stdout)
+        self.assertIn("cannot list", stderr)
+        self.assertFalse((self.out / "clone" / "review-input" / "tracked-files.sha256").exists())
 
     def test_cli_prints_one_json_line(self) -> None:
         result = subprocess.run(
