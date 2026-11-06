@@ -2331,11 +2331,19 @@ def _motion_transcript_findings(output: dict[str, Any], local_pages: set[str]) -
     allowlisted = {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"}
     sandbox = output.get("sandbox")
     navigation = output.get("navigation")
+
+    def local_row(row: object) -> bool:
+        if not isinstance(row, dict):
+            return False
+        if all(isinstance(row.get(key), str) and row[key] in local_pages for key in ("from", "to")):
+            return True
+        # The sandbox drivers record an allowlisted document request as {url, allowlisted: true}.
+        url = row.get("url")
+        page = url.split("?", 1)[0].split("#", 1)[0].rsplit("/", 1)[-1] if isinstance(url, str) else ""
+        return row.get("allowlisted") is True and page in local_pages and row.get("method", "GET") == "GET"
+
     if isinstance(navigation, list):
-        navigation = [
-            row for row in navigation
-            if not (isinstance(row, dict) and all(isinstance(row.get(key), str) and row[key] in local_pages for key in ("from", "to")))
-        ]
+        navigation = [row for row in navigation if not local_row(row)]
     return _offline_transcript_findings(dict(
         output, navigation=navigation, sandbox=dict(allowlisted, topNavigation="blocked") if sandbox == allowlisted else sandbox,
     ))

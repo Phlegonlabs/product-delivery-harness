@@ -317,7 +317,7 @@ class HybridCrossSkillPublicationTests(unittest.TestCase):
             if receipt["method"] != "sandboxed-offline-browser":
                 for key in ("sandbox", "console", "network", "navigation"):
                     output.pop(key, None)
-            else:
+            elif not is_motion:
                 output.update(bundle_output(manifest, component_types=("a", "input")))
                 # Synthetic fixture measurements use the actual named-width map.
                 output["reviewer"]["viewport"] = expected_reviewer["viewport"]

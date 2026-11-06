@@ -483,6 +483,7 @@ MOTION_EXPECTED = {"intent": "MM-001", "scope": "UI-001 / hero", "mode": "normal
                    "endState": "Overlay settles", "states": [], "targets": ["390"], "provider": None,
                    "assetAction": None, "assetRequired": False}
 PACKAGE_NAVIGATION = {"id": "UI-001-next", "target": "390", "trigger": "click", "from": "index.html", "to": "details.html"}
+DRIVER_NAVIGATION = {"url": "https://hifi.invalid/pkg/details.html?x=1", "method": "GET", "resourceType": "document", "allowlisted": True}
 
 
 def resolve_offline_receipt(root, edit=None, *, motion=True):
@@ -525,6 +526,7 @@ class UiDesignContractTests(unittest.TestCase):
             materialize_hifi_bundle(root)
             self.assertEqual([], resolve_offline_receipt(root))
             self.assertEqual([], resolve_offline_receipt(root, lambda output: output.update(navigation=[PACKAGE_NAVIGATION])))
+            self.assertEqual([], resolve_offline_receipt(root, lambda output: output.update(navigation=[DRIVER_NAVIGATION])))
 
     def test_motion_receipt_on_a_bundle_passes_with_the_fully_blocked_sandbox(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -550,6 +552,9 @@ class UiDesignContractTests(unittest.TestCase):
                 ("source outside the package", [dict(PACKAGE_NAVIGATION, **{"from": "elsewhere.html"})]),
                 ("external address", [dict(PACKAGE_NAVIGATION, to="https://example.test/")]),
                 ("row without pages", [{"url": "https://hifi.invalid/pkg/details.html"}]),
+                ("driver row not allowlisted", [dict(DRIVER_NAVIGATION, allowlisted=False)]),
+                ("driver row to an outside page", [dict(DRIVER_NAVIGATION, url="https://hifi.invalid/pkg/elsewhere.html")]),
+                ("driver row that posts", [dict(DRIVER_NAVIGATION, method="POST")]),
                 ("row that is not an object", ["details.html"]),
                 ("package page then outside page", [PACKAGE_NAVIGATION, dict(PACKAGE_NAVIGATION, to="elsewhere.html")]),
             ):
