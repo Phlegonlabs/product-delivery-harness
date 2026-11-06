@@ -538,12 +538,16 @@ class UiDesignContractTests(unittest.TestCase):
             root = Path(temp)
             materialize_hifi_bundle(root)
             for key in ("console", "network", "navigation", "popups", "forms"):
-                for label, edit in (("string", lambda o, k=key: o.update({k: "none"})), ("missing", lambda o, k=key: o.pop(k))):
+                # A wrong type reaches the transcript rule; a missing key already fails the exact key set.
+                for label, edit, expected in (
+                    ("string", lambda o, k=key: o.update({k: "none"}), "transcript arrays plus integer attempt counts"),
+                    ("missing", lambda o, k=key: o.pop(k), "offline ui-output/1 transcript schema"),
+                ):
                     with self.subTest(key=key, variant=label):
                         problems = resolve_offline_receipt(root, edit)
-                        self.assertTrue(any("transcript arrays plus integer attempt counts" in item for item in problems), problems)
+                        self.assertTrue(any(expected in item for item in problems), problems)
             for label, edit, expected in (
-                ("popupAttempts missing", lambda o: o.pop("popupAttempts"), "integer attempt counts"),
+                ("popupAttempts missing", lambda o: o.pop("popupAttempts"), "offline ui-output/1 transcript schema"),
                 ("formAttempts string", lambda o: o.update(formAttempts="0"), "integer attempt counts"),
                 ("popupAttempts bool", lambda o: o.update(popupAttempts=False), "integer attempt counts"),
                 ("formAttempts mismatch", lambda o: o.update(formAttempts=1), "must equal the corresponding transcript lengths"),
