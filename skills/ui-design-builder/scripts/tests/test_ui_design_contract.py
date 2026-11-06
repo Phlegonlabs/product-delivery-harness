@@ -328,19 +328,15 @@ def materialize_publication(root: Path, *, required: bool, legacy_hifi: bool = F
         # One representative target per intent is the rule; a receipt covering every target is an accepted superset.
         motion_cases = [{"surface": "UI-001", "state": state, "target": str(target)} for target in motion_targets]
         output_path = evidence_dir / name.replace(".json", "-output.json")
-        output = bundle_output(json.loads(manifest), component_types=("a", "input"), version=reviewer_version)
+        # A motion receipt is an offline receipt of one intent: no interactions, navigation or reviewer rows.
+        output = offline_output(top_navigation="blocked" if legacy_hifi else "allowlisted-local-pages")
         output.update({
-            "schema": "ui-output/1" if legacy_hifi else "ui-output/2",
+            "schema": "ui-output/1",
             "check": "motion-preview",
             "subject": subject,
             "matrix": {"cases": motion_cases},
             "results": [dict(case, result="PASS") for case in motion_cases],
         })
-        if legacy_hifi:
-            output.pop("interactions", None)
-            output.pop("reviewer", None)
-            output["navigation"] = []
-            output["sandbox"]["topNavigation"] = "blocked"
         output["motion"] = {
             "intent": "MM-001", "scope": "UI-001 / hero",
             "mode": "normal" if state == "normal" else "reduced",
@@ -461,9 +457,14 @@ def materialize_hifi_bundle(root):
     return path, manifest, {"surfaces": [{key: value for key, value in row.items() if key != "page"} for row in surfaces]}
 
 
+def offline_output(top_navigation="blocked"):
+    """The sandbox transcript fields every offline receipt carries, with nothing observed."""
+    return {"sandbox": {"network": "disabled", "topNavigation": top_navigation, "popups": "blocked", "forms": "blocked"},
+            "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0}
+
+
 def bundle_output(manifest, component_types=("button", "input", "select", "a"), version=2):
-    output = {"sandbox": {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"},
-              "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0, "interactions": []}
+    output = dict(offline_output("allowlisted-local-pages"), interactions=[])
     surfaces = {row["id"]: row for row in manifest["surfaces"]}
     for action in manifest["interactions"]:
         source = surfaces[action["source"]["surface"]]
@@ -478,7 +479,120 @@ def bundle_output(manifest, component_types=("button", "input", "select", "a"), 
     return output
 
 
+MOTION_EXPECTED = {"intent": "MM-001", "scope": "UI-001 / hero", "mode": "normal", "trigger": "on entry",
+                   "endState": "Overlay settles", "states": [], "targets": ["390"], "provider": None,
+                   "assetAction": None, "assetRequired": False}
+PACKAGE_NAVIGATION = {"id": "UI-001-next", "target": "390", "trigger": "click", "from": "index.html", "to": "details.html"}
+
+
+def resolve_offline_receipt(root, edit=None, *, motion=True):
+    """Resolve a synthetic offline receipt of the bundle at root/index.html.
+
+    `motion` selects a motion-preview receipt; otherwise it is a hifi-browser surface check.
+    Both start from the allowlisted sandbox with nothing observed. Validator input, not a browser run.
+    """
+    check = "motion-preview" if motion else "hifi-browser"
+    subject = {"path": "index.html", "sha256": hashlib.sha256((root / "index.html").read_bytes()).hexdigest()}
+    case = {"surface": "UI-001", "state": "normal" if motion else "ready", "target": "390"}
+    matrix, results = {"cases": [case]}, [dict(case, result="PASS")]
+    output = dict(offline_output("allowlisted-local-pages"), schema="ui-output/1", check=check,
+                  subject=subject, matrix=matrix, results=results)
+    if motion:
+        output["motion"] = {"intent": "MM-001", "scope": "UI-001 / hero", "mode": "normal", "asset": None}
+    if edit:
+        edit(output)
+    output_path = root / "output.json"
+    output_path.write_text(json.dumps(output), encoding="utf-8")
+    evidence = {"schema": "ui-evidence/2", "check": check, "result": "PASS", "reviewedArtifact": subject,
+                "attestation": "human-attested", "owner": "Fixture human owner", "receipt": {
+                    "tool": "playwright", "method": "sandboxed-offline-browser", "matrix": matrix, "results": results,
+                    "outputArtifact": {"path": "output.json", "sha256": hashlib.sha256(output_path.read_bytes()).hexdigest()},
+                    "executedAt": "2020-01-01T00:00:00Z"}}
+    evidence_path = root / "evidence.json"
+    evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+    problems = []
+    checker._resolve_evidence("PASS — evidence=evidence.json @ sha256:" + hashlib.sha256(evidence_path.read_bytes()).hexdigest(),
+                              repo_root=root, label="Motion evidence", problems=problems, expected_artifact="index.html",
+                              expected_check=check, expected_matrix=matrix, expected_motion=MOTION_EXPECTED if motion else None)
+    return problems
+
+
 class UiDesignContractTests(unittest.TestCase):
+    def test_motion_receipt_on_a_bundle_passes_with_the_allowlisted_sandbox(self):
+        # Interaction, reviewer and declared-navigation rows belong to the HiFi surface check, not to one motion intent.
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+            self.assertEqual([], resolve_offline_receipt(root))
+            self.assertEqual([], resolve_offline_receipt(root, lambda output: output.update(navigation=[PACKAGE_NAVIGATION])))
+
+    def test_motion_receipt_on_a_bundle_passes_with_the_fully_blocked_sandbox(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+            self.assertEqual([], resolve_offline_receipt(root, lambda output: output["sandbox"].update(topNavigation="blocked")))
+
+    def test_motion_receipt_needs_the_offline_transcript_arrays(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+            for key in ("console", "network", "navigation", "popups", "forms"):
+                with self.subTest(key=key):
+                    problems = resolve_offline_receipt(root, lambda output: output.update({key: "none"}))
+                    self.assertTrue(any("transcript arrays plus integer attempt counts" in item for item in problems), problems)
+
+    def test_motion_receipt_rejects_navigation_outside_the_package(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+            for label, rows in (
+                ("page outside the package", [dict(PACKAGE_NAVIGATION, to="elsewhere.html")]),
+                ("source outside the package", [dict(PACKAGE_NAVIGATION, **{"from": "elsewhere.html"})]),
+                ("external address", [dict(PACKAGE_NAVIGATION, to="https://example.test/")]),
+                ("row without pages", [{"url": "https://hifi.invalid/pkg/details.html"}]),
+                ("row that is not an object", ["details.html"]),
+                ("package page then outside page", [PACKAGE_NAVIGATION, dict(PACKAGE_NAVIGATION, to="elsewhere.html")]),
+            ):
+                with self.subTest(label):
+                    problems = resolve_offline_receipt(root, lambda output: output.update(navigation=rows))
+                    self.assertTrue(any("recorded a navigation or popup attempt" in item for item in problems), problems)
+
+    def test_motion_receipt_still_fails_requests_popups_forms_console_errors_and_open_sandboxes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+            for label, edit, expected in (
+                ("network request", lambda o: o.update(network=[{"url": "https://example.test/"}]), "recorded a network request"),
+                ("popup", lambda o: o.update(popups=[{"url": "about:blank"}], popupAttempts=1), "recorded a popup attempt"),
+                ("form attempt", lambda o: o.update(forms=[{"action": "/save"}], formAttempts=1), "recorded a form attempt"),
+                ("console error", lambda o: o.update(console=[{"level": "error", "message": "boom"}]), "contains a console error"),
+                ("open top navigation", lambda o: o["sandbox"].update(topNavigation="allowed"), "sandbox must record"),
+                ("open network", lambda o: o["sandbox"].update(network="enabled"), "sandbox must record"),
+            ):
+                with self.subTest(label):
+                    problems = resolve_offline_receipt(root, edit)
+                    self.assertTrue(any(expected in item for item in problems), problems)
+
+    def test_motion_receipt_does_not_carry_bundle_evidence(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+            for key, value in (("interactions", []), ("reviewer", {})):
+                with self.subTest(key=key):
+                    problems = resolve_offline_receipt(root, lambda output: output.update({key: value}))
+                    self.assertTrue(any("sandboxed offline ui-output/1 transcript schema" in item for item in problems), problems)
+
+    def test_hifi_surface_receipt_on_the_same_bundle_still_requires_interactions(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            _, manifest, _ = materialize_hifi_bundle(root)
+            problems = resolve_offline_receipt(root, motion=False)
+            self.assertTrue(any("sandboxed offline ui-output/1 transcript schema" in item for item in problems), problems)
+            # Reaching the transcript rule, a missing interaction row still fails the bundle receipt.
+            output = dict(bundle_output(manifest), interactions=[])
+            self.assertIn("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target",
+                          checker._bundle_transcript_findings(output, manifest))
+
     def test_public_hifi_checker_binds_product_menu_and_tab_panels(self):
         for kind, state_attr, panel in (("menu", "aria-expanded", "menu-panel"),
                                         ("tab", "aria-selected", "tab-panel")):
