@@ -64,7 +64,7 @@ Observe each required motion intent at one representative responsive target: the
 - an end-state frame, taken at the approved resting state; and
 - a reduced-motion check that reads the computed animation and transition duration and confirms the end state arrives in place.
 
-The normal receipt holds the frames and the reduced-motion receipt holds the check; each required intent gets both. Each receipt is validated as an offline receipt of that one intent, not as the HiFi surface check; the [Typed motion transcript](output-contract.md#typed-motion-transcript) names its sandbox and navigation rule. Video clips and frame sampling are optional supplements.
+The normal receipt holds the frames and the reduced-motion receipt holds the check; each required intent gets both. Each receipt is validated as an offline receipt of that one intent, not as the HiFi surface check; the Typed motion transcript section of the [output contract](output-contract.md) names its sandbox and navigation rule. Video clips and frame sampling are optional supplements.
 
 ## HiFi Embedding Limits
 
