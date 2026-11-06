@@ -2323,26 +2323,26 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
 def _motion_transcript_findings(output: dict[str, Any], local_pages: set[str]) -> list[str]:
     """Offline transcript rules for one motion intent, which clicks no control.
 
-    The sandbox is fully blocked or allowlists the package's local pages. A navigation
-    row passes only between pages of the subject's package; any other navigation,
-    request, popup, form attempt or console error fails as in any offline receipt.
+    The sandbox is fully blocked or allowlists the package's local pages. Under the
+    allowlisted sandbox a navigation row passes only in the documented `{from, to}`
+    shape, between pages of the subject's package. Driver-shaped or mixed rows, any
+    other navigation, request, popup, form attempt or console error fails as in any
+    offline receipt.
     """
 
     allowlisted = {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"}
+    documented = {"id", "target", "trigger", "from", "to"}
     sandbox = output.get("sandbox")
     navigation = output.get("navigation")
 
     def local_row(row: object) -> bool:
-        if not isinstance(row, dict):
-            return False
-        if all(isinstance(row.get(key), str) and row[key] in local_pages for key in ("from", "to")):
-            return True
-        # The sandbox drivers record an allowlisted document request as {url, allowlisted: true}.
-        url = row.get("url")
-        page = url.split("?", 1)[0].split("#", 1)[0].rsplit("/", 1)[-1] if isinstance(url, str) else ""
-        return row.get("allowlisted") is True and page in local_pages and row.get("method", "GET") == "GET"
+        return (
+            isinstance(row, dict)
+            and set(row) <= documented
+            and all(isinstance(row.get(key), str) and row[key] in local_pages for key in ("from", "to"))
+        )
 
-    if isinstance(navigation, list):
+    if sandbox == allowlisted and isinstance(navigation, list):
         navigation = [row for row in navigation if not local_row(row)]
     return _offline_transcript_findings(dict(
         output, navigation=navigation, sandbox=dict(allowlisted, topNavigation="blocked") if sandbox == allowlisted else sandbox,

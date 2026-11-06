@@ -526,7 +526,6 @@ class UiDesignContractTests(unittest.TestCase):
             materialize_hifi_bundle(root)
             self.assertEqual([], resolve_offline_receipt(root))
             self.assertEqual([], resolve_offline_receipt(root, lambda output: output.update(navigation=[PACKAGE_NAVIGATION])))
-            self.assertEqual([], resolve_offline_receipt(root, lambda output: output.update(navigation=[DRIVER_NAVIGATION])))
 
     def test_motion_receipt_on_a_bundle_passes_with_the_fully_blocked_sandbox(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -539,9 +538,19 @@ class UiDesignContractTests(unittest.TestCase):
             root = Path(temp)
             materialize_hifi_bundle(root)
             for key in ("console", "network", "navigation", "popups", "forms"):
-                with self.subTest(key=key):
-                    problems = resolve_offline_receipt(root, lambda output: output.update({key: "none"}))
-                    self.assertTrue(any("transcript arrays plus integer attempt counts" in item for item in problems), problems)
+                for label, edit in (("string", lambda o, k=key: o.update({k: "none"})), ("missing", lambda o, k=key: o.pop(k))):
+                    with self.subTest(key=key, variant=label):
+                        problems = resolve_offline_receipt(root, edit)
+                        self.assertTrue(any("transcript arrays plus integer attempt counts" in item for item in problems), problems)
+            for label, edit, expected in (
+                ("popupAttempts missing", lambda o: o.pop("popupAttempts"), "integer attempt counts"),
+                ("formAttempts string", lambda o: o.update(formAttempts="0"), "integer attempt counts"),
+                ("popupAttempts bool", lambda o: o.update(popupAttempts=False), "integer attempt counts"),
+                ("formAttempts mismatch", lambda o: o.update(formAttempts=1), "must equal the corresponding transcript lengths"),
+            ):
+                with self.subTest(label):
+                    problems = resolve_offline_receipt(root, edit)
+                    self.assertTrue(any(expected in item for item in problems), problems)
 
     def test_motion_receipt_rejects_navigation_outside_the_package(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -552,15 +561,31 @@ class UiDesignContractTests(unittest.TestCase):
                 ("source outside the package", [dict(PACKAGE_NAVIGATION, **{"from": "elsewhere.html"})]),
                 ("external address", [dict(PACKAGE_NAVIGATION, to="https://example.test/")]),
                 ("row without pages", [{"url": "https://hifi.invalid/pkg/details.html"}]),
-                ("driver row not allowlisted", [dict(DRIVER_NAVIGATION, allowlisted=False)]),
-                ("driver row to an outside page", [dict(DRIVER_NAVIGATION, url="https://hifi.invalid/pkg/elsewhere.html")]),
-                ("driver row that posts", [dict(DRIVER_NAVIGATION, method="POST")]),
+                ("driver-shaped row to a package page", [DRIVER_NAVIGATION]),
+                ("driver-shaped row on another host", [dict(DRIVER_NAVIGATION, url="https://outside.test/pkg/details.html")]),
+                ("driver-shaped row with a file URL", [dict(DRIVER_NAVIGATION, url="file:///outside/details.html")]),
+                ("driver-shaped row with a wrong directory", [dict(DRIVER_NAVIGATION, url="https://hifi.invalid/other/details.html")]),
+                ("mixed row carrying driver fields", [dict(PACKAGE_NAVIGATION, url="https://attacker.invalid/collect", method="POST", allowlisted=False)]),
+                ("traversal in the destination", [dict(PACKAGE_NAVIGATION, to="../details.html")]),
+                ("destination with a directory", [dict(PACKAGE_NAVIGATION, to="pkg/details.html")]),
                 ("row that is not an object", ["details.html"]),
                 ("package page then outside page", [PACKAGE_NAVIGATION, dict(PACKAGE_NAVIGATION, to="elsewhere.html")]),
             ):
                 with self.subTest(label):
                     problems = resolve_offline_receipt(root, lambda output: output.update(navigation=rows))
                     self.assertTrue(any("recorded a navigation or popup attempt" in item for item in problems), problems)
+
+    def test_motion_receipt_rejects_navigation_under_the_blocked_sandbox(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            materialize_hifi_bundle(root)
+
+            def blocked_with_package_navigation(output):
+                output["sandbox"].update(topNavigation="blocked")
+                output.update(navigation=[PACKAGE_NAVIGATION])
+
+            problems = resolve_offline_receipt(root, blocked_with_package_navigation)
+            self.assertTrue(any("recorded a navigation or popup attempt" in item for item in problems), problems)
 
     def test_motion_receipt_still_fails_requests_popups_forms_console_errors_and_open_sandboxes(self):
         with tempfile.TemporaryDirectory() as temp:
