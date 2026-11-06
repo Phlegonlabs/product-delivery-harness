@@ -99,7 +99,9 @@ class ReviewInputTests(unittest.TestCase):
         self.assertEqual(len(candidate.splitlines()), summary["candidate_diff_lines"])
         status = (packet / "parent-status.txt").read_text(encoding="utf-8")
         self.assertEqual(
-            f"repo: {self.repo.as_posix()}\nhead: {self.head}\nstatus: clean\n", status
+            f"repo: {self.repo.as_posix()}\nhead: {self.head}\nstatus: clean\nuntracked: 0\n"
+            "note: the clone holds committed content only; untracked and ignored parent files are not in it\n",
+            status,
         )
 
     def test_manifest_covers_every_file_except_git_and_review_input(self) -> None:
@@ -136,8 +138,22 @@ class ReviewInputTests(unittest.TestCase):
         clone, _ = self.build()
         status = (clone / "review-input" / "parent-status.txt").read_text(encoding="utf-8")
         self.assertEqual(
-            f"repo: {self.repo.as_posix()}\nhead: {self.head}\nstatus: dirty\n M src/app.py\n", status
+            f"repo: {self.repo.as_posix()}\nhead: {self.head}\nstatus: dirty\nuntracked: 0\n"
+            "note: the clone holds committed content only; untracked and ignored parent files are not in it\n"
+            " M src/app.py\n",
+            status,
         )
+
+    def test_untracked_parent_files_are_listed_but_not_cloned(self) -> None:
+        write(self.repo, "notes.txt", "scratch\n")
+        clone, summary = self.build()
+        status = (clone / "review-input" / "parent-status.txt").read_text(encoding="utf-8")
+        self.assertIn("status: clean\nuntracked: 1\n", status)
+        self.assertIn("?? notes.txt\n", status)
+        self.assertFalse((clone / "notes.txt").exists())
+        manifest = (clone / "review-input" / "tracked-files.sha256").read_text(encoding="utf-8")
+        self.assertNotIn("notes.txt", manifest)
+        self.assertEqual(summary["head"], self.head)
 
     def test_repo_head_must_match_head(self) -> None:
         code, _, stderr = self.run_main(head=self.base)
@@ -156,6 +172,10 @@ class ReviewInputTests(unittest.TestCase):
             self.run_main("--scope", "../x=src")
         self.assertEqual(2, raised.exception.code)
         code, _, stderr = self.run_main("--scope", "a=src", "--scope", "a=docs")
+        self.assertEqual(2, code)
+        self.assertIn("duplicate --scope", stderr)
+        self.assertFalse(self.out.exists())
+        code, _, stderr = self.run_main("--scope", "Docs=src", "--scope", "docs=docs")
         self.assertEqual(2, code)
         self.assertIn("duplicate --scope", stderr)
         self.assertFalse(self.out.exists())

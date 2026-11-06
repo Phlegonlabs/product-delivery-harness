@@ -49,7 +49,11 @@ def manifest(clone: Path) -> list[tuple[str, str]]:
     """(relative posix path, sha256) for every clone file except .git and review-input."""
 
     entries: list[tuple[str, str]] = []
-    for root, dirs, files in os.walk(clone):
+
+    def fail(error: OSError) -> None:
+        raise ReviewInputError(f"cannot list {error.filename}: {error.strerror}")
+
+    for root, dirs, files in os.walk(clone, onerror=fail):
         if Path(root) == clone:
             dirs[:] = [name for name in dirs if name not in (".git", "review-input")]
         linked_dirs = [name for name in dirs if os.path.islink(os.path.join(root, name))]
@@ -67,13 +71,15 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     repo, out = repo.resolve(), out.resolve()
     if out.exists():
         raise ReviewInputError(f"refusing existing --out {out}")
-    if len({name for name, _ in scopes}) != len(scopes):
-        raise ReviewInputError("duplicate --scope name")
+    if len({name.casefold() for name, _ in scopes}) != len(scopes):
+        raise ReviewInputError("duplicate --scope name (names are compared case-insensitively)")
     base, head = (rev_sha(repo, "--verify", "--end-of-options", f"{rev}^{{commit}}") for rev in (base, head))
     repo_head = rev_sha(repo, "HEAD")
     if repo_head != head:
         raise ReviewInputError(f"--repo HEAD is {repo_head}, not --head {head}; build from the candidate checkout")
-    status = git(repo, "status", "--porcelain", "--untracked-files=no")
+    status = git(repo, "status", "--porcelain", "--untracked-files=all")
+    tracked_dirty = any(line and not line.startswith(b"??") for line in status.splitlines())
+    untracked = sum(1 for line in status.splitlines() if line.startswith(b"??"))
 
     out.mkdir(parents=True)
     clone = out / "clone"
@@ -81,6 +87,8 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     git(clone, "checkout", "--quiet", "--detach", head)
     if rev_sha(clone, "HEAD") != head:
         raise ReviewInputError("clone HEAD does not equal --head")
+    if git(clone, "status", "--porcelain", "--untracked-files=all").strip():
+        raise ReviewInputError("clone is not clean after checkout")
 
     packet = clone / "review-input"
     packet.mkdir()
@@ -97,8 +105,11 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     put("candidate.diff", candidate)
     put("commit-log.txt", git(repo, "log", "--format=%H %s", f"{base}..{head}"))
     put("changed-files.txt", git(repo, "diff", "--name-status", base, head))
-    state = "dirty" if status.strip() else "clean"
-    put("parent-status.txt", f"repo: {repo.as_posix()}\nhead: {repo_head}\nstatus: {state}\n".encode() + status)
+    state = "dirty" if tracked_dirty else "clean"
+    put("parent-status.txt", (
+        f"repo: {repo.as_posix()}\nhead: {repo_head}\nstatus: {state}\nuntracked: {untracked}\n"
+        "note: the clone holds committed content only; untracked and ignored parent files are not in it\n"
+    ).encode() + status)
     scope_lines = {}
     for name, paths in scopes:
         data = diff(*paths)
