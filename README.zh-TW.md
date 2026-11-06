@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.76.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.76.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -125,7 +125,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 
 - [進場與交接](skills/delivery-harness/references/governance/task-and-handoff.md)：檢查目前指令與來源；未知的 loaded identity 維持未知。managed run 從 inspector 的 `Next` 區塊恢復；停滯的 `running` RUN 先要 owner 決定，自主執行從已簽署的 launch brief 開始。
 - [分工](skills/delivery-harness/references/delegation-contract.md)：agent 設定與 AGENTS 決定 executor、model、effort 與 fallback。每個 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 與 review packet 在啟動前先依路線的時間、turn 與 byte 上限切好大小。期限已到卻沒有 verdict，視為環境受阻，改以較小的 scoped 呼叫重新分派。
-- [驗證](skills/delivery-harness/references/verification-gates.md)：必要證據綁定準確候選；缺能力或證據維持 blocked。瀏覽器矩陣的獨立 review 採先驗證再抽樣：驗證 receipt，檢查 FAIL 與經 diff 標記的列，再抽樣 PASS 列。瀏覽器能力探測在同一 session 內重複使用。
+- [驗證](skills/delivery-harness/references/verification-gates.md)：必要證據綁定準確候選；缺能力或證據維持 blocked。瀏覽器矩陣的獨立 review 採先驗證再抽樣：驗證 receipt，檢查 FAIL 與經 diff 標記的列，再抽樣 PASS 列。瀏覽器能力探測在同一 session 內重複使用。沙箱內跑不了 git 的 reviewer 以 `review_input.py` packet 證明身分與 checkout 乾淨。
 - [候選發佈與晉升](skills/delivery-harness/references/branch-promotion-contract.md)：保留準確 target、授權與遠端讀回，不得 force-push。
 - [來源維護](skills/delivery-harness/references/governance/source-maintenance.md)：每個 atomic task 跑聚焦檢查，固定候選跑一次完整 matrix。
 
@@ -140,7 +140,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
 | 外部設定 | `docs/DEPLOYMENT.md` 每個動作一列 External Console Setup，另有 Measurement Sources 表。逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。 |
 
-缺少 `review_policy` 時保留舊版 `per_mission` 行為。保留凍結 PLAN/RUN pin 與歷史批准，不可改 node 名稱重設已用 attempts。預算用完後，剩餘缺陷走隔離修復，並對每個修復差異做 scoped review；沒有額外 review 輪次。可執行差異必須有安全審查，缺少時報 `UNVALIDATED`，不能報 PASS。僅含 docs、copy、Epic、證據或簿記的差異改記 `security: not_applicable (<reason>)` 並列出路徑。範圍不相交而沿用的 PASS 保留原始 SHA，不得改稱全新。 HiFi 初審跑基礎矩陣，並在代表性 case 上抽樣壓力軸：200% 文字、forced colors、長文案、中間寬度、320 px reflow 與 reduced motion。每個 surface × state × target case 只擷取一次，供該 case 上所有觀察共用。PRD 的 UI surface 可宣告 `derivedStates`：版面相同的 overlay 或子狀態，每個只在該 surface 最小的 target 擷取一次。每個 motion intent 在一個代表性 target 上留下 trigger frame、end-state frame 與 reduced-motion 時長檢查。矩陣 driver `hifi_matrix_capture.py` 在同一個瀏覽器 context 內走完整個矩陣，附幾何探測、render fingerprint、從先前執行沿用與抽樣軸，並寫出 `ui-output/3` 結果。複查在受影響頁面與狀態重跑 critique 和 audit，只重新觀察 render fingerprint（幾何、computed styles 與媒體識別）有變的 case，不完整的 fingerprint 不得沿用，並以 diff 優先：相同的列自動記錄，reviewer 只判定被標記的列。沿用讓完整證據矩陣得以保留。
+缺少 `review_policy` 時保留舊版 `per_mission` 行為。保留凍結 PLAN/RUN pin 與歷史批准，不可改 node 名稱重設已用 attempts。預算用完後，剩餘缺陷走隔離修復，並對每個修復差異做 scoped review；多個未結 family 合併為一次 consolidated repair，用一個 review point 審查，並以基線對比控件把關；沒有額外 review 輪次。可執行差異必須有安全審查，缺少時報 `UNVALIDATED`，不能報 PASS。僅含 docs、copy、Epic、證據或簿記的差異改記 `security: not_applicable (<reason>)` 並列出路徑。範圍不相交而沿用的 PASS 保留原始 SHA，不得改稱全新。 HiFi 初審跑基礎矩陣，並在代表性 case 上抽樣壓力軸：200% 文字、forced colors、長文案、中間寬度、320 px reflow 與 reduced motion。每個 surface × state × target case 只擷取一次，供該 case 上所有觀察共用。PRD 的 UI surface 可宣告 `derivedStates`：版面相同的 overlay 或子狀態，每個只在該 surface 最小的 target 擷取一次。每個 motion intent 在一個代表性 target 上留下 trigger frame、end-state frame 與 reduced-motion 時長檢查。其 receipt 是該單一 intent 的離線 receipt，不帶 bundle 的 interaction、navigation 與 reviewer 證據。矩陣 driver `hifi_matrix_capture.py` 在同一個瀏覽器 context 內走完整個矩陣，附幾何探測、render fingerprint、從先前執行沿用與抽樣軸，並寫出 `ui-output/3` 結果。複查在受影響頁面與狀態重跑 critique 和 audit，只重新觀察 render fingerprint（幾何、computed styles 與媒體識別）有變的 case，不完整的 fingerprint 不得沿用，並以 diff 優先：相同的列自動記錄，reviewer 只判定被標記的列。沿用讓完整證據矩陣得以保留。
 
 HiFi 仍須使用 Impeccable，但它不是預設的唯讀實作 reviewer。其 workflow 的 subagent、瀏覽器／server、snapshot 寫入與可選下載須另有授權。產品、stack、方向與 Visual Approval 決定仍屬原 owner。Owner 的 Visual Approval（含附後續事項的接受）會結束該設計輪次；未結的列成為 Epic 的後續事項。一輪以進場時的 bundle pin 完成；輪次中途安裝造成的 drift 只記錄，不阻擋。
 
@@ -206,6 +206,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.76.1** — 更快的 review 循環。motion receipt 按單一 intent 在代表性 target 上的離線 receipt 校驗，沙箱為 allowlisted-local-pages，不再要求 HiFi bundle 的 interaction、navigation 與 reviewer 證據，motion collector 因此能通過安裝的契約。沙箱內跑不了 git 的 reviewer 改用父程序以 `review_input.py` 產生的 packet（detached clone、按範圍切分的 diff、父程序 status 與全檔 SHA-256 清單）證明候選身分與 checkout 乾淨；有該 packet 時 git 失敗不再算 environment block。targeted re-check 後若仍有多個 finding family，合併成一次 consolidated repair，用一個 review point 審查，只有 packet 超過路線上限時才按路徑組拆分；pre-review gate 要求基線對比控件，對綁定的 base 位元組記錄每個案例的預期轉變（無效輸入 old=accept new=reject，恢復的合法行為 old=reject new=accept，保留的正向樣本兩邊都 accept）。
+
 - **0.76.0** — 更快的 UI review。PRD UI surface 可宣告 `derivedStates`，只在最小 target 取證一次；第一波 stress axes 改為代表性抽樣；isolated repair 最多兩次 scoped re-review。沿用改以 render fingerprint（幾何、computed styles 與媒體識別）而非頁面 bytes；re-review 與 parity 先 diff 再判，並加區域規則；一個 case 一張 capture 供所有觀察引用；motion 證據為單一代表 target 上的三項觀察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以單一瀏覽器 context 跑完整 HiFi 矩陣，`parity_capture.py` 每條路由兩側各載入一次、分類配對並沿用未變者。瀏覽器矩陣的獨立審查改為先驗收再抽樣，packet 在啟動前按路線上限切分，瀏覽器能力探測每 session 重用，必要檢查全過後 owner 接受即關閉該輪設計，一輪以進場時的 bundle pin 收尾。
 
 - **0.75.4** — Security 內容校訂。`security-review.md` 不再允許直接路線上的 inline security review，trust boundary 改從 PRD Security Requirements 列及其 `TEST-*` trace 取得，在受審 head 上確認每個 planned boundary 的 denial test，`scope` 逐字照抄 packet，並說明 environment block 的記錄方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到來源清單之前。
@@ -213,7 +215,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.75.3** — 修正 0.75.2 consumer 採用時發現的模板問題。`PROJECT_AGENTS.template.md` 的 managed-run 規則改指向 `project-operating-rules.md`，不再指向模板裏不存在的段落；`DEPLOYMENT.template.md` 的 presence 範例不再被 `check_deployment.py` 當成未填的 placeholder；GA4 指南寫明 `MS-*` 列在 Realtime 或 DebugView 看到事件之前維持 `available`。
 
 - **0.75.2** — 閱讀更薄。新增 `docs_reading_budget.py`，量出每個入口開工前必讀的字數（必讀與條件式連結分開，`--budget N` 可在 CI 守線）。七份 reference 在不刪任何規則的前提下壓縮：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（約減 8,600 字）；`design-input-updates.md` 改為只有 UI 工作才讀，每次 direct 與 managed run 少讀 3.7k 字。計入總字數已低於 v0.74.1，雖然本週新增了不少內容。
-
-- **0.75.1** — 預設更薄。只有 pin 舊版才需要的指南（`legacy-pins.md`、已退役的 `ui-design/2` wireframe 指南）搬到 `references/legacy/`，只在專案 pin 舊版時才讀，不再計入 docs weight（排除 6,481 字，仍會安裝）。新增 `docs_duplicates.py` 找出跨檔重複的句子，可用 `--fail-over` 在 CI 守線。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

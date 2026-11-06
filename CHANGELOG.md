@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.75.0. Current releases are in [README.md](README.md#version-history).
+English release history through 0.75.1. Current releases are in [README.md](README.md#version-history).
+
+- **0.75.1** — Thinner by default. Pin-only guides (`legacy-pins.md`, the retired `ui-design/2` wireframe guide) move under `references/legacy/`, are read only when a package pins an earlier version, and no longer count toward the docs weight (6,481 words excluded; they still install). `docs_duplicates.py` finds sentences repeated across skill files and can hold a line in CI with `--fail-over`.
 
 - **0.75.0** — The `program` delivery profile for ERP-scale products. A program PRD holds the module map with dependency order, shared data owned by a kernel, glossary, roles and segregation of duties, capacity assumptions, integrations register and cross-module business processes (`TEST-E2E-*` on a fixed `PF-BASE` fixture, including period close); each module has its own PRD and architecture under `docs/product/modules/<id>/` with scoped IDs (`PRD-INV-001`), a `BR-*` business-rules table with document states, a permission matrix and a report catalog; the program architecture adds Migration and Cutover with `TEST-MIG-*`. `check_product_package.py` validates the program once and each module (`--module <id>`), warns when a module's `Program revision` is stale, and leaves `standard`/`mvp` unchanged. Modules deliver one Epic and one PLAN/RUN at a time in map order; the interview asks the program questions; a jurisdiction compliance entry joins the option library.
 

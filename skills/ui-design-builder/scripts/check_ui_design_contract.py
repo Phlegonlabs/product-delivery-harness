@@ -2114,6 +2114,7 @@ def _resolve_evidence(
                             offline = receipt.get("method") == HIFI_SURFACE_RECEIPT_METHOD
                             bundle = None
                             review_contract = None
+                            local_pages: set[str] = set()
                             if offline and expected_artifact:
                                 candidate = repo_root / expected_artifact
                                 try:
@@ -2121,12 +2122,15 @@ def _resolve_evidence(
                                     matches = list(HIFI_MANIFEST_RE.finditer(candidate.read_text(encoding="utf-8")))
                                     parsed_manifest = json.loads(matches[0].group("data")) if len(matches) == 1 else None
                                     if isinstance(parsed_manifest, dict) and parsed_manifest.get("schema") == "ui-hifi/2":
-                                        bundle = parsed_manifest
-                                        documents = _hifi_bundle_documents(candidate, candidate.read_text(encoding="utf-8"), bundle)
+                                        # A motion receipt observes one intent at one target. It is an offline
+                                        # receipt of the package, not the bundle's interaction review.
+                                        bundle = None if expected_motion is not None else parsed_manifest
+                                        documents = _hifi_bundle_documents(candidate, candidate.read_text(encoding="utf-8"), parsed_manifest)
+                                        local_pages = set(documents)
                                         # Only a current shell contributes a reviewer receipt. Legacy
                                         # schema-2 shells keep their inspection-only output shape;
                                         # _validate_hifi_surface(require_connected=True) is the fresh gate.
-                                        if has_current_reviewer_shell(documents):
+                                        if bundle is not None and has_current_reviewer_shell(documents):
                                             review_errors, review_contract = reviewer_contract(documents, bundle)
                                             problems.extend(review_errors)
                                 except (OSError, UnicodeError, ValueError):
@@ -2178,8 +2182,9 @@ def _resolve_evidence(
                                 _add(problems, f"{label} output artifact does not exactly match its receipt")
                             elif offline:
                                 findings = (
-                                    _bundle_transcript_findings(output_json, bundle)
-                                    if bundle is not None else _offline_transcript_findings(output_json)
+                                    _motion_transcript_findings(output_json, local_pages) if expected_motion is not None
+                                    else _bundle_transcript_findings(output_json, bundle) if bundle is not None
+                                    else _offline_transcript_findings(output_json)
                                 )
                                 for finding in findings:
                                     _add(problems, finding)
@@ -2313,6 +2318,35 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
     if not rows_equal(output.get("navigation"), navigation):
         findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")
     return findings
+
+
+def _motion_transcript_findings(output: dict[str, Any], local_pages: set[str]) -> list[str]:
+    """Offline transcript rules for one motion intent, which clicks no control.
+
+    The sandbox is fully blocked or allowlists the package's local pages. Under the
+    allowlisted sandbox a navigation row passes only in the documented `{from, to}`
+    shape, between pages of the subject's package. Driver-shaped or mixed rows, any
+    other navigation, request, popup, form attempt or console error fails as in any
+    offline receipt.
+    """
+
+    allowlisted = {"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked", "forms": "blocked"}
+    documented = {"id", "target", "trigger", "from", "to"}
+    sandbox = output.get("sandbox")
+    navigation = output.get("navigation")
+
+    def local_row(row: object) -> bool:
+        return (
+            isinstance(row, dict)
+            and set(row) <= documented
+            and all(isinstance(row.get(key), str) and row[key] in local_pages for key in ("from", "to"))
+        )
+
+    if sandbox == allowlisted and isinstance(navigation, list):
+        navigation = [row for row in navigation if not local_row(row)]
+    return _offline_transcript_findings(dict(
+        output, navigation=navigation, sandbox=dict(allowlisted, topNavigation="blocked") if sandbox == allowlisted else sandbox,
+    ))
 
 
 def _is_mandated_csp_row(event: object) -> bool:
