@@ -284,6 +284,23 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         for absent in ("model", "effort"):
             self.assertNotRegex(brief, rf"\b{absent}\b")
 
+    def test_assignment_template_carries_the_delegation_fields(self) -> None:
+        self.assertEqual(
+            {
+                "Identity": ["Assignment ID", "Attempt ID", "Role", "Outcome"],
+                "Checkout": ["Repository", "Branch", "Base SHA", "Checkout"],
+                "Executor": ["Requested executor", "Route caps"],
+                "Scope": ["Write paths", "Parent-owned paths", "Preserve"],
+                "Inputs": ["Read first", "Required skills", "Frontend"],
+                "Acceptance": ["<command> -> <pass signal>"],
+                "Result": ["Observed identity", "Read evidence", "Commits", "Verifier results", "Cleanup receipt"],
+            },
+            self.template_fields("ASSIGNMENT.template.md"),
+        )
+        packet = read("assets/templates/ASSIGNMENT.template.md")
+        self.assertIn("no delegation, model change or fallback", packet)
+        self.assertIn("wall-clock <seconds>; tool turns <cap>; max_message_bytes <bytes>", packet)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
