@@ -1,6 +1,6 @@
 # EPIC-suite-review-round-2: the heavy items from the suite review
 
-Status: in_progress on `feat/suite-review-r2` (base `main` `e4d05197`); M1b, M7 and M16 writers live, then the 0.79.0 surfaces and the candidate matrix
+Status: in_progress on `feat/suite-review-r2` (base `main` `e4d05197`); all ten items merged at `ecd5dbf2`, 0.79.0 surfaces and the candidate matrix next
 
 ## Problem And Baseline
 
@@ -336,10 +336,15 @@ Existing coverage, not to duplicate:
 | M2+M4 `close-run`, `record-runtime`, docs | the last two subcommands, Cards 3 and 7, execution-state-model flag surfaces and grant pointer, HARNESS_GOAL line 6; parent kept `new_run.py`'s installed digest and derived `restart_required` on a digest mismatch | `6d2a3c5d`..`212f3d65`, merged `715b1832`; `51eee7ac`, `353602b2` | 22 record-command tests, 95 manifest tests exit 0 |
 | M3 integration layer | `build_verifier_request.py --layer mission_integration --integrated-sha`; task and worker contexts through `verifier_context`; integration loop step 6 and Card 5 name the command (parent completed the flags) | `958b8530`..`0708cdc2`, merged `f82ca5db` | 6 request tests, documented-commands, skill contract exit 0 |
 | M1a interaction pass | `hifi_matrix_capture.py` clicks and Enter/Space-activates every manifest interaction at every source target, writes `interactions` rows and `navigation` events; the first writer's hang was a payload field named `id` clobbering the driver reply id; matrix-capture reference updated (parent) | `53d3900a`, `08ec2b47`, merged `2c0c359a`; `8a4110fa` | 78 real-Chromium tests exit 0 |
+| M16 HiFi comparison in system-conformance | `harness_ui_evidence._expected_authority_sources` appends the frozen `approved ui target` row for RUNs pinned at or after 0.79.0; verification-gates 297/309 and ui-implementation-contract rule 5 require the hosted-browser HiFi comparison and keep the page-quality shortcut only when it passed | `e70d9d18`, `0596c99d`, merged `ca4fae47` | 55 ui-evidence tests, 95 across the v11 and design-coverage modules exit 0; both sides of the pin tested |
+| M7 `--color-scheme dark` | the whole base matrix under `colorScheme: dark` into its own `--out`; axis resets return to the run's theme | `2122d2b1`, merged `90d9cbe8` | 83 tests with real Chromium exit 0 |
+| M1b reviewer rows | driver op `reviewer` measures the viewport and specimen rows in `hifi_reviewer.reviewer_contract` order after the interaction pass; `validate_output` applies the checker's `reviewer_evidence_findings`; matrix-capture gains a Reviewer object section and ui-design-pass 157 is cut to the command | `b801069f`, `4f0469e3`, merged `0baa9ab1` | 90 tests with real Chromium, review-matrix docs, ui-hifi reviewer modules exit 0 |
+| M7 `--intermediate` | every non-n/a state at the midpoint of each adjacent pair of numeric viewport widths into `OUT/intermediate`, self-checked with `ui_design_v3.intermediate_width_findings`; parent fixed the fake driver's case key and kept the reviewer pass out of the sweep after the merge | `6f635532`, `843bfd93`, merged `82d17b16`; `7c552bf4` | 99 tests with real Chromium exit 0 |
+| M7 `reflow-320` axis and docs | sampled states once at a 320 px canvas from the smallest target, sidecar rows like the other axes, inline width cleared after the axis; matrix-capture flags and axes text, long and localized copy judged from authored copy | `71dcdb8f`, `2182ec22`, merged `ecd5dbf2` | 103 tests with real Chromium exit 0 |
 
 ## Results And Remaining Work
 
-Landed on `feat/suite-review-r2`: M14, M23, M15, S1, M2+M4, M3 (narrowed), M1a. Live: M1b, M7, M16. After they land: 0.79.0 surfaces with `prepare_release.py`, the full matrix at the candidate with browsers required, this Epic's close, then the consumer rollout the owner asked for (pause running RUNs, install, one GLM writer per consumer, resume).
+All ten items landed on `feat/suite-review-r2` at `ecd5dbf2`: S1, M1 (interactions, reviewer rows, intermediate widths), M2+M4, M3 (narrowed to the shared context and the integration layer; its task and worker halves were round 1's `build_verifier_request.py`), M7, M14, M15, M16, M23. Next: 0.79.0 surfaces with `prepare_release.py`, the full matrix at the candidate with browsers required, this Epic's close, then the consumer rollout the owner asked for (pause running RUNs, install, one GLM writer per consumer, resume).
 
 ## Handoff
 
