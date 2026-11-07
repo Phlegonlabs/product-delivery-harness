@@ -67,21 +67,13 @@ python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py"
 
 `--write` also renders the ratios of the JSON `contrastPairs` and `typeSteps` into the generated evidence block; a ratio below its floor is shown for an owner decision, not failed.
 
-Also confirm:
+`check_design_system_pair.py`, with its built-in UI preflight, and `check_product_package.py --require-approved` enforce the Need Gate, source bindings, approvals with passing browser-matrix evidence, surface routes, HiFi mapping, showcase coverage, placeholders and pair agreement. Also confirm what no script checks:
 
-- `ui-design.md` records the Design System Need Gate as `required` with its owner and exact decision date; the pair remains absent until the Product Definition is published and all UI inputs and this compiled pair stage together;
-- `design-system.json` has exactly PRD, architecture, stack, UI design, and HiFi source bindings, and binds every listed source to its current bytes; legacy `design-system/1` is inspection-only; `design-system/2` retains its original checks for pinned legacy packages;
-- for `design-system/4`, every showcase specimen resolves to the hash-checked HiFi package and the checker reports no coverage gap;
-- Product Definition Approval and the Stack Decision Checkpoint are approved, with no `Recommended` or `Provisional` executable layer;
-- every PRD UI surface has an addressable route or an explicit `n/a` reason;
-- every UI surface maps to the complete approved `ui-hifi/2` package with matching route, states, responsive set, product controls, interaction endpoints, and reviewer shell;
-- the approved UI target, Style Integration record, Impeccable critique/audit, H1-H9 scores, visual approval, scope, hash, exact responsive coverage, passing browser-matrix evidence, and tolerance are present in `ui-design.md`;
 - every surface covers the final state matrix or records `<state>: n/a - <reason>` in `PRD.md`;
-- every required UI element maps to a registered primitive or product component;
+- every required UI element maps to a registered primitive or product component, and every registry entry is required by a real PRD surface;
 - every Motion and Media Intent row is resolved; approved deterministic motion maps to a registered variant plus reduced-motion behavior, while `not_required` introduces no decorative variant; generated Higgsfield or other provider assets remain media sources, not UI-state implementations;
-- a homogeneous product has exactly one global responsive set (at least three ascending web `viewports` or at least two native/desktop `sizeClasses`); a hybrid uses each `surfaceContracts` entry’s exact responsive and release/capture set with no global platform, styling mechanism, viewports, or size classes; all sets match the PRD, approved HiFi scope, and stack;
-- no unresolved placeholder, page-local value, or one-off control remains; and
-- `design-system.md` and `design-system.json` publish together and agree through the pair checker.
+- a homogeneous product's global `viewports` or `sizeClasses`, or each hybrid `surfaceContracts` entry's set, equals the approved set exactly; all sets match the PRD, approved HiFi scope, and stack; and
+- no page-local value or one-off control remains.
 
 ## Reference Routing
 

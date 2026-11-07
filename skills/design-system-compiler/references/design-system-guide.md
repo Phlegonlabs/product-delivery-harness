@@ -4,18 +4,7 @@ Use this guide to publish the small frontend implementation contract in `docs/de
 
 The design system exists so frontend implementation can follow one set of tokens, primitives, component variants, states, responsive rules, and accessibility rules. It is not a design-research archive, component showcase, page recipe, or governance manual.
 
-## Drafting Order
-
-1. Confirm that `docs/design/ui-design.md` records `Design System Need Gate: required`. Its compiled-pair field may stay `pending — design-system-compiler` until the pair-less preflight built into `scripts/check_design_system_pair.py --repo-root` passes; there is no separate preflight command. Load `design-system-compiler` and `frontend-design` together. If `frontend-design` is unavailable, stop instead of creating or revising the pair through a fallback path.
-2. Confirm that the PRD UI Surface Contract is complete and frozen and that `docs/design/ui-design.md` records validated structure and approved Visual decision for the complete responsive browser matrix and immutable target.
-3. Consume the selected direction, Style Integration rules, Impeccable review evidence, H1-H9 result, and human approval from `ui-design.md`. Do not rerun `frontend-design`, Impeccable, direction generation, or the HiFi review during normal compilation.
-4. Translate the approved direction, real controls, repeated compositions, states, and responsive needs into `design-system.json` without changing the target. `frontend-design` supplies the approved direction; it is not a compiler mode.
-5. Write the short human rationale in `design-system.md`, then generate its machine-contract block from the JSON.
-6. Reconcile the final token, primitive, and product-component names against every required PRD UI element and state. An unresolved page-local exception blocks publication.
-
-Publish the Markdown and JSON together.
-
-Generate the separate derived HTML view through `render_design_system_preview.py` after pair validation; follow `references/output-contract.md`. It shows registry values and declared contracts without becoming another source. For `design-system/4`, first register the `showcase` source map: bind each primitive variant value, product-component state and motion variant to an approved HiFi element. The HiFi supplies every style; when an element is missing, return the gap to `ui-design-builder` instead of inventing a sample. Keep validated wireframe and historical approval bytes unchanged; new UI rounds create no wireframe. Recheck the preview against current pair/source bytes before handoff.
+The stage [Workflow](stages/design-compilation.md#workflow) owns the drafting order and its [Validation](stages/design-compilation.md#validation) owns the publish check.
 
 ## Contract Boundary
 
@@ -152,10 +141,3 @@ Resolve conflicts in this order:
 5. the explicitly approved selected Visual Direction.
 
 `PRD.md` owns product behavior, approved HiFi is its visual and interactive projection, and `ui-design.md` owns the selected visual direction. The design system owns reusable visual implementation rules. A product change returns to `product-definition-builder`; a wireframe or visual change returns to `ui-design-builder`.
-
-## Publish Check
-
-The stage Validation list owns the pre-publication checklist. Two steps need detail:
-
-1. Generate the Markdown contract block with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --write`. The write compares the destination bytes first and refuses to replace a file that changed.
-2. Validate it with `scripts/check_design_system_pair.py --repo-root <repository-root> --markdown <staged design-system.md> --registry <staged design-system.json> --require-filled`. The check resolves every complete `DS-*` token named anywhere in the Markdown — signature rules, primitive `dsId`, or `DS-COMP-*` — against the JSON registry, rejects malformed lookalikes, and enforces one global ID namespace across all three registries.

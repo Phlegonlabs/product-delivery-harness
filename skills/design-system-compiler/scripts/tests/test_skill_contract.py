@@ -59,7 +59,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("gaps return to `product-definition-builder`", stage)
         self.assertIn("HiFi-package gaps return to `ui-design-builder`", stage)
         self.assertIn("docs/design/ui-design.md", contract)
-        self.assertIn("approved HiFi target", lifecycle)
+        self.assertIn("approved target, and Design System Need Gate", lifecycle)
         self.assertIn("docs/design/design-system.md", lifecycle)
         self.assertIn("Legacy `docs/product/wireframes.html`", lifecycle)
 
@@ -69,11 +69,11 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         guide = self.read("references/design-system-guide.md")
         agent = self.read("agents/openai.yaml")
 
-        for content in (skill, stage, guide, agent):
+        for content in (skill, stage, agent):
             self.assertIn("frontend-design", content)
         self.assertIn("## Compilation Skills Gate", stage)
         self.assertIn("If `frontend-design` cannot be loaded, stop", stage)
-        self.assertIn("Do not rerun `frontend-design`, Impeccable", guide)
+        self.assertIn("Do not run Impeccable or another design pass merely to compile the pair", stage)
         self.assertIn("returns to `ui-design-builder`", stage)
         self.assertIn("`frontend-design` is required without a fallback", skill)
         self.assertNotIn("$impeccable", agent)
@@ -119,8 +119,12 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
 
         self.assertIn("PRD UI Surface Contract", stage)
         self.assertIn("stable `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` IDs", stage)
-        self.assertIn("docs/design/ui-design.md", guide)
-        self.assertIn("Every required PRD element maps to the final registry", contract)
+        self.assertIn("`ui-design.md` owns the selected visual direction", guide)
+        self.assertIn(
+            "every required UI element maps to a registered primitive or product component, "
+            "and every registry entry is required by a real PRD surface",
+            stage,
+        )
         self.assertIn("Approved UI design contract", template_md)
         self.assertIn("Style Integration and HiFi evidence", template_md)
         self.assertIn('"schema": "design-system/3"', template_json)
@@ -188,7 +192,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
             "pair-less preflight has no separate command; it runs inside `check_design_system_pair.py --repo-root`",
             stage,
         )
-        self.assertIn("there is no separate preflight command", guide)
+        self.assertIn("[Workflow](stages/design-compilation.md#workflow) owns the drafting order", guide)
         self.assertIn("Design System Need Gate", skill)
         self.assertNotIn("Run the UI builder's exact pair-less preflight", skill)
 
@@ -199,12 +203,14 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
 
-        for content in (stage, guide, contract, template_md, template_json):
+        for content in (guide, template_md, template_json):
             self.assertIn("at least two", content)
+        self.assertIn("at least three ascending web `viewports` or two native/desktop `sizeClasses`", contract)
+        self.assertIn("equals the approved set exactly", stage)
         self.assertIn("all sets match the PRD, approved HiFi scope, and stack", stage)
         self.assertIn("Copy the exact approved PRD and HiFi set", guide)
         self.assertIn("Unintended overlap, clipping, occlusion", guide)
-        self.assertIn("passing browser-matrix evidence", contract)
+        self.assertIn("approvals with passing browser-matrix evidence", stage)
         self.assertIn("named stacking, focus, and dismissal", template_md)
 
     def test_template_responsive_set_comes_from_prd_and_hifi(self) -> None:

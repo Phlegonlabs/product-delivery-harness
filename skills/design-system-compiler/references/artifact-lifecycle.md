@@ -5,7 +5,7 @@ Current design sources live under `docs/design/`. Draft a pair in one run-specif
 - `docs/design/design-system.md`
 - `docs/design/design-system.json`
 
-Before drafting, read the approved `PRD.md`, `architecture.md`, `stack-decisions.md`, `docs/design/ui-design.md`, approved HiFi target, and both design-system files when either exists. Legacy `docs/product/wireframes.html` and `docs/product/design-system.*` remain readable; do not move them merely to normalize paths without exact owner authorization. A legacy `design-system/1` pair is inspection-only and never grants new approval authority.
+Legacy `docs/product/wireframes.html` and `docs/product/design-system.*` remain readable; do not move them merely to normalize paths without exact owner authorization. A legacy `design-system/1` pair is inspection-only and never grants new approval authority.
 
 Freeze the source paths and current SHA-256 values in `sourceBindings`, Product Definition and Stack approvals, HiFi completeness with sourced copy, Visual Approval, approved target, and Design System Need Gate. Product Definition is already published. Stage `ui-design.md`, HiFi target, and—when the gate is required—this pair together; publish only after the exact staged set passes its checkers. If any source changes, mark the draft stale and reconcile it before publication.
 

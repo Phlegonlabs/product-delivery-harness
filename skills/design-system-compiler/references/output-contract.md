@@ -60,13 +60,6 @@ Keep it the sole structured authority for:
 - The checker reads the HiFi entry from `sourceBindings.hifi` and each sibling by its manifest hash through safe non-link paths. A stale, missing or unresolved source fails the pair before any HTML is emitted.
 - A JSON token whose name the bound HiFi CSS also declares must equal one of those declarations after whitespace and case normalization. Declarations that use `var()` are skipped.
 
-## Approved Input Quality Check
-
-The stage Validation list owns the checklist. Two input rules also apply:
-
-- The UI contract records an approved immutable target, source hash, routes and states, the exact PRD/HiFi responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
-- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and HiFi copy delta and requires the full HiFi copy review.
-
 ## Final Quality Check
 
 ### Derived HTML View
@@ -96,10 +89,3 @@ python "<design-system-compiler-skill-root>/scripts/render_design_system_preview
 The first command emits UTF-8 HTML on stdout only after filled-pair and current-source validation. Capture those exact bytes at an authorized new destination; do not redirect over an existing artifact before validation succeeds. The second command is read-only and rejects changed pair bytes, stale sources, hand-edited or missing previews. It grants no approval and does not validate visual quality. When the pair registers a motion variant or a `pseudo` state row, or the preview has Surface plates that run product scripts, inspect those plates in a browser; static checks cannot show their live treatment. For each `source-runtime` row, press Replay, Stop and the Reduced motion control once at its default target, and record the observed phases in the handoff. Return an `invalid` plate to the author. Link the view with the pair in the handoff.
 
 The Markdown/JSON pair remains the authority. The HTML is reproducible and is not a product route, a HiFi manifest page or a third hand-maintained contract. The legacy view contains no scripts, remote resources or imported product CSS; the `design-system/4` view contains only hash-pinned local scripts and copies of approved HiFi CSS inside sandboxed plates. It is retained as a review artifact, so do not hide it with a broad generated-HTML ignore rule. Existing pairs are not rewritten merely to add a preview. A historical wireframe has no Tokens view. Do not mutate historical artifacts when adding the separate formal preview.
-
-### Pair Checks
-
-The stage Validation list owns the checklist. Two rules also apply:
-
-- Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set has at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and HiFi exactly.
-- Every required PRD element maps to the final registry, and no unresolved page-local exception remains.
