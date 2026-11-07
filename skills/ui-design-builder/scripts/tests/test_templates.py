@@ -1,5 +1,6 @@
 """The skill's fill-in templates parse with the checkers and carry the named fields."""
 
+import json
 import re
 import sys
 import unittest
@@ -45,6 +46,47 @@ class UiDesignTemplateTests(unittest.TestCase):
                 broken = mvp.replace(removed, "Removed:")
                 problems = checker.validate_text(broken, require_visual_approved=True, delivery_profile="mvp")
                 self.assertTrue([problem for problem in problems if STRUCTURAL.search(problem)])
+
+
+def options(value):
+    return {item.strip() for item in value.split("|")}
+
+
+class DefectLedgerTemplateTests(unittest.TestCase):
+    def test_ledger_template_has_the_closed_field_set(self):
+        ledger = json.loads(read("UI_DEFECT_LEDGER.template.json"))
+        case = {"surface", "state", "target"}
+        identity = {"path", "sha256"}
+        self.assertEqual({"schema", "candidate", "waves", "families", "carriedRows"}, set(ledger))
+        self.assertEqual("ui-defect-ledger/1", ledger["schema"])
+        self.assertEqual(identity, set(ledger["candidate"]))
+        wave = ledger["waves"][0]
+        self.assertEqual({"kind", "inputSha256", "outputSha256", "assessment", "receipts"}, set(wave))
+        self.assertEqual({"diagnostic", "re-review", "scoped-1", "scoped-2"}, options(wave["kind"]))
+        self.assertEqual(identity, set(wave["assessment"]))
+        self.assertEqual(identity, set(wave["receipts"][0]))
+        family = ledger["families"][0]
+        self.assertEqual({"id", "rootCause", "dimensions", "findingSources", "variants", "cases", "repairObjective",
+                          "route", "repairClass", "changedSources", "directConsumers", "acceptanceCases",
+                          "earlierAttemptSha256", "status"}, set(family))
+        self.assertEqual({"impeccable", "rubric", "browser"}, options(family["findingSources"][0]))
+        self.assertEqual({"hifi", "prd"}, options(family["route"]))
+        self.assertEqual({"copy", "visual"}, options(family["repairClass"]))
+        self.assertEqual({"open", "closed", "advisory", "block"}, options(family["status"]))
+        self.assertEqual(case, set(family["cases"][0]))
+        self.assertEqual(case, set(family["acceptanceCases"][0]))
+        self.assertEqual({"page", "state"}, set(family["directConsumers"][0]))
+        carried = ledger["carriedRows"][0]
+        self.assertEqual({"case", "sourceReceipt", "pageSha256"}, set(carried))
+        self.assertEqual(case, set(carried["case"]))
+        self.assertEqual(identity, set(carried["sourceReceipt"]))
+
+    def test_rubric_and_lifecycle_name_the_ledger_path_and_template(self):
+        for source in ("references/ui-grading-rubric.md", "references/artifact-lifecycle.md"):
+            text = (SKILL_ROOT / source).read_text(encoding="utf-8")
+            with self.subTest(source=source):
+                self.assertEqual(1, text.count("docs/design/evidence/<run-id>/defect-ledger.json"))
+                self.assertIn("(../assets/templates/UI_DEFECT_LEDGER.template.json)", text)
 
 
 if __name__ == "__main__":
