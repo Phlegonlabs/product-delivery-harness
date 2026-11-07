@@ -200,7 +200,7 @@ class MatrixTests(unittest.TestCase):
             with self.subTest(arguments=extra):
                 completed = subprocess.run(
                     [sys.executable, str(script), "--repo-root", str(self.root), "matrix", *extra],
-                    cwd=self._temp.name, capture_output=True, text=True,
+                    cwd=self._temp.name, capture_output=True, text=True, encoding="utf-8",
                 )
                 self.assertEqual(2, completed.returncode, completed.stderr)
         self.assertEqual("old\n", (used / "summary.txt").read_text(encoding="utf-8"))
