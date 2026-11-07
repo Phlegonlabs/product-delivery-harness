@@ -186,12 +186,7 @@ The [required matrix](skills/delivery-harness/references/governance/source-maint
 
 ## Releasing
 
-Follow the [source Git flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) and [required verification](skills/delivery-harness/references/governance/source-maintenance.md#required-verification). Land the reviewed source candidate through its required PR to protected `main`; tag that commit `v<version>`. Update these release surfaces together:
-
-1. `package.json` version and `skills/delivery-harness/VERSION`.
-2. Version badges and current version-history entries in all four READMEs.
-3. `required_harness_version` in `assets/templates/MISSION_RUNBOOK.template.md` under the delivery skill.
-4. Keep tests deriving versions from `VERSION`, not new hard-coded literals.
+Follow the [source Git flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) and [required verification](skills/delivery-harness/references/governance/source-maintenance.md#required-verification). Land the reviewed source candidate through its required PR to protected `main`; tag that commit `v<version>`. To set the version, write the four version-history entries into one directory as `en.md`, `zh-TW.md`, `zh-CN.md` and `es.md`, one line each, then run `python skills/delivery-harness/scripts/prepare_release.py --version <X.Y.Z> --entries <dir>`. It refuses unless every version surface agrees, sets the new version in `VERSION`, `package.json`, `package-lock.json` and the four READMEs, and moves the oldest README entry into `CHANGELOG.md`. Tests read the version from `VERSION`; add no hard-coded version literals.
 
 Archive-only A must be C's direct child and pass exact receipt-bound archive verification before inheriting C's evidence. Only receipt-listed coordination/evidence moves, optional generated `docs/tasks.md`, the `docs/DOCUMENTS.md` update and `ARCHIVE_RECEIPT.json` may differ. All other paths stay unchanged. Retain C's reviewed SHA and original result origins; inherited evidence is never a fresh execution at A. A tree-equal server-created main SHA S inherits the candidate evidence with its original origin; equality alone requires no repeated suite or security review. A different tree needs new candidate verification.
 

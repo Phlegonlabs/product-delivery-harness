@@ -26,7 +26,7 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "ci_test_shards.py", "configure_project_context.py", "docs_duplicates.py",
         "docs_reading_budget.py", "docs_weight.py",
         "harness_contract.py", "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
-        "new_run.py", "parity_capture.py", "push_archived_candidate.py",
+        "new_run.py", "parity_capture.py", "prepare_release.py", "push_archived_candidate.py",
         "render_delivery_acceptance.py", "render_review_packet.py", "render_tasks_view.py", "review_input.py", "select_ready_nodes.py",
         "security_review_result.py", "select_verifiers.py", "validate_harness_plan.py", "validate_node_result.py",
         "validate_result.py", "validate_worker_result.py", "verifier_runtime.py",
