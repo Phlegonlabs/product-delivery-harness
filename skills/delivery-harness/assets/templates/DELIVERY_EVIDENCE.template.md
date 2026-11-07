@@ -1,6 +1,6 @@
 # Delivery Evidence
 
-One evidence file per runner command under `docs/verification/evidence/`. It holds only what the register cannot: row status, assertion status, expected text and `fixture_cleanup` stay in `delivery-results.json`. Fill every `<...>` field; never record a secret, cookie or token.
+One evidence file per runner command under `docs/verification/evidence/`. It carries each scenario's row status, each assertion's status and the observations; `scripts/build_delivery_results.py` reads these headings and copies the row identity from the frozen register.
 
 ## Run
 
@@ -13,9 +13,11 @@ One evidence file per runner command under `docs/verification/evidence/`. It hol
 - Fixtures: namespace <synthetic-...>; owned <owned:...>; setup read-back <observation>; cleanup read-back <observation> | none
 - Raw log sha256: <64 lowercase hex> (<log path>)
 
-## <scenario_id>
+## <scenario_id> (<TEST-ID>) — row status: <pass|fail|blocked|skipped|unvalidated>
 
-### ASSERT-001
+fixture_cleanup: <cleaned|not_required|pending|failed>
+
+### ASSERT-001 — <pass|fail>
 
 observed: <what the run showed>
 
@@ -23,7 +25,7 @@ observed: <what the run showed>
 <raw runner lines for this assertion>
 ```
 
-## <not-run scenario_id>
+## <not-run scenario_id> (<TEST-ID>) — row status: <blocked|unvalidated>
 
 reason: <why it did not run, for a blocked or unvalidated row>
 

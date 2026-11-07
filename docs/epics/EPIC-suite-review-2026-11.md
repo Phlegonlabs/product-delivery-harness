@@ -37,7 +37,7 @@ Outside judge: `docs_reading_budget.py` and the consumer repositories' next adop
 | --- | --- | --- |
 | Reference and stage wording | the files each item names | docs weight, reading budget, pinned-sentence tests |
 | New templates and scripts | `assets/templates/`, `scripts/`, SKILL inventories, READMEs | skill spec, UTF-8 inventory, focused tests |
-| Release surfaces | four READMEs, CHANGELOG, VERSION, package files, RUNBOOK default | `test_skill_contract.py` |
+| Release surfaces | four READMEs, CHANGELOG, VERSION, package files | `test_skill_contract.py` |
 
 ## Backlog
 

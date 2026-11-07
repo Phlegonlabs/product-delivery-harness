@@ -81,7 +81,7 @@ Task gate:
 - Proves one task changed the intended behavior.
 - Runs focused checks selected from parent-observed changed files when the verifier declares `selection.mode: "changed_files"`; omitted selection metadata means `always`.
 - That selection may pick scenarios by their `@TEST-...` tag. The project's BDD runner is the verifier for those rows.
-- Must pass before a worker result can become `worker_passed` and before a task commit when commits are authorized.
+- Must pass before a worker result can become `worker_passed` and before a task commit when commits are authorized. The retained task-gate run happens at the task's commit, before the next task starts.
 - For a touched security boundary, includes the declared negative test proving denial and no unauthorized side effects. A missing upstream PRD/TEST decision is `contract_gap`; unavailable required tooling or evidence blocks the task.
 - After it passes, create at most one coherent task commit per `commit-convention.md`; split the task first when independent outcomes remain.
 - Apply the project's File Size Checkpoint to touched modules: at 500 lines, review whether a module has more than one responsibility; split when that improves ownership and verification, otherwise record why it stays together. The count is not a hard limit; a missing responsibility review blocks the task.

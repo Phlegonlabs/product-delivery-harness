@@ -28,7 +28,7 @@ cannot waive eval. Non-AI products may opt in. No universal threshold is supplie
 | Exact field | Contract |
 | --- | --- |
 | `schema`, `applicability`, `reason`, `owner` | `eval-policy/1`, `required`, concrete reason and human owner |
-| `quality`, `handoff` | Each `{test_id, scenario_id, report}`; distinct Required-Yes TESTs and reports; AI packages trace both to `AI-EVALUATION` |
+| `quality`, `handoff` | Each `{test_id, scenario_id, report}`; `scenario_id` is the `<TEST-ID>/<slug>` of a feature-file scenario tagged with that TEST; distinct Required-Yes TESTs and reports; AI packages trace both to `AI-EVALUATION` |
 | `dataset`, `rubric`, `grader`, `subject` | Each `{path, sha256}` for approved files; relative POSIX paths and lowercase hashes; no secrets or links |
 | `metric`, `trials_per_case`, `minimum_rate` | `case_all_trials` or `trial_pass_rate`; integer repeats; rate `{numerator, denominator}` with positive denominator and numerator within it |
 | `slices` | List of `{id, minimum_cases, minimum_rate}`; membership from dataset only; overlap allowed, empty/undersized slices fail |

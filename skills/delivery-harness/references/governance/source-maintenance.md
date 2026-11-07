@@ -34,30 +34,18 @@ These rules own skill-source reading, Git, release verification, installation, a
 
 ## Required Verification
 
-Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks selected from changed files and their negative cases. The candidate's one full run is the required matrix below, from the repository root. CI on the candidate SHA is that run; a local full run happens only when CI is unavailable. Source maintenance does not create a consumer Product Definition, UI approval, external setup pass or managed archive merely to edit a skill. Preserve all suites.
+Edit the canonical skill sources in `skills/`. For each atomic task, run focused checks selected from changed files and their negative cases. The candidate's one full run is the matrix command below, from the repository root; it runs the skill spec, pyflakes, docs weight, the four suites, the golden path and the candidate diff check, and writes `summary.txt` with one line per step. CI on the candidate SHA is that run; a local full run happens only when CI is unavailable. Source maintenance does not create a consumer Product Definition, UI approval, external setup pass or managed archive merely to edit a skill. Preserve all suites.
 
 For required UI browser checks, prepare dependencies with `npm ci` and `npx playwright install chromium` when missing or changed, then set `PDH_REQUIRE_BROWSER_TESTS=1` and `PLAYWRIGHT_MODULE` to this checkout's `node_modules/playwright`. Reuse only an observed installation matching the current lockfile and Playwright browser revision; do not reinstall it for every task. Linux CI installs Chromium with `--with-deps`. Missing prerequisites must fail required browser verification. Python test dependencies follow the current requirements file.
 
 ```text
 python -m pip install -r skills/delivery-harness/requirements-test.txt
-python skills/delivery-harness/scripts/check_skill_spec.py
-python -m pyflakes skills/delivery-harness/scripts skills/product-definition-builder/scripts skills/ui-design-builder/scripts skills/design-system-compiler/scripts
-python skills/delivery-harness/scripts/docs_weight.py
-python -m unittest discover -s skills/delivery-harness/scripts/tests -v
-# or, in parallel with per-module logs: python skills/delivery-harness/scripts/ci_test_shards.py run --suite harness --workers 8
-# POSIX shells
-HARNESS_GOLDEN_PATH=1 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v
-# PowerShell
-$env:HARNESS_GOLDEN_PATH='1'; python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_golden_path.py" -v; Remove-Item Env:HARNESS_GOLDEN_PATH
-python -m unittest discover -s skills/product-definition-builder/scripts/tests -v
-python -m unittest discover -s skills/ui-design-builder/scripts/tests -v
-python -m unittest discover -s skills/design-system-compiler/scripts/tests -v
-git diff --check
+python skills/delivery-harness/scripts/ci_test_shards.py matrix --base <released main SHA> --log-dir <new directory> --workers 8
 ```
 
 CI retains the same required coverage with exact-candidate jobs and a required aggregate. A successful deterministic suite may be cited from that same exact SHA and unchanged configuration, dependencies and toolchain; retain its origin, do not relabel it as a fresh execution. Changed code, configuration or other relevant inputs require fresh applicable evidence. Only receipt-verified archive A and provider-created tree-equal main S inherit results under `branch-promotion-contract.md`; retain their original SHA and origin, never claim fresh security or CI execution at A/S. Do not repeat the full suite or security review solely for those proved identity transformations. Security freshness, browser/live state and migration checks retain their own contracts. Never cache PASS or waive a missing platform result.
 
-Every flow that promotes to `main` bumps the release version in the same change: `package.json`, `skills/delivery-harness/VERSION`, the README badges and version-history entries in all four languages, and the RUNBOOK `required_harness_version` default. `test_skill_contract.py` reads `VERSION` and fails when any of these surfaces differ from it. A breaking skill-bundle change bumps the minor version. After the release promotion reaches `main`, tag that commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
+Every flow that promotes to `main` bumps the release version in the same change: `package.json`, `skills/delivery-harness/VERSION`, and the README badges and version-history entries in all four languages. `test_skill_contract.py` reads `VERSION` and fails when any of these surfaces differ from it. A breaking skill-bundle change bumps the minor version. After the release promotion reaches `main`, tag that commit with the matching `v<version>` tag — the READMEs' Releasing section is the full checklist.
 
 Any change that adds or alters a skill, rule, or documented flow also updates the READMEs' descriptive sections in the same change, in all four languages — the README is documentation-of-record, not a release-time artifact.
 

@@ -307,12 +307,19 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             ["Candidate", "Command", "Runner", "Device / OS", "Date", "Build read-back", "Fixtures", "Raw log sha256"],
             fields["Run"],
         )
-        self.assertEqual(["Run", "<scenario_id>", "<not-run scenario_id>"], list(fields))
+        self.assertEqual(
+            [
+                "Run",
+                "<scenario_id> (<TEST-ID>) — row status: <pass|fail|blocked|skipped|unvalidated>",
+                "<not-run scenario_id> (<TEST-ID>) — row status: <blocked|unvalidated>",
+            ],
+            list(fields),
+        )
         evidence = read("assets/templates/DELIVERY_EVIDENCE.template.md")
-        self.assertIn("### ASSERT-001\n\nobserved: <what the run showed>", evidence.replace("\r\n", "\n"))
+        self.assertIn("### ASSERT-001 — <pass|fail>\n\nobserved: <what the run showed>", evidence.replace("\r\n", "\n"))
         self.assertIn("reason: <why it did not run, for a blocked or unvalidated row>", evidence)
-        for copied in ("expected:", "fixture_cleanup:", "status:"):
-            self.assertNotIn(copied, evidence)
+        self.assertNotIn("expected:", evidence)
+        self.assertIn("fixture_cleanup: <cleaned|not_required|pending|failed>", evidence)
         self.assertIn(
             "Shape each evidence file from `assets/templates/DELIVERY_EVIDENCE.template.md`; "
             "a blocked or unvalidated row's file uses its not-run form.",

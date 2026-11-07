@@ -293,7 +293,7 @@ Older documents may be inspected for history, but a current approval requires th
 ## AI and Automation
 AI and Automation Gate: [required / not_required / blocked] — [reason], decided by [human owner]
 
-New packages include the active `eval-policy/1` JSON block from `eval-policy-contract.md` here and validate it with the package checker command in `stages/product-definition.md` step 15. Freeze policy/input bytes before approval. Required AI cannot waive eval.
+New packages include the active `eval-policy/1` JSON block from `eval-policy-contract.md` here and validate it with the package checker command in `stages/product-definition.md` step 15. Freeze policy/input bytes before approval. Required AI cannot waive eval. The quality scenario has five Then steps in the policy's key order and the handoff scenario has one; the renderer keys them to the eval checks.
 
 When `required`, record:
 
