@@ -1418,6 +1418,16 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("every `docs/product/features/*.feature` in full", lifecycle)
         self.assertIn("its changed feature files", lifecycle)
 
+    def test_entry_points_name_feature_files_and_the_coverage_checker(self) -> None:
+        skill = self.read("SKILL.md")
+        self.assertIn("tests with executable scenarios", skill)
+        self.assertIn("`PRD.md` with its feature files", skill)
+        self.assertIn("`scripts/check_feature_coverage.py`", skill)
+        prompt = " ".join(self.read("agents/openai.yaml").split())
+        for phrase in ("four bounded free-text interview turns", "PRD.md with its feature files",
+                       "plus --features for a new package", "check_feature_coverage.py"):
+            self.assertIn(phrase, prompt)
+
 
 if __name__ == "__main__":
     unittest.main()
