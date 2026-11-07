@@ -110,6 +110,11 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("store-listing", stage)
         self.assertIn("onboarding", stage)
         self.assertIn("console: operations", stage)
+        self.assertIn("Review and the completeness preflight join coverage against those surfaces.", stage)
+        self.assertIn("the record proves traceability, not quality", stage)
+        workflow = self.read("references/review-workflow.md")
+        self.assertNotIn("`Shape` row fixes the required surfaces", workflow)
+        self.assertIn("stages/ui-design.md#author-self-review-before-handoff", workflow)
 
     def test_skill_owns_ui_after_product_approval(self):
         skill = self.read("SKILL.md")
@@ -205,6 +210,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         stage = self.read(UI_STAGE)
         wireframe = self.read("references/legacy/wireframe-guide.md")
         hifi = self.read("references/ui-design-pass.md")
+        workflow = self.read("references/review-workflow.md")
         binding = (
             'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
             "--agents-md <target-AGENTS.md> --stage ui-design"
@@ -215,7 +221,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("Before each authoring stage", prompt)
         self.assertIn(binding, stage)
         self.assertLess(stage.index(binding), stage.index("produce direction studies"))
-        for document in (wireframe, hifi):
+        for document in (wireframe, hifi, workflow):
             with self.subTest(document=document[:30]):
                 self.assertNotIn(binding, document)
                 self.assertIn("stages/ui-design.md#required-skills-and-inputs", document)
