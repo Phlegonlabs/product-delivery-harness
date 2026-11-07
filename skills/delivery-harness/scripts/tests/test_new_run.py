@@ -141,6 +141,14 @@ class NewRunTests(unittest.TestCase):
 
         self.assertEqual([], validate_current_plan_run(self.plan, run, repo_root=self.dir))
 
+    def test_run_title_follows_the_plan_heading(self) -> None:
+        text = self.plan_path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("# Plan: <feature or product slice>\n"))
+        self.plan_path.write_text(text.replace("# Plan: <feature or product slice>", "# Plan: Receive stock", 1),
+                                  encoding="utf-8")
+        self.assertTrue(self.generate().read_text(encoding="utf-8").startswith("# Run: Receive stock\n"))
+        self.assertTrue(new_run.render({}).startswith("# Run: <feature or product slice>\n"))
+
     def test_graph_and_mission_state_mirror_the_plan(self) -> None:
         run = load_run(self.generate())
 
