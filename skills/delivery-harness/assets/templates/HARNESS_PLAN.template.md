@@ -71,13 +71,13 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
       {
         "id": "SRC-005",
         "kind": "feature",
-        "location": "docs/product/features/<scope>.feature",
+        "location": "docs/product/features/product.feature",
         "owner": "<human or team>",
         "status": "frozen",
         "content_sha256": null,
         "source_revision": "0000000000000000000000000000000000000000",
         "staged_revision": null,
-        "notes": "owner-approved scenarios the register is rendered from; one row per feature file"
+        "notes": "owner-approved scenarios the register is rendered from; one row per feature file (a program package lists each module file)"
       }
     ],
     "traces": [
