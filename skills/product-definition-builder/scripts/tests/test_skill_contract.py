@@ -1273,6 +1273,15 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         for heading in ("## How To Read This Package", "## Quality Checklist"):
             self.assertIn(heading, contract)
 
+    def test_playbook_is_read_by_section(self) -> None:
+        step = self.read(STAGE).split("\n9. ", 1)[1].split("\n10. ", 1)[0]
+        self.assertNotIn("`references/architecture-playbook.md`", step)
+        linked = set(re.findall(r"\]\(\.\./architecture-playbook\.md#([a-z0-9-]+)\)", step))
+        headings = re.findall(r"(?m)^## (.+?)\s*$", self.read("references/architecture-playbook.md"))
+        slugs = {re.sub(r"[^\w\- ]", "", heading.lower()).replace(" ", "-") for heading in headings}
+        self.assertEqual(slugs, linked)
+        self.assertIn("When step 8 classifies an archetype, also read its pattern", step)
+
     def test_one_author_self_review_carries_both_journey_perspectives(self) -> None:
         skill = self.read(STAGE)
         refinement = self.read("references/prd-refinement.md")
