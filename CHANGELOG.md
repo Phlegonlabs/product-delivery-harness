@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.75.3. Current releases are in [README.md](README.md#version-history).
+English release history through 0.75.4. Current releases are in [README.md](README.md#version-history).
+
+- **0.75.4** — Security content review. `security-review.md` no longer allows an inline security review on the direct route, takes trust boundaries from the PRD Security Requirements rows and their `TEST-*` traces, confirms each planned boundary's denial test at the reviewed head, copies `scope` from the packet verbatim, and says how an environment-blocked attempt is recorded. The option library's index routes exact-scope review to the delivery-harness security lens instead of the retired `code-security-review`, and `security.md` puts its controls before the sources list.
 
 - **0.75.3** — Template fixes found during the 0.75.2 consumer adoption. `PROJECT_AGENTS.template.md` now points managed-run rules at `project-operating-rules.md` instead of a section the template never had; the `DEPLOYMENT.template.md` presence example no longer trips `check_deployment.py` as an unfilled placeholder; the GA4 guide says an `MS-*` row stays `available` until Realtime or DebugView shows the event.
 

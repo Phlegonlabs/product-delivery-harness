@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.78.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.79.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -199,6 +199,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.79.0** — 整套 review 第二轮。0.78.0 那次审查留下的十项在此版落地。RUN 里权限最高的几个改动现在都有守卫的 transition：`harness_transition.py record-grant`、`open-run`、`close-run`、`record-runtime` 会取锁、带着 owner 的原话、从 RUN 填入 run_id 与 plan revision 和 digest、写入前验证整个 pair，并拒绝 `push`；`lease-worker --packet-out` 直接从已租用的 RUN 渲染并检查 worker goal 包大小，Card 4 因此去掉独立的渲染与检查步骤。`build_verifier_request.py --layer mission_integration` 生成 integration verifier 的 request，builder 与两个 validator 现在共用同一个 `verifier_context`。`promotion_readback.py pre` 与 `post` 以只读方式证明 main 的前状态、祖先关系与 tree 相等；README 以 `post` 的 JSON 作为 tree 相等的证明。`hifi_matrix_capture.py` 会点击并以键盘触发 manifest 的每个交互、测量 reviewer 行、用 `--color-scheme dark` 跑完整基础矩阵、用 `--intermediate` 写出中间宽度的输出，并新增 `reflow-320` 轴。`parity_capture.py --hifi-package` 通过 reviewer 控件比对 ui-hifi/2 包，route map 用 `PARITY_ROUTE_MAP.template.json`。consumer 会察觉的变化，在 0.79.0 pin 之后：eval policy 为 `not_required` 的 managed PLAN 仍须冻结 delivery-acceptance source、声明 acceptance 与 closeout gate 及 pass-only 链；system-conformance 的 `target_comparison` 必须引用冻结的已批准 HiFi。pin 在 0.79.0 之前的 run 保持现行行为。bundle 新增契约，因此升 minor 版本。
+
 - **0.78.0** — 整套 review。一次只读的整套审查问了三件事：哪里能简化、哪些该做成模板、还缺什么；91 项已验证的发现中，78 项分两波在此版落地，另外十项较大的留待第二轮。各入口行动前必读的字数下降：delivery-harness 由 43,863 降到约 31,100（managed 路线由 41,245 降到 28,389），product-definition-builder 由 41,185 降到约 37,700，ui-design-builder 由 32,758 降到约 30,800。新模板：`UI_DESIGN`、`UI_DEFECT_LEDGER`、`UI_REVIEW_PACKET`、`PROJECT_GITATTRIBUTES`、`DIRECT_REVIEW_BRIEF`、`ASSIGNMENT` 与 `DELIVERY_EVIDENCE`，初始化的记录另有 Release Log、`Current Epic:` 行与 `Harness Version` 段落。新 reference：architecture method、gitattributes 契约、bundle adoption、open-ended refinement 与 Card 8。新命令：`build_delivery_results.py`、`build_verifier_request.py`、`prepare_release.py`、`ci_test_shards.py matrix`、`security_review_result.py` 的 CLI、`render_delivery_acceptance.py --check` 与 profile variants，以及 `check_design_system_pair.py --write-bindings` 和自动计算的对比与字级证据。consumer 会察觉的变化：JSON 与 HiFi CSS 不一致的现有 `design-system/4` pair 可能在 token 值检查失败；商店与安装程序 target 须有安装或下载证明；`MISSION_RUNBOOK.template.md` 已移除，它的默认值不再是版本字段；带 pre-0.66 anchor key 的 archive receipt 会失败；Epic 哈希不含 Handoff 区块。bundle 新增契约，因此升 minor 版本。
 
 - **0.77.0** — 可执行的 scenario。`docs/product/features/` 下的 feature 文件纳入 PRD 包，与 PRD 一起批准。每个 scenario 恰好带一个 `@TEST-*` tag，每个 `Required: Yes` 的 Test Obligation 至少要有一个 scenario。`check_feature_coverage.py` 双向检查，新包运行 `check_product_package.py` 时另加 `--features <dir>`。`render_delivery_acceptance.py` 由 feature 文件加一份 run profile 生成交付验收 register；`@platform:`、`@auth:` 与 `@env:` tag 只针对单个 scenario 覆盖 profile，register 不能手动编辑。加上 `--features` 与 `--features-base` 时，`check_prd_delta_scope.py` 要求 delta 中每个新增或修订需求的 Required TEST 都有新增或改动的 scenario，否则拒绝。项目 AGENTS 模板新增 Behavior Specs 段落，Greenfield scaffold 会配置已批准的 BDD runner（新增的 stack 层）及其 step definition 目录。改 scenario 文字是产品决定，须走 PRD delta；只改 step definition 是现有 Epic 上的小修正。
@@ -206,7 +208,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.76.1** — 更快的 review 循环。motion receipt 按单一 intent 在代表性 target 上的离线 receipt 校验，沙箱为 allowlisted-local-pages，不再要求 HiFi bundle 的 interaction、navigation 与 reviewer 证据，motion collector 因此能通过安装的契约。沙箱内跑不了 git 的 reviewer 改用父进程以 `review_input.py` 生成的 packet（detached clone、按范围切分的 diff、父进程 status 与全文件 SHA-256 清单）证明候选身份与 checkout 干净；有该 packet 时 git 失败不再算 environment block。targeted re-check 后若仍有多个 finding family，合并成一次 consolidated repair，用一个 review point 审查，只有 packet 超过路线上限时才按路径组拆分；pre-review gate 要求基线对比控件，对绑定的 base 字节记录每个案例的预期转变（无效输入 old=accept new=reject，恢复的合法行为 old=reject new=accept，保留的正向样本两边都 accept）。
 
 - **0.76.0** — 更快的 UI review。PRD UI surface 可声明 `derivedStates`，只在最小 target 取证一次；第一波 stress axes 改为代表性抽样；isolated repair 最多两次 scoped re-review。沿用改以 render fingerprint（几何、computed styles 与媒体识别）而非页面 bytes；re-review 与 parity 先 diff 再判，并加区域规则；一个 case 一张 capture 供所有观察引用；motion 证据为单一代表 target 上的三项观察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以单一浏览器 context 跑完整 HiFi 矩阵，`parity_capture.py` 每条路由两侧各加载一次、分类配对并沿用未变者。浏览器矩阵的独立审查改为先验收再抽样，packet 在启动前按路线上限切分，浏览器能力探测每 session 重用，必要检查全过后 owner 接受即关闭该轮设计，一轮以进场时的 bundle pin 收尾。
-
-- **0.75.4** — Security 内容校订。`security-review.md` 不再允许直接路线上的 inline security review，trust boundary 改从 PRD Security Requirements 行及其 `TEST-*` trace 获取，在受审 head 上确认每个 planned boundary 的 denial test，`scope` 逐字照抄 packet，并说明 environment block 的记录方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到来源清单之前。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
