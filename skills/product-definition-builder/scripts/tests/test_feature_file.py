@@ -86,6 +86,24 @@ class RejectionTests(unittest.TestCase):
         self.assert_rejects("Feature: F\n@TEST-001\nScenario: S\nAnd x\nThen y\n", "no previous", 4)
         self.assert_rejects("Feature: F\n@TEST-001\nScenario: S\nWhen x\nThen y\n@TEST-002\n", "end of file", 0)
         self.assert_rejects("Feature: F\n@TEST-001 @platform:Web\nScenario: S\nWhen x\nThen y\n", "malformed profile tag", 3)
+
+    def test_profile_tags_take_only_acceptance_values(self):
+        for tag, allowed in (("@platform:iphone", "'web'"), ("@auth:sandbox", "['mock', 'none', 'real']"),
+                             ("@env:prod", "'production'")):
+            self.assert_rejects(f"Feature: F\n@TEST-001 {tag}\nScenario: S\nWhen x\nThen y\n",
+                                f"{tag} must be one of", 3)
+            self.assert_rejects(f"Feature: F\n@TEST-001 {tag}\nScenario: S\nWhen x\nThen y\n", allowed, 3)
+        text = "Feature: F\n@TEST-001 @platform:browser-extension @auth:real @env:preview\nScenario: S\nWhen x\nThen y\n"
+        profile = ff.parse_feature_text(text).scenarios[0].profile
+        self.assertEqual({"platform": "browser-extension", "auth": "real", "env": "preview"}, profile)
+        self.assertEqual(11, len(ff.PROFILE_VALUES["platform"]))
+
+    def test_profile_tags_never_sit_on_the_feature_line(self):
+        self.assert_rejects("@PRD-001 @platform:web\nFeature: F\n@TEST-001\nScenario: S\nWhen x\nThen y\n",
+                            "@platform:web belongs on a Scenario, not the Feature", 2)
+        # Other Feature tags stay free-form.
+        self.assertEqual(["@PRD-001", "@wip"],
+                         ff.parse_feature_text("@PRD-001 @wip\nFeature: F\n@TEST-001\nScenario: S\nWhen x\nThen y\n").tags)
         self.assert_rejects("", "empty feature file", 0)
 
 
