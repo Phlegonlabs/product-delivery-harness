@@ -60,6 +60,7 @@ jobs:
 
       # Add the repo-specific runtime setup steps here.
 
+      # <verification-command> includes the BDD suite that runs docs/product/features/.
       - name: Run required verification
         run: <verification-command>
 

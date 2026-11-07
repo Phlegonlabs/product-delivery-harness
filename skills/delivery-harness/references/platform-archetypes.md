@@ -27,7 +27,7 @@ Regulated or sensitive data:
 
 ## Greenfield / Empty Repository
 
-Detect this before applying any archetype profile below: no toolchain manifest, no app source tree, or no locally runnable dev/build command exists yet. Greenfield detection is per-toolchain, not whole-repo — a repository can be simultaneously non-greenfield for an already-established platform (e.g. a working web app) and greenfield for a newly-added one (e.g. no iOS project yet); apply the toolchain-detection table below per target platform, and scope the new workspace-foundation mission only to the platform that is actually greenfield. Every archetype's "Common missions" list below assumes the workspace and chosen stack already exist — on a greenfield repository, insert one workspace-foundation mission before them and shift the archetype's own list down by one (its `M1` becomes `M2`, and so on). This renumbering applies only when drafting a fresh single-archetype plan from scratch; when a later plan revision adds a new platform to an already-integrated project, mint the new workspace-foundation mission with the next available mission ID in that revision instead — mission IDs are opaque and do not encode order (see `contract-and-traceability.md`'s Mission And Task Identity section), so do not renumber or disturb any already-integrated mission's ID.
+Detect this before applying any archetype profile below: no toolchain manifest, no app source tree, or no locally runnable dev/build command exists yet. Detection is per toolchain, not per repository: a repository with a working web app can still be greenfield for a new iOS target. Apply the detection table below per target platform and scope the workspace-foundation mission to the greenfield platform only. Each archetype's "Common missions" list assumes the workspace and stack exist. In a fresh single-archetype plan, insert one workspace-foundation mission first and shift that list down by one (`M1` becomes `M2`). When a later revision adds a platform to an integrated project, give the new foundation mission the next free mission ID instead; IDs are opaque (`contract-and-traceability.md`'s Mission And Task Identity), so never renumber an integrated mission.
 
 Detect which toolchain is in the approved Stack Decision Checkpoint before scaffolding; never assume a language, package manager, component foundation, or styling system. Match only `Required`, `Selected`, or `Approved` rows, checking the repository for an existing manifest first:
 
@@ -50,38 +50,43 @@ JS/TS web:
   Component foundation: install or copy the approved source/primitives/suite and record code ownership
   Styling approach: configure the approved Tailwind/CSS Modules/modern CSS/component-managed approach
   Build tool: install/configure the build tool the framework doesn't already own
-  Routing/data, testing: scaffold the minimal contract needed for later missions to extend, per the decision record
+  Routing/data: scaffold the minimal contract later missions extend, per the decision record
+  Testing: the decided runners, including the approved BDD runner, a `features/` link or copy of `docs/product/features/`, and the step-definition directory
 
 iOS/macOS Swift:
   Project: create the Xcode project/workspace (*.xcodeproj / *.xcworkspace) or a Package.swift target, with app, unit-test, and UI-test targets
   Dependencies: wire Swift Package Manager (or the decided manager) for the named libraries
   App shell: minimal navigation/entry point the later feature missions extend
   Signing/config: record the bundle identifier and target OS version from the decision record
+  Testing: the approved BDD runner, a `features/` link or copy, and the step-definition directory
 
 Android:
   Project: create the Gradle project (build.gradle(.kts) + settings.gradle(.kts)) with app module, unit-test, and instrumented-test source sets
   Dependencies: declare the named libraries and the Kotlin/AGP versions from the decision record
   App shell: minimal activity/navigation the later feature missions extend
   Config: record applicationId, minSdk/targetSdk from the decision record
+  Testing: the approved BDD runner, a `features/` link or copy, and the step-definition directory
 
 Flutter:
   Project: run the Flutter create equivalent to produce pubspec.yaml plus the iOS and Android runner sub-projects
   Dependencies: add the decided packages to pubspec.yaml
   App shell: minimal widget tree/navigation the later feature missions extend
   Config: confirm both native distribution targets (iOS + Android, plus any others named) build from this one codebase
+  Testing: the approved BDD runner, a `features/` link or copy, and the step-definition directory
 
 Windows .NET:
   Project: create the .NET solution/project (*.sln / *.csproj) for the decided UI toolkit (WPF/WinUI/MAUI or a cross-platform toolkit)
   Dependencies: restore the named NuGet packages from the decision record
   App shell: minimal window/navigation the later feature missions extend
   Config: record the target framework and packaging shape (MSIX vs installer)
+  Testing: the approved BDD runner, a `features/` link or copy, and the step-definition directory
 ```
 
 **Environment configuration (every toolchain).** Apply `gitignore-contract.md` from the first scaffold commit. Reserve a place for environment secrets before any task needs one: create a tracked `.env.example` (or the toolchain's native equivalent — e.g. `local.properties.example` for Android, an `.xcconfig` template for Swift) listing every environment variable the app currently needs by name, with a placeholder or one-line description and no real value. Ensure the real `.env` (or equivalent local secret file) is git-ignored from this same commit, never committed. Treat `.env.example` as living documentation: a later task that reads a new environment variable adds its entry to `.env.example` in the same commit that introduces the read (see `commit-convention.md`), not as a separate cleanup pass. Never invent a placeholder's real value — when a required variable's actual value is unavailable, stop and ask per `contract-and-traceability.md`'s Stop And Ask Conditions rather than guessing.
 
 Exit criterion: a locally runnable dev/build plus test discovery proving every approved layer works together. Any `Recommended` or `Provisional` executable layer, or a non-approved Stack Decision Checkpoint, is a stop condition; request the upstream decision instead of picking a stack.
 
-Common missions: `M1 workspace-foundation` (above), then the archetype's own list below renumbered to start at `M2` — but this renumbering is only for a fresh from-scratch single-archetype plan; a later revision that adds a new platform to an already-integrated project mints the workspace-foundation mission with the next available mission ID instead (see the per-toolchain and mission-ID note above).
+Common missions: `M1 workspace-foundation` (above), then the archetype's own list from `M2`, under the numbering rule at the top of this section.
 
 ### Worked `M1 workspace-foundation` Mission Object
 
