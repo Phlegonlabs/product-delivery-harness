@@ -25,10 +25,6 @@ Launch dependency-ready assignments within observed capacity, memory, tools and 
 
 The parent owns every launch, result reconciliation, canonical coordination record, approval interaction and integration. Assigned authors write their scoped product artifacts. Workers receive only the delegation authority supplied by agent policy and the assignment; they never approve product decisions. Researchers return sourced findings; code explorers return file/symbol evidence and unknowns. The parent resolves conflicts and freezes the interface before dependent writers begin. Independent work can continue while another dependency is blocked.
 
-## Architecture Method
-
-When an assignment bears on architecture, apply [Architecture Method](architecture-method.md).
-
 ## Resolve Roles Before Direct Or Managed Work
 
 Agent policy designates the executor for UI authoring, implementation and repairs; this skill does not select an agent type. The actual author reads the complete pinned `frontend-design` and applicable project design skills in its own context before editing. UI research remains read-only and may have multiple sibling researchers while one frontend author owns the candidate.
