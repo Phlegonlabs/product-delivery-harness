@@ -52,7 +52,7 @@ Repair context (omit for an initial implementation):
 
 1. Enter the assigned worktree. Read the ordered repository context and only the named skills. Keep automatic context discovery enabled.
 2. Use this complete handoff. Do not reconstruct parent context. Open PLAN/RUN only for named missing fields.
-3. The parent ran `scripts/check_launch_packet.py` before dispatch. Verify source hashes, repository, branch/ref, base SHA, clean state, digest, lease, scope, resources, permissions, authorizations. Stop on invalid, stale, or drift.
+3. The parent size-checked this packet before dispatch. Verify source hashes, repository, branch/ref, base SHA, clean state, digest, lease, scope, resources, permissions, authorizations. Stop on invalid, stale, or drift.
 4. Apply only the matching host contract; never borrow another host's model, role, context, or launch mechanics. Confirm temp/cache paths, network, local bindings, and sockets fit its boundary.
 
 ## Work

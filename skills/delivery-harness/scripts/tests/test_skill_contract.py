@@ -1849,7 +1849,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Host-specific context:", worker_goal)
         self.assertIn("Worker contract:", worker_goal)
         self.assertIn("Context source hashes:", worker_goal)
-        self.assertIn("parent ran `scripts/check_launch_packet.py` before dispatch", worker_goal)
+        self.assertIn("parent size-checked this packet before dispatch", worker_goal)
         self.assertIn("resources, permissions, authorizations", worker_goal)
         self.assertIn("Keep automatic context discovery enabled", worker_goal)
         self.assertIn('path.open("xb")', configurator)
