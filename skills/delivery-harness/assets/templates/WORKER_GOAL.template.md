@@ -77,7 +77,7 @@ For any UI-touching mission, classify the completed change against frozen produc
 
 ## Verify
 
-Select focused checks from parent-observed changed files using `selection.mode: "changed_files"`. Run each verifier through `scripts/verifier_runtime.py`, request from `scripts/build_verifier_request.py`, so the result includes an `execution_key`; a free-form shell transcript is not verifier evidence. A required security check without its tool or retained evidence is blocked, not skipped.
+Select focused checks from parent-observed changed files using `selection.mode: "changed_files"`. Run each verifier through `scripts/verifier_runtime.py`, request from `scripts/build_verifier_request.py`; the result includes an `execution_key`; a free-form shell transcript is not verifier evidence. A required security check without its tool or retained evidence is blocked, not skipped.
 
 Host verifiers execute fresh and serially per runner, with exact source/Git guards.
 
