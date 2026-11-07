@@ -1753,3 +1753,27 @@ def record_review_spawn_receipts(run: dict[str, object]) -> None:
     for worker in run.get("review_workers") or []:
         if isinstance(worker, dict) and worker.get("worker_runtime") == "subagent":
             add_spawn_receipt(run, worker["worker_id"])
+
+
+def bind_acceptance_gate(plan, scripts_dir):
+    """Give the PLAN's `delivery-acceptance` gate the exact argv the 0.79.0 join requires.
+
+    The template ships neutral placeholders; a RUN pinned at or after 0.79.0
+    must name the observed Python, the installed checker and the frozen
+    contract hash, so fixtures bind them here after the source hashes are set.
+    """
+    sources = {row["kind"]: row for row in plan["sources"]}
+    prd, contract = sources["prd"], sources["delivery acceptance"]
+    for gate in plan["final_gates"]:
+        if gate.get("id") != "delivery-acceptance":
+            continue
+        gate["cwd"] = "."
+        gate["pass_signal"] = "exit 0"
+        gate.setdefault("execution", {})["isolation"] = "host"
+        gate.pop("selection", None)
+        gate["argv"] = [
+            sys.executable, str(Path(scripts_dir) / "check_delivery_acceptance.py"),
+            "--repo-root", ".", "--prd", prd["location"],
+            "--contract", contract["location"], "--contract-sha256", contract["content_sha256"],
+            "--results", "docs/verification/delivery-results.json", "--candidate-from-head",
+        ]
