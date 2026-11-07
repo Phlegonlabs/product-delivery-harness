@@ -545,11 +545,13 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             ).read_text(encoding="utf-8")
         )
         self.assertNotIn(checker.BEGIN_MARKER, template)
+        self.assertIn(checker.EVIDENCE_BEGIN, template)
 
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             prepare_source_bindings(data, root)
             markdown = checker.replace_generated_contract(template, data)
+            self.assertEqual(2, markdown.count("| unfilled |"))
             self.assertEqual([], checker.compare(markdown, data, repo_root=root))
         self.assertEqual(markdown, checker.replace_generated_contract(markdown, data))
 
@@ -1006,6 +1008,97 @@ class CheckDesignSystemPairTests(unittest.TestCase):
             self.assertIn('"product": "Jolvex"', rendered)
             self.assertIn('"requiredContentOrder"', rendered)
             self.assertEqual([], checker.compare(rendered, data))
+
+    def evidence_registry(self) -> dict:
+        data = registry()
+        data["tokens"] = {
+            "color": {"--bg": "#ffffff", "--text": "#101010", "--ink": "var(--text)",
+                      "--faint": "rgba(16, 16, 16, 0.2)"},
+            "fontSize": {"--body": "16px"},
+            "lineHeight": {"--body": "1.5", "--tight": "1"},
+        }
+        data["contrastPairs"] = [
+            {"group": "color", "fg": "--ink", "bg": "--bg", "use": "normal", "note": "body | copy"},
+            {"group": "color", "fg": "--faint", "bg": "--bg", "use": "ui"},
+        ]
+        data["typeSteps"] = [
+            {"role": "Body", "fontSize": "--body", "lineHeight": "--body", "kind": "text", "usage": "paragraphs"},
+            {"role": "Dense", "fontSize": "--body", "lineHeight": "--tight", "kind": "text"},
+        ]
+        return data
+
+    def test_write_renders_contrast_and_type_evidence_and_reports_below_floor(self) -> None:
+        from check_color_contrast import contrast_ratio
+
+        data = self.evidence_registry()
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        ratio = contrast_ratio("#101010", "#ffffff")
+        self.assertIn(f"| color | `--ink` | `--bg` | normal | {ratio:.2f}:1 | 4.5:1 | PASS | body \\| copy |", markdown)
+        self.assertRegex(markdown, r"\| color \| `--faint` \| `--bg` \| ui \| [0-9.]+:1 \| 3\.0:1 \| below \|  \|")
+        self.assertIn("| Body | `--body` | `--body` | text | 1.50 | 1.50 | PASS | paragraphs |", markdown)
+        self.assertIn("| Dense | `--body` | `--tight` | text | 1.00 | 1.50 | below |  |", markdown)
+        self.assertEqual([], checker.compare(markdown, data))
+        self.assertEqual(markdown, checker.replace_generated_contract(markdown, data))
+
+        with tempfile.TemporaryDirectory() as temp:
+            md, js = Path(temp) / "design-system.md", Path(temp) / "design-system.json"
+            md.write_text("# Design System\n", encoding="utf-8")
+            js.write_text(json.dumps(data), encoding="utf-8")
+            argv = ["--markdown", str(md), "--registry", str(js), "--write"]
+            self.assertEqual(0, checker.main(argv))
+            written = md.read_bytes()
+            self.assertIn(checker.EVIDENCE_BEGIN.encode(), written)
+            self.assertEqual(0, checker.main(argv))
+            self.assertEqual(written, md.read_bytes())
+
+    def test_stale_unresolvable_or_orphaned_evidence_fails(self) -> None:
+        data = self.evidence_registry()
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        stale = self.evidence_registry()
+        stale["tokens"]["color"]["--text"] = "#777777"
+        self.assertIn(
+            "design-system.md generated contrast and type evidence is missing or stale; rerun --write",
+            checker.compare(markdown, stale),
+        )
+
+        for tokens, needle in (
+            ({"--ink": "var(--missing)"}, "--ink on --bg in color names a token that does not resolve"),
+            ({"--ink": "var(--loop)", "--loop": "var(--ink)"}, "names a token that does not resolve"),
+            ({"--ink": "red"}, "--ink on --bg in color cannot be computed"),
+            ({"--bg": "rgba(255, 255, 255, 0.5)"}, "must be opaque"),
+        ):
+            with self.subTest(tokens=tokens):
+                broken = self.evidence_registry()
+                broken["tokens"]["color"].update(tokens)
+                problems = checker.compare(checker.replace_generated_contract(MATCHING_MARKDOWN, broken), broken)
+                self.assertTrue(any(needle in item for item in problems), problems)
+        broken = self.evidence_registry()
+        broken["typeSteps"][0]["lineHeight"] = "--absent"
+        problems = checker.compare(checker.replace_generated_contract(MATCHING_MARKDOWN, broken), broken)
+        self.assertIn("design-system.json typeSteps Body names a token that does not resolve", problems)
+
+        orphaned = registry()
+        self.assertTrue(any("but design-system.json has no contrastPairs or typeSteps" in item
+                            for item in checker.compare(checker.replace_generated_contract(markdown, data), orphaned)))
+        cleaned = checker.replace_generated_contract(markdown, orphaned)
+        self.assertNotIn(checker.EVIDENCE_BEGIN, cleaned)
+        self.assertEqual([], checker.compare(cleaned, orphaned))
+
+    def test_evidence_rows_are_closed_and_placeholders_wait_for_require_filled(self) -> None:
+        data = self.evidence_registry()
+        data["contrastPairs"][0]["use"] = "huge"
+        data["typeSteps"][0]["extra"] = "x"
+        problems = checker.validate_registry(data)
+        self.assertTrue(any(item.startswith("design-system.json contrastPairs must be") for item in problems))
+        self.assertTrue(any(item.startswith("design-system.json typeSteps must be") for item in problems))
+
+        data = self.evidence_registry()
+        data["contrastPairs"] = [{"group": "color", "fg": "<--text>", "bg": "<--bg>", "use": "<normal | large | ui>"}]
+        markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+        self.assertIn("| — | — | unfilled |", markdown)
+        self.assertEqual([], checker.compare(markdown, data))
+        self.assertTrue(any("unfilled template placeholder" in item
+                            for item in checker.compare(markdown, data, require_filled=True)))
 
     def test_write_preserves_newlines_and_second_write_is_a_byte_for_byte_noop(self) -> None:
         for newline in (b"\n", b"\r\n"):

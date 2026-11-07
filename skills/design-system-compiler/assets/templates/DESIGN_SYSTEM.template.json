@@ -56,6 +56,14 @@
     "easing": { "<--ease-standard>": "<value>" }
   },
 
+  "$comment:evidence": "Name every text, UI-boundary and semantic-color pairing and every type role by token; var() resolves inside the group. --write renders their ratios into design-system.md and reports a ratio below its floor without failing.",
+  "contrastPairs": [
+    { "group": "color", "fg": "<--text>", "bg": "<--bg>", "use": "<normal | large | ui>", "note": "<non-color cue or notes>" }
+  ],
+  "typeSteps": [
+    { "role": "<body>", "fontSize": "<--text-body>", "lineHeight": "<--leading-body>", "kind": "<text | heading>", "usage": "<usage>" }
+  ],
+
   "$comment:primitives": "Four layers: layout, surface, typography, control. Every variant list is a closed set — a page picks from it and may not extend it. A primitive may carry one globally unique DS-<FAMILY>-<number> dsId when prose or PLAN traces need to name it. 'class' is the base class name when it differs from the kebab-cased primitive name.",
   "primitives": {
     "Container": {

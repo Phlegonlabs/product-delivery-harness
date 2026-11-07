@@ -38,7 +38,7 @@ Browser-extension UI uses `platform: web` with the UI approval `captureMode: bro
 - a short selected-direction summary;
 - compact selected-direction provenance: applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation;
 - the reason behind token and component choices that are not self-evident;
-- computed color-contrast and type-scale evidence;
+- the generated contrast and type-scale evidence;
 - concise responsive, interaction, and accessibility rules; and
 - product-specific do/don't guardrails.
 
@@ -85,9 +85,7 @@ Keep the normal implementation groups:
 
 Do not add speculative scales or unused theme layers.
 
-For colors, state the palette basis and compute every text, UI-boundary, and semantic-color pairing with `scripts/check_color_contrast.py`. Record the actual ratio and keep meaning independent of color alone.
-
-For typography, state the family or platform-font reason and the type-scale logic. Compute each role's line-height ratio with `scripts/check_type_scale.py`.
+State the palette basis, the family or platform-font reason and the type-scale logic. Name every text, UI-boundary and semantic-color pairing in `contrastPairs` and every type role in `typeSteps`; `--write` renders their ratios into the generated evidence block. Keep meaning independent of color alone.
 
 Dark mode, high contrast, chart colors, or platform-specific token overrides are added only when the product actually requires them.
 

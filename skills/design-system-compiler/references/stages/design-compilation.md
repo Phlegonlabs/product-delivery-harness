@@ -63,9 +63,9 @@ Run these from the repository root:
 ```text
 python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py" --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --write
 python "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py" --markdown <staged design-system.md> --registry <staged design-system.json> --repo-root <repository-root> --require-filled
-python "<design-system-compiler-skill-root>/scripts/check_color_contrast.py" --pair <foreground-hex>,<background-hex>[,normal|large|ui] (one --pair per registry color pairing)
-python "<design-system-compiler-skill-root>/scripts/check_type_scale.py" --step <role>,<font-size>,<line-height>[,text|heading] (one --step per registry type role) [--root-font-size <px>]
 ```
+
+`--write` also renders the ratios of the JSON `contrastPairs` and `typeSteps` into the generated evidence block; a ratio below its floor is shown for an owner decision, not failed.
 
 Also confirm:
 
@@ -89,7 +89,7 @@ Also confirm:
 - Read `references/output-contract.md` for artifact boundaries and quality checks.
 - Read `references/artifact-lifecycle.md` before creating staging files or publishing.
 - Use `assets/templates/DESIGN_SYSTEM.template.md` and `assets/templates/DESIGN_SYSTEM.template.json` for the pair; for `design-system/4`, set that schema and add the block from `assets/templates/DESIGN_SYSTEM_SHOWCASE.template.json`.
-- Use the three scripts under `scripts/` for deterministic pair, contrast, and type-scale validation.
+- Use `scripts/check_design_system_pair.py` for deterministic pair, contrast and type-scale validation.
 - Use `scripts/render_design_system_preview.py` to emit a derived HTML view or check its exact bytes against the current validated pair and sources.
 - When the owner asks to reopen direction, stop compilation and invoke `../ui-design-builder/SKILL.md`. Resume only after its updated `ui-design.md`, complete HiFi package when affected, Impeccable review, grading, and human Visual Approval pass.
 

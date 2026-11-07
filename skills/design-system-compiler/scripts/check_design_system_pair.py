@@ -34,6 +34,8 @@ if str(UI_BUILDER_SCRIPTS) not in sys.path:
 
 from markdown_contract import active_text, exact_marker_lines  # noqa: E402
 from ui_approval_digest import canonical_ui_approval_sha256  # noqa: E402
+import check_color_contrast  # noqa: E402
+import check_type_scale  # noqa: E402
 import design_system_showcase  # noqa: E402
 import showcase_runtime  # noqa: E402
 import surface_adapter  # noqa: E402
@@ -65,6 +67,18 @@ CONTRACT_FIELDS = (
 GENERATED_BLOCK_RE = re.compile(
     rf"{re.escape(BEGIN_MARKER)}\s*```json\s*(.*?)\s*```\s*{re.escape(END_MARKER)}",
     re.DOTALL,
+)
+EVIDENCE_BEGIN = "<!-- BEGIN GENERATED CONTRAST AND TYPE EVIDENCE -->"
+EVIDENCE_END = "<!-- END GENERATED CONTRAST AND TYPE EVIDENCE -->"
+# Optional rows naming tokens: (field, required keys, optional key, enum key, enum).
+EVIDENCE_FIELDS = (
+    ("contrastPairs", ("group", "fg", "bg", "use"), "note", "use", check_color_contrast.SIZE_THRESHOLDS),
+    ("typeSteps", ("role", "fontSize", "lineHeight", "kind"), "usage", "kind", check_type_scale.KIND_THRESHOLDS),
+)
+VAR_RE = re.compile(r"var\(\s*(--[\w-]+)\s*\)")
+RGB_RE = re.compile(
+    r"rgba?\(\s*([0-9.]+)[\s,]+([0-9.]+)[\s,]+([0-9.]+)(?:\s*[,/]\s*([0-9.]+%?))?\s*\)",
+    re.IGNORECASE,
 )
 PLACEHOLDER_RE = re.compile(r"^<.*>$", re.DOTALL)
 DS_COMP_ID_RE = re.compile(r"^DS-COMP-[0-9]+$")
@@ -201,29 +215,141 @@ def _generated_contract_match(
     return match
 
 
-def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> str:
-    """Replace the generated block, or append it when the document predates it."""
-    newline = _newline_sequence(markdown_text)
-    block = generated_contract_block(registry, newline=newline)
-    match = _generated_contract_match(markdown_text, allow_absent=True)
-    if match is not None:
-        return markdown_text[: match.start()] + block + markdown_text[match.end() :]
-    if not markdown_text:
+def _token_value(tokens: Any, group: Any, name: Any) -> str | None:
+    """Follow var() inside one token group; None when the value cannot resolve."""
+    values = tokens.get(group) if isinstance(tokens, dict) else None
+    seen: set[str] = set()
+    while isinstance(values, dict) and isinstance(name, str) and name not in seen:
+        seen.add(name)
+        value = values.get(name)
+        if not isinstance(value, str):
+            return None
+        match = VAR_RE.fullmatch(value.strip())
+        if match is None:
+            return value.strip()
+        name = match.group(1)
+    return None
+
+
+def _hex_color(value: str) -> str:
+    """Convert rgb() and rgba() to the hex form contrast_ratio reads."""
+    match = RGB_RE.fullmatch(value)
+    if match is None:
+        return value
+    *channels, alpha = match.groups()
+    rgb = [float(item) for item in channels]
+    opacity = 1.0 if alpha is None else float(alpha.rstrip("%")) / (100 if alpha.endswith("%") else 1)
+    if any(item > 255 for item in rgb) or opacity > 1:
+        raise ValueError(f"{value!r} is out of range")
+    return "#" + "".join(f"{round(item):02x}" for item in rgb) + f"{round(opacity * 255):02x}"
+
+
+def _cell(value: Any) -> str:
+    return " ".join(str(value).split()).replace("|", "\\|")
+
+
+def evidence_block(registry: dict[str, Any], *, newline: str = "\n") -> tuple[str | None, list[str]]:
+    """Render contrastPairs and typeSteps ratios; None when the JSON has neither.
+
+    An unresolvable token or value is a problem. A ratio below its floor is
+    rendered as `below`, not a problem, so owner decisions stay possible.
+    """
+    if all(registry.get(field) is None for field, *_ in EVIDENCE_FIELDS):
+        return None, []
+    tokens = registry.get("tokens")
+    problems: list[str] = []
+    lines = [EVIDENCE_BEGIN]
+    headers = {
+        "contrastPairs": "| Group | Foreground | Background | Use | Ratio | Needs | Status | Note |",
+        "typeSteps": "| Role | Font size | Line height | Kind | Ratio | Needs | Status | Usage |",
+    }
+    for field, keys, optional, enum_key, thresholds in EVIDENCE_FIELDS:
+        rows = registry.get(field)
+        if not isinstance(rows, list):
+            continue
+        if len(lines) > 1:
+            lines.append("")
+        lines += [headers[field], "|---|---|---|---|---|---|---|---|"]
+        contrast = field == "contrastPairs"
+        for row in rows:
+            if not isinstance(row, dict) or any(not isinstance(row.get(key), str) for key in keys):
+                continue  # validate_registry reports the shape
+            threshold = thresholds.get(row[enum_key])
+            if contrast:
+                label = f"{row['fg']} on {row['bg']} in {row['group']}"
+                values = [_token_value(tokens, row["group"], row[key]) for key in ("fg", "bg")]
+            else:
+                label = row["role"]
+                values = [_token_value(tokens, key, row[key]) for key in ("fontSize", "lineHeight")]
+            ratio = "—"
+            if threshold is None or any(is_placeholder(item) for item in [*map(row.get, keys), *filter(None, values)]):
+                status = "unfilled"
+            elif None in values:
+                problems.append(f"design-system.json {field} {label} names a token that does not resolve")
+                status = "unresolved"
+            else:
+                try:
+                    value = (check_color_contrast.contrast_ratio(*map(_hex_color, values)) if contrast
+                             else check_type_scale.line_height_ratio(*values))
+                except ValueError as error:
+                    problems.append(f"design-system.json {field} {label} cannot be computed: {error}")
+                    status = "unresolved"
+                else:
+                    ratio = f"{value:.2f}:1" if contrast else f"{value:.2f}"
+                    status = "PASS" if value >= threshold else "below"
+            needs = "—" if threshold is None else f"{threshold:.1f}:1" if contrast else f"{threshold:.2f}"
+            cells = [row[keys[0]], f"`{row[keys[1]]}`", f"`{row[keys[2]]}`", row[enum_key],
+                     ratio, needs, status, row.get(optional, "")]
+            lines.append("| " + " | ".join(_cell(item) for item in cells) + " |")
+    lines.append(EVIDENCE_END)
+    return newline.join(lines), problems
+
+
+def _evidence_span(markdown_text: str) -> tuple[int, int] | None:
+    begin_lines = exact_marker_lines(markdown_text, EVIDENCE_BEGIN)
+    end_lines = exact_marker_lines(markdown_text, EVIDENCE_END)
+    if not begin_lines and not end_lines:
+        return None
+    if len(begin_lines) != 1 or len(end_lines) != 1 or begin_lines[0] >= end_lines[0]:
+        raise ValueError(
+            "design-system.md must contain at most one ordered generated contrast and type evidence marker pair"
+        )
+    offsets = [0] + [match.end() for match in re.finditer(r"\n", markdown_text)]
+    start = markdown_text.find(EVIDENCE_BEGIN, offsets[begin_lines[0] - 1])
+    end = markdown_text.find(EVIDENCE_END, offsets[end_lines[0] - 1]) + len(EVIDENCE_END)
+    return start, end
+
+
+def _replace_block(text: str, span: tuple[int, int] | None, block: str, heading: str, newline: str) -> str:
+    if span is not None:
+        return text[: span[0]] + block + text[span[1] :]
+    if not text:
         prefix = ""
-    elif markdown_text.endswith(f"{newline}{newline}"):
-        prefix = markdown_text
-    elif markdown_text.endswith(("\r", "\n")):
-        prefix = markdown_text + newline
+    elif text.endswith(f"{newline}{newline}"):
+        prefix = text
+    elif text.endswith(("\r", "\n")):
+        prefix = text + newline
     else:
-        prefix = markdown_text + newline + newline
-    return (
-        prefix
-        + "## Generated Machine Contract"
-        + newline
-        + newline
-        + block
-        + newline
+        prefix = text + newline + newline
+    return prefix + heading + newline + newline + block + newline
+
+
+def replace_generated_contract(markdown_text: str, registry: dict[str, Any]) -> str:
+    """Replace the generated blocks, or append them when the document predates them."""
+    newline = _newline_sequence(markdown_text)
+    match = _generated_contract_match(markdown_text, allow_absent=True)
+    text = _replace_block(
+        markdown_text,
+        match.span() if match is not None else None,
+        generated_contract_block(registry, newline=newline),
+        "## Generated Machine Contract",
+        newline,
     )
+    evidence = evidence_block(registry, newline=newline)[0]
+    span = _evidence_span(text)
+    if evidence is None:
+        return text if span is None else text[: span[0]] + text[span[1] :]
+    return _replace_block(text, span, evidence, "## Generated Contrast And Type Evidence", newline)
 
 
 def _write_markdown(path: Path, payload: bytes, expected: bytes) -> None:
@@ -464,6 +590,19 @@ def validate_registry(registry: dict[str, Any]) -> list[str]:
             nonempty=False,
         )
     _string_list(problems, "stateMatrix", registry.get("stateMatrix"), nonempty=True)
+    for field, keys, optional, enum_key, allowed in EVIDENCE_FIELDS:
+        rows = registry.get(field)
+        if rows is not None and (not isinstance(rows, list) or not rows or any(
+            not isinstance(row, dict)
+            or not set(keys) <= set(row) <= {*keys, optional}
+            or any(not isinstance(item, str) or not item.strip() for item in row.values())
+            or not (is_placeholder(row[enum_key]) or row[enum_key] in allowed)
+            for row in rows
+        )):
+            problems.append(
+                f"design-system.json {field} must be a non-empty list of objects with {', '.join(keys)} "
+                f"and optional {optional}; {enum_key} is one of {', '.join(allowed)}"
+            )
     _string_list(problems, "tokenSources", registry.get("tokenSources"), nonempty=True)
     _string_list(problems, "primitiveSources", registry.get("primitiveSources"), nonempty=False)
     # Harness conformance compares these by exact repo-relative identity.
@@ -1131,6 +1270,21 @@ def compare(
             "generated contract",
             problems,
         )
+    evidence, evidence_problems = evidence_block(registry)
+    problems.extend(evidence_problems)
+    try:
+        span = _evidence_span(markdown_text)
+    except ValueError as error:
+        problems.append(str(error))
+    else:
+        written = None if span is None else markdown_text[span[0] : span[1]].replace("\r\n", "\n")
+        if evidence is None and written is not None:
+            problems.append(
+                "design-system.md has a generated contrast and type evidence block, "
+                "but design-system.json has no contrastPairs or typeSteps"
+            )
+        elif evidence is not None and written != evidence:
+            problems.append("design-system.md generated contrast and type evidence is missing or stale; rerun --write")
     registry_schema = registry.get("schema")
     uses_bindings = registry_schema in BOUND_SCHEMAS
     binding_keys = (

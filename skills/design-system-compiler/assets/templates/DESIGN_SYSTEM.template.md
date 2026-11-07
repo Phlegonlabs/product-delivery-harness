@@ -62,17 +62,14 @@ Define only tokens the product uses. Raw values live only in the files declared 
 
 Palette basis: <brand or selected-direction reason>
 
-| Pairing | Tokens | Computed contrast | Non-color cue or notes |
-|---|---|---|---|
-| <text on background / UI boundary / semantic state> | <token names> | <ratio from check_color_contrast.py> | <notes> |
-
 ### Typography
 
 Family and scale rationale: <reason>
 
-| Role | Token names | Weight | Computed line-height ratio | Usage |
-|---|---|---|---|---|
-| <display / heading / body / caption> | <font-size and line-height tokens> | <weight> | <ratio from check_type_scale.py> | <usage> |
+`--write` renders the JSON `contrastPairs` and `typeSteps` ratios here:
+
+<!-- BEGIN GENERATED CONTRAST AND TYPE EVIDENCE -->
+<!-- END GENERATED CONTRAST AND TYPE EVIDENCE -->
 
 ### Space, Shape, Elevation, And Motion
 

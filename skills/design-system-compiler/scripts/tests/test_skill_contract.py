@@ -177,8 +177,8 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
             "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py",
             stage,
         )
-        self.assertIn("scripts/check_color_contrast.py", stage)
-        self.assertIn("scripts/check_type_scale.py", stage)
+        self.assertIn("`--write` also renders the ratios of the JSON `contrastPairs` and `typeSteps`", stage)
+        self.assertIn("a ratio below its floor is shown for an owner decision, not failed", stage)
 
     def test_pair_less_preflight_runs_inside_the_pair_checker(self) -> None:
         skill = self.read("SKILL.md")

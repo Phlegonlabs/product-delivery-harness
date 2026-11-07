@@ -14,7 +14,7 @@ Include only:
 - selected-direction status, owner, representative surface mode, concept thesis, named visual world, summary, and implementation consequences;
 - selected `VD-*` direction provenance with applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation;
 - short rationale for non-obvious token and component choices;
-- computed contrast and type-scale evidence;
+- the generated contrast and type-scale evidence block;
 - concise responsive, interaction, accessibility, and reduced-motion rules; and
 - product-specific do and don't guardrails plus the generated machine-contract block.
 
@@ -31,6 +31,7 @@ Keep it the sole structured authority for:
 - signature visual rules with stable `DS-*` IDs, registered in `signatureRules` — every complete `DS-*` token the Markdown names (rule, primitive `dsId`, or `DS-COMP-*`) must resolve to this file, malformed lookalikes fail, and IDs are globally unique across all three registries;
 - recurring product components with `DS-COMP-*`, required content order, composition, and states;
 - registered motion variants;
+- optional `contrastPairs` (`group`, `fg`, `bg`, `use`: `normal|large|ui`, optional `note`) and `typeSteps` (`role`, `fontSize`, `lineHeight`, `kind`: `text|heading`, optional `usage`) naming tokens; a token that does not resolve fails;
 - the UI state matrix; and
 - for `design-system/4` only, the `showcase` source map below.
 
