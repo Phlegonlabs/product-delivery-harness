@@ -90,7 +90,7 @@ Re-prove capability only when the route or session changed, or a browser failure
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
 A reviewer whose sandbox cannot run git receives the `review_input.py` output (a detached clone with `review-input/`: per-scope diffs, `HEAD.txt`, `parent-status.txt`, `tracked-files.sha256`). It proves identity and cleanliness from that manifest as the parent's attestation ([Security Review](security-review.md#required-inputs)).
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
-For architecture-bearing reviews, apply [Architecture Method](delegation-contract.md#architecture-method) to the affected boundaries.
+For architecture-bearing reviews, apply [Architecture Method](architecture-method.md) to the affected boundaries.
 
 When one review node's packet exceeds the reviewer route's caps, the parent dispatches that review as several scoped calls before launch.
 Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.
