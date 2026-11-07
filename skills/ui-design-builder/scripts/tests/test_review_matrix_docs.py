@@ -45,13 +45,12 @@ class ReviewMatrixDocsTests(unittest.TestCase):
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, scope)
-        reporting = section(rubric, "## Reporting And Reconciliation")
-        self.assertIn("then at most two scoped re-reviews in total", reporting)
-        self.assertIn("a block still blocks", reporting)
+        self.assertEqual(1, rubric.count("at most two scoped re-reviews"))
+        self.assertNotIn("a block still blocks", section(rubric, "## Reporting And Reconciliation"))
         self.assertNotIn("record one scoped re-review of those pages", rubric)
         for source in POINTERS:
             with self.subTest(source=source):
-                self.assertIn("within the cap in", read(source))
+                self.assertIn("ui-grading-rubric.md#repair-re-review-scope", read(source))
 
 
 if __name__ == "__main__":

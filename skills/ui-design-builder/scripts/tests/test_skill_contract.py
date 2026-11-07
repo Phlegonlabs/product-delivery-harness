@@ -334,8 +334,8 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
         self.assertIn("it never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
-        self.assertIn("The review budget is one diagnostic wave and one re-review of the consolidated repair", rubric)
-        self.assertIn("No third wave, whole-HiFi re-grade, or owner-granted extra round exists", rubric)
+        self.assertIn("the review budget is one diagnostic wave and one re-review of the consolidated repair", scope)
+        self.assertIn("No third wave, whole-HiFi re-grade, or owner-granted extra round exists", scope)
         self.assertNotIn("and the full rubric once", rubric)
         self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
@@ -347,13 +347,15 @@ console.log("hybrid fallback and stale QA assertions completed");
         skill = self.read("SKILL.md")
         stage = self.read(UI_STAGE)
         pass_guide = self.read("references/ui-design-pass.md")
-        self.assertIn(
-            "one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9 "
-            "and one re-review of the consolidated repair", skill)
+        scope = self.read("references/ui-grading-rubric.md").split("## Repair Re-review Scope", 1)[1]
+        self.assertIn("one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9", skill)
         self.assertNotIn("another failure stops at", skill)
         self.assertNotIn("second failed review stops at", pass_guide)
-        self.assertIn("isolated repair and one scoped re-review of the affected pages", pass_guide)
-        self.assertIn("isolated scoped repairs after that re-review", stage)
+        self.assertIn("isolated repair and one scoped re-review of the affected pages", scope)
+        for content in (skill, stage, pass_guide):
+            self.assertIn("ui-grading-rubric.md#scores", content)
+            self.assertIn("ui-grading-rubric.md#repair-re-review-scope", content)
+            self.assertNotIn("at least 85", content)
         for content in (skill, stage):
             self.assertIn("Delivery profile: standard | mvp", content)
         self.assertIn("one direction study", stage)
