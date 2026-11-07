@@ -144,6 +144,7 @@ Return the result inline unless the user asks to save it.
 | --- | --- | --- | --- | --- | --- |
 
 ## Opportunities By Surface
+[Rows routed `product_definition` are the next-round PRD delta candidates.]
 | Surface | Priority | Query, topic or listing | Type | Evidence | Current page or listing | Action / route | Follow-up metric |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
@@ -155,9 +156,12 @@ Return the result inline unless the user asks to save it.
 
 ## Limits And Next Window
 [What is not observable yet, what data would settle it, and the next complete comparison window.]
+
+## Handoff
+[The current Epic's `## Handoff` block with the `EPIC.template.md` fields, filled inline and not written.]
 ```
 
-Keep the executive result short. Put supporting rows below the decision, not before it. If the user asks for a saved report, use a dated path under `docs/growth/reviews/`, preserve prior reports, follow repository document-governance rules, and show the exact write path before creating it.
+Keep the executive result short. Put supporting rows below the decision, not before it.
 
 ## Review Completion
 

@@ -1123,6 +1123,13 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("macos", required)
         self.assertEqual(set(), required - lensed)
 
+        # One output contract: the stage returns the Default Output, which holds the Handoff block.
+        self.assertIn("[Default Output](../review-method.md#default-output), including its Handoff block",
+                      stage.split("## Output\n", 1)[1])
+        default_output = method.split("## Default Output\n", 1)[1].split("\n## Review Completion", 1)[0]
+        self.assertIn("## Handoff\n", default_output)
+        self.assertIn("Rows routed `product_definition` are the next-round PRD delta candidates", default_output)
+
         workflow = stage.split("## Workflow\n", 1)[1].split("\n## ", 1)[0]
         self.assertNotIn("## Workflow", entry)
         self.assertIn("Surface Lenses", workflow)
