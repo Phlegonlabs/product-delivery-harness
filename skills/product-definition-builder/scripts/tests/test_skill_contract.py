@@ -1232,7 +1232,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
-            "only `Required`, `Selected`, or `Approved` executable stack rows",
+            "only `Required`, `Selected` or `Approved` executable stack rows",
             skill,
         )
         self.assertIn(
@@ -1396,6 +1396,27 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         completeness = contract.split("### Completeness", 1)[1].split("### Publication", 1)[0]
         self.assertIn("--features <staged features directory>", completeness)
         self.assertIn("Each staged scenario states its TEST row's behavior", completeness)
+
+    def test_feature_files_are_drafted_checked_and_published_with_the_prd(self) -> None:
+        stage = self.read(STAGE)
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        draft = stage.split("\n12. ", 1)[1].split("\n13. ", 1)[0]
+        for rule in ("`features/<scope>.feature`", "`product.feature` for `standard` and `mvp`",
+                     "one file per module scope token in lowercase (`inv.feature`)", "`program.feature`"):
+            self.assertIn(rule, draft)
+        for step in ("\n15. ", "\n19. "):
+            body = stage.split(step, 1)[1].split("\n", 1)[0]
+            self.assertIn("--eval-policy eval-policy/1 --features <staged features directory>", body)
+        self.assertIn("its feature files", stage.split("\n20. ", 1)[1].split("\n", 1)[0])
+        locations = lifecycle.split("## Resolve Locations", 1)[1].split("## Inventory Superseded Documents", 1)[0]
+        self.assertIn("`docs/product/features/<scope>.feature`, which stage, publish and archive with `PRD.md`", locations)
+        self.assertIn("lists each path with its SHA-256", locations)
+        staging = lifecycle.split("## Stage and Validate", 1)[1].split("## Publication Authorization Gate", 1)[0]
+        self.assertIn("including `features/`", staging)
+        self.assertIn("--eval-policy eval-policy/1 --features <staged features directory>", staging)
+        self.assertIn("\n4. Run ", staging.replace("\r\n", "\n"))
+        self.assertIn("every `docs/product/features/*.feature` in full", lifecycle)
+        self.assertIn("its changed feature files", lifecycle)
 
 
 if __name__ == "__main__":
