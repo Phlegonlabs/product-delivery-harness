@@ -102,7 +102,7 @@ External Console Setup rows are the operational actions: one row is one external
 
 ## Recording The Model In A Repository
 
-Two records carry the deployment model. `docs/DEPLOYMENT.md`, seeded during PRD creation and reconciled before promotion, is the detailed instance and the one operational record: candidate/protected-branch roles, platform record, name-only configuration inventory, external-console action rows, Measurement Sources, internal-test evidence, and environment status. The seeded `AGENTS.md` routes to the same candidate-Preview/main governance. Keep both filled from live evidence; an unfilled record means the model is unknown.
+Two records carry the deployment model. `docs/DEPLOYMENT.md`, seeded during PRD creation and reconciled before promotion, is the detailed instance and the one operational record: candidate/protected-branch roles, platform record, name-only configuration inventory, external-console action rows, Measurement Sources, internal-test evidence, environment status, and the Release Log. Before Branch Promotion and Release Target Status are overwritten for the next release, append one Release Log row for the outgoing release, keyed by date and slug, never by SHA. Update a unit's cell later when that unit finishes, such as after store review. Bulky receipts go in `docs/release/<YYYYMMDD>-<slug>/` with a `MANIFEST.sha256`. The seeded `AGENTS.md` routes to the same candidate-Preview/main governance. Keep both filled from live evidence; an unfilled record means the model is unknown.
 
 ## Moving Between Platforms
 

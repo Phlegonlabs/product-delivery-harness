@@ -28,6 +28,7 @@ Generated records — one row per directory, never one row per record:
 | `docs/product/features/` | `docs/product/features/` | PRD | product-definition-builder + owner approval | Test Obligation scenarios, one `<scope>.feature` per package scope | |
 | `docs/design/ui-references/` | `docs/design/ui-references/` | Visual Approval (UI-bearing) | ui-design-builder | approved connected HiFi package per run | |
 | `docs/verification/` | `docs/verification/` | new delivery verification | harness parent + test runner | frozen acceptance expectations and exact-candidate delivery results | |
+| `docs/release/` | `docs/release/` | release (when required) | harness parent + owner | bulky per-release receipts, one `<YYYYMMDD>-<slug>/` folder with `MANIFEST.sha256` | |
 | `docs/product/outcomes/` | `docs/product/outcomes/` | post-release outcome (when requested) | product-definition-builder + owner | immutable outcome evidence and verdict | |
 | `docs/goal/evidence/` | `docs/goal/evidence/` | verification | workers + parent | evidence artifacts (SHA-256 bound) | |
 | `docs/product/archived/` | `docs/product/archived/` | supersede | product-definition-builder | archived prior product documents (move, never delete) | |

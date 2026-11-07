@@ -202,6 +202,14 @@ Keep this legacy table for repositories and reviewers that inspect environment U
 
 Verification is read-only: record what deployed, compare it to the expected head, and route any mismatch to the owner or a new mission — never redeploy from here.
 
+## Release Log
+
+Append one row per release before the next release overwrites Branch Promotion and Release Target Status, as `deployment-contract.md` "Recording The Model In A Repository" says.
+
+| Date | Release (slug or tag) | Candidate / main SHA | Units: deploy or build ID, status | Migrations | Rollback target | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| <YYYY-MM-DD> | <slug or tag> | <candidate SHA> / <main SHA> | <release-target-id>: <provider deploy or build ID>, <status> | <applied migrations / none> | <rollback target> | <docs/release/YYYYMMDD-slug/ / n/a> |
+
 ## External Setup
 
 - Catalog: `delivery-harness/references/external-setup.md` selects the setup sections per surface class and owns the authorization and read-back rules for every non-code action.

@@ -139,6 +139,21 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         wrangler = template.split("#### Wrangler Workers", 1)[1].split("\n### ", 1)[0]
         self.assertIn("`CLOUDFLARE_ENV=<env> vite build`, never a deploy-time `--env`", wrangler)
 
+    def test_release_log_keeps_one_row_per_release(self) -> None:
+        # Current-state tables are overwritten each release; the log keeps history.
+        log = self.section(read("assets/templates/DEPLOYMENT.template.md"), "## Release Log")
+        header = next(line for line in log.splitlines() if line.startswith("| "))
+        self.assertEqual(
+            ["Date", "Release (slug or tag)", "Candidate / main SHA", "Units: deploy or build ID, status",
+             "Migrations", "Rollback target", "Evidence"],
+            [cell.strip() for cell in header.strip("|").split("|")],
+        )
+        contract = self.section(read("references/deployment-contract.md"), "## Recording The Model In A Repository")
+        self.assertIn("append one Release Log row for the outgoing release, keyed by date and slug, never by SHA", contract)
+        self.assertIn("`docs/release/<YYYYMMDD>-<slug>/` with a `MANIFEST.sha256`", contract)
+        self.assertIn("| `docs/release/` | `docs/release/` | release (when required) |",
+                      read("assets/templates/DOCUMENTS.template.md"))
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
