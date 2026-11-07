@@ -54,6 +54,7 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
+from harness_schema import AUTHORIZATION_KEYS, EXPIRY_BOUNDARIES
 from harness_schema import review_lenses, security_result_decision
 from harness_schema import frozen_coordination_path, supported_coordination_path
 from verifier_runtime import host_executable_identity, observe_plan_host_runtimes
@@ -326,6 +327,7 @@ DISPATCH_COMMANDS = {
     "close-wave",
     "reserve-node-attempt",
     "record-node-result",
+    "record-grant",
 }
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
@@ -4350,6 +4352,143 @@ def _record_reviewed_merge_chain(
     run["integration"]["reviewed_merge_chain"] = proof
 
 
+_RUN_INTENT_CHOICES = (
+    "plan-only",
+    "plan-then-stop",
+    "plan-then-execute",
+    "execute-ready-plan",
+)
+_EXECUTION_INTENTS = ("plan-then-execute", "execute-ready-plan")
+
+
+def _record_attempt(
+    run: dict[str, Any], prefix: str, kind: str, result: str, evidence: list[str]
+) -> None:
+    log = run.setdefault("attempt_log", [])
+    log.append(
+        {
+            "attempt_id": f"{prefix}-{len(log) + 1}",
+            "mission_id": None,
+            "task_id": None,
+            "lease_id": None,
+            "kind": kind,
+            "result": result,
+            "evidence": list(evidence),
+        }
+    )
+
+
+def _scope_plan_binding(run: dict[str, Any]) -> dict[str, Any]:
+    """Fill run_id and the current plan revision/digest from RUN itself."""
+
+    plan = run.get("plan")
+    revision = plan.get("revision") if isinstance(plan, dict) else None
+    digest = plan.get("digest_sha256") if isinstance(plan, dict) else None
+    if (
+        not isinstance(revision, int)
+        or revision < 1
+        or not isinstance(digest, str)
+        or not digest
+    ):
+        raise ManifestError(
+            "run.plan carries no revision/digest pair; record grants only against a "
+            "generated RUN"
+        )
+    return {
+        "run_id": run.get("run_id"),
+        "plan_revision": revision,
+        "plan_digest_sha256": digest,
+    }
+
+
+def _scope_wave_binding(run: dict[str, Any]) -> dict[str, str]:
+    wave = run.get("active_wave")
+    if not isinstance(wave, dict) or wave.get("status") not in {"proposed", "active"}:
+        raise ManifestError(
+            "a wave_closed grant binds the current wave; propose or accept one first"
+        )
+    wave_id = wave.get("wave_id")
+    batch_base_sha = wave.get("batch_base_sha")
+    if not _nonempty_string(wave_id) or not is_full_sha(batch_base_sha):
+        raise ManifestError(
+            "the current wave carries no immutable wave_id/batch_base_sha pair to bind"
+        )
+    return {"wave_id": wave_id, "batch_base_sha": batch_base_sha}
+
+
+def _execution_scope(
+    run: dict[str, Any], mission_ids: list[str], expires_when: str
+) -> dict[str, Any]:
+    scope = {
+        **_scope_plan_binding(run),
+        "mission_ids": list(mission_ids),
+        "expires_when": expires_when,
+    }
+    if expires_when == "wave_closed":
+        scope.update(_scope_wave_binding(run))
+    return scope
+
+
+def _record_grant(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Record one owner-authorized ledger entry or the execution authorization.
+
+    run_id, the plan revision and digest are filled from RUN, so the recorded
+    scope covers exactly the validated pair; the pair validator rejects any
+    mismatch before the write lands. `push` stays unrecordable.
+    """
+
+    if args.action == "push":
+        raise ManifestError(
+            "record-grant never records push; RUN keeps push false and a post-archive "
+            "instruction is captured in the checkout-external request"
+        )
+    if not args.mission_id:
+        raise ManifestError("record-grant requires at least one --mission-id")
+    if args.action == "execution":
+        if args.target:
+            raise ManifestError(
+                "record-grant --action execution takes no --target; the execution "
+                "authorization carries no target list"
+            )
+        run["execution_authorized"] = True
+        run["execution_authorization_source"] = args.source
+        run["execution_authorization_scope"] = _execution_scope(
+            run, args.mission_id, args.expires_when
+        )
+        recorded = "execution authorization"
+    else:
+        authorizations = run.get("authorizations")
+        if not isinstance(authorizations, dict):
+            raise ManifestError("run has no authorizations ledger to record the grant in")
+        if not args.target:
+            raise ManifestError(
+                "record-grant requires at least one --target for an action grant"
+            )
+        scope = {
+            **_scope_plan_binding(run),
+            "mission_ids": list(args.mission_id),
+            "targets": list(args.target),
+        }
+        if args.expires_when == "wave_closed":
+            scope.update(_scope_wave_binding(run))
+        authorizations[args.action] = {
+            "authorized": True,
+            "source": args.source,
+            "scope": scope,
+            "expires_when": args.expires_when,
+        }
+        recorded = f"{args.action} grant"
+    _record_attempt(
+        run,
+        "GRANT-RECORD",
+        "authorization_record",
+        "recorded",
+        [f"recorded {recorded}", args.source],
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
@@ -4498,6 +4637,14 @@ def build_parser() -> argparse.ArgumentParser:
     watchdog = subparsers.add_parser("watchdog")
     watchdog.add_argument("--stale-after-minutes", type=float, default=DEFAULT_LOCK_STALE_MINUTES)
     watchdog.add_argument("--reclaim", action="store_true")
+    grant = subparsers.add_parser("record-grant")
+    grant.add_argument(
+        "--action", required=True, choices=(*AUTHORIZATION_KEYS, "execution")
+    )
+    grant.add_argument("--target", action="append", default=[])
+    grant.add_argument("--mission-id", action="append", default=[])
+    grant.add_argument("--expires-when", required=True, choices=tuple(EXPIRY_BOUNDARIES))
+    grant.add_argument("--source", required=True)
     parser.add_argument("--session-id")
     return parser
 
@@ -4608,6 +4755,8 @@ def _transition_under_lock(
         _release_run_lock(run, args)
     elif args.command == "heartbeat-run-lock":
         _heartbeat_run_lock(run, args)
+    elif args.command == "record-grant":
+        _record_grant(plan, run, args)
     elif args.command != "watchdog":
         receipt = _record_review_attempt(plan, run, args)
     # A session holding the durable lock keeps it fresh through its own
