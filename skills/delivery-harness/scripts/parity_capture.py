@@ -5,7 +5,10 @@ Enumerates the route x breakpoint x state matrix from a validated PLAN's
 ``ui_surfaces`` (skipping ``<state>:n/a``), then drives the agent-browser
 CLI to capture, for every combination, the approved design-reference HTML
 render (``...-target.png``) and the implemented app page (``...-actual.png``)
-at the same viewport, under ``docs/goal/evidence/``. It also runs a DOM
+at the same viewport, under ``docs/goal/evidence/``. With ``--hifi-package
+<dir>`` the reference side is a ``ui-hifi/2`` package instead: the tool
+opens each PLAN surface's manifest page, drives its reviewer target and
+state controls, and screenshots only ``[data-hifi-canvas]``. It also runs a DOM
 geometry probe on each app page (horizontal overflow plus visible-element
 overlap findings) so ``layout_check`` attestations have a tool trace, and
 writes a self-contained ``parity-board.html`` for the item-by-item
@@ -499,11 +502,167 @@ def _navigate_reference(
     return False, f"no reference navigation found for {route}"
 
 
+HIFI_CANVAS_SELECTOR = "[data-hifi-canvas]"
+_HIFI_MANIFEST_RE = re.compile(
+    r'<script id="ui-hifi-manifest" type="application/json">([\s\S]*?)</script>',
+    re.IGNORECASE,
+)
+_HIFI_PAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.html$")
+
+
+def _hifi_manifest_load(package_dir: Path) -> dict[str, Any]:
+    """Read the package entry's embedded ui-hifi-manifest, or refuse the package."""
+
+    entry = package_dir / "index.html"
+    if not entry.is_file():
+        raise ManifestError(f"hifi package {package_dir} has no index.html entry")
+    match = _HIFI_MANIFEST_RE.search(entry.read_text(encoding="utf-8", errors="replace"))
+    if match is None:
+        raise ManifestError(f"hifi package {package_dir} has no ui-hifi-manifest script")
+    try:
+        manifest = json.loads(match.group(1))
+    except json.JSONDecodeError as exc:
+        raise ManifestError(
+            f"hifi package {package_dir} manifest is not valid JSON: {exc}"
+        ) from exc
+    if not isinstance(manifest, dict) or manifest.get("schema") != "ui-hifi/2":
+        raise ManifestError(f"hifi package {package_dir} manifest must be schema ui-hifi/2")
+    surfaces = manifest.get("surfaces")
+    if not isinstance(surfaces, list) or not surfaces:
+        raise ManifestError(f"hifi package {package_dir} manifest surfaces must be a non-empty list")
+    return manifest
+
+
+def _hifi_surface_pages(manifest: dict[str, Any], package_dir: Path) -> dict[str, str]:
+    """Map each manifest surface id to its package page, refusing missing pages."""
+
+    pages: dict[str, str] = {}
+    for index, row in enumerate(manifest.get("surfaces") or []):
+        if not isinstance(row, dict):
+            raise ManifestError(f"hifi manifest surfaces[{index}] must be an object")
+        surface_id = row.get("id")
+        page = row.get("page")
+        if not isinstance(surface_id, str) or not surface_id:
+            raise ManifestError(f"hifi manifest surfaces[{index}] has no id")
+        if not isinstance(page, str) or not _HIFI_PAGE_RE.fullmatch(page):
+            raise ManifestError(f"hifi manifest surfaces[{index}] has an invalid page: {page!r}")
+        if not (package_dir / page).is_file():
+            raise ManifestError(f"hifi package page is missing: {page}")
+        pages[surface_id] = page
+    return pages
+
+
+def _package_identity(package_dir: Path, pages: dict[str, str]) -> str:
+    """SHA-256 over the entry page and every manifest page's bytes.
+
+    The package is the reference, so any page byte change must force a
+    recapture even when the entry page itself is unchanged.
+    """
+
+    parts = []
+    for page in sorted({*pages.values(), "index.html"}):
+        path = package_dir / page
+        parts.append(f"{page}:{_file_sha256(path)}" if path.is_file() else f"{page}:missing")
+    return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+_HIFI_TARGET_JS = """
+(() => {
+  const canvas = document.querySelector("[data-hifi-canvas]");
+  const control = document.querySelector(%SELECTOR%);
+  if (!canvas) return {applied: false, clean: false, reason: "hifi canvas missing"};
+  if (!control) return {applied: false, clean: true, reason: "target control missing: " + %TARGET%};
+  if (control.getAttribute("aria-pressed") !== "true") control.click();
+  if (canvas.dataset.hifiTarget !== %TARGET%) {
+    return {applied: false, clean: false, reason: "target did not apply: " + canvas.dataset.hifiTarget};
+  }
+  return {applied: true, clean: true, reason: null};
+})()
+"""
+
+_HIFI_STATE_JS = """
+(() => {
+  const control = document.querySelector(%SELECTOR%);
+  if (!control) return {applied: false, clean: true, reason: "state control missing: " + %LABEL%};
+  const surface = Array.from(document.querySelectorAll("[data-ui-surface]"))
+    .find((node) => node.dataset.uiSurface === %SURFACE%);
+  if (!surface) return {applied: false, clean: false, reason: "product surface missing: " + %SURFACE%};
+  if (control.getAttribute("aria-pressed") !== "true") control.click();
+  if (surface.hidden || surface.dataset.hifiState !== %STATE%) {
+    return {applied: false, clean: false, reason: "state did not apply: " + %LABEL%};
+  }
+  return {applied: true, clean: true, reason: null};
+})()
+"""
+
+
+def _hifi_target_js(target: str) -> str:
+    selector = f'[data-hifi-target-control="{target}"]'
+    return _HIFI_TARGET_JS.replace("%SELECTOR%", json.dumps(selector)).replace(
+        "%TARGET%", json.dumps(target)
+    )
+
+
+def _hifi_state_js(surface: str, state: str) -> str:
+    selector = f'[data-hifi-state-control="{state}"][data-hifi-state-surface="{surface}"]'
+    return (
+        _HIFI_STATE_JS.replace("%SELECTOR%", json.dumps(selector))
+        .replace("%SURFACE%", json.dumps(surface))
+        .replace("%STATE%", json.dumps(state))
+        .replace("%LABEL%", json.dumps(f"{surface} {state}"))
+    )
+
+
+def _eval_json(cli: list[str], source: str) -> tuple[dict[str, Any] | None, str | None]:
+    """Run one browser eval and return its JSON object result, or why it failed."""
+
+    probed = _run_browser(cli, ["eval", "--stdin"], stdin=source, timeout=60)
+    if probed.returncode != 0:
+        reason = probed.stderr.strip() or f"browser eval exited {probed.returncode}"
+        return None, reason
+    for line in reversed(probed.stdout.strip().splitlines()):
+        line = line.strip()
+        if not (line.startswith("{") and line.endswith("}")):
+            continue
+        try:
+            value = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if isinstance(value, dict):
+            return value, None
+        return None, "browser eval returned a non-object JSON value"
+    return None, "browser eval returned no JSON object"
+
+
+def _click_hifi_controls(run: _Run, job: dict[str, Any]) -> tuple[str | None, bool]:
+    """Click the package's target and state controls for one tuple.
+
+    Return (problem, page still clean). A missing control leaves the page
+    untouched, so the open page still serves the next tuple; a click that did
+    not apply leaves it in an unknown state, so the next tuple reloads.
+    """
+
+    combo = job["combo"]
+    steps = (
+        ("target", _hifi_target_js(str(combo["breakpoint"]))),
+        ("state", _hifi_state_js(str(combo["surface_id"]), str(combo["state"]))),
+    )
+    for label, source in steps:
+        value, error = _eval_json(run.cli, source)
+        if error:
+            return error, True
+        if not isinstance(value, dict) or value.get("applied") is not True:
+            reason = value.get("reason") if isinstance(value, dict) else None
+            clean = isinstance(value, dict) and value.get("clean") is not False
+            return (str(reason) if reason else f"{label} control did not apply"), clean
+    return None, True
+
+
 def _prepare(
     cli: list[str],
     *,
     viewport: tuple[str, int],
-    state_eval: str | None,
+    state_eval: str | None = None,
     condition_eval: str | None = None,
 ) -> list[str]:
     """Set the viewport and apply the optional state and condition triggers."""
@@ -525,10 +684,15 @@ def _prepare(
     return errors
 
 
-def _screenshot(cli: list[str], screenshot: Path, full_page: bool) -> list[str]:
-    argv = ["screenshot", str(screenshot)]
+def _screenshot(
+    cli: list[str], screenshot: Path, full_page: bool, *, selector: str | None = None
+) -> list[str]:
+    argv = ["screenshot"]
     if full_page:
-        argv.insert(1, "--full")
+        argv.append("--full")
+    if selector:
+        argv.append(selector)
+    argv.append(str(screenshot))
     shot = _run_browser(cli, argv)
     if shot.returncode != 0:
         return [f"screenshot failed: {shot.stderr.strip()}"]
@@ -788,6 +952,10 @@ class _Run:
     reference_sha256: str
     full_page: bool
     reference_identity: str = ""
+    reference_mode: str = "single-html"
+    hifi_package: Path | None = None
+    hifi_pages: dict[str, str] = field(default_factory=dict)
+    package_sha256: str = ""
     tolerance: float = 0.0
     previous: dict[str, dict[str, Any]] = field(default_factory=dict)
     carry_from: str | None = None
@@ -834,6 +1002,19 @@ def _plan_job(
     )
     tuple_sha256 = hashlib.sha256(identity).hexdigest()
     name = f"{label[:64]}-{tuple_sha256}"
+    is_hifi = run.reference_mode == "hifi-package"
+    page = run.hifi_pages.get(str(combo["surface_id"])) if is_hifi else None
+    if is_hifi and page is None:
+        run.skipped.append(
+            {
+                **combo,
+                "reason": (
+                    f"no ui-hifi-manifest surface for surface_id {combo['surface_id']!r} "
+                    "in the hifi package"
+                ),
+            }
+        )
+        return None
     is_condition = combo.get("kind") == "design-condition"
     base_state = combo["base_state"] if is_condition else combo["state"]
     states_map = entry.get("states") or {}
@@ -858,34 +1039,50 @@ def _plan_job(
         )
         return None
     if is_condition and combo["state"] == "long-content":
-        if not all(isinstance(value, str) and value.strip() for value in (condition_reference_eval, condition_app_eval)):
-            run.skipped.append(
-                {
-                    **combo,
-                    "reason": (
-                        "long-content requires both reference_eval and "
-                        "app_eval in the route-map conditions"
-                    ),
-                }
+        required = (
+            (condition_app_eval,) if is_hifi
+            else (condition_reference_eval, condition_app_eval)
+        )
+        if not all(isinstance(value, str) and value.strip() for value in required):
+            reason = (
+                "long-content requires app_eval in the route-map conditions"
+                if is_hifi
+                else "long-content requires both reference_eval and "
+                "app_eval in the route-map conditions"
             )
+            run.skipped.append({**combo, "reason": reason})
             return None
     app_path = entry.get("app_path") or combo["route"]
-    reference_eval = base_entry.get("reference_eval")
-    # Everything that shapes the target image; a change forces a recapture.
-    target_inputs = json.dumps(
-        {
-            "reference_sha256": run.reference_sha256,
-            "reference_identity": run.reference_identity,
-            "route": combo["route"],
-            "reference": entry.get("reference"),
-            "reference_eval": reference_eval,
-            "condition_reference_eval": condition_reference_eval,
-            "viewport": [combo["breakpoint"], height],
-            "full_page": run.full_page,
-            "media_preference": combo.get("media_preference"),
-        },
-        sort_keys=True, ensure_ascii=False,
-    )
+    reference_eval = None if is_hifi else base_entry.get("reference_eval")
+    if is_hifi:
+        condition_reference_eval = None
+        # Everything that shapes the target image; a change forces a recapture.
+        target_inputs = json.dumps(
+            {
+                "reference_mode": run.reference_mode,
+                "package_sha256": run.package_sha256,
+                "hifi_page": page,
+                "viewport": [combo["breakpoint"], height],
+                "media_preference": combo.get("media_preference"),
+            },
+            sort_keys=True, ensure_ascii=False,
+        )
+    else:
+        # Everything that shapes the target image; a change forces a recapture.
+        target_inputs = json.dumps(
+            {
+                "reference_sha256": run.reference_sha256,
+                "reference_identity": run.reference_identity,
+                "route": combo["route"],
+                "reference": entry.get("reference"),
+                "reference_eval": reference_eval,
+                "condition_reference_eval": condition_reference_eval,
+                "viewport": [combo["breakpoint"], height],
+                "full_page": run.full_page,
+                "media_preference": combo.get("media_preference"),
+            },
+            sort_keys=True, ensure_ascii=False,
+        )
     return {
         "combo": combo,
         "index": index,
@@ -897,6 +1094,7 @@ def _plan_job(
         "target": out_dir / f"{name}-target.png",
         "actual": out_dir / f"{name}-actual.png",
         "viewport": (combo["breakpoint"], height),
+        "hifi_page": page,
         "url": f"{base_url}{app_path}",
         "reference_eval": reference_eval,
         "app_eval": app_eval,
@@ -925,7 +1123,8 @@ def _app_step(run: _Run, job: dict[str, Any], loaded: bool) -> bool:
         state_eval=job["app_eval"],
         condition_eval=job["condition_app_eval"],
     )
-    problems += _screenshot(run.cli, job["actual"], run.full_page)
+    app_full_page = run.full_page or run.reference_mode == "hifi-package"
+    problems += _screenshot(run.cli, job["actual"], app_full_page)
     untouched = not _app_dirty(job)
     if problems:
         run.errors.extend(f"{name} actual: {problem}" for problem in problems)
@@ -1033,6 +1232,54 @@ def _reference_phase(run: _Run, route: str, jobs: list[dict[str, Any]]) -> None:
             continue
         with _timed(job):
             loaded, unreachable = _reference_step(run, job, route, loaded)
+
+
+def _hifi_reference_step(
+    run: _Run, job: dict[str, Any], page: str, loaded: bool
+) -> bool:
+    """Capture one package render; return whether the open page stays usable."""
+
+    if not loaded:
+        page_uri = (run.hifi_package / page).resolve().as_uri()
+        opened = _run_browser(run.cli, ["open", page_uri])
+        if opened.returncode != 0:
+            run.skipped.append(
+                {**job["combo"], "reason": f"hifi page open failed: {opened.stderr.strip()}"}
+            )
+            return False
+        run.nav_methods[page] = f"hifi package page {page}"
+    problems = _prepare(run.cli, viewport=job["viewport"])
+    clean = True
+    if not problems:
+        problem, clean = _click_hifi_controls(run, job)
+        if problem:
+            run.skipped.append({**job["combo"], "reason": f"hifi reference: {problem}"})
+            return clean
+        problems = _screenshot(run.cli, job["target"], False, selector=HIFI_CANVAS_SELECTOR)
+    if problems:
+        run.errors.extend(f"{job['name']} target: {problem}" for problem in problems)
+        return clean
+    job["done"] = True
+    job["target_sha256"] = _file_sha256(job["target"])
+    job["pixel_diff"], job["pixel_diff_reason"] = _pixel_diff(job["target"], job["actual"])
+    job["classification"] = _classify(job["pixel_diff"], run.tolerance)
+    print(f"captured {job['name']}")
+    return clean
+
+
+def _hifi_reference_phase(run: _Run, page: str, jobs: list[dict[str, Any]]) -> None:
+    """Capture one package page's reference renders, opening the page once.
+
+    Every tuple drives both controls before its screenshot, so one clean load
+    serves the page's whole matrix; a click that did not apply forces the
+    next tuple to reload.
+    """
+
+    loaded = False
+    pending = [job for job in jobs if job["app_ok"] and not job["carried"]]
+    for job in pending:
+        with _timed(job):
+            loaded = _hifi_reference_step(run, job, page, loaded)
 
 
 def _board_src(path: str, board_dir: Path) -> str:
@@ -1161,13 +1408,22 @@ def capture(args: argparse.Namespace) -> int:
     if not plan_path.is_file():
         print(f"error: PLAN not found: {plan_path}", file=sys.stderr)
         return 1
-    reference: Path = args.reference
-    if not reference.is_file():
+    reference: Path | None = args.reference
+    hifi_package: Path | None = getattr(args, "hifi_package", None)
+    is_hifi = hifi_package is not None
+    if is_hifi:
+        if not hifi_package.is_dir():
+            print(f"error: hifi package directory not found: {hifi_package}", file=sys.stderr)
+            return 1
+    elif not reference.is_file():
         print(f"error: reference HTML not found: {reference}", file=sys.stderr)
         return 1
+    hifi_pages: dict[str, str] = {}
     try:
         plan = load_plan(plan_path)
         route_map = _route_map_load(args.route_map)
+        if is_hifi:
+            hifi_pages = _hifi_surface_pages(_hifi_manifest_load(hifi_package), hifi_package)
     except (ManifestError, json.JSONDecodeError, OSError, UnicodeError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -1243,9 +1499,13 @@ def capture(args: argparse.Namespace) -> int:
 
     run = _Run(
         cli=cli,
-        reference_url=reference.resolve().as_uri(),
-        reference_sha256=_file_sha256(reference),
-        reference_identity=_reference_identity(reference),
+        reference_url="" if is_hifi else reference.resolve().as_uri(),
+        reference_sha256="" if is_hifi else _file_sha256(reference),
+        reference_identity="" if is_hifi else _reference_identity(reference),
+        reference_mode="hifi-package" if is_hifi else "single-html",
+        hifi_package=hifi_package,
+        hifi_pages=hifi_pages,
+        package_sha256=_package_identity(hifi_package, hifi_pages) if is_hifi else "",
         full_page=args.full_page,
         tolerance=getattr(args, "tolerance", 0.0),
         previous=previous,
@@ -1287,7 +1547,12 @@ def capture(args: argparse.Namespace) -> int:
                 route_jobs = [job for job in scope_jobs if job["route"] == route]
                 if route_jobs:
                     _app_phase(run, route_jobs)
-                    _reference_phase(run, route, route_jobs)
+                    if run.reference_mode == "single-html":
+                        _reference_phase(run, route, route_jobs)
+            if run.reference_mode == "hifi-package":
+                for page in sorted({job["hifi_page"] for job in scope_jobs}):
+                    page_jobs = [job for job in scope_jobs if job["hifi_page"] == page]
+                    _hifi_reference_phase(run, page, page_jobs)
 
     _run_browser(cli, ["close"], timeout=30)
     captured = [_row(job, run.carry_from) for job in jobs if job["done"]]
@@ -1306,7 +1571,9 @@ def capture(args: argparse.Namespace) -> int:
         "status": "FAIL" if errors else ("PARTIAL" if partial else "PASS"),
         "gating_eligible": not partial and not errors,
         "session": session,
-        "reference": args.reference.as_posix(),
+        "reference": None if is_hifi else args.reference.as_posix(),
+        "reference_mode": run.reference_mode,
+        "hifi_package": hifi_package.as_posix() if is_hifi else None,
         "capture_mode": "hosted-browser",
         "base_url": base_url,
         "viewport_height": args.height or VIEWPORT_HEIGHT,
@@ -1354,8 +1621,14 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True, help="PLAN.md path")
     parser.add_argument(
-        "--reference", type=Path, required=True,
-        help="approved design-reference HTML path",
+        "--reference", type=Path,
+        help="approved single-file design-reference HTML path",
+    )
+    parser.add_argument(
+        "--hifi-package", type=Path, metavar="DIR",
+        help="approved ui-hifi/2 package directory: for each PLAN surface id, open the "
+        "ui-hifi-manifest page naming it, drive the package target and state controls, "
+        "and screenshot only [data-hifi-canvas]",
     )
     parser.add_argument(
         "--base-url", help="implemented app origin for hosted-browser parity, e.g. http://localhost:3000"
@@ -1389,6 +1662,8 @@ def main(argv: list[str] | None = None) -> int:
         help="with --carry-from, capture every pair again instead of carrying",
     )
     args = parser.parse_args(argv)
+    if (args.reference is None) == (args.hifi_package is None):
+        parser.error("choose exactly one reference mode: --reference <html> or --hifi-package <dir>")
     if args.recapture_carried and args.carry_from is None:
         parser.error("--recapture-carried needs --carry-from")
     try:
