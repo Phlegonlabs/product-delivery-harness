@@ -146,7 +146,7 @@ When available, use these owners:
 
 - `product-definition-builder`: changed product decisions.
 - `delivery-harness`: approved implementation gaps and external setup in the deployment record.
-- `growth-review`: public-site search analysis.
+- `growth-review`: per-surface discovery review and Day 7/30 readbacks.
 
 Otherwise name the equivalent owner and expected handoff; these skills are optional dependencies.
 

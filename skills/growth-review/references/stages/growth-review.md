@@ -14,6 +14,7 @@ When a repository is available, read the applicable current files before drawing
 - `docs/product/architecture.md` Release Targets: every build surface and its class;
 - `docs/product/stack-decisions.md`: the analytics, auth, subscription, crash and registry providers the product actually uses;
 - `docs/DEPLOYMENT.md`: the deployed release identity per target, External Console Setup status, and the Measurement Sources table with each `MS-*` row's role and status;
+- `docs/gtm/MESSAGING.md`, when present: Approved Public Claims and Per-Surface One-Liners. Live listing, registry, README, bio or tagline text that contradicts them is a finding routed to `content`;
 - the public pages, listings, registry entries and account pages themselves, as rendered today.
 
 An absent repository does not block a public baseline review. Missing target market, language or business outcome does: ask one short question rather than ranking generic keywords or listings.

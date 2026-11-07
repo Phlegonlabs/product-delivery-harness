@@ -1130,6 +1130,16 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Handoff\n", default_output)
         self.assertIn("Rows routed `product_definition` are the next-round PRD delta candidates", default_output)
 
+        # The readers the messaging record names actually read it.
+        required_inputs = stage.split("## Required Inputs\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("`docs/gtm/MESSAGING.md`, when present", required_inputs)
+        if REPO_ROOT is not None:
+            standalone = REPO_ROOT / "standalone-skills"
+            boundary = (standalone / "go-to-market/references/messaging-house.md").read_text(encoding="utf-8")
+            self.assertIn("`growth-review` listing checks, `readme-studio`", boundary)
+            self.assertIn("When `docs/gtm/MESSAGING.md` exists",
+                          (standalone / "readme-studio/SKILL.md").read_text(encoding="utf-8"))
+
         workflow = stage.split("## Workflow\n", 1)[1].split("\n## ", 1)[0]
         self.assertNotIn("## Workflow", entry)
         self.assertIn("Surface Lenses", workflow)
