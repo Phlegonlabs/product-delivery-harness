@@ -5,6 +5,10 @@ Every scenario in `--features <dir>/*.feature` joins one run profile
 (`acceptance-profile/1`) to become one `delivery-acceptance/1` scenario that
 check_delivery_acceptance.py accepts. Writes only `--out`. Exits 0 on
 success, 1 with one line per finding, 2 on bad arguments.
+
+`--check` renders in memory and writes nothing. It exits 0 when `--out`
+holds exactly the rendered bytes, and 1 naming the first drifted scenario
+with its feature `path:line`.
 """
 
 from __future__ import annotations
@@ -183,12 +187,58 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
     return register, contract_errors
 
 
+def register_bytes(register: dict[str, Any]) -> bytes:
+    return (json.dumps(register, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _scenarios_by_id(register: Any) -> dict[str, tuple[Any, Any]]:
+    """Map scenario id to (TEST ID, scenario); a malformed register maps to nothing."""
+
+    found: dict[str, tuple[Any, Any]] = {}
+    tests = register.get("tests") if isinstance(register, dict) else None
+    for test in tests if isinstance(tests, list) else []:
+        scenarios = test.get("scenarios") if isinstance(test, dict) else None
+        for scenario in scenarios if isinstance(scenarios, list) else []:
+            if isinstance(scenario, dict) and isinstance(scenario.get("id"), str):
+                found.setdefault(scenario["id"], (test.get("test_id"), scenario))
+    return found
+
+
+def drift(expected: dict[str, Any], existing: bytes, where: dict[str, str], label: str) -> str | None:
+    """Name the first difference between the rendered register and the file."""
+
+    rendered = register_bytes(expected)
+    if existing == rendered:
+        return None
+    if existing.replace(b"\r\n", b"\n") == rendered:
+        return f"{label}: differs only in line endings; check it out byte for byte (-text) and re-render"
+    try:
+        current = json.loads(existing.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return f"{label}: is not valid UTF-8 JSON; re-render it"
+    have = _scenarios_by_id(current)
+    for scenario_id, entry in _scenarios_by_id(expected).items():
+        if scenario_id not in have:
+            return f"{label}: scenario {scenario_id} ({where[scenario_id]}) is missing; re-render it"
+        if have[scenario_id] != entry:
+            return f"{label}: scenario {scenario_id} ({where[scenario_id]}) differs from its feature file; re-render it"
+    extra = sorted(set(have) - set(where))
+    if extra:
+        return f"{label}: scenario {extra[0]} is in no feature file; re-render it"
+    for key in sorted(expected):
+        if not isinstance(current, dict) or current.get(key) != expected[key]:
+            return f"{label}: {key} differs from the rendered register; re-render it"
+    return f"{label}: differs from the rendered bytes; re-render it"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prd", required=True, type=Path, help="Path to PRD.md")
     parser.add_argument("--features", required=True, type=Path, help="Directory of *.feature files")
     parser.add_argument("--profile", required=True, type=Path, help="Run profile JSON (acceptance-profile/1)")
     parser.add_argument("--out", required=True, type=Path, help="Register to write")
+    parser.add_argument("--check", action="store_true",
+                        help="Compare a fresh render with --out without writing; exit 1 on drift")
     args = parser.parse_args(argv)
     for flag, path, is_dir in (("--prd", args.prd, False), ("--features", args.features, True),
                                ("--profile", args.profile, False)):
@@ -211,9 +261,27 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(errors))
         return 1
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_bytes((json.dumps(register, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
     count = sum(len(test["scenarios"]) for test in register["tests"])
+    if args.check:
+        label = args.out.as_posix()
+        try:
+            existing = args.out.read_bytes()
+        except OSError as exc:
+            print(f"{label}: cannot read ({exc})")
+            return 1
+        where = {
+            scenario.scenario_id: f"{feature.path}:{scenario.line}"
+            for feature in features for scenario in feature.scenarios
+        }
+        finding = drift(register, existing, where, label)
+        if finding:
+            print(finding)
+            return 1
+        print(f"{label} matches the {count} scenarios rendered from the feature files")
+        return 0
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_bytes(register_bytes(register))
     print(f"rendered {count} scenarios under {len(register['tests'])} TEST IDs to {args.out.as_posix()}")
     return 0
 

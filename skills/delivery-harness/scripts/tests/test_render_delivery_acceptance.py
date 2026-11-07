@@ -234,6 +234,82 @@ class RenderDeliveryAcceptanceTests(unittest.TestCase):
         self.assertIn("cannot use mock authentication in production", output)
         self.assertIn("cannot declare synthetic fixtures for a production scenario", output)
 
+    def check(self) -> tuple[int, str]:
+        """Run --check and prove it wrote nothing."""
+        before = sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*"))
+        saved = self.out.read_bytes() if self.out.exists() else None
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            code = render_main([
+                "--prd", str(self.prd), "--features", str(self.features),
+                "--profile", str(self.profile), "--out", str(self.out), "--check",
+            ])
+        self.assertEqual(before, sorted(path.relative_to(self.root).as_posix() for path in self.root.rglob("*")))
+        self.assertEqual(saved, self.out.read_bytes() if self.out.exists() else None)
+        return code, output.getvalue()
+
+    def test_check_passes_on_the_rendered_register(self) -> None:
+        self.assertEqual(0, self.render()[0])
+        code, output = self.check()
+        self.assertEqual(0, code, output)
+        self.assertIn("matches the 2 scenarios rendered from the feature files", output)
+
+    def test_check_names_the_first_drifted_scenario_and_its_feature_line(self) -> None:
+        feature = (self.features / "product.feature").as_posix()
+        self.assertEqual(0, self.render()[0])
+        rendered = self.out.read_bytes()
+        register = json.loads(rendered)
+        register["tests"][1]["scenarios"][0]["execution"]["assertions"]["ASSERT-002"] = "PO-7 is closed"
+        hand_edited = json.dumps(register, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+        extra = copy.deepcopy(json.loads(rendered))
+        extra["tests"][0]["scenarios"].append(dict(extra["tests"][0]["scenarios"][0], id="TEST-001/hand-added"))
+        cases = {
+            "hand-edited register": (
+                None, hand_edited.encode("utf-8"),
+                f"scenario TEST-002/over-receipt-is-refused ({feature}:14) differs from its feature file"),
+            "feature edited without a re-render": (
+                FEATURE.replace("Then PO-7 is closed", "Then PO-7 is marked closed"), rendered,
+                f"scenario TEST-001/receive-the-full-quantity ({feature}:8) differs from its feature file"),
+            "scenario added without a re-render": (
+                FEATURE + "\n  @TEST-001\n  Scenario: Receive in two parts\n"
+                "    When the clerk receives 4 units against PO-7\n    Then PO-7 stays open\n", rendered,
+                f"scenario TEST-001/receive-in-two-parts ({feature}:20) is missing"),
+            "scenario only in the register": (
+                None, (json.dumps(extra, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"),
+                "scenario TEST-001/hand-added is in no feature file"),
+            "line endings converted": (
+                None, rendered.replace(b"\n", b"\r\n"), "differs only in line endings"),
+            "reformatted register": (
+                None, (json.dumps(json.loads(rendered), indent=4, sort_keys=True) + "\n").encode("utf-8"),
+                "differs from the rendered bytes"),
+        }
+        for label, (feature_text, register_bytes, fragment) in cases.items():
+            with self.subTest(label):
+                (self.features / "product.feature").write_text(feature_text or FEATURE, encoding="utf-8")
+                self.out.write_bytes(register_bytes)
+                code, output = self.check()
+                self.assertEqual(1, code, output)
+                self.assertIn(fragment, output)
+                self.assertEqual(1, len(output.splitlines()), output)
+
+    def test_check_reports_a_prd_change_and_a_missing_register(self) -> None:
+        self.assertEqual(0, self.render()[0])
+        self.prd.write_text(PRD + "\nA later note.\n", encoding="utf-8")
+        code, output = self.check()
+        self.assertEqual(1, code, output)
+        self.assertIn("prd_sha256 differs from the rendered register", output)
+        self.out.unlink()
+        code, output = self.check()
+        self.assertEqual(1, code, output)
+        self.assertIn("cannot read", output)
+        self.assertFalse(self.out.exists())
+
+    def test_check_still_reports_render_findings(self) -> None:
+        (self.features / "product.feature").write_text(FEATURE.replace("@TEST-002 ", "@TEST-009 "), encoding="utf-8")
+        code, output = self.check()
+        self.assertEqual(1, code, output)
+        self.assertIn("TEST-009 is not a TEST ID in the PRD", output)
+
     def test_bad_arguments_exit_2(self) -> None:
         with contextlib.redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as missing_flag:

@@ -262,6 +262,62 @@ class ValidateHarnessPlanCliTests(unittest.TestCase):
             self.assertTrue(any("current bytes differ" in error for error in json.loads(changed.stdout)["errors"]))
 
 
+    def test_frozen_register_requires_a_frozen_row_for_each_feature_file(self) -> None:
+        plan = valid_plan()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            materialize_plan_sources(root, plan)
+            prd = root / plan["sources"][0]["location"]
+            features = root / "docs/product/features"
+            features.mkdir(parents=True)
+            for name in ("checkout.feature", "receive.feature"):
+                (features / name).write_text(f"Feature: {name}\n", encoding="utf-8")
+            (features / "notes.md").write_text("not a feature file\n", encoding="utf-8")
+            plan_path = root / "PLAN.md"
+
+            def errors() -> list[str]:
+                plan_path.write_text(
+                    manifest_markdown("## Harness Plan Manifest", "harness_plan", plan),
+                    encoding="utf-8",
+                )
+                result = self.run_cli(plan_path, None, repo_root=root, prd=prd)
+                payload = json.loads(result.stdout)
+                self.assertEqual(0 if payload["status"] == "PASS" else 1, result.returncode)
+                return payload["errors"]
+
+            def add_source(source_id: str, kind: str, location: str) -> dict:
+                source = {
+                    "id": source_id, "kind": kind, "location": location, "owner": "product",
+                    "status": "frozen",
+                    "content_sha256": hashlib.sha256((root / location).read_bytes()).hexdigest(),
+                    "source_revision": None, "staged_revision": None, "notes": "fixture",
+                }
+                plan["sources"].append(source)
+                return source
+
+            def feature_errors() -> list[str]:
+                return [error for error in errors() if "feature file" in error]
+
+            # Without a frozen register, feature files are not PLAN sources yet.
+            self.assertEqual([], errors())
+            register = root / "docs/verification/delivery-acceptance.json"
+            register.parent.mkdir(parents=True)
+            register.write_text("{}\n", encoding="utf-8")
+            add_source("SRC-004", "delivery acceptance", "docs/verification/delivery-acceptance.json")
+            message = "plan.sources: feature file docs/product/features/{} has no frozen source row with content_sha256"
+            self.assertEqual(
+                [message.format("checkout.feature"), message.format("receive.feature")], feature_errors()
+            )
+            add_source("SRC-005", "feature", "docs/product/features/checkout.feature")
+            receive = add_source("SRC-006", "feature", "docs/product/features/receive.feature")
+            receive["content_sha256"] = None
+            self.assertEqual([message.format("receive.feature")], feature_errors())
+            receive["content_sha256"] = hashlib.sha256((features / "receive.feature").read_bytes()).hexdigest()
+            self.assertEqual([], errors())
+            # The existing source check catches a scenario edited after the freeze.
+            (features / "receive.feature").write_text("Feature: edited\n", encoding="utf-8")
+            self.assertTrue(any("content_sha256" in error and "does not match" in error for error in errors()))
+
     def test_invalid_plan_reports_fail_with_exit_code_one(self) -> None:
         plan = valid_plan()
         plan["missions"] = []

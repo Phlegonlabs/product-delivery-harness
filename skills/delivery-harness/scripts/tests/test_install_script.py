@@ -282,7 +282,7 @@ class InstallScriptTests(unittest.TestCase):
         )
         self.assertFalse(self.destination.exists())
 
-    def make_minimal_repo(self) -> Path:
+    def make_minimal_repo(self, *, contract_script: bool = False) -> Path:
         source = self.home / "minimal-source"
         source.mkdir()
         shutil.copy2(REPO_ROOT / "install.sh", source / "install.sh")
@@ -292,6 +292,10 @@ class InstallScriptTests(unittest.TestCase):
             (skill_dir / "SKILL.md").write_text(
                 f"# {skill}\n", encoding="utf-8", newline="\n"
             )
+        if contract_script:
+            scripts = source / "skills" / "delivery-harness" / "scripts"
+            scripts.mkdir()
+            shutil.copy2(REPO_ROOT / "skills/delivery-harness/scripts/harness_contract.py", scripts)
         subprocess.run(["git", "init", "-q", "-b", "main"], cwd=source, check=True)
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"], cwd=source, check=True
@@ -331,10 +335,12 @@ class InstallScriptTests(unittest.TestCase):
         self.assert_full_install()
         for skill in self.SKILLS:
             self.assertFalse(list((self.destination / skill).rglob("tests")), skill)
-        self.assertEqual(
-            harness_contract.contract_digest(REPO_ROOT / "skills"),
-            harness_contract.contract_digest(self.destination),
-        )
+        digest = harness_contract.contract_digest(self.destination)
+        self.assertEqual(harness_contract.contract_digest(REPO_ROOT / "skills"), digest)
+        # The seeded old copies carry no harness_contract.py to name their digest.
+        contract_line = f"installed five-skill contract {digest} (previous unknown)"
+        self.assertIn(contract_line + "\n", result.stdout)
+        self.assertNotIn("warning", result.stderr)
         target = self.home / "empty target project"
         target.mkdir()
         for skill, script in (
@@ -359,6 +365,8 @@ class InstallScriptTests(unittest.TestCase):
                 f"# old {skill}\n",
                 (backups[0] / skill / "SKILL.md").read_text(encoding="utf-8"),
             )
+        receipt = backups[0].with_name(backups[0].name + ".source").read_text(encoding="utf-8")
+        self.assertEqual(contract_line, receipt.splitlines()[1])
 
     def test_bash_detects_non_skill_corruption_before_mutating_destination(self) -> None:
         self.seed_managed_copies()
@@ -511,6 +519,8 @@ class InstallScriptTests(unittest.TestCase):
         first = install()
         self.assertEqual(0, first.returncode, first.stderr or first.stdout)
         self.assertIn(f"source commit {head}, uncommitted skills/ changes: no", first.stdout)
+        first_digest = harness_contract.contract_digest(self.destination)
+        self.assertIn(f"installed five-skill contract {first_digest} (previous unknown)\n", first.stdout)
         self.assertFalse(self.backup_root.exists() and any(self.backup_root.iterdir()))
 
         # An uncommitted tracked edit is installed, reported, and recorded
@@ -525,7 +535,13 @@ class InstallScriptTests(unittest.TestCase):
         backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
         self.assertEqual(1, len(backups))
         record = backups[0].with_name(backups[0].name + ".source")
-        self.assertEqual(line + "\n", record.read_text(encoding="utf-8"))
+        # Each digest comes from its own copy of harness_contract.py.
+        second_digest = harness_contract.contract_digest(self.destination)
+        self.assertNotEqual(first_digest, second_digest)
+        self.assertEqual(first_digest, harness_contract.contract_digest(backups[0]))
+        contract_line = f"installed five-skill contract {second_digest} (previous {first_digest})"
+        self.assertIn(contract_line + "\n", second.stdout)
+        self.assertEqual(f"{line}\n{contract_line}\n", record.read_text(encoding="utf-8"))
         self.assertEqual(
             "# dirty ui-design-builder\n",
             (self.destination / "ui-design-builder" / "SKILL.md").read_text(encoding="utf-8"),
@@ -551,6 +567,9 @@ class InstallScriptTests(unittest.TestCase):
         self.assertEqual(1, len(backups))
         record = backups[0].with_name(backups[0].name + ".source")
         self.assertIn("source commit", record.read_text(encoding="utf-8"))
+        # This fixture installs no harness_contract.py: warn, keep the install.
+        self.assertIn("warning: could not compute the installed contract digest", result.stderr)
+        self.assertNotIn("five-skill contract", record.read_text(encoding="utf-8"))
 
     @unittest.skipIf(BASH is None, "no usable bash is available")
     def test_bash_keeps_an_existing_source_receipt(self) -> None:
@@ -563,13 +582,35 @@ class InstallScriptTests(unittest.TestCase):
 
     @unittest.skipIf(BASH is None, "no usable bash is available")
     def test_bash_prints_and_records_source_commit_and_dirty_state(self) -> None:
-        source = self.make_minimal_repo()
+        source = self.make_minimal_repo(contract_script=True)
         self.assert_source_line_recorded(
             source,
             lambda: self.run_bash(
                 {"SKILL_BACKUP_ROOT": str(self.backup_root)}, installer=source / "install.sh"
             ),
         )
+
+    @unittest.skipIf(BASH is None, "no usable bash is available")
+    def test_bash_previous_digest_failure_warns_and_keeps_the_install(self) -> None:
+        source = self.make_minimal_repo(contract_script=True)
+
+        def install() -> subprocess.CompletedProcess[str]:
+            return self.run_bash(
+                {"SKILL_BACKUP_ROOT": str(self.backup_root)}, installer=source / "install.sh"
+            )
+
+        self.assertEqual(0, install().returncode)
+        # The replaced copy lacks growth-review, so its own script cannot name it.
+        shutil.rmtree(self.destination / "growth-review")
+        result = install()
+        self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+        digest = harness_contract.contract_digest(self.destination)
+        self.assertIn(f"installed five-skill contract {digest} (previous unknown)\n", result.stdout)
+        self.assertIn("warning: could not compute the previous contract digest", result.stderr)
+        backups = [child for child in self.backup_root.iterdir() if child.is_dir()]
+        self.assertEqual(1, len(backups))
+        self.assertFalse((backups[0] / "growth-review").exists())
+        self.assertFalse(list(backups[0].rglob("__pycache__")))
 
 
 if __name__ == "__main__":
