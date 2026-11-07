@@ -16,7 +16,7 @@ The two files publish together. Edit structured fields in JSON, then run `script
 
 ## Source Inputs
 
-Calculate the UI approval digest with `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`. This excludes derived pair/replacement linkage and, for `ui-design/3`, the Package action and pair disposition lines; other source hashes cover raw file bytes. Homogeneous products keep one responsive set; hybrids use per-surface `surfaceContracts` and omit global platform, styling mechanism, viewports, and size classes.
+`check_design_system_pair.py --write-bindings` fills the JSON source bindings. Homogeneous products keep one responsive set; hybrids use per-surface `surfaceContracts` and omit global platform, styling mechanism, viewports, and size classes.
 
 | Source | Path / URL | Role |
 |---|---|---|

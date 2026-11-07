@@ -40,9 +40,10 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, skill)
         self.assertIn("check_product_package.py", stage)
+        self.assertIn("--write-bindings --ui-design <ui-design.md>", stage)
         self.assertIn(
-            "`sourceBindings.uiDesign.sha256` uses the canonical UI approval digest",
-            skill,
+            "`sourceBindings.uiDesign`: current path and canonical UI approval SHA-256",
+            self.read("assets/templates/DESIGN_SYSTEM.template.md"),
         )
         self.assertIn("Package action: compile|update|reuse", skill)
 

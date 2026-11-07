@@ -1076,6 +1076,30 @@ def showcase_source_findings(registry: dict[str, Any], root: Path) -> list[str]:
     return found
 
 
+def bindings_from_ui_design(registry: dict[str, Any], root: Path, ui_design: str) -> dict[str, Any]:
+    """Derive sourceBindings from the identities a ui-design.md records."""
+
+    schema = registry.get("schema")
+    if schema not in BOUND_SCHEMAS:
+        raise ValueError("--write-bindings requires design-system/2, design-system/3 or design-system/4")
+    candidate = _safe_repo_candidate(root, ui_design)
+    if candidate is None or not candidate.is_file():
+        raise ValueError(f"--ui-design {ui_design} must name a readable repo-relative file")
+    text = candidate.read_text(encoding="utf-8")
+    view, _ = __import__("check_ui_design_contract").parse_ui_contract_view(text)
+    identities = view.get("source_identities") or {}
+    bindings: dict[str, Any] = {}
+    for key in CURRENT_SOURCE_BINDING_KEYS if schema in WIREFRAME_FREE_SCHEMAS else SOURCE_BINDING_KEYS:
+        if key == "uiDesign":
+            value: Any = {"path": ui_design, "sha256": canonical_ui_approval_sha256(text)}
+        else:
+            value = view.get("approved_target") if key == "hifi" else identities.get(key)
+        if not isinstance(value, dict) or not value.get("path") or not value.get("sha256"):
+            raise ValueError(f"{ui_design} records no {'Approved target' if key == 'hifi' else key} identity")
+        bindings[key] = {"path": value["path"], "sha256": value["sha256"]}
+    return bindings
+
+
 def compare(
     markdown_text: str,
     registry: dict[str, Any],
@@ -1264,21 +1288,48 @@ def main(argv: list[str] | None = None) -> int:
             "design-system/3 source bindings"
         ),
     )
+    parser.add_argument(
+        "--write-bindings",
+        action="store_true",
+        help="write sourceBindings into the registry from --ui-design before checking",
+    )
+    parser.add_argument("--ui-design", help="repo-relative ui-design.md that --write-bindings reads")
     args = parser.parse_args(argv)
 
     for path in (args.markdown, args.registry):
         if not path.is_file():
             print(f"missing file: {path}", file=sys.stderr)
             return 2
+    if args.write_bindings and (args.ui_design is None or args.repo_root is None):
+        print("--write-bindings requires --ui-design and --repo-root", file=sys.stderr)
+        return 2
 
     try:
-        registry = json.loads(args.registry.read_text(encoding="utf-8"))
+        original_registry_bytes = args.registry.read_bytes()
+        original_registry_text = original_registry_bytes.decode("utf-8")
+        registry = json.loads(original_registry_text)
     except (OSError, UnicodeError, json.JSONDecodeError) as error:
         print(f"{args.registry} is not valid JSON: {error}", file=sys.stderr)
         return 2
     if not isinstance(registry, dict):
         print(f"{args.registry} must contain a JSON object", file=sys.stderr)
         return 2
+
+    if args.write_bindings:
+        try:
+            bindings = bindings_from_ui_design(registry, args.repo_root.resolve(), args.ui_design)
+            if registry.get("sourceBindings") != bindings:
+                registry["sourceBindings"] = bindings
+                newline = _newline_sequence(original_registry_text)
+                payload = json.dumps(registry, ensure_ascii=False, indent=2) + "\n"
+                _write_markdown(
+                    args.registry,
+                    payload.replace("\n", newline).encode("utf-8"),
+                    original_registry_bytes,
+                )
+        except (OSError, UnicodeError, ValueError) as error:
+            print(f"cannot write source bindings: {error}", file=sys.stderr)
+            return 2
 
     try:
         original_markdown_bytes = args.markdown.read_bytes()

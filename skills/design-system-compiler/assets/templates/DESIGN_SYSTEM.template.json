@@ -11,7 +11,7 @@
   "stylingMechanism": "<utility CSS | Tailwind CSS | CSS-in-JS | CSS modules | plain CSS | platform theme; the closed value that names stackSemantics.stylingMechanism>",
   "enforcement": "<blocking | advisory>",
 
-  "$comment:sourceBindings": "Every binding names one current repo-relative input and its lowercase SHA-256. sourceBindings.uiDesign uses the canonical UI approval digest, which omits only derived pair/replacement linkage fields. The pair checker resolves each path and hash under --repo-root.",
+  "$comment:sourceBindings": "Filled by check_design_system_pair.py --write-bindings.",
   "sourceBindings": {
     "prd": { "path": "<docs/product/PRD.md>", "sha256": "<lowercase sha256>" },
     "architecture": { "path": "<docs/product/architecture.md>", "sha256": "<lowercase sha256>" },
