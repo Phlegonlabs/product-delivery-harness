@@ -45,7 +45,7 @@ UI work also needs the exact external `frontend-design` and `impeccable` trees i
 
 | Your starting point | Skill | Result |
 | --- | --- | --- |
-| Product idea | `product-definition-builder` | Approved PRD, architecture, stack and TEST obligations |
+| Product idea | `product-definition-builder` | Approved PRD, architecture, stack, TEST obligations and BDD feature files |
 | Approved Product Definition with UI (design can start after the Product Thesis with an optional exploration round) | `ui-design-builder` | Directions, journey maps, complete HiFi, browser evidence and Visual Approval |
 | Approved HiFi requiring a design system | `design-system-compiler` | Frozen pair and source-bound derived HTML |
 | Scoped implementation or maintenance | `delivery-harness` | Direct work or managed PLAN/RUN; UI missions follow the approved journeys |
@@ -60,7 +60,7 @@ For relevant choices or adopted decisions needing context, use [reference select
 Use `$skill-name` in Codex, or ask your host for the named skill. State the exact write scope and local or remote outcome.
 
 ```text
-Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests, and Product Definition Approval. Stop before UI design.
+Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests with their feature files, and Product Definition Approval. Stop before UI design.
 ```
 
 ```text
@@ -87,7 +87,7 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | Owns |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval; the `program` delivery profile for many-module products (program PRD plus one [module package](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md) each, validated per module), the [AI feature contract](skills/product-definition-builder/references/ai-feature-contract.md) and the modular monolith pattern for many-module products |
+| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, feature files in `docs/product/features/`, research, per-round PRD deltas and Product Definition Approval; the `program` delivery profile for many-module products (program PRD plus one [module package](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md) each, validated per module), the [AI feature contract](skills/product-definition-builder/references/ai-feature-contract.md) and the modular monolith pattern for many-module products |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
 | `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md` (including the [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) and AI provider setup), [performance and cost budgets](skills/delivery-harness/references/performance-and-cost-budget.md), native verification that cleans up what it built, PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
@@ -129,7 +129,7 @@ The delivery core makes one size decision: one writer and one coherent verificat
 - [Candidate publication and promotion](skills/delivery-harness/references/branch-promotion-contract.md): preserve exact targets, action grants and remote readback; never force-push.
 - [Source maintenance](skills/delivery-harness/references/governance/source-maintenance.md): use focused atomic checks and one complete candidate matrix.
 
-Before every handoff, check source hashes, the Epic record and document consistency, and rewrite the Epic's `## Handoff` block (stage, approvals in force, remaining work, next action); every skill entry reads that block first. `docs/tasks.md` is a RUN-derived view; generated content is not hand-edited. [Document sync](skills/delivery-harness/references/document-sync-contract.md), [bounded repairs](skills/delivery-harness/references/bounded-enhancement.md) and [delivery acceptance](skills/delivery-harness/references/delivery-acceptance-contract.md) own these checks.
+Before every handoff, check source hashes, the Epic record and document consistency, and rewrite the Epic's `## Handoff` block (stage, approvals in force, remaining work, next action); every skill entry reads that block first. `docs/tasks.md` is a RUN-derived view, and `render_delivery_acceptance.py` renders the delivery-acceptance register from the feature files; generated content is not hand-edited. [Document sync](skills/delivery-harness/references/document-sync-contract.md), [bounded repairs](skills/delivery-harness/references/bounded-enhancement.md) and [delivery acceptance](skills/delivery-harness/references/delivery-acceptance-contract.md) own these checks.
 
 | Stage | Default review and stop condition |
 | --- | --- |
