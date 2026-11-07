@@ -1168,6 +1168,27 @@ def _validate_stack_semantics(
                 problems.append(f"design-system.json stackSemantics.{key} does not match approved Stack selection")
 
 
+def line_ending_hint(path: str) -> str:
+    """Repair hint for bytes that differ from a pinned hash only by CRLF/LF conversion."""
+    return (
+        f"`{path}` differs only by line-ending conversion; check "
+        f"`git check-attr text eol filter -- {path}` against "
+        "delivery-harness/references/gitattributes-contract.md#converted-files; "
+        "do not regenerate or re-pin"
+    )
+
+
+def line_ending_note(data: bytes, expected_sha256: object, path: str) -> str:
+    """`; <hint>` when the bytes match the hash only after CRLF/LF conversion, else ''."""
+    if not isinstance(expected_sha256, str):
+        return ""
+    lf = data.replace(b"\r\n", b"\n")
+    for form in (lf, lf.replace(b"\n", b"\r\n")):
+        if form != data and hashlib.sha256(form).hexdigest() == expected_sha256:
+            return "; " + line_ending_hint(path)
+    return ""
+
+
 def load_showcase_sources(
     registry: dict[str, Any], root: Path
 ) -> tuple[dict[str, str], dict[str, Any], dict[str, str], list[str]]:
@@ -1181,7 +1202,8 @@ def load_showcase_sources(
         return {}, {}, {}, ["design-system/4 showcase requires a readable sourceBindings.hifi entry"]
     entry_bytes = entry.read_bytes()
     if hashlib.sha256(entry_bytes).hexdigest() != hifi.get("sha256"):
-        return {}, {}, {}, ["design-system/4 showcase HiFi entry does not match sourceBindings.hifi"]
+        return {}, {}, {}, ["design-system/4 showcase HiFi entry does not match sourceBindings.hifi"
+                            + line_ending_note(entry_bytes, hifi.get("sha256"), path)]
     folder = path.rsplit("/", 1)[0] + "/" if "/" in path else ""
 
     def read_child(name: str) -> bytes | None:
@@ -1342,10 +1364,11 @@ def compare(
                     )
                 else:
                     try:
+                        data = candidate.read_bytes()
                         actual_digest = (
                             canonical_ui_approval_sha256(candidate.read_text(encoding="utf-8"))
                             if key == "uiDesign"
-                            else hashlib.sha256(candidate.read_bytes()).hexdigest()
+                            else hashlib.sha256(data).hexdigest()
                         )
                     except (OSError, UnicodeError) as exc:
                         problems.append(
@@ -1356,6 +1379,7 @@ def compare(
                         problems.append(
                             f"design-system.json sourceBindings.{key} sha256 does not "
                             f"match current bytes: {path}"
+                            + ("" if key == "uiDesign" else line_ending_note(data, digest, path))
                         )
             if isinstance(bindings, dict):
                 _ui_identity_bindings(
