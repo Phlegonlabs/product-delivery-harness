@@ -210,6 +210,18 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertEqual([], report["findings"])
         self.assertEqual([], report["gitattributes_lines"])
 
+    def test_behavior_specs_keep_hand_written_registers_without_features(self) -> None:
+        # A package that predates feature files keeps its register.
+        specs = self.section(read("assets/templates/PROJECT_AGENTS.template.md"), "## Behavior Specs")
+        self.assertIn(
+            "When `docs/product/features/` exists, `delivery-harness/scripts/render_delivery_acceptance.py` "
+            "renders the delivery-acceptance register from it; never edit that register by hand.",
+            specs,
+        )
+        self.assertIn("A package without feature files keeps its hand-written register.", specs)
+        self.assertIn("A package without feature files keeps its hand-written register.",
+                      read("references/delivery-acceptance-contract.md"))
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.

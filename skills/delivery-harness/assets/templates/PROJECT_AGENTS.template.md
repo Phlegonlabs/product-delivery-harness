@@ -31,7 +31,7 @@ These reading requirements apply only within an explicitly requested skill workf
 ## Behavior Specs
 
 - Feature files live in `docs/product/features/` and belong to the PRD package. The owner approves scenario text; the writer owns step definitions and the code under them.
-- Each scenario has one `@TEST-...` tag. `delivery-harness/scripts/render_delivery_acceptance.py` renders the delivery-acceptance register from them; never edit the register by hand.
+- Each scenario has one `@TEST-...` tag. When `docs/product/features/` exists, `delivery-harness/scripts/render_delivery_acceptance.py` renders the delivery-acceptance register from it; never edit that register by hand. A package without feature files keeps its hand-written register.
 - Changing scenario text is a product decision and goes through a PRD delta. Changing only step definitions or implementation is a small fix on the existing Epic.
 
 ## Skill Bindings
