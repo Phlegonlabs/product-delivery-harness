@@ -212,6 +212,16 @@ class EvalPolicyTests(unittest.TestCase):
         for old, new in (("| Yes |", "| No |"), ("AI-EVALUATION", "OTHER")):
             self.assertTrue(ep.validate_eval_policy(prd(self.policy).replace(old, new)))
 
+    def test_scenario_id_may_name_a_feature_scenario_of_its_test(self):
+        candidate = copy.deepcopy(self.policy)
+        candidate["quality"]["scenario_id"] = "TEST-001/full-quality-run-meets-the-frozen-rate"
+        candidate["handoff"]["scenario_id"] = "TEST-002/clean-checkout-run"
+        self.assertEqual([], ep.validate_eval_policy(prd(candidate), required=True))
+        for bad in ("TEST-002/full-quality-run", "TEST-001/Full-Run", "TEST-001/", "TEST-001/run/again"):
+            candidate["quality"]["scenario_id"] = bad
+            with self.subTest(scenario_id=bad):
+                self.assertTrue(ep.validate_eval_policy(prd(candidate), required=True))
+
     def test_typed_policy_and_no_silent_extra_fields(self):
         for key, value in (("trials_per_case", True), ("retry_policy", "best-of-three"),
                            ("minimum_rate", {"numerator": 1, "denominator": 0}),

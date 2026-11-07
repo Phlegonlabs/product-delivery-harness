@@ -6,8 +6,12 @@ Every scenario in `--features <dir>/*.feature` joins the run profile
 check_delivery_acceptance.py accepts. The profile's optional `assign` map
 picks one of its named `variants` for a scenario id or a TEST ID (the
 scenario id wins); other scenarios use the top-level profile, and
-`@platform`, `@auth` and `@env` tags override either. Writes only `--out`. Exits 0 on
-success, 1 with one line per finding, 2 on bad arguments.
+`@platform`, `@auth` and `@env` tags override either. When the PRD's
+eval-policy is required, the Then steps of its quality and handoff scenarios
+take the fixed eval assertion keys in order instead of ASSERT-NNN.
+
+Writes only `--out`. Exits 0 on success, 1 with one line per finding, 2 on
+bad arguments.
 
 `--check` renders in memory and writes nothing. It exits 0 when `--out`
 holds exactly the rendered bytes, and 1 naming the first drifted scenario
@@ -142,7 +146,34 @@ def profile_errors(profile: dict[str, Any]) -> list[str]:
     return errors
 
 
-def scenario_entry(feature: Any, scenario: Any, profile: dict[str, Any], errors: list[str]) -> dict[str, Any]:
+def eval_scenario_keys(prd_bytes: bytes) -> dict[tuple[str, str], tuple[str, tuple[str, ...]]]:
+    """Map a required eval policy's quality and handoff scenarios to their fixed keys."""
+
+    try:
+        import eval_verification
+    except ImportError as exc:
+        raise AcceptanceError(f"cannot load the eval policy parser: {exc}") from exc
+    ep = eval_verification.ep
+    try:
+        policy = ep.parse_eval_policy(prd_bytes.decode("utf-8"))
+        if policy is None:
+            return {}
+        ep.validate_policy_shape(policy)
+    except ep.PolicyError as exc:
+        raise AcceptanceError(f"eval-policy: {exc}") from exc
+    if policy["applicability"] != "required":
+        return {}
+    return {
+        (policy[purpose]["test_id"], policy[purpose]["scenario_id"]): (purpose, keys)
+        for purpose, keys in (("quality", eval_verification.QUALITY_KEYS),
+                              ("handoff", eval_verification.HANDOFF_KEYS))
+    }
+
+
+def scenario_entry(
+    feature: Any, scenario: Any, profile: dict[str, Any], errors: list[str],
+    eval_keys: tuple[str, tuple[str, ...]] | None = None,
+) -> dict[str, Any]:
     """Map one scenario onto one register scenario; findings name `path:line`."""
 
     where = f"{feature.path}:{scenario.line}"
@@ -160,6 +191,13 @@ def scenario_entry(feature: Any, scenario: Any, profile: dict[str, Any], errors:
     if not givens:
         errors.append(f"{where}: scenario {scenario.name!r} needs a Given step naming the persona")
         givens = [""]
+    thens = scenario.steps_for("Then")
+    keys = [f"ASSERT-{number:03d}" for number in range(1, len(thens) + 1)]
+    if eval_keys is not None:
+        purpose, keys = eval_keys
+        if len(thens) != len(keys):
+            errors.append(f"{where}: eval {purpose} scenario needs exactly {len(keys)} Then steps, "
+                          f"one per {', '.join(keys)} in that order")
     run = profile["execution"]
     return {
         "id": scenario.scenario_id,
@@ -172,10 +210,7 @@ def scenario_entry(feature: Any, scenario: Any, profile: dict[str, Any], errors:
             "persona": {"role": givens[0], **run["persona"]},
             "initial_data": "; ".join(givens[1:]) or run["initial_data"],
             "actions": [step.text for step in scenario.steps_for("When")],
-            "assertions": {
-                f"ASSERT-{number:03d}": step.text
-                for number, step in enumerate(scenario.steps_for("Then"), start=1)
-            },
+            "assertions": {key: step.text for key, step in zip(keys, thens)},
             "expected_side_effects": run["expected_side_effects"],
             "dependency_mode": run["dependency_mode"],
         },
@@ -190,6 +225,10 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
     except AcceptanceError as exc:
         return {}, errors + [f"PRD: {exc}"]
     errors.extend(f"PRD: {error}" for error in prd_errors)
+    try:
+        eval_keys = eval_scenario_keys(prd_bytes)
+    except AcceptanceError as exc:
+        errors.append(f"PRD: {exc}")
     if errors:
         return {}, errors
 
@@ -207,9 +246,13 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
             first_seen[scenario.scenario_id] = where
             variant = assign.get(scenario.scenario_id, assign.get(scenario.test_id))
             body = profile if variant is None else profile["variants"][variant]
-            grouped.setdefault(scenario.test_id, []).append(scenario_entry(feature, scenario, body, errors))
+            grouped.setdefault(scenario.test_id, []).append(scenario_entry(
+                feature, scenario, body, errors, eval_keys.get((scenario.test_id, scenario.scenario_id))))
     for test_id in sorted(required_tests - set(grouped)):
         errors.append(f"required {test_id} has no scenario in the feature files")
+    for (test_id, scenario_id), (purpose, _) in sorted(eval_keys.items()):
+        if scenario_id not in first_seen:
+            errors.append(f"PRD: eval-policy {purpose} scenario {scenario_id} ({test_id}) is not a scenario in the feature files")
     for key in sorted(set(assign) - set(first_seen) - set(grouped)):
         errors.append(f"profile.assign.{key} matches no scenario id or TEST ID in the feature files")
     if errors:

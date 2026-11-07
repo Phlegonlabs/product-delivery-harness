@@ -32,8 +32,11 @@ def product_policy():
 
 
 ep = product_policy()
-QUALITY_ASSERTIONS = {"eval-inputs-match", "eval-complete", "eval-rate", "eval-slices", "eval-critical"}
-HANDOFF_ASSERTIONS = {"eval-handoff"}
+# A rendered eval scenario's Then steps take these keys in this order.
+QUALITY_KEYS = ("eval-inputs-match", "eval-complete", "eval-rate", "eval-slices", "eval-critical")
+HANDOFF_KEYS = ("eval-handoff",)
+QUALITY_ASSERTIONS = set(QUALITY_KEYS)
+HANDOFF_ASSERTIONS = set(HANDOFF_KEYS)
 GIT_SHA = re.compile(r"[0-9a-f]{40}\Z")
 
 

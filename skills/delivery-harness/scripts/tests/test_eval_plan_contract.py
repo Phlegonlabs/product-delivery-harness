@@ -1,10 +1,13 @@
 import copy
 import builtins
 import hashlib
+import io
+import json
 import os
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,7 +17,8 @@ import harness_contract_join as join
 import manifest_fixtures as mf
 from eval_delivery_fixtures import fixture, encoded, prd
 from test_delivery_acceptance import execution
-from eval_verification import QUALITY_ASSERTIONS, HANDOFF_ASSERTIONS
+from eval_verification import QUALITY_ASSERTIONS, QUALITY_KEYS, HANDOFF_ASSERTIONS
+from render_delivery_acceptance import main as render_main
 
 
 class EvalPlanContractTests(unittest.TestCase):
@@ -44,6 +48,11 @@ class EvalPlanContractTests(unittest.TestCase):
                 "platform": "cli", "auth_mode": "none", "environment": "local",
                 "build": {"build_id": "fixture-eval-1", "config_digest": "b" * 64}, "fixtures": []}]})
         files["docs/verification/delivery-acceptance.json"] = encoded(delivery)
+        self.materialize(files)
+        self.run = {"runtime_capabilities": {"runtime_adapter": {"version_gate": {"required_harness_version": "0.60.0"}}}}
+
+    def materialize(self, files):
+        """Write the package files and freeze a PLAN with the eval gates over them."""
         for path, raw in files.items():
             target = self.root / path
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -70,7 +79,69 @@ class EvalPlanContractTests(unittest.TestCase):
         for before, after in (("final-check", "eval-acceptance"), ("eval-acceptance", "delivery-acceptance"), ("delivery-acceptance", "final-closeout")):
             self.plan["graph"]["edges"].append({"kind": "dependency", "from": "N-" + before, "to": "N-" + after,
                                                 "on_outcomes": ["pass"], "max_traversals": None})
-        self.run = {"runtime_capabilities": {"runtime_adapter": {"version_gate": {"required_harness_version": "0.60.0"}}}}
+
+    def test_a_register_rendered_from_eval_feature_files_satisfies_the_plan(self):
+        policy, files, _, _, _, _ = fixture()
+        policy["quality"]["scenario_id"] = "TEST-001/full-quality-run"
+        policy["handoff"]["scenario_id"] = "TEST-002/clean-checkout-run"
+        prd_bytes = prd(policy).encode()
+        files["docs/product/PRD.md"] = prd_bytes
+        files["docs/verification/eval-contract.json"] = encoded({
+            "schema": "eval-contract/1", "prd_sha256": hashlib.sha256(prd_bytes).hexdigest(),
+            "policy_sha256": pc.ep.policy_digest(policy),
+            **{name: policy[name] for name in ("quality", "handoff", "delivery")}})
+        features = self.root / "docs/product/features"
+        features.mkdir(parents=True)
+        tags = "@platform:cli @auth:none @env:local"
+        feature = (
+            "Feature: Evaluated answers\n\n  Background:\n    Given the parent operator\n\n"
+            f"  @TEST-001 {tags}\n  Scenario: Full quality run\n"
+            "    When the parent runs the full eval at the candidate\n"
+            "    Then the run used the approved inputs\n    And every planned trial completed\n"
+            "    And the overall rate meets the frozen minimum\n    And every slice meets its minimum\n"
+            "    And every critical case passed all trials\n\n"
+            f"  @TEST-002 {tags}\n  Scenario: Clean checkout run\n"
+            "    When the parent runs the delivered runner from a clean checkout\n"
+            "    Then the handoff run passes\n")
+        (features / "eval.feature").write_text(feature, encoding="utf-8")
+        context = execution()
+        profile = {"schema": "acceptance-profile/1", "platform": "cli", "auth_mode": "none", "environment": "local",
+                   "build": {"build_id": "fixture-eval-1", "config_digest": "b" * 64}, "fixtures": [],
+                   "execution": {key: context[key] for key in ("target", "device", "os", "initial_data",
+                                                               "expected_side_effects", "dependency_mode")}}
+        profile["execution"]["persona"] = {key: context["persona"][key] for key in ("tenant", "account_state")}
+        (self.root / "profile.json").write_text(json.dumps(profile), encoding="utf-8")
+        (self.root / "docs/product").mkdir(parents=True, exist_ok=True)
+        (self.root / "docs/product/PRD.md").write_bytes(prd_bytes)
+        register = self.root / "docs/verification/delivery-acceptance.json"
+        with redirect_stdout(io.StringIO()) as output:
+            code = render_main(["--prd", str(self.root / "docs/product/PRD.md"), "--features", str(features),
+                                "--profile", str(self.root / "profile.json"), "--out", str(register)])
+        self.assertEqual(0, code, output.getvalue())
+        rendered = json.loads(register.read_text(encoding="utf-8"))
+        quality = rendered["tests"][0]["scenarios"][0]["execution"]["assertions"]
+        self.assertEqual(["the run used the approved inputs", "every planned trial completed",
+                          "the overall rate meets the frozen minimum", "every slice meets its minimum",
+                          "every critical case passed all trials"], [quality[key] for key in QUALITY_KEYS])
+        files["docs/verification/delivery-acceptance.json"] = register.read_bytes()
+        self.materialize(files)
+        self.assertEqual([], self.check())
+
+        (features / "eval.feature").write_text(feature.replace("    Then the handoff run passes\n",
+                                                               "    Then the handoff run passes\n    And it is fast\n"),
+                                               encoding="utf-8")
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(1, render_main(["--prd", str(self.root / "docs/product/PRD.md"), "--features", str(features),
+                                             "--profile", str(self.root / "profile.json"), "--out", str(register)]))
+        self.assertIn("eval.feature:16: eval handoff scenario needs exactly 1 Then steps", output.getvalue())
+
+        (features / "eval.feature").write_text(feature, encoding="utf-8")
+        (self.root / "docs/product/PRD.md").write_text(prd(self.policy), encoding="utf-8")
+        with redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(1, render_main(["--prd", str(self.root / "docs/product/PRD.md"), "--features", str(features),
+                                             "--profile", str(self.root / "profile.json"), "--out", str(register)]))
+        self.assertIn("eval-policy quality scenario eval-quality (TEST-001) is not a scenario in the feature files",
+                      output.getvalue())
 
     def check(self, plan=None, run=None):
         return pc.validate_eval_plan(plan or self.plan, self.root, run=run or self.run,
