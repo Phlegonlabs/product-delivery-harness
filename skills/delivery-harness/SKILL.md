@@ -100,24 +100,22 @@ These rules apply to both routes:
 
 ## Direct Route
 
-For small work:
-
-For initial product implementation, read [Initial Product Foundations](references/initial-product-foundations.md) and order prerequisites before dependent features; the [Surface Catalog](references/surface-catalog.md) lists every surface class and its required early missions.
-Implement local hooks first; record fixed-build external setup as separately authorized action rows from `references/external-setup.md` in `docs/DEPLOYMENT.md`, and keep deployment operations separate.
+For initial product implementation, read [Initial Product Foundations](references/initial-product-foundations.md) and order prerequisites before dependent features; the [Surface Catalog](references/surface-catalog.md) lists each surface class's required early missions.
+Implement local hooks first; record fixed-build external setup as separately authorized action rows from `references/external-setup.md` in `docs/DEPLOYMENT.md`; deployment operations stay separate.
 
 For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](references/execution-task-decomposition.md#early-journey-and-engineering-evidence) within existing tasks and checks.
 
 1. Inspect the bounded component and relevant instructions.
-   Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task, including direct work.
-2. When work consumes a package produced by `product-definition-builder`, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance.
-3. Probe the toolchain, browser and reviewer route once (a failed row is an `environment` block), then run the focused checks selected from changed files, including security tests.
+   Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task.
+2. For a `product-definition-builder` package, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance. When feature files exist, render the acceptance register (`scripts/render_delivery_acceptance.py`) and record its hash before implementing.
+3. Probe the toolchain, browser and reviewer route once (a failed row is an `environment` block), then run focused checks selected from changed files, security tests included.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set, triaged into blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
+6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set of blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
 8. Perform only remaining authorized Git actions.
 
-A text-only markup/style review makes no visual PASS claim and cannot close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
+A text-only markup/style review cannot claim a visual PASS or close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
 
 ## Managed Stage Routing
 

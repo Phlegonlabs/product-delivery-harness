@@ -26,7 +26,7 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "docs_reading_budget.py", "docs_weight.py",
         "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
         "new_run.py", "parity_capture.py", "push_archived_candidate.py",
-        "render_review_packet.py", "render_tasks_view.py", "review_input.py", "select_ready_nodes.py",
+        "render_delivery_acceptance.py", "render_review_packet.py", "render_tasks_view.py", "review_input.py", "select_ready_nodes.py",
         "select_verifiers.py", "validate_harness_plan.py", "validate_node_result.py",
         "validate_result.py", "validate_worker_result.py", "verifier_runtime.py",
     },
@@ -35,7 +35,7 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "check_type_scale.py", "render_design_system_preview.py",
     },
     "product-definition-builder": {
-        "check_outcome_review.py", "check_product_package.py",
+        "check_feature_coverage.py", "check_outcome_review.py", "check_product_package.py",
         "check_review_translations.py",
     },
     "ui-design-builder": {

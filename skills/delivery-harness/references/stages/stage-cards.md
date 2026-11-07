@@ -35,18 +35,19 @@ python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" --agents-
 
 The route is `large`, the intent is plan-backed, and no current PLAN/RUN pair exists.
 
-Author PLAN by hand from `assets/templates/HARNESS_PLAN.template.md`. Freeze every needed source with its exact path and `content_sha256` digest. Map one feature batch to one mission; never bundle unrelated features. Plan one combined review node on the unified candidate and list every lens its diff needs. Record `security_review.status` as `required`, or `not_applicable` with a concrete non-code reason. Give each executable task one atomic commit boundary and one verifier. Add `--prd` only when the PLAN freezes a PRD source. Validate the candidate, then generate RUN; generation grants nothing.
+Author PLAN by hand from `assets/templates/HARNESS_PLAN.template.md`. When the package has feature files, render the acceptance register first. Freeze every needed source, the register and feature files included, with its exact path and `content_sha256` digest. Map one feature batch to one mission; never bundle unrelated features. Plan one combined review node on the unified candidate and list every lens its diff needs. Record `security_review.status` as `required`, or `not_applicable` with a concrete non-code reason. Give each executable task one atomic commit boundary and one verifier. Add `--prd` only when the PLAN freezes a PRD source. Validate the candidate, then generate RUN; generation grants nothing.
 
 **Commands in order**
 
 ```text
+python "<delivery-harness-skill-root>/scripts/render_delivery_acceptance.py" --prd <PRD.md> --features <features-dir> --profile <acceptance-profile.json> --out <delivery-acceptance.json>
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --repo-root <root> --prd <PRD.md>
 python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run-id <id> --branch <branch-ref> --out <RUN.md> --repo-root <root>
 ```
 
 **Stop when**
 
-- The validator exits non-zero.
+- The render or the validator exits non-zero.
 - A frozen digest does not match current bytes.
 - One mission bundles unrelated features or journeys.
 - `new_run.py` refuses because `<RUN.md>` exists.

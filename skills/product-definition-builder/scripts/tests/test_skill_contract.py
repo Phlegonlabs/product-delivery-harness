@@ -1232,7 +1232,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
-            "only `Required`, `Selected`, or `Approved` executable stack rows",
+            "only `Required`, `Selected` or `Approved` executable stack rows",
             skill,
         )
         self.assertIn(
@@ -1371,6 +1371,62 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("This decides destinations, not framework", interview)
         self.assertIn("Target operating systems", mobile)
         self.assertIn("Target operating systems, code-sharing strategy", mobile)
+
+    def test_feature_files_make_test_obligations_executable(self) -> None:
+        contract = self.read("references/output-contract.md")
+        reading = contract.split("## How To Read This Package", 1)[1].split("## `PRD.md`", 1)[0]
+        self.assertIn("| `features/<scope>.feature` |", reading)
+        tests = contract.split("## Test Obligations", 1)[1].split("## UI Design Handoff Status", 1)[0]
+        for rule in (
+            "Every `Required: Yes` row needs at least one scenario",
+            "`assets/templates/FEATURE.template.feature`",
+            "exactly one `@TEST-*` tag",
+            "`<TEST-ID>/<slug of the scenario name>`",
+            "Given holds the persona and initial data, When the ordered actions, Then the assertions `ASSERT-001..` in order",
+            "`@platform:`, `@auth:` and `@env:` tags override the run profile",
+            "Scenario Outline, Examples, Rule, doc strings, data tables and non-English keywords are not supported",
+            "Feature text is owner-approved product content",
+            "step definitions are implementation code",
+        ):
+            self.assertIn(rule, tests)
+        toolchain = contract.split("## CLI and Toolchain Decision", 1)[1].split("## Backend and Data", 1)[0]
+        self.assertIn("| BDD runner |", toolchain)
+        for runner in ("pytest-bdd", "cucumber-js", "Reqnroll"):
+            self.assertIn(runner, toolchain)
+        completeness = contract.split("### Completeness", 1)[1].split("### Publication", 1)[0]
+        self.assertIn("--features <staged features directory>", completeness)
+        self.assertIn("Each staged scenario states its TEST row's behavior", completeness)
+
+    def test_feature_files_are_drafted_checked_and_published_with_the_prd(self) -> None:
+        stage = self.read(STAGE)
+        lifecycle = self.read("references/artifact-lifecycle.md")
+        draft = stage.split("\n12. ", 1)[1].split("\n13. ", 1)[0]
+        for rule in ("`features/<scope>.feature`", "`product.feature` for `standard` and `mvp`",
+                     "one file per module scope token in lowercase (`inv.feature`)", "`program.feature`"):
+            self.assertIn(rule, draft)
+        for step in ("\n15. ", "\n19. "):
+            body = stage.split(step, 1)[1].split("\n", 1)[0]
+            self.assertIn("--eval-policy eval-policy/1 --features <staged features directory>", body)
+        self.assertIn("its feature files", stage.split("\n20. ", 1)[1].split("\n", 1)[0])
+        locations = lifecycle.split("## Resolve Locations", 1)[1].split("## Inventory Superseded Documents", 1)[0]
+        self.assertIn("`docs/product/features/<scope>.feature`, which stage, publish and archive with `PRD.md`", locations)
+        self.assertIn("lists each path with its SHA-256", locations)
+        staging = lifecycle.split("## Stage and Validate", 1)[1].split("## Publication Authorization Gate", 1)[0]
+        self.assertIn("including `features/`", staging)
+        self.assertIn("--eval-policy eval-policy/1 --features <staged features directory>", staging)
+        self.assertIn("\n4. Run ", staging.replace("\r\n", "\n"))
+        self.assertIn("every `docs/product/features/*.feature` in full", lifecycle)
+        self.assertIn("its changed feature files", lifecycle)
+
+    def test_entry_points_name_feature_files_and_the_coverage_checker(self) -> None:
+        skill = self.read("SKILL.md")
+        self.assertIn("tests with executable scenarios", skill)
+        self.assertIn("`PRD.md` with its feature files", skill)
+        self.assertIn("`scripts/check_feature_coverage.py`", skill)
+        prompt = " ".join(self.read("agents/openai.yaml").split())
+        for phrase in ("four bounded free-text interview turns", "PRD.md with its feature files",
+                       "plus --features for a new package", "check_feature_coverage.py"):
+            self.assertIn(phrase, prompt)
 
 
 if __name__ == "__main__":

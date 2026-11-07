@@ -22,7 +22,7 @@ SKILL_NAMES = (
     "design-system-compiler",
     "growth-review",
 )
-IGNORED_PARTS = {"__pycache__", "tests"}
+IGNORED_PARTS = {"__pycache__", ".pytest_cache", "tests"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_BUNDLE_BYTES = 128 * 1024 * 1024

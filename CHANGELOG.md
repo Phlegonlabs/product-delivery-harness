@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.75.1. Current releases are in [README.md](README.md#version-history).
+English release history through 0.75.2. Current releases are in [README.md](README.md#version-history).
+
+- **0.75.2** — Thinner reading. `docs_reading_budget.py` measures the words an agent must read before acting at each entry point (mandatory vs conditional links, `--budget N` for CI). Seven references were compressed without removing a rule: the PRD output contract, verification gates, the execution state model, design input updates, the UI output contract, the architecture playbook and the interview guide (about 8,600 words cut); `design-input-updates.md` is now read only for UI work, which takes 3.7k words off every direct and managed run. The counted total is below v0.74.1 despite this week's additions.
 
 - **0.75.1** — Thinner by default. Pin-only guides (`legacy-pins.md`, the retired `ui-design/2` wireframe guide) move under `references/legacy/`, are read only when a package pins an earlier version, and no longer count toward the docs weight (6,481 words excluded; they still install). `docs_duplicates.py` finds sentences repeated across skill files and can hold a line in CI with `--fail-over`.
 

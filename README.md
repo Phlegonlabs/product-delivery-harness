@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.76.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.77.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -45,10 +45,10 @@ UI work also needs the exact external `frontend-design` and `impeccable` trees i
 
 | Your starting point | Skill | Result |
 | --- | --- | --- |
-| Product idea | `product-definition-builder` | Approved PRD, architecture, stack and TEST obligations |
+| Product idea | `product-definition-builder` | Approved PRD, architecture, stack, TEST obligations and BDD feature files |
 | Approved Product Definition with UI (design can start after the Product Thesis with an optional exploration round) | `ui-design-builder` | Directions, journey maps, complete HiFi, browser evidence and Visual Approval |
 | Approved HiFi requiring a design system | `design-system-compiler` | Frozen pair and source-bound derived HTML |
-| Scoped implementation or maintenance | `delivery-harness` | Direct work or managed PLAN/RUN; UI missions follow the approved journeys |
+| Scoped implementation or maintenance | `delivery-harness` | Direct work or managed PLAN/RUN; acceptance scenarios rendered from the PRD feature files; UI missions follow the approved journeys |
 | Released product with any discoverable surface | `growth-review` | Read-only per-surface growth review with routed follow-ups |
 
 All five core skills and four standalone skills require an explicit request naming the skill, such as `$delivery-harness`. Continuing an already requested workflow is allowed. Ordinary tasks do not start Harness routing, document sync, Epic records or PLAN/RUN. Installation and existing project artifacts do not opt a task in. A requested skill retains its required checks and dependencies; a new top-level stage needs an explicit request. Codex metadata sets `allow_implicit_invocation: false`; other hosts follow the same instruction boundary.
@@ -60,7 +60,7 @@ For relevant choices or adopted decisions needing context, use [reference select
 Use `$skill-name` in Codex, or ask your host for the named skill. State the exact write scope and local or remote outcome.
 
 ```text
-Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests, and Product Definition Approval. Stop before UI design.
+Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests with their feature files, and Product Definition Approval. Stop before UI design.
 ```
 
 ```text
@@ -87,10 +87,10 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | Owns |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, research, per-round PRD deltas and Product Definition Approval; the `program` delivery profile for many-module products (program PRD plus one [module package](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md) each, validated per module), the [AI feature contract](skills/product-definition-builder/references/ai-feature-contract.md) and the modular monolith pattern for many-module products |
+| `product-definition-builder` | `PRD.md` with `## Ambition`, the At a Glance `Shape` row and `## Growth Contract`, `architecture.md`, `stack-decisions.md`, feature files in `docs/product/features/`, research, per-round PRD deltas and Product Definition Approval; the `program` delivery profile for many-module products (program PRD plus one [module package](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md) each, validated per module), the [AI feature contract](skills/product-definition-builder/references/ai-feature-contract.md) and the modular monolith pattern for many-module products |
 | `ui-design-builder` | `docs/design/ui-design.md`, direction studies and the approved complete HiFi package |
 | `design-system-compiler` | Frozen `design-system.md` / `design-system.json` and `design-system-preview.html` |
-| `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md` (including the [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) and AI provider setup), [performance and cost budgets](skills/delivery-harness/references/performance-and-cost-budget.md), native verification that cleans up what it built, PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
+| `delivery-harness` | Scope routing, authorization, tasks, integration, verification, the delivery-acceptance register rendered from the PRD feature files plus one run profile, the PRD delta rule that each Required TEST of a new or revised requirement needs a new or changed scenario, the security lens, external setup and measurement sources in `docs/DEPLOYMENT.md` (including the [GA4 admin setup](skills/delivery-harness/references/ga4-admin-setup.md) and AI provider setup), [performance and cost budgets](skills/delivery-harness/references/performance-and-cost-budget.md), native verification that cleans up what it built, PLAN/RUN when needed, the managed stage cards and the autonomous launch brief |
 | `growth-review` | One lens per surface from the Surface Catalog: search and answer engines, store listings, registries and directories, bot platforms and the accounts the team runs; `pre_launch`, `baseline`, Day 7 and Day 30 `growth_review` and `traffic_drop` modes, inline output |
 
 ## Standalone skills
@@ -105,11 +105,11 @@ These four complete skill directories require separate host registration; `insta
 
 ```mermaid
 flowchart LR
-  Product["Product Definition + Ambition + Growth Contract + owner approval"] --> UI["UI directions + journey maps + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
+  Product["Product Definition + Ambition + Growth Contract + feature files + owner approval"] --> UI["UI directions + journey maps + complete HiFi"] --> Design["Visual Approval + required design-system pair"]
   Product -.->|"optional R0 exploration after the Product Thesis"| UI
   Product -->|"headless or scoped enhancement or maintenance"| Harness["Direct or managed delivery"]
   Design -->|"missions follow the approved journeys"| Harness
-  Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation"] --> C["Fixed candidate C"]
+  Harness --> Review["One combined review on final SHA"] --> Tests["One broad final validation + acceptance register"] --> C["Fixed candidate C"]
   C -->|managed| A["Managed only: archive-only A"] --> Publish["Authorized candidate publication + Preview when needed"]
   C -->|direct| Publish
   Publish --> Main["Separately authorized exact-SHA main landing"] --> Setup["External setup readback per target"] --> Outcome["Measured outcome + optional growth review"]
@@ -126,10 +126,11 @@ The delivery core makes one size decision: one writer and one coherent verificat
 - [Entry and handoff](skills/delivery-harness/references/governance/task-and-handoff.md): inspect current instructions and sources; unknown loaded identity stays unknown. Resume a managed run from the inspector's `Next` block; a stale `running` RUN needs an owner decision first, and an autonomous run starts from a signed launch brief.
 - [Delegation](skills/delivery-harness/references/delegation-contract.md): agent configuration and AGENTS choose executors, models, effort and fallback. One writer owns each checkout; assigned workers never delegate. Briefs and review packets are sized to the route's time, turn and byte caps before launch. A deadline with no verdict is environment-blocked and re-dispatched as smaller scoped calls.
 - [Verification](skills/delivery-harness/references/verification-gates.md): bind required evidence to the exact candidate; missing capability or evidence stays blocked. An independent review of a browser matrix is verify-then-sample: verify the receipts, inspect FAIL and diff-flagged rows, and sample PASS rows. A browser capability probe is reused for the rest of the session. A sandboxed reviewer that cannot run git proves identity and a clean checkout through the `review_input.py` packet.
+- [Delivery acceptance](skills/delivery-harness/references/delivery-acceptance-contract.md): feature files are PRD content the owner approves; step definitions are code. The register is rendered from the feature files and never hand-edited. Changing scenario text is a product decision and goes through a PRD delta; changing only step definitions is a small fix on the existing Epic. The BDD runner is a stack decision.
 - [Candidate publication and promotion](skills/delivery-harness/references/branch-promotion-contract.md): preserve exact targets, action grants and remote readback; never force-push.
 - [Source maintenance](skills/delivery-harness/references/governance/source-maintenance.md): use focused atomic checks and one complete candidate matrix.
 
-Before every handoff, check source hashes, the Epic record and document consistency, and rewrite the Epic's `## Handoff` block (stage, approvals in force, remaining work, next action); every skill entry reads that block first. `docs/tasks.md` is a RUN-derived view; generated content is not hand-edited. [Document sync](skills/delivery-harness/references/document-sync-contract.md), [bounded repairs](skills/delivery-harness/references/bounded-enhancement.md) and [delivery acceptance](skills/delivery-harness/references/delivery-acceptance-contract.md) own these checks.
+Before every handoff, check source hashes, the Epic record and document consistency, and rewrite the Epic's `## Handoff` block (stage, approvals in force, remaining work, next action); every skill entry reads that block first. `docs/tasks.md` is a RUN-derived view, and `render_delivery_acceptance.py` renders the delivery-acceptance register from the feature files; generated content is not hand-edited. [Document sync](skills/delivery-harness/references/document-sync-contract.md), [bounded repairs](skills/delivery-harness/references/bounded-enhancement.md) and [delivery acceptance](skills/delivery-harness/references/delivery-acceptance-contract.md) own these checks.
 
 | Stage | Default review and stop condition |
 | --- | --- |
@@ -206,6 +207,8 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
+- **0.77.0** — Executable scenarios. Feature files under `docs/product/features/` join the PRD package and are approved with it. Each scenario carries exactly one `@TEST-*` tag, and every `Required: Yes` Test Obligation needs at least one scenario. `check_feature_coverage.py` checks both directions, and new packages add `check_product_package.py --features <dir>`. `render_delivery_acceptance.py` renders the delivery-acceptance register from the feature files plus one run profile; `@platform:`, `@auth:` and `@env:` tags override the profile for one scenario, and the register is never hand-edited. With `--features` and `--features-base`, `check_prd_delta_scope.py` rejects a new or revised delta requirement whose Required TEST has no new or changed scenario. The project AGENTS template gains a Behavior Specs section, and the Greenfield scaffold sets up the approved BDD runner (a new stack layer) with its step-definition directory. Changing scenario text is a product decision and goes through a PRD delta; changing only step definitions is a small fix on the existing Epic.
+
 - **0.76.1** — Faster review loops. A motion receipt is validated as an offline receipt of one intent at its representative target, with the allowlisted-local-pages sandbox and without the HiFi bundle's interaction, navigation and reviewer evidence, so a motion collector can pass the installed contract. A sandboxed reviewer that cannot run git proves candidate identity and a clean checkout through the parent's `review_input.py` packet (detached clone, per-scope diffs, parent status and a SHA-256 manifest of every file); a git failure with that packet is no longer an environment block. When several finding families remain after the targeted re-check, they are repaired in one consolidated repair with one scoped review point, split by path group only when the packet exceeds the route caps; the pre-review gate requires a baseline comparison control that records each case's expected transition against the bound base bytes (invalid old=accept new=reject, restored valid old=reject new=accept, retained positives accepted by both).
 
 - **0.76.0** — Faster UI review. A PRD UI surface may declare `derivedStates`, captured once at its smallest target; first-wave stress axes are sampled on representative cases; isolated repairs are capped at two scoped re-reviews. Carry-forward is by render fingerprint (geometry, computed styles and media identity) instead of page bytes; re-review and parity are diff-first with a region rule; one capture serves every observation on a case; motion evidence is three observations at one representative target. New `ui-design-builder/scripts/hifi_matrix_capture.py` drives the whole HiFi matrix in one browser context, and `parity_capture.py` loads each side once per route, classifies pairs and carries unchanged ones. Independent review of a browser matrix is verify-then-sample, packets are sized to the route before launch, browser probes are reused per session, owner acceptance closes a design round once every required check passes, and a round finishes on its entry bundle pin.
@@ -213,7 +216,5 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 - **0.75.4** — Security content review. `security-review.md` no longer allows an inline security review on the direct route, takes trust boundaries from the PRD Security Requirements rows and their `TEST-*` traces, confirms each planned boundary's denial test at the reviewed head, copies `scope` from the packet verbatim, and says how an environment-blocked attempt is recorded. The option library's index routes exact-scope review to the delivery-harness security lens instead of the retired `code-security-review`, and `security.md` puts its controls before the sources list.
 
 - **0.75.3** — Template fixes found during the 0.75.2 consumer adoption. `PROJECT_AGENTS.template.md` now points managed-run rules at `project-operating-rules.md` instead of a section the template never had; the `DEPLOYMENT.template.md` presence example no longer trips `check_deployment.py` as an unfilled placeholder; the GA4 guide says an `MS-*` row stays `available` until Realtime or DebugView shows the event.
-
-- **0.75.2** — Thinner reading. `docs_reading_budget.py` measures the words an agent must read before acting at each entry point (mandatory vs conditional links, `--budget N` for CI). Seven references were compressed without removing a rule: the PRD output contract, verification gates, the execution state model, design input updates, the UI output contract, the architecture playbook and the interview guide (about 8,600 words cut); `design-input-updates.md` is now read only for UI work, which takes 3.7k words off every direct and managed run. The counted total is below v0.74.1 despite this week's additions.
 
 Earlier releases: [CHANGELOG.md](CHANGELOG.md).

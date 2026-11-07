@@ -23,6 +23,7 @@ Generated records — one row per directory, never one row per record:
 | --- | --- | --- | --- | --- | --- |
 | `docs/epics/` | `docs/epics/` | complete enhancement | owner + harness parent | one round-outcome record per Epic with current-PRD references, not a second PRD or RUN | |
 | `docs/product/deltas/` | `docs/product/deltas/` | PRD delta pass (when required) | product-definition-builder | requirement deltas that amend the frozen PRD baseline | |
+| `docs/product/features/` | `docs/product/features/` | PRD | product-definition-builder + owner approval | Test Obligation scenarios, one `<scope>.feature` per package scope | |
 | `docs/design/ui-references/` | `docs/design/ui-references/` | Visual Approval (UI-bearing) | ui-design-builder | approved connected HiFi package per run | |
 | `docs/verification/` | `docs/verification/` | new delivery verification | harness parent + test runner | frozen acceptance expectations and exact-candidate delivery results | |
 | `docs/product/outcomes/` | `docs/product/outcomes/` | post-release outcome (when requested) | product-definition-builder + owner | immutable outcome evidence and verdict | |

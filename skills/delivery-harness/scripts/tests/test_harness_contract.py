@@ -89,6 +89,9 @@ class ContractDigestTests(unittest.TestCase):
             ignored_cache = skills / "scripts" / "__pycache__" / "mod.pyc"
             ignored_cache.parent.mkdir(parents=True)
             ignored_cache.write_bytes(b"junk")
+            pytest_cache = skills / "scripts" / ".pytest_cache" / "v" / "cache" / "nodeids"
+            pytest_cache.parent.mkdir(parents=True)
+            pytest_cache.write_text("[]\n", encoding="utf-8")
             self.assertEqual(contract_digest(skills_root), before)
             runtime_file = skills / "scripts" / "harness_step.py"
             runtime_file.parent.mkdir(parents=True, exist_ok=True)

@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.76.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.77.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -45,10 +45,10 @@ El trabajo UI también necesita los árboles externos exactos de `frontend-desig
 
 | Punto de partida | Skill | Resultado |
 | --- | --- | --- |
-| Idea de producto | `product-definition-builder` | PRD, arquitectura, stack y obligaciones TEST aprobados |
+| Idea de producto | `product-definition-builder` | PRD, arquitectura, stack, obligaciones TEST y archivos feature de BDD, todos aprobados |
 | Product Definition aprobada con UI (el diseño puede empezar tras el Product Thesis con una ronda de exploración opcional) | `ui-design-builder` | Direcciones, journey maps, HiFi completo, evidencia de navegador y Visual Approval |
 | HiFi aprobado que requiere design system | `design-system-compiler` | Par congelado y HTML derivado vinculado al origen |
-| Implementación o mantenimiento acotado | `delivery-harness` | Trabajo Direct o PLAN/RUN gestionado; las missions de UI siguen los journeys aprobados |
+| Implementación o mantenimiento acotado | `delivery-harness` | Trabajo Direct o PLAN/RUN gestionado; escenarios de aceptación generados a partir de los archivos feature del PRD; las missions de UI siguen los journeys aprobados |
 | Producto publicado con alguna superficie descubrible | `growth-review` | Revisión de crecimiento por superficie, de solo lectura, con seguimientos asignados |
 
 Los cinco skills centrales y los cuatro independientes requieren una petición explícita que nombre el skill, como `$delivery-harness`. Se permite continuar un flujo ya solicitado. Las tareas ordinarias no inician rutas Harness, sincronización documental, registros Epic ni PLAN/RUN. La instalación y los documentos existentes no activan el flujo. El skill solicitado conserva sus controles y dependencias; una nueva etapa principal requiere una petición explícita. Codex usa `allow_implicit_invocation: false`; los demás hosts respetan el mismo límite.
@@ -60,7 +60,7 @@ Usa la [selección de referencias](skills/delivery-harness/references/reference-
 Usa `$skill-name` en Codex o pide el skill por nombre en tu host. Indica el alcance exacto de escritura y el resultado local o remoto.
 
 ```text
-Usa $product-definition-builder para definir este producto, incluyendo arquitectura frontend/backend completa, decisiones de data/auth/deployment, stack coherente, comportamiento UI, release targets, tests y Product Definition Approval. Detente antes del diseño de UI.
+Usa $product-definition-builder para definir este producto, incluyendo arquitectura frontend/backend completa, decisiones de data/auth/deployment, stack coherente, comportamiento UI, release targets, tests con sus archivos feature y Product Definition Approval. Detente antes del diseño de UI.
 ```
 
 ```text
@@ -87,10 +87,10 @@ Usa $growth-review para leer cada superficie de este producto publicado con su p
 
 | Skill | Responsabilidad |
 | --- | --- |
-| `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, investigación, deltas de PRD por ronda y Product Definition Approval; el perfil de entrega `program` para productos de muchos módulos (PRD de programa más un [paquete por módulo](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md), validado por módulo), el [contrato de funciones de IA](skills/product-definition-builder/references/ai-feature-contract.md) y el patrón de monolito modular para productos de muchos módulos |
+| `product-definition-builder` | `PRD.md` con `## Ambition`, la fila `Shape` del At a Glance y `## Growth Contract`, `architecture.md`, `stack-decisions.md`, archivos feature en `docs/product/features/`, investigación, deltas de PRD por ronda y Product Definition Approval; el perfil de entrega `program` para productos de muchos módulos (PRD de programa más un [paquete por módulo](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md), validado por módulo), el [contrato de funciones de IA](skills/product-definition-builder/references/ai-feature-contract.md) y el patrón de monolito modular para productos de muchos módulos |
 | `ui-design-builder` | `docs/design/ui-design.md`, estudios de dirección y paquete HiFi completo aprobado |
 | `design-system-compiler` | `design-system.md` / `design-system.json` congelados y `design-system-preview.html` |
-| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md` (incluidas la [configuración de administración de GA4](skills/delivery-harness/references/ga4-admin-setup.md) y la del proveedor de IA), [presupuestos de rendimiento y coste](skills/delivery-harness/references/performance-and-cost-budget.md), verificación nativa que limpia lo que construyó, PLAN/RUN cuando hace falta, las stage cards del modo gestionado y el launch brief para ejecución autónoma |
+| `delivery-harness` | Selección de ruta, autorización, tareas, integración, verificación, el registro de aceptación de entrega generado a partir de los archivos feature del PRD y un perfil de ejecución, la regla del delta del PRD que exige un escenario nuevo o cambiado para cada Required TEST de un requisito nuevo o revisado, la lente de seguridad, configuración externa y fuentes de medición en `docs/DEPLOYMENT.md` (incluidas la [configuración de administración de GA4](skills/delivery-harness/references/ga4-admin-setup.md) y la del proveedor de IA), [presupuestos de rendimiento y coste](skills/delivery-harness/references/performance-and-cost-budget.md), verificación nativa que limpia lo que construyó, PLAN/RUN cuando hace falta, las stage cards del modo gestionado y el launch brief para ejecución autónoma |
 | `growth-review` | Una lente por superficie según el Surface Catalog: motores de búsqueda y de respuestas, listados de tiendas, registries y directorios, plataformas de bots y las cuentas que gestiona el equipo; modos `pre_launch`, `baseline`, `growth_review` de Day 7 y Day 30 y `traffic_drop`, salida inline |
 
 ## Skills independientes
@@ -105,11 +105,11 @@ Estos cuatro directorios completos requieren registro separado en el host; `inst
 
 ```mermaid
 flowchart LR
-  Product["Product Definition, Ambition y Growth Contract con aprobación del owner"] --> UI["Direcciones UI, journey maps y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
+  Product["Product Definition, Ambition, Growth Contract y archivos feature con aprobación del owner"] --> UI["Direcciones UI, journey maps y HiFi completo"] --> Design["Visual Approval y par de diseño obligatorio"]
   Product -.->|"ronda de exploración R0 opcional tras el Product Thesis"| UI
   Product -->|"sin UI o mejora o mantenimiento acotado"| Harness["Entrega Direct o gestionada"]
   Design -->|"las missions siguen los journeys aprobados"| Harness
-  Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia"] --> C["Candidato fijo C"]
+  Harness --> Review["Una revisión conjunta sobre el SHA final"] --> Tests["Una validación final amplia y el registro de aceptación"] --> C["Candidato fijo C"]
   C -->|managed| A["Solo Managed: archivo A"] --> Publish["Publicación autorizada y Preview aplicable"]
   C -->|direct| Publish
   Publish --> Main["Landing main exact-SHA autorizado por separado"] --> Setup["Readback de configuración externa por target"] --> Outcome["Resultados medidos y growth review opcional"]
@@ -126,10 +126,11 @@ El núcleo toma una decisión de tamaño: un escritor y una secuencia coherente 
 - [Entrada y handoff](skills/delivery-harness/references/governance/task-and-handoff.md): inspecciona instrucciones y fuentes actuales; la identidad cargada desconocida sigue siendo desconocida. Una run gestionada se reanuda desde el bloque `Next` del inspector; un RUN `running` estancado necesita antes una decisión del owner, y una run autónoma parte de un launch brief firmado.
 - [Delegación](skills/delivery-harness/references/delegation-contract.md): la configuración de agentes y AGENTS eligen executor, modelo, esfuerzo y fallback. Un escritor posee cada checkout; los workers asignados nunca delegan. Los briefs y los paquetes de revisión se dimensionan antes del lanzamiento a los límites de tiempo, turnos y bytes de la ruta. Un plazo vencido sin veredicto queda bloqueado por entorno y se vuelve a despachar como llamadas acotadas más pequeñas.
 - [Verificación](skills/delivery-harness/references/verification-gates.md): vincula la evidencia requerida al candidato exacto; capacidad o evidencia ausente sigue bloqueada. La revisión independiente de una matriz de navegador es verificar y luego muestrear: verifica los recibos, inspecciona las filas FAIL y las marcadas por diff, y muestrea las filas PASS. La sonda de capacidad del navegador se reutiliza durante el resto de la sesión. Un reviewer en sandbox que no puede ejecutar git prueba identidad y checkout limpio con el paquete de `review_input.py`.
+- [Aceptación de entrega](skills/delivery-harness/references/delivery-acceptance-contract.md): los archivos feature son contenido del PRD que aprueba el owner; las step definitions son código. El registro se genera a partir de los archivos feature y nunca se edita a mano. Cambiar el texto de un escenario es una decisión de producto y pasa por un delta del PRD; cambiar solo las step definitions es un arreglo menor en el Epic existente. El BDD runner es una decisión de stack.
 - [Publicación y promoción](skills/delivery-harness/references/branch-promotion-contract.md): conserva targets, autorizaciones y readback remoto exactos; nunca uses force-push.
 - [Mantenimiento del origen](skills/delivery-harness/references/governance/source-maintenance.md): verificaciones atómicas enfocadas y una matriz completa por candidato fijo.
 
-Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la coherencia documental, y reescribe el bloque `## Handoff` del Epic (etapa, aprobaciones vigentes, trabajo restante, siguiente acción); cada entrada de skill lee ese bloque primero. `docs/tasks.md` deriva de RUN; no se edita a mano el contenido generado. [Sincronización documental](skills/delivery-harness/references/document-sync-contract.md), [reparaciones acotadas](skills/delivery-harness/references/bounded-enhancement.md) y [aceptación de entrega](skills/delivery-harness/references/delivery-acceptance-contract.md) poseen estas reglas.
+Antes de cada handoff, comprueba hashes de origen (source hashes), el Epic y la coherencia documental, y reescribe el bloque `## Handoff` del Epic (etapa, aprobaciones vigentes, trabajo restante, siguiente acción); cada entrada de skill lee ese bloque primero. `docs/tasks.md` deriva de RUN, y `render_delivery_acceptance.py` genera el registro de aceptación de entrega a partir de los archivos feature; no se edita a mano el contenido generado. [Sincronización documental](skills/delivery-harness/references/document-sync-contract.md), [reparaciones acotadas](skills/delivery-harness/references/bounded-enhancement.md) y [aceptación de entrega](skills/delivery-harness/references/delivery-acceptance-contract.md) poseen estas reglas.
 
 | Etapa | Revisión predeterminada y condición de parada |
 | --- | --- |
@@ -206,6 +207,8 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 
 ## Historial de versiones
 
+- **0.77.0** — Escenarios ejecutables. Los archivos feature en `docs/product/features/` entran en el paquete del PRD y se aprueban con él. Cada escenario lleva exactamente una etiqueta `@TEST-*`, y cada Test Obligation `Required: Yes` necesita al menos un escenario. `check_feature_coverage.py` comprueba la cobertura en ambos sentidos, y los paquetes nuevos se validan además con `check_product_package.py --features <dir>`. `render_delivery_acceptance.py` genera el registro de aceptación de entrega a partir de los archivos feature y un perfil de ejecución; las etiquetas `@platform:`, `@auth:` y `@env:` sobrescriben el perfil para un solo escenario, y el registro nunca se edita a mano. Con `--features` y `--features-base`, `check_prd_delta_scope.py` rechaza un requisito nuevo o revisado del delta cuyo Required TEST no tenga un escenario nuevo o cambiado. La plantilla AGENTS del proyecto añade una sección Behavior Specs, y el scaffold Greenfield configura el BDD runner aprobado (una nueva capa del stack) con su directorio de step definitions. Cambiar el texto de un escenario es una decisión de producto y pasa por un delta del PRD; cambiar solo las step definitions es un arreglo menor en el Epic existente.
+
 - **0.76.1** — Ciclos de revisión más rápidos. Un recibo de motion se valida como recibo offline de una sola intención en su target representativo, con el sandbox allowlisted-local-pages y sin la evidencia de interacciones, navegación y reviewer del bundle HiFi, de modo que un colector de motion puede pasar el contrato instalado. Un reviewer en sandbox que no puede ejecutar git prueba la identidad del candidato y el checkout limpio con el paquete de `review_input.py` del padre (clon detached, diffs por alcance, status del padre y un manifiesto SHA-256 de todos los archivos); un fallo de git con ese paquete ya no es un bloqueo de entorno. Cuando quedan varias familias de hallazgos tras la re-verificación dirigida, se reparan en una sola reparación consolidada con un único punto de revisión, dividido por grupo de rutas solo cuando el paquete supera los límites de la ruta; la puerta previa a la revisión exige un control de comparación con la base que registra la transición esperada de cada caso frente a los bytes base vinculados (entrada inválida old=accept new=reject, comportamiento válido restaurado old=reject new=accept, positivos retenidos aceptados por ambos).
 
 - **0.76.0** — Revisión de UI más rápida. Una superficie UI del PRD puede declarar `derivedStates`, capturados una vez en su target más pequeño; los ejes de estrés de la primera ola se muestrean en casos representativos; las reparaciones aisladas se limitan a dos re-revisiones acotadas. El arrastre usa el render fingerprint (geometría, estilos calculados e identidad de medios) en lugar de los bytes de la página; la re-revisión y la paridad juzgan primero el diff con una regla de región; una captura sirve a toda observación de un caso; la evidencia de movimiento son tres observaciones en un target representativo. El nuevo `ui-design-builder/scripts/hifi_matrix_capture.py` recorre toda la matriz HiFi en un solo contexto de navegador, y `parity_capture.py` carga cada lado una vez por ruta, clasifica los pares y arrastra los que no cambiaron. La revisión independiente de una matriz de navegador verifica y muestrea, los paquetes se dimensionan a la ruta antes de lanzarse, las pruebas de capacidad del navegador se reutilizan por sesión, la aceptación del owner cierra la ronda de diseño cuando toda comprobación requerida pasa, y una ronda termina con el pin de bundle de su entrada.
@@ -213,7 +216,5 @@ Mantén credenciales y datos de usuario fuera del repositorio. Preserva archivos
 - **0.75.4** — Revisión del contenido de seguridad. `security-review.md` ya no permite una revisión de seguridad inline en la ruta directa, toma los trust boundaries de las filas de Security Requirements del PRD y sus trazas `TEST-*`, confirma la prueba de denegación de cada boundary planificado en el head revisado, copia `scope` del packet tal cual y explica cómo se registra un intento bloqueado por el entorno. El índice de la option library dirige la revisión de alcance exacto al security lens de delivery-harness en lugar del retirado `code-security-review`, y `security.md` coloca sus controles antes de la lista de fuentes.
 
 - **0.75.3** — Correcciones de plantillas detectadas en la adopción de 0.75.2. `PROJECT_AGENTS.template.md` apunta ahora las reglas de runs gestionadas a `project-operating-rules.md` en lugar de una sección que la plantilla nunca tuvo; el ejemplo de presence de `DEPLOYMENT.template.md` ya no lo marca `check_deployment.py` como placeholder sin rellenar; la guía de GA4 indica que una fila `MS-*` queda en `available` hasta que Realtime o DebugView muestran el evento.
-
-- **0.75.2** — Lectura más ligera. `docs_reading_budget.py` mide las palabras que un agente debe leer antes de actuar en cada punto de entrada (enlaces obligatorios y condicionales por separado, `--budget N` para CI). Siete referencias se comprimieron sin eliminar ninguna regla: el output contract del PRD, las verification gates, el modelo de estado de ejecución, design input updates, el output contract de UI, el architecture playbook y la guía de entrevista (unas 8.600 palabras menos); `design-input-updates.md` se lee ahora solo para trabajo de UI, lo que quita 3,7k palabras a cada run directa y gestionada. El total contado queda por debajo de v0.74.1 pese a las adiciones de esta semana.
 
 Versiones anteriores: [CHANGELOG.md en inglés](CHANGELOG.md).
