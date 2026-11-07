@@ -1,6 +1,6 @@
 # Design Input Updates
 
-Use this reference when the user provides a new or updated PRD, approved HTML wireframe, design system, design inspiration, or explicit page-faithful target for a new build or an existing app refinement.
+Use this reference when the user provides a new or updated PRD, approved HiFi, design system, design inspiration, or explicit page-faithful target for a new build or an existing app refinement.
 
 ## Design And Maintenance Routing
 
@@ -15,7 +15,7 @@ Classify every visual source before planning or implementation:
 
 For a new initial delivery or design enhancement, implementation uses the route's `UI-*` entry in `PRD.md`, current approved `ui-design.md`, the route's approved HiFi page with its embedded `ui-hifi-copy/1` copy (`ui-design/3`; a retained `ui-design/2` contract uses `ui-design/2`; a pinned wireframe contract follows [legacy pins](legacy/legacy-pins.md#legacy-ui-contracts-before-059)), and the active visual route. Static strings, action labels, feedback, and alternate-state messages are implementation-bound; dynamic examples are illustrative while their approved source/order/format/count/length/fallback contracts bind implementation. A `required` gate binds `design-system.md` and `design-system.json` together; `design-system/4` also binds its frozen derived HTML. A `not_required` gate binds the approved immutable page-faithful target instead. See `ui-implementation-contract.md`.
 
-A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply a new visual direction, token, variant, component, motion pattern, or structure directly. Return target, direction or wireframe changes to `ui-design-builder`; return product behavior, copy/display contracts or stack changes to `product-definition-builder`; return formal pair changes to `design-system-compiler`. Resume only against the revised active source.
+A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply a new visual direction, token, variant, component, motion pattern, or structure directly. Return target, direction or HiFi changes to `ui-design-builder`; return product behavior, copy/display contracts or stack changes to `product-definition-builder`; return formal pair changes to `design-system-compiler`. Resume only against the revised active source.
 
 ```text
 1. Identify source type and version.
@@ -35,7 +35,7 @@ A `frontend-design` result produced or requested during implementation is a prop
 Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
 Updated UI Design Intake: changed experience priority, guidance/control, density, interaction/layout, style, motion/media, references, validation depth, decision owner, or decision status
 Updated PRD UI surface contract: screen structure, navigation, page regions, content responsibilities, actions, state coverage, and per-screen copy status
-Updated validated wireframe: `wireframes.html` covering region order, grouping, element inventory, state placement, section labels, page switching, responsive rearrangement, exact static/action/feedback/alternate-state copy, dynamic display contracts, and copy completeness tied to `UI-*`, with internal Wireframe Validation recorded in `ui-design.md` for schema 5 (legacy approvals retain their meaning)
+Updated approved HiFi: `ui-hifi/2` pages and the embedded `ui-hifi-copy/1` record, with HiFi Review and Visual Approval recorded in `ui-design.md`
 Updated design system: tokens, typography, spacing, radius, color, added/removed primitives, changed closed variant sets, interaction states, motion variants, product components, content contracts, state matrix, responsive set
 Design inspiration: screenshot, image, Figma frame, website, named product, or visual reference used only for confirmed design principles
 Page-faithful target: version-bound screenshot, Figma frame, mockup, handoff spec, or page target the user explicitly requires the implementation to match
@@ -71,12 +71,12 @@ Rules:
 
 - A delta can add, modify, or explicitly remove behavior. Record superseded requirements; do not silently drop existing behavior.
 - A UI delta that changes visual values must record the styles, classes, and values it supersedes and name every call site where the implementation removes them. Carrying a superseded style into the accepted delta's implementation is a contract violation.
-- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Update the affected PRD `` `copy` `` anchors. In an active initial design or enhancement, return affected schema-5 copy items and screen `copyStatus` to draft, re-check text reflow across every affected responsive target and state, and renew Product Definition Approval, copy completeness, Wireframe Validation and affected Visual Approval before implementation. In routine maintenance, update effective requirements and the product with focused verification; do not regenerate historical design artifacts solely to match an accepted change.
+- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Update the affected PRD `` `copy` `` anchors. In an active initial design or enhancement, return the affected `ui-hifi-copy/1` items and surface `copyStatus` to draft, re-check reflow across every affected responsive target and state, and renew Product Definition Approval, the full HiFi copy review and affected Visual Approval before implementation. In routine maintenance, update effective requirements and the product with focused verification; do not regenerate historical design artifacts solely to match an accepted change.
 - A backend or app delta must record the endpoints, business rules, queries, migrations, flags, jobs, and configuration it supersedes and name every call site where the implementation removes them, or record an explicit owner-accepted reason when a superseded surface is retained for compatibility.
 - Design-system deltas must map to affected components and variants and name every route that uses the changed entry. A delta that removes an entry must state what replaces it at each call site; an entry that disappears from `design-system.json` while a route still uses it is a break, not a cleanup.
 - When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. For `design-system/4`, regenerate and freeze the derived HTML from the accepted pair and bound sources. When it is `not_required`, a target change returns to `ui-design-builder` and Human Visual Approval. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
-- In active initial design or enhancement, new product behavior, wording, and dynamic display-contract decisions return to `product-definition-builder`; copy completeness, wireframe, style, motion/media, and HiFi-target deltas return to `ui-design-builder`. Renew the applicable decisions and checks on the affected scope. Routine maintenance follows the accepted current product and effective requirements without rewriting historical visual approvals.
+- In active initial design or enhancement, new product behavior, wording, and dynamic display-contract decisions return to `product-definition-builder`; copy completeness, style, motion/media, and HiFi-target deltas return to `ui-design-builder`. Renew the applicable decisions and checks on the affected scope. Routine maintenance follows the accepted current product and effective requirements without rewriting historical visual approvals.
 - A legacy two-target web responsive set follows [legacy pins](legacy/legacy-pins.md#legacy-ui-contracts-before-059) before its package is next edited or re-validated.
 - UI Design Intake deltas preserve their human owner, map to affected `UX-*`, `UI-*`, `MM-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
@@ -152,7 +152,7 @@ This flow is primary whenever an updated input exists. When no updated PRD, desi
 
 Stop and ask when:
 
-- Updated PRD UI surface entries or wireframes conflict with other updated product requirements.
+- Updated PRD UI surface entries or HiFi pages conflict with other updated product requirements.
 - UI Design Intake conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
 - An updated required design system conflicts with the approved page-faithful target.
 - A page-faithful target omits required states, breakpoints, source version, or tolerance.
@@ -262,7 +262,7 @@ M5 regression verification
 
 For small accepted refinements, skip worktrees and run direct work with before/after evidence. Use worktrees when several accepted refinements can run independently or when the parent checkout must remain stable.
 
-Every refinement mission that touches UI records its UI-impact classification — `none`, `style`, `structure`, or `both` — in its result under the same rule as `ui-implementation-contract.md`. A refinement that changes regions, states, actions, routes, or responsive behavior is structural: route the affected wireframe and UI target through `ui-design-builder` before integration. New product behavior, wording, display contracts or stack decisions first return to `product-definition-builder`.
+Every refinement mission that touches UI records its UI-impact classification — `none`, `style`, `structure`, or `both` — in its result under the same rule as `ui-implementation-contract.md`. A refinement that changes regions, states, actions, routes, or responsive behavior is structural: route the affected HiFi target through `ui-design-builder` before integration. New product behavior, wording, display contracts or stack decisions first return to `product-definition-builder`.
 
 ### Regression Protection
 
