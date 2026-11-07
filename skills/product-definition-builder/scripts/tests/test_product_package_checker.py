@@ -15,6 +15,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_product_package  # noqa: E402
 import contract_utils  # noqa: E402
+import eval_fixtures  # noqa: E402
+import eval_policy  # noqa: E402
 from git_evidence import GitEvidenceError, verify_revision_path  # noqa: E402
 from prd_ui_contract import validate_prd_wireframe_data  # noqa: E402
 from release_targets import is_public_web_target, parse_release_targets  # noqa: E402
@@ -4102,6 +4104,63 @@ class FeaturesFlagTests(unittest.TestCase):
                 strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())[2], encoding="utf-8"
             )
             self.assertEqual((0, ""), run()[0::2])
+
+
+class EvalScenarioIdTests(unittest.TestCase):
+    """With --features and --eval-policy, a `<TEST-ID>/<slug>` policy scenario id must be a feature scenario."""
+
+    FEATURE = (
+        "Feature: Fixture\n"
+        "  @TEST-001\n  Scenario: Answer quality\n    When the owner runs the eval\n    Then the frozen rate passes\n"
+        "  @TEST-002\n  Scenario: Clean checkout run\n    When the owner reruns it\n    Then the full run passes\n"
+        "  @TEST-003\n  Scenario: Cover TEST-003\n    When the owner runs the fixture\n    Then completion is observed\n"
+    )
+    RENAMED = FEATURE.replace("Answer quality", "Score answers")
+
+    def check(self, feature: str, *, quality: str = "TEST-001/answer-quality",
+              features: bool = True, policy: bool = True) -> list[str]:
+        block, _ = eval_fixtures.inputs()
+        block["quality"]["scenario_id"] = quality
+        block["handoff"]["scenario_id"] = "TEST-002/clean-checkout-run"
+        text = eval_fixtures.prd(block)
+        text = text[text.index(eval_policy.START):text.index(eval_policy.END) + len(eval_policy.END)]
+        prd = valid_prd().replace("## Business Rules", text + "\n## Business Rules", 1)
+        texts = strictize_approved_package(prd, valid_architecture(), bdd_stack())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "product.feature").write_text(feature, encoding="utf-8")
+            problems = check_product_package.validate_texts(
+                *texts,
+                require_filled=True,
+                features_dir=root if features else None,
+                eval_policy="eval-policy/1" if policy else None,
+            )
+        return [problem.replace(root.as_posix() + "/", "") for problem in problems]
+
+    def test_found(self) -> None:
+        self.assertEqual([], self.check(self.FEATURE))
+
+    def test_missing(self) -> None:
+        self.assertEqual(
+            ["prd: eval-policy quality scenario TEST-001/answer-quality is not in the feature files; "
+             "expected a scenario tagged @TEST-001"],
+            self.check(self.RENAMED),
+        )
+
+    def test_wrong_tag(self) -> None:
+        moved = self.RENAMED.replace("Cover TEST-003", "Answer quality")
+        self.assertEqual(
+            ["prd: eval-policy quality scenario TEST-001/answer-quality is tagged @TEST-003 "
+             "(product.feature:11); expected @TEST-001"],
+            self.check(moved),
+        )
+
+    def test_legacy_id_is_not_checked(self) -> None:
+        self.assertEqual([], self.check(self.RENAMED, quality="eval-quality"))
+
+    def test_needs_both_flags(self) -> None:
+        self.assertEqual([], self.check(self.RENAMED, features=False))
+        self.assertEqual([], self.check(self.RENAMED, policy=False))
 
 
 if __name__ == "__main__":
