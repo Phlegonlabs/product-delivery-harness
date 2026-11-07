@@ -66,7 +66,6 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def test_compilation_uses_frontend_design_without_reopening_direction(self) -> None:
         skill = self.read("SKILL.md")
         stage = self.read(STAGE)
-        guide = self.read("references/design-system-guide.md")
         agent = self.read("agents/openai.yaml")
 
         for content in (skill, stage, agent):
@@ -113,7 +112,6 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def test_design_pair_is_minimal_and_reconciled_to_approved_sources(self) -> None:
         stage = self.read(STAGE)
         guide = self.read("references/design-system-guide.md")
-        contract = self.read("references/output-contract.md")
         template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
 
