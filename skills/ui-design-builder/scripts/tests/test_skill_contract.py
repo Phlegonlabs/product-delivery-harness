@@ -2,12 +2,16 @@
 
 import shutil
 import subprocess
+import sys
 import unittest
 import re
 from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 UI_STAGE = "references/stages/ui-design.md"
+sys.path.insert(0, str(SKILL_ROOT / "scripts"))
+import check_ui_design_contract as checker  # noqa: E402
+import ui_design_v3  # noqa: E402
 
 
 class UiDesignBuilderSkillContractTests(unittest.TestCase):
@@ -325,6 +329,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("H8 score:", contract)
         self.assertIn("H9 score:", contract)
         self.assertIn("docs/design/design-system.md", contract)
+
+    def test_output_contract_and_prompt_match_the_mvp_profile_and_checker(self):
+        contract = self.read("references/output-contract.md").casefold()
+        values = (checker.VALID_DIRECTION_MODES | checker.VALID_DIRECTION_DECISIONS
+                  | ui_design_v3.V3_DIRECTION_DECISIONS | {checker.MVP_DEFERRED_DIRECTION_DECISION})
+        for value in sorted(values):
+            with self.subTest(value=value):
+                self.assertIn(value.casefold(), contract)
+        self.assertIn("covers direction: [yes", contract)
+        self.assertNotIn("always `required`", contract)
+        self.assertNotIn("always `decision: required`", contract)
+        prompt = self.read("agents/openai.yaml")
+        self.assertIn("three rendered directions by default (one under mvp)", prompt)
+        self.assertNotIn("a required design-system package", prompt)
 
     def test_repair_review_preserves_mandatory_checks_and_current_evidence(self):
         rubric = self.read("references/ui-grading-rubric.md")

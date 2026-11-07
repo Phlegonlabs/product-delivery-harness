@@ -6,7 +6,7 @@ A wireframe-free package starts `ui-design.md` with exactly one top-level marker
 
 The value is closed. A missing marker keeps the file's legacy checks and historical wireframe meaning. More than one marker, an unknown value, or a mixed current/legacy claim fails. Never add the marker to an old package afterward.
 
-`ui-design/3` keeps the ui-design/2 rules, including the default `Direction mode: three comparable directions` and the explicit owner single-direction option, and adds a `### Direction studies` table, an `Intermediate width check`, and a Need Gate that is always `required` with a closed `Package action`. Existing `ui-design/2` packages, their `not_required` decisions and `design-system/3` pairs keep their meaning. Headless products have no UI package; accepted `none`/`style` maintenance keeps its retained design sources.
+`ui-design/3` keeps the ui-design/2 rules, including the default `Direction mode: three comparable directions` and the explicit owner single-direction option, and adds a `### Direction studies` table, an `Intermediate width check`, and a Need Gate that is `required` with a closed `Package action`, except under `Delivery profile: mvp`, where it may be `not_required`. Existing `ui-design/2` packages, their `not_required` decisions and `design-system/3` pairs keep their meaning. Headless products have no UI package; accepted `none`/`style` maintenance keeps its retained design sources.
 
 `ui-hifi/2` remains the current closed HiFi package: entry, hashed sibling pages, and every non-HTML asset inline. It has no external asset-folder registry. `ui-design/3` compiles `design-system/4`; `ui-design/2` compiles `design-system/3`; legacy `design-system/2` remains readable under its original checks.
 
@@ -104,7 +104,7 @@ Decided on: [YYYY-MM-DD]
 
 Visual Preference Brief: [experience priority, guidance/control, density, layout, desired character, avoids, color/theme, typography/language, imagery/icons, references]
 
-Direction mode: [one recommended direction / three comparable directions]
+Direction mode: [three comparable directions / one recommended direction / one recommended direction (mvp)]
 
 `three comparable directions` is the default for `ui-design/3` and `ui-design/2`. `one recommended direction` requires a separate explicit owner instruction, recorded by this intake's human `Decision owner` and `Decided on`; continuing intake uncertainty or silence does not supply it. Enhancement scope with an existing accepted direction keeps the package's contract and records that retained direction (for `ui-design/3`, the approved round's studies and selection) instead of restarting selection.
 
@@ -146,11 +146,11 @@ Design author: frontend-design
 
 Selected direction: [VD-* ID, intent, confirmed REF-* / RP-* IDs]
 
-Direction decision: [approved / selected / mixed-and-approved]
+Direction decision: [approved / selected / mixed-and-approved / modified-and-approved (ui-design/3) / deferred to Visual Approval (mvp)]
 
-Direction decision owner: [human owner]
+Direction decision owner: [human owner; omitted when deferred to Visual Approval (mvp)]
 
-Direction decided on: [YYYY-MM-DD]
+Direction decided on: [YYYY-MM-DD; omitted when deferred to Visual Approval (mvp)]
 
 Candidate theme: [color, typography, spacing, shape, iconography, imagery, and motion rules used in the HiFi reference; not yet a frozen design-system pair]
 
@@ -311,6 +311,8 @@ Decided on: [YYYY-MM-DD]
 
 Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=[{"id":"UI-001","route":"/path","states":["ready"]}]|routes=["/path"]|states=["ready"]|responsive={"kind":"viewports","targets":[390,768,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser]
 
+Covers direction: [yes — only when Direction decision is deferred to Visual Approval (mvp)]
+
 For a hybrid target, each surface object additionally records `releaseSurface`, `surfaceClass`, `captureMode`, and its own `responsive` object. Use `captureMode=mixed` only with complete per-surface fields; a global mode or responsive set never substitutes for a surface's platform contract. A surface whose PRD entry declares `derivedStates` records the identical object as `derivedStates` in its surface object; the checker rejects a mismatch. The matrix of the HiFi Review receipts (Impeccable critique and audit, UI grading, HiFi surface check) then holds each derived state once, at that surface's smallest responsive target.
 
 ## Design System Need Gate
@@ -330,9 +332,9 @@ Replacement visual contract when not_required: target=[path @ sha256:hash]; ui-d
 Compiled design system pair: [markdown path @ sha256:<lowercase sha256> and json path @ sha256:<lowercase sha256>]
 
 
-A `ui-design/3` gate is always `Decision: required` and adds `Package action: compile|update|reuse`. `compile` creates a new package (disposition `none` or `retire`); `update` revises the existing `design-system/4` package (disposition `retain`); `reuse` keeps an existing complete Markdown/JSON/HTML package byte-for-byte (disposition `retain`) and publication rejects any change or missing file. The action and disposition lines are workflow linkage outside the `ui-design/3` approval digest, so switching an unchanged package to `reuse` keeps its `uiDesign` binding current; any other approval edit makes the reused package stale and needs `update`. A `design-system/3` pair lacks the full HTML package and cannot be reused.
+A `ui-design/3` gate is `Decision: required` and adds `Package action: compile|update|reuse`, except under `Delivery profile: mvp`, where `not_required` is allowed with its Reason, the Replacement visual contract and the disposition, and no Package action. `compile` creates a new package (disposition `none` or `retire`); `update` revises the existing `design-system/4` package (disposition `retain`); `reuse` keeps an existing complete Markdown/JSON/HTML package byte-for-byte (disposition `retain`) and publication rejects any change or missing file. The action and disposition lines are workflow linkage outside the `ui-design/3` approval digest, so switching an unchanged package to `reuse` keeps its `uiDesign` binding current; any other approval edit makes the reused package stale and needs `update`. A `design-system/3` pair lacks the full HTML package and cannot be reused.
 
-Use `Compiled design system pair` only for `required` and the replacement field only for retained `not_required` decisions. The compiled package consumes the approved UI contract and complete `ui-hifi/2` identities; the exact value `pending — design-system-compiler` is allowed only during the compiler preflight, and normal publication rejects it. Legacy `design-system/2` does not acquire the marker. For `not_required`, the disposition is machine-bound: `none` forbids canonical pair files, `retain` requires both pair files, and `retire` requires the pair to be archived before publication. `blocked` cannot pass publication.
+Use `Compiled design system pair` only for `required` and the replacement field only for `not_required` decisions, retained or under the mvp exception. The compiled package consumes the approved UI contract and complete `ui-hifi/2` identities; the exact value `pending — design-system-compiler` is allowed only during the compiler preflight, and normal publication rejects it. Legacy `design-system/2` does not acquire the marker. For `not_required`, the disposition is machine-bound: `none` forbids canonical pair files, `retain` requires both pair files, and `retire` requires the pair to be archived before publication. `blocked` cannot pass publication.
 ```
 
 Impeccable's heuristic scores and audit scores are diagnostic. A current `ui-design/2` package uses only the `H1`–`H9` thresholds in `ui-grading-rubric.md` to decide readiness. `W1`–`W5` and the wireframe evidence rows apply only to legacy inspection and validation.
