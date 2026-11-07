@@ -208,3 +208,33 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 - `references/verification-gates.md` — "Closeout Bar"
 - `references/execution-state-model.md` — exact RUN lifecycle values and `status: complete` conditions
 - `references/branch-promotion-contract.md` — "Managed RUN Archive Before Promotion"
+
+## Card 8: Archive, Publish And Promote
+
+**When**
+
+The RUN closed `local_only` at candidate C, and the owner asks to archive, publish or promote.
+
+Review the archive dry run, then apply it on the same run branch against a freshly read `main` SHA. Commit only the archive bookkeeping as A and revalidate the archive. Publish A only after the owner's exact instruction naming its SHA and branch: observe the remote ref, run the argv `prepare` prints, then read it back with `verify-receipt` and record it in the Epic. Promotion to `main` needs its own exact-SHA grant. Never force-push.
+
+**Commands in order**
+
+```text
+python "<delivery-harness-skill-root>/scripts/archive_run.py" --repo-root <root>
+python "<delivery-harness-skill-root>/scripts/archive_run.py" --repo-root <root> --apply --expected-main <full-sha> --main-ref <main-ref>
+python "<delivery-harness-skill-root>/scripts/push_archived_candidate.py" prepare --repo-root <root> --archive <archive-dir> --remote <name> --request-out <file>
+python "<delivery-harness-skill-root>/scripts/push_archived_candidate.py" verify-receipt --repo-root <root> --request <file>
+```
+
+**Stop when**
+
+- `archive_run.py --apply` refuses a binding, branch or `main` mismatch.
+- `prepare` rejects A's parentage, receipt or allowlist.
+- The remote ref moved unexpectedly, or the read-back is not A.
+- A candidate, preview or smoke gate fails after A.
+
+**Read when**
+
+- Archiving: `references/branch-promotion-contract.md` — "Managed RUN Archive Before Promotion"
+- Promoting: `references/branch-promotion-contract.md` — "Candidate Gate", "Promote To Main"
+- A post-A gate fails: `references/branch-promotion-contract.md` — "Post-A Candidate Or Preview Failure"
