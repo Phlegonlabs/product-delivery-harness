@@ -126,6 +126,9 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             self.assertIn("A store or signed-installer PASS needs install or download proof through the named channel", text)
             self.assertIn("uploaded, submitted or approved but not yet installable stays `pending`", text)
         self.assertNotIn("prove install/download or artifact/build identity", status + contract)
+        promotion = read("references/branch-promotion-contract.md")
+        self.assertIn("the promotion pass ends after the main-SHA artifact and submission read-back", promotion)
+        self.assertIn("moves the row to PASS without a new promotion; a changed artifact is a new candidate", promotion)
 
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so

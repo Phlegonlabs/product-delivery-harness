@@ -95,6 +95,7 @@ Never relabel inherited candidate, security or CI results as fresh executions at
 A different tree is a new candidate and needs fresh applicable checks and exact-SHA security review.
 Repair a failed landing through a new candidate and reviewed PR; never force-push or rewrite protected history.
 Hosted-browser production verifies deployed SHA and smoke; parity capture there is optional. Native, extension and desktop targets use their platform evidence.
+For a store-reviewed production target, the promotion pass ends after the main-SHA artifact and submission read-back, with its Release Target Status row `pending`. Report availability as pending the store decision; do not wait for review. A later read-only check of the same artifact moves the row to PASS without a new promotion; a changed artifact is a new candidate.
 External setup read-back, the growth review and the outcome review keep their separate post-production gates and authorization.
 Separately authorized fixed-build external setup cannot claim release readiness.
 
