@@ -301,6 +301,24 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("no delegation, model change or fallback", packet)
         self.assertIn("wall-clock <seconds>; tool turns <cap>; max_message_bytes <bytes>", packet)
 
+    def test_delivery_evidence_template_holds_only_run_observations(self) -> None:
+        fields = self.template_fields("DELIVERY_EVIDENCE.template.md")
+        self.assertEqual(
+            ["Candidate", "Command", "Runner", "Device / OS", "Date", "Build read-back", "Fixtures", "Raw log sha256"],
+            fields["Run"],
+        )
+        self.assertEqual(["Run", "<scenario_id>", "<not-run scenario_id>"], list(fields))
+        evidence = read("assets/templates/DELIVERY_EVIDENCE.template.md")
+        self.assertIn("### ASSERT-001\n\nobserved: <what the run showed>", evidence.replace("\r\n", "\n"))
+        self.assertIn("reason: <why it did not run, for a blocked or unvalidated row>", evidence)
+        for copied in ("expected:", "fixture_cleanup:", "status:"):
+            self.assertNotIn(copied, evidence)
+        self.assertIn(
+            "Shape each evidence file from `assets/templates/DELIVERY_EVIDENCE.template.md`; "
+            "a blocked or unvalidated row's file uses its not-run form.",
+            read("references/delivery-acceptance-contract.md"),
+        )
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
