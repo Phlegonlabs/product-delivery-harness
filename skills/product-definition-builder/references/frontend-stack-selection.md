@@ -2,15 +2,7 @@
 
 Use this guide for every PRD package that includes a browser frontend. The wider architecture may remain technology-neutral. This guide turns product evidence into coherent stack choices and one recommendation, then records the owner's accepted stack instead of handing an unapproved tool list to implementation.
 
-Label the decision status accurately:
-
-- `Required`: mandated by the user, organization, or hard external constraint.
-- `Selected`: already adopted by the current product or repository.
-- `Approved`: accepted by the human owner for this package, either directly or through an explicit recorded delegation.
-- `Recommended`: the PRD's evidence-backed proposal; not yet owner-approved and not executable.
-- `Provisional`: the leading choice pending named evidence or a spike.
-
-Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
+Assign status per layer; one section may mix statuses. Authority is the cited source, not a status label. Record Selection, status, cited authority/evidence, fit and constraint on every row, as `output-contract.md`'s `stack-decisions.md` section defines.
 
 ## First Separate the Layers
 
@@ -115,28 +107,17 @@ Platform-specific rule sets for these targets are not yet authored in this guide
 2. Eliminate options that cannot satisfy a hard constraint or whose current deployment support is unverified.
 3. Choose the simplest coherent stack that covers the dominant route groups without unnecessary client JavaScript or custom infrastructure.
 4. Assemble two or three coherent stack bundles from the surviving layers. Each bundle names every applicable layer, fit, tradeoffs, ownership/maintenance cost, constraints, and revisit trigger. Do not offer disconnected framework, CSS, and component menus that could produce an incoherent combination.
-5. Recommend one bundle and explain why the serious alternatives lose here. Present the recommendation and alternatives to the owner under the recorded Stack Decision Mode: approve the recommendation, select or modify layers, or apply an explicit prior delegation.
-6. For each bundle, state operating-cost assumptions, license/build-vs-buy and maintenance ownership, compatibility evidence or the time-boxed spike needed, and what would make the decision change. Do not treat a build tool or package manager as a production runtime; keep production language/runtime separate from build and dependency tooling.
-7. Mark accepted new choices `Approved`; preserve existing choices as `Selected` and hard constraints as `Required`. Keep an unaccepted proposal `Recommended`. Do not present advice as approved or hand `Recommended` rows to implementation.
-8. Verify current platform/framework/component/styling documentation and capture direct sources plus the check date.
-9. When evidence is missing, define a time-boxed spike that measures the uncertainty with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+5. Do not treat a build tool or package manager as a production runtime; keep production language/runtime separate from build and dependency tooling.
+6. Verify current platform, framework, component and styling documentation; record direct sources and the check date.
 
 For an enhancement, inspect the current UI and stack baseline before proposing anything. Classify the UI impact `none`, `style`, `structure`, or `both`, preserve unaffected pages and layers, and recommend technology changes only where the delta needs them. Hand affected UI IDs and constraints to `ui-design-builder` for same-content before/after studies; do not author visual directions in Product Definition. A tiny bug fix does not justify a redesign or reopen a healthy stack.
 
 ## Required Architecture Record
 
-The `Frontend Technology Decision` section in `stack-decisions.md` must include:
+Fill the `Frontend Technology Decision` template in [`output-contract.md`](output-contract.md#stack-decisionsmd), and also record:
 
-- Product evidence and hard constraints.
-- The Stack Decision Mode, human decision owner, coherent bundles presented, selected bundle or layer overrides, delegation source when used, and the `approved`, `revision_requested`, or `blocked` Stack Decision Checkpoint result.
-- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Sections may mix `Required`, `Selected`, and `Approved`; `Recommended` and `Provisional` remain draft-only.
-- One recorded stack separated by deployment/runtime, rendering, language, package manager, framework, UI library, component foundation, styling, build tool, routing/data, and testing.
-- A route-level rendering table.
-- Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
-- Official documentation links and verification date.
-- Platform adapter/plugin, build runtime, compatibility date, asset routing, binding, auth, and local-preview constraints when applicable (Cloudflare `compatibility_date` and bindings when that is the resolved platform).
+- Platform adapter/plugin, build runtime, asset routing, auth and local-preview constraints; on Cloudflare, the `compatibility_date` and bindings.
 - For a deployable product, the deployment-unit names, release sources, isolation, migration order, deployed-environment verification, and rollback path required by Any Platform.
-- Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck
 

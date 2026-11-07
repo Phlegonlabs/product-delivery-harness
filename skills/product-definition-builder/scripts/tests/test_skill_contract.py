@@ -1336,8 +1336,13 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("headless primitives (Base UI, Radix Primitives)", frontend)
         self.assertIn("Radix Themes is a separate styled library", frontend)
         self.assertIn("two or three coherent stack bundles", frontend)
-        self.assertIn("Mark accepted new choices `Approved`", frontend)
+        self.assertIn("Mark an accepted new choice `Approved`", skill)
         self.assertIn("`Recommended` or `Provisional` blocks", skill)
+        for guide in ("frontend", "backend", "mobile"):
+            text = self.read(f"references/{guide}-stack-selection.md")
+            self.assertIn("template in [`output-contract.md`](output-contract.md#stack-decisionsmd)", text)
+            self.assertNotIn("time-boxed spike", text)
+        self.assertIn("official documentation with check date, or named spike", contract)
 
     def test_data_trust_ai_metrics_and_open_questions_are_owner_decisions(self) -> None:
         skill = self.read(STAGE)
