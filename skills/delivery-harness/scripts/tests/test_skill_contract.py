@@ -1386,8 +1386,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("default immediately after Plan Readiness", state)
         self.assertIn("Observe actual required capabilities before dispatch", state)
         self.assertIn("Observe every advertised current driver", selector)
-        self.assertIn("Observe each advertised driver", orchestration)
-        self.assertIn("no launch grant is implied", orchestration)
+        # The observation rules live once in runtime-adapters.md; the
+        # orchestration file links there.
+        self.assertIn("runtime-adapters.md#observe-the-current-session", orchestration)
+        self.assertIn("Capability does not grant an action", self.read("references/runtime-adapters.md"))
         self.assertIn("Observe the actual driver", runbook)
         self.assertNotIn("capability_probe", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)

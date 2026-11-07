@@ -44,9 +44,7 @@ Keep automatic context discovery enabled; never replay the parent transcript or 
 The child reads its named sources independently, verifies hashes, and reports its own reading evidence.
 Unknown loaded identity stays unknown.
 
-Every NEW parent launch carries an explicit observed or task `max_message_bytes`.
-Check the complete parent-visible UTF-8 packet with `check_launch_packet.py` before dispatch.
-Overflow means reduce optional context or defer. The guard does not measure host-injected tokens.
+Check each launch packet's bytes under [Bounded Context Capsule](runtime-performance.md#bounded-context-capsule).
 
 The parent records the actual session/model/result origin in attempt evidence.
 Accept a result only from the session the parent launched.
