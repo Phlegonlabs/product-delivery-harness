@@ -1405,10 +1405,19 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             "step definitions are implementation code",
         ):
             self.assertIn(rule, tests)
-        toolchain = contract.split("## CLI and Toolchain Decision", 1)[1].split("## Backend and Data", 1)[0]
-        self.assertIn("| BDD runner |", toolchain)
-        for runner in ("pytest-bdd", "cucumber-js", "Reqnroll"):
-            self.assertIn(runner, toolchain)
+        for section in ("Frontend Technology Decision", "Mobile/Desktop Technology Decision",
+                        "CLI and Toolchain Decision", "Backend and Data Technology Decision"):
+            table = contract.split(f"## {section}", 1)[1].split("\n## ", 1)[0]
+            self.assertIn("| BDD runner | [Runner for `features/*.feature`, such as ", table, section)
+            for runner in ("cucumber-js", "Reqnroll"):
+                self.assertIn(runner, table, section)
+        backend = contract.split("## Backend and Data Technology Decision", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("| Testing |", backend)
+        self.assertIn("records its runner as the `BDD runner` layer", tests)
+        architecture = contract.split("## `architecture.md`", 1)[1].split("## `stack-decisions.md`", 1)[0]
+        testing = architecture.split("\n## Testing\n", 1)[1].split("\n## ", 1)[0]
+        for field in ("`BDD runner` stack row", "`features/` link", "step-definition directory", "sha256", "not_required"):
+            self.assertIn(field, testing)
         completeness = contract.split("### Completeness", 1)[1].split("### Publication", 1)[0]
         self.assertIn("--features <staged features directory>", completeness)
         self.assertIn("Each staged scenario states its TEST row's behavior", completeness)

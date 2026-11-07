@@ -3911,6 +3911,16 @@ class GrowthContractTests(unittest.TestCase):
         )
 
 
+BDD_RUNNER_ROW = "| BDD runner | cucumber-js | Approved | Owner decision | Runs the feature files | None |\n"
+
+
+def bdd_stack() -> str:
+    """valid_stack() with the BDD runner row a package with feature files needs."""
+
+    testing = "| Testing | Vitest and Playwright | Approved | Owner decision | Covers required layers | None |\n"
+    return valid_stack().replace(testing, testing + BDD_RUNNER_ROW, 1)
+
+
 class FeaturesFlagTests(unittest.TestCase):
     # One scenario per Required TEST of valid_prd().
     FEATURE = "Feature: Fixture\n" + "".join(
@@ -3919,8 +3929,31 @@ class FeaturesFlagTests(unittest.TestCase):
         for test_id in ("TEST-001", "TEST-002", "TEST-003")
     )
 
+    def test_features_need_a_bdd_runner_row_and_legacy_packages_do_not(self) -> None:
+        options = {"require_filled": True, "require_approved": True}
+        legacy = strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())
+        self.assertEqual([], check_product_package.validate_texts(*legacy, **options))
+        with tempfile.TemporaryDirectory() as directory:
+            features = Path(directory)
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            self.assertEqual(
+                ["stack-decisions: feature files need a 'BDD runner' layer row in a technology decision table"],
+                check_product_package.validate_texts(*legacy, features_dir=features, **options),
+            )
+            # Any present stack table may hold the row; its status follows the usual rule.
+            backend = "| File / object storage | None | Required | Owner decision | No files | Revisit if files land |\n"
+            stack = valid_stack().replace(backend, backend + BDD_RUNNER_ROW.replace("Approved", "Required"))
+            texts = strictize_approved_package(valid_prd(), valid_architecture(), stack)
+            self.assertEqual([], check_product_package.validate_texts(*texts, features_dir=features, **options))
+            recommended = bdd_stack().replace("| cucumber-js | Approved |", "| cucumber-js | Recommended |")
+            texts = strictize_approved_package(valid_prd(), valid_architecture(), recommended)
+            self.assertEqual(
+                ["stack-decisions: layer 'BDD runner' remains 'Recommended'; owner approval is required"],
+                check_product_package.validate_texts(*texts, features_dir=features, **options),
+            )
+
     def test_features_flag_adds_coverage_under_the_prd_scope(self) -> None:
-        texts = strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())
+        texts = strictize_approved_package(valid_prd(), valid_architecture(), bdd_stack())
         options = {"require_filled": True, "require_approved": True}
         self.assertEqual([], check_product_package.validate_texts(*texts, **options))
         with tempfile.TemporaryDirectory() as directory:
@@ -3941,7 +3974,7 @@ class FeaturesFlagTests(unittest.TestCase):
             root = Path(directory)
             for name, text in zip(
                 ("PRD.md", "architecture.md", "stack-decisions.md"),
-                strictize_approved_package(valid_prd(), valid_architecture(), valid_stack()),
+                strictize_approved_package(valid_prd(), valid_architecture(), bdd_stack()),
             ):
                 (root / name).write_text(text, encoding="utf-8")
             features = root / "features"

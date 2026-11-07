@@ -16,6 +16,7 @@ import check_product_package  # noqa: E402
 import program_fixtures as fx  # noqa: E402
 from test_feature_coverage import feature  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
+    bdd_stack,
     finalize_approval_digests,
     release_target,
     strictize_approved_package,
@@ -242,6 +243,12 @@ class ProgramCheckerWiringTests(unittest.TestCase):
 
 
     def test_features_cover_the_program_and_the_selected_modules(self) -> None:
+        result = self.check("--features", "{root}/features")
+        self.assertIn(
+            "stack-decisions: feature files need a 'BDD runner' layer row in a technology decision table",
+            self.failures(result),
+        )
+        self.files["stack-decisions.md"] = bdd_stack()
         self.files["features/program.feature"] = feature("TEST-PRG-001", "TEST-PRG-002", "TEST-PRG-003", "TEST-PRG-004", "TEST-PRG-005", "TEST-PRG-009", "TEST-E2E-001")
         self.files["features/krn.feature"] = feature("TEST-KRN-001", "TEST-KRN-002", "TEST-KRN-003", "TEST-KRN-004")
         result = self.check("--features", "{root}/features")

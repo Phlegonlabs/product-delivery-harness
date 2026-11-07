@@ -364,7 +364,7 @@ During candidate refinement, use these existing fields for unresolved lifecycle 
 
 Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row covers several upstream requirements only when one test verifies all of them. Keep a `TEST-*` ID while its meaning holds; retire, never reuse, an ID whose meaning changes.
 
-Every `Required: Yes` row needs at least one scenario in a feature file built from `assets/templates/FEATURE.template.feature`, because the delivery-acceptance register freezes one scenario per Required TEST; `Required: No` rows may have one. Each scenario carries exactly one `@TEST-*` tag. Its id, `<TEST-ID>/<slug of the scenario name>`, is the delivery-acceptance register's `scenarios[].id`. Given holds the persona and initial data, When the ordered actions, Then the assertions `ASSERT-001..` in order. Background steps are Given steps of every scenario; And and But continue the previous keyword. `@platform:`, `@auth:` and `@env:` tags override the run profile for that scenario. Scenario Outline, Examples, Rule, doc strings, data tables and non-English keywords are not supported. Feature text is owner-approved product content, so changing it takes a PRD delta; step definitions are implementation code. Record the runner as the `BDD runner` stack layer.
+Every `Required: Yes` row needs at least one scenario in a feature file built from `assets/templates/FEATURE.template.feature`, because the delivery-acceptance register freezes one scenario per Required TEST; `Required: No` rows may have one. Each scenario carries exactly one `@TEST-*` tag. Its id, `<TEST-ID>/<slug of the scenario name>`, is the delivery-acceptance register's `scenarios[].id`. Given holds the persona and initial data, When the ordered actions, Then the assertions `ASSERT-001..` in order. Background steps are Given steps of every scenario; And and But continue the previous keyword. `@platform:`, `@auth:` and `@env:` tags override the run profile for that scenario. Scenario Outline, Examples, Rule, doc strings, data tables and non-English keywords are not supported. Feature text is owner-approved product content, so changing it takes a PRD delta; step definitions are implementation code. Each stack table whose surface runs scenarios records its runner as the `BDD runner` layer; the architecture `## Testing` section names that row.
 
 ---
 
@@ -668,6 +668,9 @@ Record the budget signals and cost alerts from [Performance And Cost Budget](../
 
 Record the capacity assumptions, the budget table, the caching and queue limits, and the cost model from [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md) here.
 
+## Testing
+[The `BDD runner` stack row, the `features/` link or copy of `docs/product/features/`, the step-definition directory, and any shared fixture data set ID and sha256; or `not_required — <reason>` for a package with no executable surface.]
+
 ## Technical Risks and Tradeoffs
 | Decision | Options Considered | Recommendation | Reason |
 | --- | --- | --- | --- |
@@ -742,6 +745,7 @@ Use this section for every product with a browser frontend.
 | Build tool | [e.g. Vite, or framework-managed] | | | | |
 | Routing and data | [Approach] | | | | |
 | Testing | [Unit, component, end-to-end, accessibility] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as cucumber-js, Cucumber-JVM, Reqnroll or a platform BDD runner] | | | | |
 
 ### Rendering and Route Strategy
 | Route Group | Rendering | Data Source | Cache / Freshness | Auth Boundary | Rationale |
@@ -774,6 +778,7 @@ A product may add this section in a later revision after Frontend Technology Dec
 | Backend/API integration | [Approach] | | | | |
 | Distribution mechanism | [Store/test track, signing/build service, installer/update feed] | | | | |
 | Testing | [Unit and UI automation per platform] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as cucumber-js, Cucumber-JVM, Reqnroll or a platform BDD runner] | | | | |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
@@ -810,6 +815,8 @@ Use this section for every product with a backend, persistent data, or auth requ
 | API style | [REST / GraphQL / RPC / server actions] | | | | |
 | Background jobs / queue | [Selection or not applicable] | | | | |
 | File / object storage | [Selection or not applicable] | | | | |
+| Testing | [Unit, integration, contract and API checks] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as pytest-bdd, cucumber-js, Cucumber-JVM or Reqnroll] | | | | |
 
 ### Data Entity to Store Mapping
 | Entity | Store | Rationale |

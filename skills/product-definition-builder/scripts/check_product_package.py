@@ -2224,9 +2224,11 @@ def _validate_stack_tables(
     required_areas: set[str],
     repo_root: Path | None,
     problems: list[str],
+    require_bdd_runner: bool = False,
 ) -> set[str]:
     approved_areas: set[str] = set()
     present_areas: set[str] = set()
+    bdd_runner_seen = False
     active_stack = active_text(stack_text)
     for section_name, required_layers in STACK_SECTION_LAYERS.items():
         heading = f"## {section_name}"
@@ -2288,6 +2290,7 @@ def _validate_stack_tables(
                     f"{section_name} has duplicate layer {cells[0]!r}",
                 )
             seen_layers.add(layer)
+            bdd_runner_seen |= layer == "bdd runner"
             status = cells[2].casefold()
             if status == "approved":
                 approved_areas.add(area)
@@ -2322,6 +2325,12 @@ def _validate_stack_tables(
             problems,
             "stack-decisions",
             f"missing required {area} technology decision section",
+        )
+    if require_bdd_runner and not bdd_runner_seen:
+        _add(
+            problems,
+            "stack-decisions",
+            "feature files need a 'BDD runner' layer row in a technology decision table",
         )
     return approved_areas
 
@@ -2679,7 +2688,8 @@ def validate_texts(
     problems: list[str] = [] if module else validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
     )
-    if features_dir is not None:
+    if features_dir is not None and program is None:
+        # A program checks coverage once across all modules in _validate_program.
         for problem in check_feature_coverage.feature_coverage_problems(prd_text, features_dir):
             _add(problems, "prd", problem)
     reported_depends: set[str] = set()
@@ -4250,6 +4260,7 @@ def validate_texts(
         required_areas=required_stack_areas,
         repo_root=repo_root,
         problems=problems,
+        require_bdd_runner=features_dir is not None,
     )
     if "toolchain" in required_stack_areas:
         toolchain_section = _section(stack_text, "## CLI and Toolchain Decision")
@@ -4428,6 +4439,7 @@ def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
         ui_contract=args.ui_contract,
         eval_policy=args.eval_policy,
         platform_delivery=args.platform_delivery,
+        features_dir=args.features,
         notes=notes,
         program=own,
     )
