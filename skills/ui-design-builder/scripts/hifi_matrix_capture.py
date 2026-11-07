@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Capture a HiFi surface x state x target matrix in one offline browser session.
+"""Capture a HiFi surface x state x target matrix and its product interactions in one offline browser session.
 
 Each page loads once. Targets and states change through the real reviewer shell
-controls, never by reloading. Output: one PNG per case, ``ui-output.json``
-(``ui-output/3``, matrix portion) and ``matrix-capture.json`` (per-case
-fingerprints, geometry, carried rows and axis runs).
+controls, never by reloading. The matrix pass clicks no product control; the
+interaction pass then clicks and keyboard-activates every manifest interaction
+at every source target. Output: one PNG per case, ``ui-output.json``
+(``ui-output/3``: matrix, ``interactions`` rows and ``navigation`` events) and
+``matrix-capture.json`` (per-case fingerprints, geometry, carried rows, axis
+runs and interaction records).
 
 The browser is Node Playwright, the repo's pinned test dependency
 (``PLAYWRIGHT_MODULE`` or ``node_modules/playwright`` under ``--repo-root``).
@@ -41,6 +44,9 @@ OUTPUT_NAME = "ui-output.json"
 SIDECAR_NAME = "matrix-capture.json"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200")
+TRIGGERS = ("click", "keyboard")
+INTERACT_KINDS = ("navigate", "state")
+DRIVER_BASE = "https://hifi.invalid/pkg/"
 SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
 CASE_TIMEOUT_S = 30
@@ -68,8 +74,9 @@ class DriverTimeout(DriverError):
 
 # --- Node Playwright driver -------------------------------------------------
 # One JSON request per stdin line, one JSON reply per stdout line. Every reply
-# carries the console/network/navigation/popup/form events seen since the last
-# reply. CDP Log and Runtime are enabled before the first load and never cleared.
+# carries the console/network/navigation/popup/form and product-focus events
+# seen since the last reply. CDP Log and Runtime are enabled before the first
+# load and never cleared.
 DRIVER_JS = r"""
 'use strict';
 const fs = require('fs');
@@ -87,9 +94,10 @@ const STYLE_PROPS = ['display', 'position', 'color', 'background-color', 'backgr
   'margin-right', 'margin-bottom', 'margin-left', 'gap', 'grid-template-columns', 'flex-direction',
   'visibility', 'cursor', 'mask-image', 'border-image', 'fill', 'stroke', 'stroke-width'];
 const sha = text => crypto.createHash('sha256').update(text).digest('hex');
-const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [], forms: [] });
+const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [], forms: [], focus: [] });
 let events = emptyEvents();
 let browser, context, page, pages = {};
+let currentPage = null;
 let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
@@ -227,9 +235,15 @@ async function start(request) {
     const record = form => window.__pdhForm && window.__pdhForm({ action: String(form.action), method: String(form.method) });
     addEventListener('submit', event => { event.preventDefault(); record(event.target); }, true);
     HTMLFormElement.prototype.submit = function () { record(this); };
+    addEventListener('focusin', event => {
+      const el = event.target;
+      const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
+      if (id) window.__pdhFocus({ control: id });
+    }, true);
   });
   page = await context.newPage();
   await page.exposeFunction('__pdhForm', info => { events.forms.push(info); });
+  await page.exposeFunction('__pdhFocus', info => { events.focus.push(info); });
   context.on('page', popup => { if (popup !== page) { events.popups.push({ url: popup.url() }); popup.close().catch(() => {}); } });
   page.on('dialog', dialog => {
     events.console.push({ source: 'dialog', level: 'error', message: 'dialog ' + dialog.type() + ': ' + dialog.message() });
@@ -250,19 +264,97 @@ async function start(request) {
   return { environment: { playwright: packageVersion(), chromium: browser.version(), node: process.version } };
 }
 
-async function open(request) {
-  page.setDefaultTimeout(request.timeoutMs);
-  opening = request.page;
+async function openPage(name, timeoutMs) {
+  page.setDefaultTimeout(timeoutMs);
+  opening = name;
   let response;
-  try { response = await page.goto(BASE + encodeURI(request.page), { waitUntil: 'load' }); } finally { opening = null; }
-  if (!response || response.status() !== 200) throw new Error('page did not load: ' + request.page);
+  try { response = await page.goto(BASE + encodeURI(name), { waitUntil: 'load' }); } finally { opening = null; }
+  if (!response || response.status() !== 200) throw new Error('page did not load: ' + name);
   await page.locator('[data-hifi-reviewer-shell]').first().waitFor({ state: 'attached' });
   await page.locator('[data-hifi-canvas]').first().waitFor({ state: 'attached' });
   await page.evaluate(() => document.fonts.ready.then(() => true));
+  currentPage = name;
+}
+
+async function open(request) {
+  await openPage(request.page, request.timeoutMs);
   return {
     targets: await page.locator('[data-hifi-target-control]').evaluateAll(list => list.map(n => n.dataset.hifiTargetControl)),
     states: await page.locator('[data-hifi-state-control]').evaluateAll(list => list.map(n => n.dataset.hifiStateSurface + ' ' + n.dataset.hifiStateControl)),
   };
+}
+
+// One interaction attempt: reset page/target/source state through the reviewer
+// shell, then activate the declared product control by click or keyboard. The
+// destination surface/state must apply; the control, and only the control, must
+// take product focus during the attempt.
+async function interact(request) {
+  const problems = [];
+  const timeout = request.timeoutMs;
+  if (currentPage !== request.page) {
+    try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
+  }
+  if (!problems.length) {
+    const target = page.locator('[data-hifi-target-control=' + quote(request.target) + ']');
+    if (await target.count() !== 1) problems.push('target control missing: ' + request.target);
+    else {
+      if (await target.getAttribute('aria-pressed') !== 'true') await target.click({ timeout });
+      const current = await page.evaluate(() => document.querySelector('[data-hifi-canvas]').dataset.hifiTarget);
+      if (current !== request.target) problems.push('target did not apply: ' + current);
+    }
+    const control = page.locator('[data-hifi-state-control=' + quote(request.state) + '][data-hifi-state-surface=' + quote(request.surface) + ']');
+    if (await control.count() !== 1) {
+      problems.push('state control missing: ' + request.surface + ' ' + request.state);
+    } else {
+      // Always click the visible shell control: it also re-syncs a shell the product DOM has drifted from.
+      if (await control.isVisible()) await control.click({ timeout });
+      else await page.evaluate(hash => { location.hash = hash; },
+        '#hifi-state=' + encodeURIComponent(request.surface) + '/' + encodeURIComponent(request.state));
+      try {
+        await page.waitForFunction(([surface, state]) => {
+          const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
+          return Boolean(el) && !el.hidden && el.dataset.hifiState === state;
+        }, [request.surface, request.state], { timeout });
+      } catch (_) {
+        problems.push('state did not apply: ' + request.surface + ' ' + request.state);
+      }
+    }
+  }
+  let visible = null, focusCorrect = null, arrivedTo = null;
+  if (!problems.length) {
+    const surface = '[data-ui-surface=' + quote(request.surface) + ']';
+    const product = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + ']:visible,'
+      + surface + ' [data-control-id=' + quote(request.control) + ']:visible');
+    if (await product.count() !== 1) problems.push('product control is missing or not unique: ' + request.control);
+    else {
+      const handle = product.first();
+      visible = await handle.isVisible();
+      let pressedFocused = null;
+      if (request.trigger === 'keyboard') {
+        await handle.focus({ timeout });
+        pressedFocused = await handle.evaluate(el => el === document.activeElement);
+        const tag = await handle.evaluate(el => el.tagName.toLowerCase());
+        await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
+      } else {
+        await handle.click({ timeout });
+      }
+      try {
+        await page.waitForFunction(([surface, state]) => {
+          const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
+          return Boolean(el) && !el.hidden && el.dataset.hifiState === state;
+        }, [request.destination.surface, request.destination.state], { timeout });
+      } catch (_) {
+        problems.push('destination surface/state did not apply: ' + request.destination.surface + ' ' + request.destination.state);
+      }
+      const url = page.url();
+      arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
+      if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
+      // Both triggers must land product focus on the control alone; keyboard also had to press from it.
+      focusCorrect = events.focus.length === 1 && events.focus[0].control === request.control
+        && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
+    }
+  }
+  return { problems, visible, focusCorrect, arrivedTo };
 }
 
 async function runCase(request) {
@@ -337,7 +429,7 @@ async function close() {
   return {};
 }
 
-const handlers = { start, open, case: runCase, shot, axis, close };
+const handlers = { start, open, case: runCase, interact, shot, axis, close };
 let chain = Promise.resolve();
 const lines = readline.createInterface({ input: process.stdin });
 lines.on('line', line => {
@@ -397,7 +489,8 @@ class NodeDriver:
     def call(self, op, timeout=CASE_TIMEOUT_S + 10, **fields):
         self._seq += 1
         try:
-            self.proc.stdin.write(json.dumps({"id": self._seq, "op": op, **fields}) + "\n")
+            # id and op go last so a payload field of the same name cannot clobber the reply correlation.
+            self.proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
             self.proc.stdin.flush()
         except OSError as error:
             raise DriverError("driver is not running: " + self._tail()) from error
@@ -640,6 +733,37 @@ def group_by_page(cases):
     return grouped
 
 
+def interaction_plan(package, only=None):
+    """Selected manifest interactions to observe, in manifest order; a malformed manifest refuses before any browser work."""
+    actions = package.manifest.get("interactions")
+    if not isinstance(actions, list):
+        raise UsageError("the manifest must declare an interactions list")
+    surfaces = {row["id"]: row for row in package.manifest["surfaces"]}
+    plan, seen = [], set()
+    for action in actions:
+        if not isinstance(action, dict) or not isinstance(action.get("source"), dict) or not isinstance(action.get("destination"), dict):
+            raise UsageError("every interaction needs id, source, control, kind and destination")
+        ident, kind, control = action.get("id"), action.get("kind"), action.get("control")
+        if any(not isinstance(value, str) or not value.strip() for value in (ident, kind, control)):
+            raise UsageError("every interaction needs id, source, control, kind and destination")
+        if ident in seen:
+            raise UsageError(f"duplicate interaction id: {ident}")
+        seen.add(ident)
+        if kind not in INTERACT_KINDS:
+            raise UsageError(f"interaction {ident} has an unknown kind: {kind}")
+        for field in ("source", "destination"):
+            surface, state = action[field].get("surface"), action[field].get("state")
+            row = surfaces.get(surface) if isinstance(surface, str) else None
+            if row is None or not isinstance(state, str) or state not in [str(s) for s in row["states"]]:
+                raise UsageError(f"interaction {ident} names an unknown {field} surface state: {surface} {state}")
+        source_row = surfaces[action["source"]["surface"]]
+        plan.append({"id": ident, "kind": kind, "control": control, "source": action["source"],
+                     "destination": action["destination"], "page": source_row["page"],
+                     "destinationPage": surfaces[action["destination"]["surface"]]["page"],
+                     "targets": [str(t) for t in source_row["responsive"]["targets"]]})
+    return [a for a in plan if only is None or a["source"]["surface"] in only]
+
+
 def tuple_hash(case):
     return sha256_bytes("\x1f".join((case.surface, case.state, case.target, case.axis or "")).encode("utf-8"))[:10]
 
@@ -717,13 +841,14 @@ def related(left, right):
 # --- The run --------------------------------------------------------------------
 class Runner:
     def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None, derived=None,
-                 recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
+                 interactions=(), recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
         self.driver, self.package, self.root, self.out_dir = driver, package, root, out_dir
         self.axes, self.carry, self.carry_source, self.derived = tuple(axes), carry or {}, carry_source, derived
+        self.interactions = list(interactions)
         self.recapture, self.diff_against = recapture, diff_against
         self.settle_cap_ms, self.case_timeout_s = settle_cap_ms, case_timeout_s
         self.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
-        self.records, self.axis_records = {}, []
+        self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
@@ -765,18 +890,87 @@ class Runner:
                     self.recover(page)
         for case in cases:
             self.records[case.key] = self.observe(case)
-        if not self.axes:
+        if self.axes:
+            rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
+                    and any(c.surface == row["id"] for c in cases)]
+            counts = {}
+            for case in cases:
+                geometry = self.records[case.key].get("geometry")
+                if geometry:
+                    counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
+            sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
+            for axis in self.axes:
+                self.run_axis(page, axis, sampled)
+        self.run_interactions(page)
+
+    def run_interactions(self, page):
+        """Click and keyboard-activate every selected manifest interaction at every source target."""
+        actions = [a for a in self.interactions if a["page"] == page]
+        if not actions:
             return
-        rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
-                and any(c.surface == row["id"] for c in cases)]
-        counts = {}
-        for case in cases:
-            geometry = self.records[case.key].get("geometry")
-            if geometry:
-                counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
-        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
-        for axis in self.axes:
-            self.run_axis(page, axis, sampled)
+        blocked = ("page did not open, so its interactions were not observed" if page in self.unopened
+                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        for action in actions:
+            for target in action["targets"]:
+                for trigger in TRIGGERS:
+                    self.interaction_records.append(self.observe_interaction(action, target, trigger, blocked))
+
+    def observe_interaction(self, action, target, trigger, blocked=None):
+        record = {"id": action["id"], "surface": action["source"]["surface"], "state": action["source"]["state"],
+                  "target": target, "trigger": trigger, "page": action["page"], "kind": action["kind"],
+                  "control": action["control"], "destination": action["destination"], "result": None,
+                  "reasons": [], "visible": None, "focusCorrect": None, "arrived": None,
+                  "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
+        began = time.perf_counter()
+        reasons = record["reasons"]
+        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        if blocked:
+            record["result"] = "BLOCKED"
+            reasons.append(blocked)
+        else:
+            self.run_interaction(action, target, trigger, record)
+            record["result"] = "FAIL" if reasons else "PASS"
+        record["finishedAt"] = now_iso()
+        record["durationMs"] = round((time.perf_counter() - began) * 1000)
+        return record
+
+    def run_interaction(self, action, target, trigger, record):
+        reasons = record["reasons"]
+        try:
+            reply = self.driver.call("interact", timeout=self.case_timeout_s + 10, page=action["page"], interaction=action["id"],
+                                     surface=action["source"]["surface"], state=action["source"]["state"],
+                                     target=target, control=action["control"], kind=action["kind"],
+                                     destination=action["destination"], destinationPage=action["destinationPage"],
+                                     trigger=trigger, timeoutMs=self.case_timeout_s * 1000)
+        except DriverTimeout as error:
+            reasons.append(f"interaction timed out after {self.case_timeout_s}s")
+            events, result = error.events, {}
+            self.recover(action["page"])
+        except DriverError as error:
+            reasons.append(f"driver error: {error}")
+            events, result = error.events, {}
+        else:
+            events, result = reply["events"], reply["result"]
+        # A navigate attempt's one arrival row becomes the documented navigation event; every other
+        # navigation row stays in the transcript and fails the attempt.
+        stray = list(events.get("navigation", []))
+        if action["kind"] == "navigate":
+            arrived = [row for row in stray if row.get("url") == DRIVER_BASE + action["destinationPage"]]
+            if len(arrived) == 1:
+                record["arrived"] = action["destinationPage"]
+                stray.remove(arrived[0])
+        for row in stray:
+            reasons.append(f"navigation attempt: {row.get('url')}")
+        for kind in ("console", "network", "popups", "forms"):
+            self.transcript[kind].extend(dict(row, page=action["page"]) for row in events.get(kind, []))
+        self.transcript["navigation"].extend(dict(row, page=action["page"]) for row in stray)
+        reasons.extend(result.get("problems") or [])
+        record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
+        if action["kind"] == "navigate":
+            if record["arrived"] is None:
+                reasons.append("the destination page did not load")
+            elif result.get("arrivedTo") != action["destinationPage"]:
+                reasons.append(f"the browser did not land on {action['destinationPage']}")
 
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
@@ -904,6 +1098,20 @@ def pixel_diff(before, after):
 
 
 # --- Output -----------------------------------------------------------------------
+def interaction_rows(runner):
+    """The closed ui-output/3 rows: one result per attempt, one navigation event per observed navigate arrival."""
+    results, navigation = [], []
+    for record in runner.interaction_records:
+        results.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
+                        "source": {"surface": record["surface"], "state": record["state"]},
+                        "destination": record["destination"], "control": record["control"],
+                        "visible": record["visible"], "focusCorrect": record["focusCorrect"], "result": record["result"]})
+        if record["kind"] == "navigate" and record["arrived"]:
+            navigation.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
+                               "from": record["page"], "to": record["arrived"]})
+    return results, navigation
+
+
 def build_outputs(runner, package, cases, root, out_dir, subject, started, finished, environment, options):
     records = [runner.records.get(case.key) for case in cases]
     summary = {
@@ -911,10 +1119,13 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
         "carried": sum(1 for r in records if r and r["carriedFrom"]),
         "axisCases": len(runner.axis_records),
         "axisFail": sum(1 for r in runner.axis_records if r["result"] != "PASS"),
+        "interactions": len(runner.interaction_records),
+        "interactionsFail": sum(1 for r in runner.interaction_records if r["result"] != "PASS"),
     }
     sidecar = {"schema": SIDECAR_SCHEMA, "subject": subject,
                "run": dict(options, startedAt=started, finishedAt=finished, **summary),
-               "cases": [r for r in records if r], "axes": runner.axis_records}
+               "cases": [r for r in records if r], "axes": runner.axis_records,
+               "interactions": runner.interaction_records}
     sidecar_bytes = (json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sidecar_path = out_dir / SIDECAR_NAME
     sidecar_path.write_bytes(sidecar_bytes)
@@ -928,11 +1139,13 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
                 seen.add(capture["path"].casefold())
                 artifacts.append(dict(capture))
     matrix = [{"surface": c.surface, "state": c.state, "target": c.target} for c in cases]
+    interactions, declared_navigation = interaction_rows(runner)
     output = {
         "schema": "ui-output/3", "check": CHECK, "subject": subject, "matrix": {"cases": matrix},
         "results": [dict(case, result=(r["result"] if r else "MISSING")) for case, r in zip(matrix, records)],
+        "interactions": interactions,
         "sandbox": SANDBOX, "console": runner.transcript["console"], "network": runner.transcript["network"],
-        "navigation": runner.transcript["navigation"], "popups": runner.transcript["popups"],
+        "navigation": declared_navigation + runner.transcript["navigation"], "popups": runner.transcript["popups"],
         "forms": runner.transcript["forms"], "popupAttempts": len(runner.transcript["popups"]),
         "formAttempts": len(runner.transcript["forms"]),
         "execution": {"startedAt": started, "finishedAt": finished, "tool": "playwright",
@@ -1034,6 +1247,7 @@ def execute(args, make_driver=node_driver):
     cases = expand_matrix(package, only, derived)
     if not cases:
         raise UsageError("the selection has no applicable cases")
+    interactions = interaction_plan(package, only)
     carry_path = inside(root, args.carry_from, "--carry-from") if args.carry_from else None
     carry, carry_source = load_carry(root, carry_path) if carry_path else (None, None)
     if carry and args.overwrite and any(related(out_dir, folder) for folder in carry_folders(root, carry_path, carry)):
@@ -1051,7 +1265,8 @@ def execute(args, make_driver=node_driver):
             except DriverError as error:
                 raise UsageError(f"browser could not start: {error}") from error
             runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
-                            derived=derived, recapture=args.recapture_carried, diff_against=diff_against)
+                            derived=derived, interactions=interactions, recapture=args.recapture_carried,
+                            diff_against=diff_against)
             runner.run(cases)
             environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
         finally:
@@ -1066,7 +1281,8 @@ def execute(args, make_driver=node_driver):
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)
-    failed = any(row["result"] != "PASS" for row in output["results"]) or summary["axisFail"]
+    failed = (any(row["result"] != "PASS" for row in output["results"]) or summary["axisFail"]
+              or summary["interactionsFail"])
     print(json.dumps({"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
                       "output": output_path.relative_to(root).as_posix(), **summary,
                       "restarts": runner.restarts, "problems": problems[:5]}))

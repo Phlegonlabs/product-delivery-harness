@@ -34,6 +34,18 @@ from review_evidence import build_receipt  # noqa: E402
 FIXTURE = Path(__file__).resolve().parent / "fixtures/matrix-hifi"
 HAS_PILLOW = importlib.util.find_spec("PIL") is not None
 PACKAGE_DIR = "docs/design/ui-references/matrix"
+# The navigate interactions the fixture pages really support: one product anchor per surface's ready view.
+INTERACTIONS = [
+    {"id": "UI-001-to-details", "source": {"surface": "UI-001", "state": "ready"},
+     "control": "to-details", "kind": "navigate", "destination": {"surface": "UI-002", "state": "ready"}},
+    {"id": "UI-002-to-desk", "source": {"surface": "UI-002", "state": "ready"},
+     "control": "to-desk", "kind": "navigate", "destination": {"surface": "UI-001", "state": "ready"}},
+]
+
+
+def build_interactions_package(root, interactions=INTERACTIONS, **kwargs):
+    """The fixture with its real product anchors declared as manifest interactions."""
+    return build_package(root, manifest_edit=lambda manifest: manifest.update(interactions=interactions), **kwargs)
 
 
 def size_classes(html):
@@ -109,6 +121,7 @@ class FakeDriver:
         self.environment = {"playwright": "fake", "chromium": "fake", "node": "fake"}
         self.calls, self.restarts, self.axis = [], 0, None
         self.overrides = {}      # (surface, state, target) -> {"geometry", "events", "raise", "style", "inputs", "incomplete"}
+        self.interact_scripts = {}   # (id, target, trigger) -> {"problems", "visible", "focusCorrect", "arrivedTo", "raise", "events"}
         self.open_events = {}    # page -> events
         self.open_error = {}     # page -> exception
         self.axis_events = {}    # axis -> events
@@ -162,6 +175,20 @@ class FakeDriver:
                  "inputsSha256": sha("inputs" + script.get("inputs", "")), "incomplete": script.get("incomplete", False)}
         return {"result": {"problems": script.get("problems", []), "probe": None if script.get("problems") else probe,
                            "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}, "events": events}
+
+    def _interact(self, fields):
+        script = self.interact_scripts.get((fields["interaction"], fields["target"], fields["trigger"]), {})
+        if "raise" in script:
+            raise script["raise"]
+        events = dict(script.get("events", {}))
+        if fields["kind"] == "navigate":
+            events.setdefault("navigation", [{"url": "https://hifi.invalid/pkg/" + fields["destinationPage"],
+                                              "method": "GET", "resourceType": "document", "allowlisted": True}])
+        problems = script.get("problems", [])
+        result = {"problems": problems, "visible": script.get("visible", not problems),
+                  "focusCorrect": script.get("focusCorrect", None if problems else True),
+                  "arrivedTo": script.get("arrivedTo", fields["destinationPage"] if fields["kind"] == "navigate" else None)}
+        return {"result": result, "events": events}
 
     def _shot(self, fields):
         path = Path(fields["path"])
@@ -305,14 +332,16 @@ class RunOutputTests(unittest.TestCase):
         code, summary, out = cli.run(FakeDriver())
         self.assertEqual(0, code, summary)
         output, sidecar = cli.load(out)
-        self.assertEqual(["schema", "check", "subject", "matrix", "results", "sandbox", "console", "network",
-                          "navigation", "popups", "forms", "popupAttempts", "formAttempts", "execution"], list(output))
+        self.assertEqual(["schema", "check", "subject", "matrix", "results", "interactions", "sandbox", "console",
+                          "network", "navigation", "popups", "forms", "popupAttempts", "formAttempts", "execution"],
+                         list(output))
         self.assertEqual(("ui-output/3", "hifi-browser"), (output["schema"], output["check"]))
         self.assertEqual({"path": f"{PACKAGE_DIR}/index.html", "sha256": hashlib.sha256(
             (cli.package / "index.html").read_bytes()).hexdigest()}, output["subject"])
         self.assertEqual(12, len(output["matrix"]["cases"]))
         self.assertEqual(output["matrix"]["cases"], [{k: r[k] for k in ("surface", "state", "target")} for r in output["results"]])
         self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual(([], []), (output["interactions"], output["navigation"]))
         self.assertEqual({"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked",
                           "forms": "blocked"}, output["sandbox"])
         execution = output["execution"]
@@ -685,6 +714,163 @@ class AxisTests(unittest.TestCase):
         self.assertIn("sepia", summary["error"])
 
 
+class InteractionTests(unittest.TestCase):
+    def package(self, interactions, surfaces=None):
+        rows = surfaces or [
+            {"id": "UI-001", "page": "index.html", "states": ["ready", "loading"], "responsive": {"targets": [390, 1200]}},
+            {"id": "UI-002", "page": "details.html", "states": ["ready", "error"], "responsive": {"targets": [390, 1200]}}]
+        return m.Package({"surfaces": rows, "interactions": interactions}, {}, {}, {}, {})
+
+    def cli(self):
+        cli = Cli(self)
+        cli.package = build_interactions_package(cli.root)
+        return cli
+
+    def test_the_plan_follows_manifest_order_and_the_source_targets(self):
+        actions = [dict(INTERACTIONS[0]), {"id": "UI-001-show", "source": {"surface": "UI-001", "state": "ready"},
+                                           "control": "show", "kind": "state",
+                                           "destination": {"surface": "UI-001", "state": "loading"}}]
+        plan = m.interaction_plan(self.package(actions))
+        self.assertEqual(["UI-001-to-details", "UI-001-show"], [a["id"] for a in plan])
+        self.assertEqual(("index.html", "details.html"), (plan[0]["page"], plan[0]["destinationPage"]))
+        self.assertEqual(["390", "1200"], plan[0]["targets"])
+        self.assertEqual({"surface": "UI-001", "state": "ready"}, plan[0]["source"])
+
+    def test_only_keeps_the_selected_surfaces_interactions(self):
+        self.assertEqual(["UI-002-to-desk"], [a["id"] for a in m.interaction_plan(self.package(INTERACTIONS), only={"UI-002"})])
+
+    def test_a_malformed_manifest_refuses_before_any_browser_work(self):
+        good = dict(INTERACTIONS[0])
+        cases = [
+            (None, "interactions list"),
+            ([dict(good, id="")], "needs id, source, control, kind and destination"),
+            ([dict(good, control=" ")], "needs id, source, control, kind and destination"),
+            ([{"source": good["source"], "control": "c", "kind": "navigate", "destination": good["destination"]}],
+             "needs id, source, control, kind and destination"),
+            ([dict(good, kind="hover")], "unknown kind"),
+            ([dict(good, source={"surface": "UI-009", "state": "ready"})], "unknown source surface state"),
+            ([dict(good, destination={"surface": "UI-002", "state": "nope"})], "unknown destination surface state"),
+            ([good, dict(good, control="other")], "duplicate interaction id"),
+        ]
+        driver = FakeDriver()
+        for interactions, message in cases:
+            with self.subTest(message=message):
+                cli = Cli(self)
+                cli.package = build_interactions_package(cli.root, interactions=interactions)
+                code, summary, _ = cli.run(driver)
+                self.assertEqual(2, code, message)
+                self.assertIn(message, summary["error"], message)
+        self.assertEqual([], driver.calls)
+
+    def test_the_default_run_writes_the_rows_the_checker_expects(self):
+        cli, driver = self.cli(), FakeDriver()
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        manifest = json.loads(m.HIFI_MANIFEST_RE.search((cli.package / "index.html").read_text(encoding="utf-8")).group("data"))
+        expected, navigation = checker._interaction_expectations(manifest)
+        self.assertEqual(0, code, summary)
+        self.assertEqual((expected, navigation), (output["interactions"], output["navigation"]))
+        self.assertEqual((8, 0), (summary["interactions"], summary["interactionsFail"]))
+        self.assertEqual([("UI-001-to-details", "390", "click"), ("UI-001-to-details", "390", "keyboard"),
+                          ("UI-001-to-details", "1200", "click"), ("UI-001-to-details", "1200", "keyboard"),
+                          ("UI-002-to-desk", "390", "click"), ("UI-002-to-desk", "390", "keyboard"),
+                          ("UI-002-to-desk", "1200", "click"), ("UI-002-to-desk", "1200", "keyboard")],
+                         [(f["interaction"], f["target"], f["trigger"]) for op, f in driver.calls if op == "interact"])
+        first = next(f for op, f in driver.calls if op == "interact")
+        self.assertEqual(("UI-001", "ready", "to-details", "navigate", "UI-002", "details.html", "click"),
+                         (first["surface"], first["state"], first["control"], first["kind"],
+                          first["destination"]["surface"], first["destinationPage"], first["trigger"]))
+        self.assertEqual(8, len(sidecar["interactions"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"]})
+        self.assertEqual({"details.html", "index.html"}, {r["arrived"] for r in sidecar["interactions"]})
+        self.assertTrue(all(isinstance(r["durationMs"], int) and r["startedAt"] <= r["finishedAt"]
+                            for r in sidecar["interactions"]))
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_a_failed_attempt_is_recorded_and_fails_the_run(self):
+        cli, driver = self.cli(), FakeDriver()
+        driver.interact_scripts[("UI-001-to-details", "390", "click")] = {
+            "visible": False, "problems": ["product control is missing or not unique: to-details"]}
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        failed = next(r for r in output["interactions"] if r["result"] != "PASS")
+        self.assertEqual(1, code)
+        self.assertEqual(("FAIL", False, None), (failed["result"], failed["visible"], failed["focusCorrect"]))
+        self.assertIn("not unique", sidecar["interactions"][0]["reasons"][0])
+        self.assertEqual((8, 1), (summary["interactions"], summary["interactionsFail"]))
+
+    def test_an_undeclared_navigation_during_an_interaction_stays_raw_and_fails(self):
+        cli, driver = self.cli(), FakeDriver()
+        row = {"url": "https://hifi.invalid/pkg/missing.html", "method": "GET", "resourceType": "document", "allowlisted": True}
+        driver.interact_scripts[("UI-002-to-desk", "1200", "keyboard")] = {"events": {"navigation": [row]}}
+        code, _, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        self.assertEqual(1, code)
+        self.assertIn(dict(row, page="details.html"), output["navigation"])
+        self.assertEqual(7, len([r for r in output["navigation"] if set(r) == {"id", "target", "trigger", "from", "to"}]))
+        record = next(r for r in sidecar["interactions"] if (r["id"], r["target"], r["trigger"])
+                      == ("UI-002-to-desk", "1200", "keyboard"))
+        self.assertEqual("FAIL", record["result"])
+        self.assertIn("the destination page did not load", record["reasons"])
+        self.assertIn("navigation attempt", " | ".join(record["reasons"]))
+
+    def test_interactions_on_a_page_that_did_not_open_are_blocked_not_omitted(self):
+        cli, driver = self.cli(), FakeDriver()
+        driver.open_error["details.html"] = m.DriverError("page did not load: details.html")
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        blocked = [r for r in sidecar["interactions"] if r["surface"] == "UI-002"]
+        self.assertEqual(1, code)
+        self.assertEqual(4, len(blocked))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in blocked})
+        self.assertIn("page did not open", blocked[0]["reasons"][0])
+        self.assertEqual({"UI-001-to-details"}, {f["interaction"] for op, f in driver.calls if op == "interact"})
+
+    def test_only_narrows_the_interaction_pass(self):
+        cli, driver = self.cli(), FakeDriver()
+        code, summary, out = cli.run(driver, "--only", "UI-001")
+        output, _ = cli.load(out)
+        self.assertEqual((0, 4), (code, summary["interactions"]))
+        self.assertEqual({"UI-001-to-details"}, {r["id"] for r in output["interactions"]})
+
+    def test_an_interaction_timeout_fails_the_attempt_and_restarts(self):
+        cli, driver = self.cli(), FakeDriver()
+        driver.interact_scripts[("UI-001-to-details", "390", "keyboard")] = {"raise": m.DriverTimeout("no reply")}
+        code, summary, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        record = next(r for r in sidecar["interactions"]
+                      if (r["id"], r["target"], r["trigger"]) == ("UI-001-to-details", "390", "keyboard"))
+        self.assertEqual((1, 1), (code, summary["restarts"]))
+        self.assertEqual("FAIL", record["result"])
+        self.assertIn("timed out", record["reasons"][0])
+        self.assertIn("index.html", [f["page"] for op, f in driver.calls if op == "open"])   # the browser reopened it
+
+    def test_carry_never_skips_the_interaction_pass(self):
+        cli = self.cli()
+        _, _, first = cli.run(FakeDriver())
+        driver = FakeDriver()
+        _, summary, _ = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        self.assertEqual((12, 8, 8), (summary["carried"], summary["interactions"], driver.count("interact")))
+
+class DriverWireTests(unittest.TestCase):
+    """The JSON-lines envelope: a payload field must not clobber the reply correlation id."""
+
+    def wire_driver(self):
+        driver = m.NodeDriver("node", "module", {}, ".")
+        driver.proc = type("Proc", (), {})()
+        driver.proc.stdin = io.StringIO()
+        return driver
+
+    def test_a_payload_field_named_id_cannot_clobber_the_correlation_id(self):
+        driver = self.wire_driver()
+        driver._lines.put(json.dumps({"id": 1, "ok": True, "result": {}}))
+        reply = driver.call("interact", interaction="UI-001-x", page="index.html")
+        self.assertEqual({}, reply["result"])
+        wire = json.loads(driver.proc.stdin.getvalue().splitlines()[0])
+        self.assertEqual(1, wire["id"])
+        self.assertEqual("UI-001-x", wire["interaction"])
+
+
 class FailureTests(unittest.TestCase):
     def results(self, driver, *extra):
         cli = Cli(self)
@@ -1050,6 +1236,72 @@ class RealBrowserTests(unittest.TestCase):
             for row in after["cases"]:
                 self.assertNotEqual(first[key(row)]["renderFingerprint"], row["renderFingerprint"], key(row))
                 self.assertIsNone(row["carriedFrom"], key(row))
+
+    def test_interactions_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_interactions_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/interactions")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/interactions" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/interactions" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
+            expected, navigation = checker._interaction_expectations(manifest)
+            self.assertEqual(expected, output["interactions"])
+            self.assertEqual(navigation, output["navigation"])
+            self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/interactions/" + m.OUTPUT_NAME)["result"])
+            self.assertEqual(8, len(sidecar["interactions"]))
+            self.assertTrue(all(r["result"] == "PASS" and r["visible"] and r["focusCorrect"] and r["arrived"]
+                                for r in sidecar["interactions"]), sidecar["interactions"])
+            arrivals = {(r["id"], r["target"], r["trigger"]): r["arrived"] for r in sidecar["interactions"]}
+            self.assertEqual("details.html", arrivals[("UI-001-to-details", "1200", "keyboard")])
+            self.assertEqual("index.html", arrivals[("UI-002-to-desk", "390", "click")])
+            for row in output["console"]:
+                self.assertEqual("Unrecognized Content-Security-Policy directive 'navigate-to'.", row["message"])
+            self.assertEqual([], output["network"] + output["popups"] + output["forms"])
+
+    def test_a_state_interaction_in_real_chromium(self):
+        module = self.playwright()
+        button = ('<button type="button" class="card" data-control-id="report">Report an issue</button>'
+                  '<script>(function () {'
+                  'document.querySelector("[data-control-id=report]").addEventListener("click", function () {'
+                  'document.__hifiReviewerRuntime.selectState("error");'
+                  '});})();</script>')
+        actions = INTERACTIONS + [{"id": "UI-002-report", "source": {"surface": "UI-002", "state": "ready"},
+                                   "control": "report", "kind": "state",
+                                   "destination": {"surface": "UI-002", "state": "error"}}]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, details_extra=button,
+                                    manifest_edit=lambda manifest: manifest.update(interactions=actions))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/state")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/state" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/state" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
+            expected, navigation = checker._interaction_expectations(manifest)
+            self.assertEqual(expected, output["interactions"])
+            self.assertEqual(navigation, output["navigation"])
+            self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
+            self.assertEqual(12, len(sidecar["interactions"]))
+            self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"]})
+            self.assertTrue(all(r["focusCorrect"] for r in sidecar["interactions"]), sidecar["interactions"])
+
+    def test_a_missing_product_control_fails_in_real_chromium(self):
+        module = self.playwright()
+        actions = [{"id": "UI-001-ghost", "source": {"surface": "UI-001", "state": "ready"},
+                    "control": "ghost", "kind": "state", "destination": {"surface": "UI-001", "state": "loading"}}]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, manifest_edit=lambda manifest: manifest.update(interactions=actions))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/ghost")
+            self.assertEqual(1, code, text)
+            sidecar = json.loads((root / "docs/evidence/ghost" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual(4, len(sidecar["interactions"]))
+            self.assertEqual({"FAIL"}, {r["result"] for r in sidecar["interactions"]})
+            self.assertIn("missing or not unique", sidecar["interactions"][0]["reasons"][0])
 
     def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
         module = self.playwright()
