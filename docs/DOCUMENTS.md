@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-suite-review-2026-11](epics/EPIC-suite-review-2026-11.md)
+Current Epic: [EPIC-suite-review-round-2](epics/EPIC-suite-review-round-2.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |

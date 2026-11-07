@@ -1,18 +1,18 @@
 # EPIC-suite-review-round-2: the heavy items from the suite review
 
-Status: proposed
+Status: in_progress on `feat/suite-review-r2` (base `main` `e4d05197`); M1b, M7 and M16 writers live, then the 0.79.0 surfaces and the candidate matrix
 
 ## Problem And Baseline
 
 The suite review of 2026-11-07 (`docs/epics/EPIC-suite-review-2026-11.md`, workflow `wf_19618f07-bb2`) verified 91 findings. Seventy-eight landed in that Epic's two waves and W12's closing pass. These ten need a RUN schema change, a browser-driver extension, a new read-only promotion script or a contract change behind a version pin, so they wait for their own round. Each item keeps its review id; the refuter's refined proposal is the specification and its existing-coverage list is what must not be duplicated.
 
-Baseline: the 0.78.0 candidate on `feat/suite-review-r1`.
+Baseline: local `main` at `e4d05197`, which merged `fix/compact-tracked-files-retention`, `feat/bdd-scenarios` (0.77.0) and `feat/suite-review-r1` (0.78.0) on 2026-11-07 at the owner's instruction; the matrix at that head passed every step except one real-browser module that only needed an absolute `PLAYWRIGHT_MODULE` path (`task/release-0780/matrix-main-e4d05197/`).
 
 ## Accepted Scope
 
-Pending the owner's decision on which items to take and in what order. Suggested grouping: (a) RUN and verifier plumbing, S1 with M2, M3 and M4, one writer per script family; (b) UI capture and parity, M1, M7, M15 and M16, with the ui-design/3 conformance change behind a new harness version pin; (c) promotion read-back and the acceptance gate requirement, M14 and M23.
+All ten items, owner instruction 2026-11-07 ("整套東西你幫我合併進去，然後再跟進整套東西，然後用 Multi-agent 這邊去做"; then "全部用 GLM 5.3 Flash 去搞定它"). M2 and M4 are one set of four `harness_transition.py` subcommands. M1 is split into the interaction pass (M1a), the reviewer rows (M1b) and `--intermediate`, which M7 also names and owns. M3's task and worker halves were already covered by round 1's `build_verifier_request.py` (W8), so M3 narrows to the shared context function and the mission integration layer. The version pin for M16 and M23 is `(0, 79, 0)`.
 
-Writers: Claude Opus 5.5 at effort xhigh via `claude-t3-direct`, one per bounded file set in a T3 worktree; the parent integrates, repairs and reviews.
+Writers: GLM-5.3 Flash (`glm` / `glm-5.3-flash`, thought_level max) via `delegate_task`, one item per brief in a T3 worktree, briefs under the parent's scratchpad `briefs-r2/`; the parent (Claude Fable 5.1, by the owner's standing direction) integrates, applies cross-file requests, repairs and reviews each diff. GLM sessions stop at 100 turns, so most items took two or three writers: the parent committed each stopped worker's clean partial work on its branch and the next writer cherry-picked it.
 
 ## Items
 
@@ -326,22 +326,31 @@ Existing coverage, not to duplicate:
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
-| Epic proposed | the ten items the suite review deferred | this commit | owner decision on scope |
+| Epic proposed | the ten items the suite review deferred | `d0216c2c` | owner decision on scope |
+| M14 `promotion_readback.py` | read-only `pre`/`post` for Promote To Main conditions 4, 7 and 8; contract and source-maintenance name it; READMEs name the `post` JSON (parent cross-file edit) | `843342bb`..`406f769b`, merged `f14b4740`; `e17afbee` | 12 tests, UTF-8 inventory, doc-pinning modules exit 0 |
+| M23 acceptance gate required at 0.79.0+ | `eval_plan_contract` requires the frozen delivery-acceptance source, both final gates and the pass-only chain when applicability is not_required and the RUN pin is at or after 0.79.0; contract and PLAN template say older pins keep readiness review | `988ca35e`..`bf68f653`, merged `e9f3fd6b` | 27 tests, PLAN-rendering modules exit 0 |
+| M15 `parity_capture.py --hifi-package` | ui-hifi/2 package reference mode driving the reviewer controls and screenshotting `[data-hifi-canvas]`; `PARITY_ROUTE_MAP.template.json`; verification-gates line 290 | `e96a37d2`..`db109381`, merged `ea534350` | parity tests, template inventory, skill contract exit 0; parent checked the `dataset.hifiState` contract against `HIFI_REVIEWER.template.html` |
+| M3 shared context | `verifier_request_context.verifier_context` used by `validate_worker_result.py` and `harness_integration_results.py` | `3ae9e3c0`, merged `e7ef3725` | 34 worker-result and 9 ingestion tests exit 0 |
+| M2+M4 `record-grant`, `open-run` | the first two record-only subcommands with lock, `--source`, in-memory pair validation and `push` refusal | `ea413bd3`, `f77fd035`, merged `486f6481` | 12 tests exit 0; one test that needed an invalid pair on disk was dropped, `acquire-run-lock` refuses such a pair first |
+| S1 `lease-worker --packet-out` | renders WORKER_GOAL from the leased RUN, size-checks before the durable write, exclusive-create after it; runtime-adapters steps reordered; Card 4 drops the separate render and `check_launch_packet.py` step; WORKER_GOAL launch step 3 reworded at the word cap (parent) | `24d2d2af`, `e90cef35`, merged `17ce1579`; `5c0303f8`, `78b73abb` | 7 packet tests, 17 launch-packet tests, 70 skill contract tests exit 0 |
+| M2+M4 `close-run`, `record-runtime`, docs | the last two subcommands, Cards 3 and 7, execution-state-model flag surfaces and grant pointer, HARNESS_GOAL line 6; parent kept `new_run.py`'s installed digest and derived `restart_required` on a digest mismatch | `6d2a3c5d`..`212f3d65`, merged `715b1832`; `51eee7ac`, `353602b2` | 22 record-command tests, 95 manifest tests exit 0 |
+| M3 integration layer | `build_verifier_request.py --layer mission_integration --integrated-sha`; task and worker contexts through `verifier_context`; integration loop step 6 and Card 5 name the command (parent completed the flags) | `958b8530`..`0708cdc2`, merged `f82ca5db` | 6 request tests, documented-commands, skill contract exit 0 |
+| M1a interaction pass | `hifi_matrix_capture.py` clicks and Enter/Space-activates every manifest interaction at every source target, writes `interactions` rows and `navigation` events; the first writer's hang was a payload field named `id` clobbering the driver reply id; matrix-capture reference updated (parent) | `53d3900a`, `08ec2b47`, merged `2c0c359a`; `8a4110fa` | 78 real-Chromium tests exit 0 |
 
 ## Results And Remaining Work
 
-Pending.
+Landed on `feat/suite-review-r2`: M14, M23, M15, S1, M2+M4, M3 (narrowed), M1a. Live: M1b, M7, M16. After they land: 0.79.0 surfaces with `prepare_release.py`, the full matrix at the candidate with browsers required, this Epic's close, then the consumer rollout the owner asked for (pause running RUNs, install, one GLM writer per consumer, resume).
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r1 / proposed on the 0.78.0 candidate / task/ untracked
-Stage and skill: source maintenance, proposal only
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r2 / 8a4110fa plus this record / task/ untracked
+Stage and skill: source maintenance, round 2 integration
 Inputs consumed (path + hash or revision): docs/epics/EPIC-suite-review-2026-11.md backlog; workflow result wf_19618f07-bb2
-Approvals in force (gate, owner, date, candidate): none for this Epic; it grants nothing
-Done and verified (command, exit code): none
-Remaining: owner decision on scope and order, then writers as the Accepted Scope describes
-Blocked / waiting (gate name or owner decision): owner decision
-Next action (one command or one owner decision): owner picks the round 2 groups
-Next owner (skill or human): human
+Approvals in force (gate, owner, date, candidate): owner 2026-11-07: merge round 1 into local main, run round 2 with GLM 5.3 Flash writers, then update every consumer; no push, tag or install granted
+Done and verified (command, exit code): per Change Log row; focused modules exit 0 at each merge
+Remaining: M1b, M7, M16 integration and review; 0.79.0 surfaces; candidate matrix; Epic close; consumer rollout
+Blocked / waiting (gate name or owner decision): three live writers
+Next action (one command or one owner decision): merge M1b, M7 and M16 when they report, then prepare_release.py --version 0.79.0
+Next owner (skill or human): harness parent
 ```
