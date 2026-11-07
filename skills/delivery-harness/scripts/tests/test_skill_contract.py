@@ -354,6 +354,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("docs/goal/DECISIONS.md", graph)
         self.assertIn("stable mission + review surface + root-cause lineage", graph)
         self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
+        self.assertIn("never author a successor review node", decomposition)
+        self.assertNotIn("successor review node's `max_attempts`", decomposition)
         self.assertIn("Do not authorize another example-specific patch", verification)
         self.assertIn("A replan does not grant a fresh review budget", plan)
         self.assertIn("Repair context (omit for an initial implementation)", worker)
