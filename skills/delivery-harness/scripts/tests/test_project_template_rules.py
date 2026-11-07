@@ -130,6 +130,15 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("the promotion pass ends after the main-SHA artifact and submission read-back", promotion)
         self.assertIn("moves the row to PASS without a new promotion; a changed artifact is a new candidate", promotion)
 
+    def test_wrangler_steps_name_the_vite_redirected_config(self) -> None:
+        # vite build redirects later wrangler deploys to the built dev config.
+        cloudflare = self.section(read("references/deployment-contract.md"), "## Platform: cloudflare")
+        self.assertIn("`vite build` writes `.wrangler/deploy/config.json`", cloudflare)
+        self.assertIn("not with a deploy-time `--env`", cloudflare)
+        template = read("assets/templates/DEPLOYMENT.template.md")
+        wrangler = template.split("#### Wrangler Workers", 1)[1].split("\n### ", 1)[0]
+        self.assertIn("`CLOUDFLARE_ENV=<env> vite build`, never a deploy-time `--env`", wrangler)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.

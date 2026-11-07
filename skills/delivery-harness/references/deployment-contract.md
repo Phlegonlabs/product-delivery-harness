@@ -56,6 +56,7 @@ A `pending` row is allowed in the record because it is an honest human handoff. 
 - Pages preview deployments use the candidate PR/branch; main remains the configured production branch. CI Direct Upload uses `wrangler pages project create <name> --production-branch main`. A Direct Upload project cannot later become git-connected.
 - Record both the moving branch Preview URL and the fixed deployment URL/ID from platform output. Read back the actual candidate SHA; never guess the URL. Verify smoke, auth and bindings before main landing; UI evidence binds by SHA from the candidate review. A preview upload or PR comment alone is not acceptance.
 - Production build, deployment read-back and smoke bind the actual main SHA separately. CI connections do not authorize new external actions or bootstrap deployments.
+- With `@cloudflare/vite-plugin`, `vite build` writes `.wrangler/deploy/config.json`, which redirects later `wrangler deploy` or `wrangler preview` calls to the built config. Select each environment at build time with `CLOUDFLARE_ENV=<env> vite build`, not with a deploy-time `--env`. A production deploy whose output shows the "Using redirected Wrangler configuration" banner for a dev build, or a `-dev` Worker or binding name, is a failed deploy.
 
 ## Platform: vercel
 
