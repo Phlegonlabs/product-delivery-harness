@@ -13,6 +13,7 @@ sys.path.insert(0, str(TESTS_DIR))
 sys.path.insert(0, str(TESTS_DIR.parent))
 
 import check_product_package  # noqa: E402
+import contract_utils  # noqa: E402
 import program_fixtures as fx  # noqa: E402
 from test_feature_coverage import feature  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
@@ -241,6 +242,40 @@ class ProgramCheckerWiringTests(unittest.TestCase):
             self.failures(result),
         )
 
+
+    def test_each_approval_block_binds_its_own_feature_file(self) -> None:
+        self.files["stack-decisions.md"] = bdd_stack()
+        scenarios = {
+            ("PRD.md", "program.feature"): ("TEST-PRG-001", "TEST-PRG-002", "TEST-PRG-003", "TEST-PRG-004",
+                                            "TEST-PRG-005", "TEST-PRG-009", "TEST-E2E-001"),
+            ("modules/kernel/PRD.md", "krn.feature"): ("TEST-KRN-001", "TEST-KRN-002", "TEST-KRN-003", "TEST-KRN-004"),
+            ("modules/inventory/PRD.md", "inv.feature"): ("TEST-INV-001", "TEST-INV-002", "TEST-INV-003", "TEST-INV-004"),
+        }
+        for (_, name), test_ids in scenarios.items():
+            self.files[f"features/{name}"] = feature(*test_ids)
+        bound = approved(self.files)
+        flags = ("--features", "{root}/features", "--require-filled", "--require-approved")
+        missing = self.failures(self.check(*flags, files=bound))
+        self.assertEqual(
+            ["prd approval: missing required field 'Feature files'",
+             "kernel: prd approval: missing required field 'Feature files'",
+             "inventory: prd approval: missing required field 'Feature files'"],
+            missing,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for (prd, name), _ in scenarios.items():
+                path = Path(tmp) / name
+                path.write_text(bound[f"features/{name}"], encoding="utf-8")
+                field = f"- Feature files: sha256:{contract_utils.feature_files_digest([path])}\n"
+                fx.edit(bound, prd, "- Blocking items:", field + "- Blocking items:")
+        result = self.check(*flags, files=bound)
+        self.assertEqual((0, ""), (result.code, result.err))
+        # A kernel scenario edit reopens only the kernel approval.
+        fx.edit(bound, "features/krn.feature", "Then the result shows", "Then the result is shown")
+        self.assertEqual(
+            ["kernel: prd approval: Feature files digest does not match the approved feature files"],
+            self.failures(self.check(*flags, files=bound)),
+        )
 
     def test_program_scenario_pointer_line_turns_coverage_on(self) -> None:
         fx.edit(

@@ -25,6 +25,7 @@ from contract_utils import (
     _without_machine_block,
     canonical_product_bytes,
     canonical_stack_bytes,
+    feature_files_digest,
     parse_digest,
     product_identity,
     release_area_requirements,
@@ -2639,6 +2640,38 @@ def _architecture_ids(architecture_text: str) -> set[str]:
     return ids
 
 
+def _bound_feature_files(features_dir: Path, program: program_package.ProgramContext | None) -> list[Path]:
+    """The feature files one approval block binds: every file of a standard or mvp
+    package, `program.feature` for a program, `<scope>.feature` for a module."""
+
+    if program is None:
+        return sorted(path for path in features_dir.glob("*.feature") if path.is_file())
+    path = features_dir / (f"{program.scope.lower()}.feature" if program.module_id else "program.feature")
+    return [path] if path.is_file() else []
+
+
+def _validate_feature_files_field(
+    product_fields: dict[str, str],
+    features_dir: Path,
+    program: program_package.ProgramContext | None,
+    problems: list[str],
+) -> None:
+    if "feature files" not in product_fields:
+        _add(problems, "prd approval", "missing required field 'Feature files'")
+        return
+    supplied = parse_digest(product_fields["feature files"])
+    if supplied is None:
+        _add(problems, "prd approval", "Feature files must use sha256:<64 lowercase hex>")
+        return
+    try:
+        expected = feature_files_digest(_bound_feature_files(features_dir, program))
+    except (OSError, UnicodeError) as exc:
+        _add(problems, "prd approval", f"Feature files cannot be read: {exc}")
+        return
+    if supplied != expected:
+        _add(problems, "prd approval", "Feature files digest does not match the approved feature files")
+
+
 def _delivery_profile(prd_text: str) -> str:
     """The At a Glance `Delivery profile` value, lowercased; empty when absent."""
 
@@ -4113,6 +4146,8 @@ def validate_texts(
                 "Approved artifacts must be exactly, once and in order: "
                 "PRD.md, architecture.md, stack-decisions.md",
             )
+        if require_approved and features_dir is not None:
+            _validate_feature_files_field(product_fields, features_dir, program, problems)
         checkpoint = product_fields.get("stack decision checkpoint", "").casefold()
         if require_approved and checkpoint != "approved":
             _add(problems, "prd approval", "Stack Decision Checkpoint must be approved")
@@ -4458,6 +4493,7 @@ def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
                 repo_root=args.repo_root,
                 ui_contract=args.ui_contract,
                 platform_delivery=args.platform_delivery,
+                features_dir=args.features,
                 program=program_package.module_context(program, module_id),
             )
             problems += [f"{module_id}: {item}" for item in found]

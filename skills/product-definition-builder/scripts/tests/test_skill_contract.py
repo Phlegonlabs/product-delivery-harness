@@ -1448,6 +1448,18 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("every `docs/product/features/*.feature` in full", lifecycle)
         self.assertIn("its changed feature files", lifecycle)
 
+    def test_review_and_approval_cover_the_feature_files(self) -> None:
+        review = self.read(STAGE).split("## Self-Review Before Product Definition Approval", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("`PRD.md` and its `features/*.feature` files", review)
+        self.assertIn("every candidate path, feature files included, with its SHA-256", review)
+        contract = self.read("references/output-contract.md")
+        approval = contract.split("<!-- product-definition-approval:start -->", 1)[1].split("<!-- product-definition-approval:end -->", 1)[0]
+        self.assertIn("- Feature files: [sha256:<64 lowercase hex> over the sorted names and LF text", approval)
+        self.assertIn("bound by the approval block's `Feature files` digest", contract)
+        for template, name in (("MODULE_PRD", "`<scope>.feature`"), ("PROGRAM_PRD", "`program.feature`")):
+            text = self.read(f"assets/templates/{template}.template.md")
+            self.assertIn(f"- Feature files: [sha256:<64 lowercase hex> over the name and LF text of {name}]", text)
+
     def test_entry_points_name_feature_files_and_the_coverage_checker(self) -> None:
         skill = self.read("SKILL.md")
         self.assertIn("tests with executable scenarios", skill)
