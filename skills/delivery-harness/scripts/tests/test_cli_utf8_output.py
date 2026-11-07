@@ -35,7 +35,7 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "check_type_scale.py", "render_design_system_preview.py",
     },
     "product-definition-builder": {
-        "check_outcome_review.py", "check_product_package.py",
+        "check_feature_coverage.py", "check_outcome_review.py", "check_product_package.py",
         "check_review_translations.py",
     },
     "ui-design-builder": {
