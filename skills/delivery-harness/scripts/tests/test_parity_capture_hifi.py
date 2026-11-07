@@ -418,3 +418,28 @@ class ParityCaptureHifiPackageTests(unittest.TestCase):
         classifications = {row["classification"] for row in manifest["captured"]}
         self.assertEqual({"identical"}, classifications)
         self.assertEqual(1, self.opens().count(self.page_uri("details.html")))
+
+class ParityRouteMapTemplateTests(unittest.TestCase):
+    TEMPLATE = SCRIPTS_DIR.parent / "assets/templates/PARITY_ROUTE_MAP.template.json"
+
+    def test_template_carries_the_hifi_route_map_keys(self) -> None:
+        template = json.loads(self.TEMPLATE.read_text(encoding="utf-8"))
+        self.assertEqual(1, len(template))
+        entry = next(iter(template.values()))
+        self.assertEqual({"app_path", "states", "conditions"}, set(entry))
+        self.assertIsInstance(entry["app_path"], str)
+        self.assertEqual({"app_eval"}, set(next(iter(entry["states"].values()))))
+        self.assertEqual(
+            {"app_eval"}, set(entry["conditions"]["long-content"])
+        )
+        self.assertNotIn("reference_eval", json.dumps(template))
+
+    def test_the_parity_gate_links_the_template(self) -> None:
+        gates = (SCRIPTS_DIR.parent / "references/verification-gates.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("assets/templates/PARITY_ROUTE_MAP.template.json", gates)
+
+
+if __name__ == "__main__":
+    unittest.main()

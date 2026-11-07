@@ -1,0 +1,11 @@
+{
+  "/<route>": {
+    "app_path": "/<concrete-url-for-a-parameterised-route>",
+    "states": {
+      "<state>": {"app_eval": "<javascript that puts the app in that state>"}
+    },
+    "conditions": {
+      "long-content": {"app_eval": "<javascript that expands the app content>"}
+    }
+  }
+}
