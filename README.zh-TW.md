@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.76.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.77.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -206,6 +206,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.77.0** — 可執行的 scenario。`docs/product/features/` 下的 feature 檔案納入 PRD 套件，與 PRD 一起批准。每個 scenario 只帶一個 `@TEST-*` tag，每個 `Required: Yes` 的 Test Obligation 至少要有一個 scenario。`check_feature_coverage.py` 雙向檢查，新套件的 `check_product_package.py` 另加 `--features <dir>`。`render_delivery_acceptance.py` 由 feature 檔案加一份 run profile 產生交付驗收 register；`@platform:`、`@auth:` 與 `@env:` tag 只針對單一 scenario 覆寫 profile，register 不能手動編輯。加上 `--features` 與 `--features-base` 時，`check_prd_delta_scope.py` 要求 delta 中每個新增或修訂需求的 Required TEST 都有新增或改動的 scenario，否則拒絕。專案 AGENTS 模板新增 Behavior Specs 段落，Greenfield scaffold 會設定已批准的 BDD runner（新的 stack 層）及其 step definition 目錄。改 scenario 文字是產品決定，須走 PRD delta；只改 step definition 是現有 Epic 上的小修正。
+
 - **0.76.1** — 更快的 review 循環。motion receipt 按單一 intent 在代表性 target 上的離線 receipt 校驗，沙箱為 allowlisted-local-pages，不再要求 HiFi bundle 的 interaction、navigation 與 reviewer 證據，motion collector 因此能通過安裝的契約。沙箱內跑不了 git 的 reviewer 改用父程序以 `review_input.py` 產生的 packet（detached clone、按範圍切分的 diff、父程序 status 與全檔 SHA-256 清單）證明候選身分與 checkout 乾淨；有該 packet 時 git 失敗不再算 environment block。targeted re-check 後若仍有多個 finding family，合併成一次 consolidated repair，用一個 review point 審查，只有 packet 超過路線上限時才按路徑組拆分；pre-review gate 要求基線對比控件，對綁定的 base 位元組記錄每個案例的預期轉變（無效輸入 old=accept new=reject，恢復的合法行為 old=reject new=accept，保留的正向樣本兩邊都 accept）。
 
 - **0.76.0** — 更快的 UI review。PRD UI surface 可宣告 `derivedStates`，只在最小 target 取證一次；第一波 stress axes 改為代表性抽樣；isolated repair 最多兩次 scoped re-review。沿用改以 render fingerprint（幾何、computed styles 與媒體識別）而非頁面 bytes；re-review 與 parity 先 diff 再判，並加區域規則；一個 case 一張 capture 供所有觀察引用；motion 證據為單一代表 target 上的三項觀察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以單一瀏覽器 context 跑完整 HiFi 矩陣，`parity_capture.py` 每條路由兩側各載入一次、分類配對並沿用未變者。瀏覽器矩陣的獨立審查改為先驗收再抽樣，packet 在啟動前按路線上限切分，瀏覽器能力探測每 session 重用，必要檢查全過後 owner 接受即關閉該輪設計，一輪以進場時的 bundle pin 收尾。
@@ -213,7 +215,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.75.4** — Security 內容校訂。`security-review.md` 不再允許直接路線上的 inline security review，trust boundary 改從 PRD Security Requirements 列及其 `TEST-*` trace 取得，在受審 head 上確認每個 planned boundary 的 denial test，`scope` 逐字照抄 packet，並說明 environment block 的記錄方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到來源清單之前。
 
 - **0.75.3** — 修正 0.75.2 consumer 採用時發現的模板問題。`PROJECT_AGENTS.template.md` 的 managed-run 規則改指向 `project-operating-rules.md`，不再指向模板裏不存在的段落；`DEPLOYMENT.template.md` 的 presence 範例不再被 `check_deployment.py` 當成未填的 placeholder；GA4 指南寫明 `MS-*` 列在 Realtime 或 DebugView 看到事件之前維持 `available`。
-
-- **0.75.2** — 閱讀更薄。新增 `docs_reading_budget.py`，量出每個入口開工前必讀的字數（必讀與條件式連結分開，`--budget N` 可在 CI 守線）。七份 reference 在不刪任何規則的前提下壓縮：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（約減 8,600 字）；`design-input-updates.md` 改為只有 UI 工作才讀，每次 direct 與 managed run 少讀 3.7k 字。計入總字數已低於 v0.74.1，雖然本週新增了不少內容。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
