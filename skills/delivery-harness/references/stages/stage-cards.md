@@ -63,7 +63,7 @@ python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run
 
 PLAN is validated, RUN exists, and the first dispatch approaches. Recheck before each new wave.
 
-Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. After every readiness row passes, set `plan_readiness: ready` through the parent-owned readiness procedure.
+Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. Run the Environment Preflight once in the clean base checkout and record its rows in the Epic or task record. After every readiness row passes, set `plan_readiness: ready` through the parent-owned readiness procedure.
 
 **Commands in order**
 
@@ -77,11 +77,12 @@ python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <
 - A mission lacks a verifier or an executable provider.
 - An authorization entry lacks its exact source and scope.
 - The Mission Cohesion Gate fails for a mission.
+- An Environment Preflight row fails or is unobserved (an `environment` block, not a mission or review failure).
 - `plan_readiness` stays `blocked`.
 
 **Read on failure**
 
-- `references/stages/managed-delivery.md` — "Pass Plan Readiness"
+- `references/stages/managed-delivery.md` — "Pass Plan Readiness", "Environment Preflight"
 - `references/execution-state-model.md` — "Authorization Action Ledger"
 - `references/execution-task-decomposition.md` — Mission Cohesion Gate
 

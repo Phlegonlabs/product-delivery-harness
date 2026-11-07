@@ -53,6 +53,9 @@ class DocumentedCommandTests(unittest.TestCase):
         cards = (SCRIPTS.parent / "references/stages/stage-cards.md").read_text(encoding="utf-8")
         self.assertNotIn("every action entry needs `authorized: true`", cards)
         self.assertIn("`push` always, stays `authorized: false`", cards)
+        readiness = cards.split("## Card 3: Readiness", 1)[1].split("## Card 4", 1)[0]
+        self.assertIn("Run the Environment Preflight once in the clean base checkout", readiness)
+        self.assertIn("An Environment Preflight row fails or is unobserved", readiness)
 
     def test_stack_option_map_retains_authorship_and_checker_without_generator(self):
         source = (SCRIPTS.parents[1] / "product-definition-builder/references/output-contract.md").read_text(encoding="utf-8")
