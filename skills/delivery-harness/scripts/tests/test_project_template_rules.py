@@ -113,6 +113,10 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         )
         self.assertIn("<exact | tree_equal_S (candidate tree, main tree) | new_candidate | pending>", block)
         self.assertNotIn("PASS when remote main equals", block)
+        self.assertIn("unavailable: HTTP status, message, owner decision ref", block)
+        contract = read("references/branch-promotion-contract.md")
+        self.assertIn("record `unavailable` with the HTTP status and message", contract)
+        self.assertIn("landing waits for a recorded owner decision that names its scope", contract)
 
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so

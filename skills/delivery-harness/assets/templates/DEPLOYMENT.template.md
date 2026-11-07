@@ -117,7 +117,7 @@ Do not reuse the cloudflare commands. Keep the same order: create and attach non
 Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this record from read-back evidence; a future intention is not a completed row.
 
 - Delivery kind: <initial_delivery | enhancement>
-- Main protection readback: <host capability; ruleset/review policy; required checks; checked RFC3339; evidence | recorded owner exception | pending>
+- Main protection readback: <host capability; ruleset/review policy; required checks; checked RFC3339; evidence | unavailable: HTTP status, message, owner decision ref | pending>
 - Run branch: <full branch ref>
 - Frozen base SHA: <full SHA>
 - Candidate SHA: <full SHA>
