@@ -1372,6 +1372,31 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Target operating systems", mobile)
         self.assertIn("Target operating systems, code-sharing strategy", mobile)
 
+    def test_feature_files_make_test_obligations_executable(self) -> None:
+        contract = self.read("references/output-contract.md")
+        reading = contract.split("## How To Read This Package", 1)[1].split("## `PRD.md`", 1)[0]
+        self.assertIn("| `features/<scope>.feature` |", reading)
+        tests = contract.split("## Test Obligations", 1)[1].split("## UI Design Handoff Status", 1)[0]
+        for rule in (
+            "whose Test type names E2E, integration or contract needs at least one scenario",
+            "`assets/templates/FEATURE.template.feature`",
+            "exactly one `@TEST-*` tag",
+            "`<TEST-ID>/<slug of the scenario name>`",
+            "Given holds the persona and initial data, When the ordered actions, Then the assertions `ASSERT-001..` in order",
+            "`@platform:`, `@auth:` and `@env:` tags override the run profile",
+            "Scenario Outline, Examples, Rule, doc strings, data tables and non-English keywords are not supported",
+            "Feature text is owner-approved product content",
+            "step definitions are implementation code",
+        ):
+            self.assertIn(rule, tests)
+        toolchain = contract.split("## CLI and Toolchain Decision", 1)[1].split("## Backend and Data", 1)[0]
+        self.assertIn("| BDD runner |", toolchain)
+        for runner in ("pytest-bdd", "cucumber-js", "Reqnroll"):
+            self.assertIn(runner, toolchain)
+        completeness = contract.split("### Completeness", 1)[1].split("### Publication", 1)[0]
+        self.assertIn("--features <staged features directory>", completeness)
+        self.assertIn("Each staged scenario states its TEST row's behavior", completeness)
+
 
 if __name__ == "__main__":
     unittest.main()

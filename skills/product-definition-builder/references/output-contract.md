@@ -50,6 +50,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `PRD.md` | The owner and anyone deciding whether to build | What it is, for whom, what counts as done, whether the definition is approved |
+| `features/<scope>.feature` | The owner and the engineer who automates it | What each required behavior looks like as a scenario a BDD runner executes |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `PRD.zh-TW.md`, `architecture.zh-TW.md` | The owner reviewing in Chinese | The complete meaning of the matching English sources; non-canonical review only |
 | `stack-decisions.md` | The owner and engineer choosing or reviewing technology | Options considered, what the owner approved, and why |
@@ -59,7 +60,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, which measurement sources are planned or verified, and what deployed |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 
-Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and its HiFi target are later downstream inputs; pinned legacy packages also retain `docs/design/wireframes.html`. Optional UI/design-system and operational records never override Product Definition.
+Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and its HiFi target come later; pinned legacy packages also keep `docs/design/wireframes.html`. Optional UI, design-system and operational records never override Product Definition.
 
 The research-to-approval order is research-first evidence → complete candidate → Platform Optimization Recommendations → explicit owner choices → accepted revisions → Stack Decision Checkpoint → Product Definition Approval.
 
@@ -68,7 +69,7 @@ Two rules keep the package readable:
 - **Meaning before bookkeeping.** Each file opens with what a human needs to understand the product and ends with the ID matrices and decision records. Never open a file with a trace table.
 - **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns should be a list instead; the Metrics table's `Stretch` column and the environment contract in `architecture.md` are the exceptions.
 
-Length budget. Targets, not caps: say less when the product is simple; go over only when it is genuinely more complex, not when a section drifted:
+Length budget. These are targets, not caps: say less for a simple product; go over only for real complexity, not drift:
 
 - `PRD.md`: about 200 lines. `## At a Glance` fits on one screen.
 - `architecture.md`: about 250 lines.
@@ -77,7 +78,7 @@ Length budget. Targets, not caps: say less when the product is simple; go over o
 - `research-assessment.md`: about 80 lines.
 - `outcomes/YYYY-MM-DD-<release-set>.md`: about 60 lines.
 
-When a section runs past its share, move the detail that belongs in another artifact before expanding the file.
+When a section runs long, move detail that belongs in another artifact before growing the file.
 
 ## `PRD.md`
 
@@ -361,7 +362,9 @@ During candidate refinement, use these existing fields for unresolved lifecycle 
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | [Observable behavior or quality obligation] | [Unit / integration / contract / E2E / performance / security / accessibility / operational] | [Yes / No] | PRD-001 | [Literal pass signal, measured result, or threshold] |
 
-Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row may cover more than one upstream requirement only when one test genuinely verifies all of them. Preserve each `TEST-*` ID when its obligation keeps the same meaning; retire rather than reuse an ID whose meaning changes.
+Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row covers several upstream requirements only when one test verifies all of them. Keep a `TEST-*` ID while its meaning holds; retire, never reuse, an ID whose meaning changes.
+
+A `Required: Yes` row whose Test type names E2E, integration or contract needs at least one scenario in a feature file built from `assets/templates/FEATURE.template.feature`; other rows may have one. Each scenario carries exactly one `@TEST-*` tag. Its id, `<TEST-ID>/<slug of the scenario name>`, is the delivery-acceptance register's `scenarios[].id`. Given holds the persona and initial data, When the ordered actions, Then the assertions `ASSERT-001..` in order. Background steps are Given steps of every scenario; And and But continue the previous keyword. `@platform:`, `@auth:` and `@env:` tags override the run profile for that scenario. Scenario Outline, Examples, Rule, doc strings, data tables and non-English keywords are not supported. Feature text is owner-approved product content, so changing it takes a PRD delta; step definitions are implementation code. Record the runner as the `BDD runner` stack layer.
 
 ---
 
@@ -806,7 +809,7 @@ A product may add this section in a later revision after Frontend Technology Dec
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
 ## CLI and Toolchain Decision
-Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `container_or_self_hosted`, `internal_service` and `other_nonpublic` release surfaces. All map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. Keep activation profile names separate from stack areas.
+Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `container_or_self_hosted`, `internal_service` and `other_nonpublic` release surfaces. All map to the one canonical `Toolchain` area in the Approved, Applicable, Resolved and Coherent Options records; `CLI/toolchain` is an accepted alias. Activation profile names are not stack areas.
 
 ### Decision Drivers
 - [Target platforms, command/interface contract, packaging, distribution, upgrade policy, and team constraints.]
@@ -818,6 +821,7 @@ Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `
 | Toolchain | [Runtime/compiler and build/package tooling] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 | Distribution mechanism | [Package registry, signed binary, or internal artifact channel] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 | Testing | [Command/interface and platform checks] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| BDD runner | [Runner for `features/*.feature`, such as pytest-bdd, cucumber-js or Reqnroll] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
 
 ## Backend and Data Technology Decision
 Use this section for every product with a backend, persistent data, or auth requirement.
@@ -970,7 +974,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 ### Completeness
 
 - Before first-delivery approval, the one author self-review applies the UI and technical perspectives of `prd-refinement.md` to complete journeys and cross-feature dependencies. Findings retain evidence, stable IDs and dispositions; required gaps cannot be silently deferred. Later findings follow the same rule without rewriting frozen approvals.
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory with Product Definition Approval and Stack Decision Checkpoint both `approved`. Run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` before publication; new packages add `--eval-policy eval-policy/1`, and new whole-platform authoring adds `--platform-delivery platform-delivery/1`. The staged operational documents follow their existing applicability rules.
+- `PRD.md`, `architecture.md` and `stack-decisions.md` are in the run-specific staging directory with Product Definition Approval and Stack Decision Checkpoint both `approved`. Before publication run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`; new packages add `--eval-policy eval-policy/1 --features <staged features directory>`, and new whole-platform authoring adds `--platform-delivery platform-delivery/1`. Staged operational documents follow their own applicability rules.
+- Each staged scenario states its TEST row's behavior and expected signal in product language, not implementation steps.
 - Required trust, security, AI, monetization, and partner gates carry into architecture, stack decisions, UI surfaces, and `TEST-*` obligations, including failure and termination states.
 - A UI-bearing `PRD.md` records the human owner for later UI design and a complete UI Surface Contract, with no guessed layout, style, motion/media treatment, wireframe approval, or design token. UI preference is not presented as user validation.
 - A hosted target records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one; never a silent default).
