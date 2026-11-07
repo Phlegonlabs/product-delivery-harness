@@ -639,6 +639,32 @@ class TemplateAuditTests(unittest.TestCase):
                       divergence["diff"])
         self.assertNotIn("a" * 64, "\n".join(divergence["diff"]))
 
+    def test_harness_version_values_are_not_divergence_but_labels_are(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            agents = root / "AGENTS.md"
+            seeded = agents.read_text(encoding="utf-8")
+            install = next(line for line in seeded.splitlines() if line.startswith("- Shared installation:"))
+            digest = next(line for line in seeded.splitlines() if line.startswith("- Five-skill contract SHA-256:"))
+            filled = seeded.replace(install, "- Shared installation: Harness `0.78.0` from tag `v0.78.0` "
+                                    "(`" + "b" * 40 + "`), installed `2026-11-07` under `~/.agents/skills`.")
+            filled = filled.replace(digest, "- Five-skill contract SHA-256: `" + "c" * 64 + "`.")
+            self.assertNotEqual(seeded, filled)
+            agents.write_text(filled, encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+            self.assertEqual(0, code, result["agents_merge"])
+            self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+            agents.write_text(filled.replace("- Five-skill contract SHA-256:", "- Contract digest:", 1),
+                              encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+        self.assertEqual(1, code)
+        [divergence] = result["agents_merge"]["unresolved_divergences"]
+        self.assertEqual("Harness Version", divergence["heading"])
+        self.assertIn("-- Contract digest: <value>", divergence["diff"])
+        self.assertNotIn("c" * 64, "\n".join(divergence["diff"]))
+
     def test_documents_check_reports_template_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)

@@ -8,9 +8,9 @@ to add; `--require-resolved` makes a finding fail. It also lists the template
 lines an existing `.gitattributes` lacks.
 
 `--check --merge-agents` prints a unified diff for each AGENTS.md section that
-differs from the template beyond trailing blank lines, line endings and the
-Skill Bindings skill and pin cells. `--check --documents` compares
-docs/DOCUMENTS.md with the manifest template.
+differs from the template beyond trailing blank lines, line endings, the
+Skill Bindings skill and pin cells and the Harness Version bullet values.
+`--check --documents` compares docs/DOCUMENTS.md with the manifest template.
 """
 
 from __future__ import annotations
@@ -53,6 +53,7 @@ MERGE_PLAN_KEYS = {
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t\r]*$")
 HEADING_RE = re.compile(r"^ {0,3}## (.+?)[ \t]*#*[ \t]*$")
+BULLET_LABEL_RE = re.compile(r"^(\s*[-*] [^:]+):.*$")
 UNRESOLVED_PLACEHOLDER_MARKERS = (
     "<fill>",
     "<bundled",
@@ -141,10 +142,13 @@ def _comparable_section(heading: str, section: str) -> str:
     """Section text as compared: LF endings and no trailing blank lines.
 
     Skill Bindings rows drop their skill and pin cells, which
-    check_skill_bindings.py owns.
+    check_skill_bindings.py owns. Harness Version bullets keep only their
+    labels: each consumer records its own installed version there.
     """
 
     text = section.replace("\r\n", "\n").rstrip() + "\n"
+    if heading == "Harness Version":
+        return "\n".join(BULLET_LABEL_RE.sub(r"\1: <value>", line) for line in text.split("\n"))
     if heading != "Skill Bindings":
         return text
     lines = []
