@@ -496,9 +496,10 @@ class RecordRuntimeTests(RecordCommandsFixture):
         self.assertEqual(["sequential_parent"], adapter["available_drivers"])
         self.assertEqual("observed", adapter["detection_source"])
         gate = adapter["version_gate"]
-        self.assertEqual("unobserved", gate["status"])
+        # loaded b… differs from the installed a… new_run recorded: restart required
+        self.assertEqual("restart_required", gate["status"])
         self.assertEqual("b" * 64, gate["loaded_contract_digest"])
-        self.assertIsNone(gate["installed_contract_digest"])
+        self.assertEqual("a" * 64, gate["installed_contract_digest"])  # kept from new_run
         self.assertEqual(SESSION, gate["session_id"])
         attempt = live["attempt_log"][-1]
         self.assertEqual("runtime_record", attempt["kind"])
@@ -515,7 +516,7 @@ class RecordRuntimeTests(RecordCommandsFixture):
         live = self.reload_run()
         gate = live["runtime_capabilities"]["runtime_adapter"]["version_gate"]
         self.assertIsNone(gate["loaded_contract_digest"])
-        self.assertIsNone(gate["installed_contract_digest"])
+        self.assertEqual("a" * 64, gate["installed_contract_digest"])  # kept from new_run
         self.assertEqual("unobserved", gate["status"])
         attempt = live["attempt_log"][-1]
         self.assertIn("sequential_parent.wall_clock_seconds=1800", attempt["evidence"])

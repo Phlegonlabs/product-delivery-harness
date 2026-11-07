@@ -95,7 +95,7 @@ Required flags per `harness_transition.py` subcommand, as the parser defines the
 - `record-grant`: `--action`, `--expires-when`, `--source`; repeatable `--target` and `--mission-id`. `--action execution` takes no `--target` and authorizes execution with the mission scope.
 - `open-run`: `--intent`, `--source`; optional repeatable `--mission-id` and `--expires-when`. Execution flags must travel together and need an execution intent.
 - `close-run`: `--source`; requires a held `--session-id` lock. Global `--repo-root` defaults to the RUN file's repository and binds the closeout conditions to live Git.
-- `record-runtime`: `--provider`; repeatable `--driver` and `--route-caps` (`<route>=<cap>=<integer>` or a JSON object); optional `--loaded-digest`. The installed digest stays null; record-runtime never reads installed bytes.
+- `record-runtime`: `--provider`; repeatable `--driver` and `--route-caps` (`<route>=<cap>=<integer>` or a JSON object); optional `--loaded-digest`. It keeps the installed digest `new_run.py` recorded and never reads installed bytes to fill the loaded one.
 
 `scripts/validate_result.py` requires `--plan` and `--run`; its optional flags include `--ancestry-confirmed` and `--repo-root`. `scripts/inspect_harness_run.py` requires `--repo-root` and takes `--session-id`; `scripts/harness_step.py` accepts `--observe-only`. `--help` lists the rest.
 

@@ -4885,8 +4885,8 @@ def _record_runtime(
     """Record the observed runtime adapter surface and its version gate.
 
     The gate stays unobserved: record-runtime never reads installed bytes, so
-    the installed digest stays null and the loaded digest stays null unless
-    the caller passes --loaded-digest.
+    the installed digest new_run recorded is kept as it was and the loaded
+    digest stays null unless the caller passes --loaded-digest.
     """
 
     if not args.driver:
@@ -4911,6 +4911,16 @@ def _record_runtime(
     prior_gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
     if not isinstance(prior_gate, dict):
         prior_gate = {}
+    installed_digest = prior_gate.get("installed_contract_digest")
+    # Two observed digests that differ mean the session runs other bytes than
+    # the installed bundle; the validator admits only restart_required there.
+    status = (
+        "restart_required"
+        if args.loaded_digest is not None
+        and installed_digest is not None
+        and args.loaded_digest != installed_digest
+        else "unobserved"
+    )
     gate = {
         "host_version": prior_gate.get("host_version"),
         "minimum_host_version": prior_gate.get("minimum_host_version"),
@@ -4918,8 +4928,8 @@ def _record_runtime(
         "required_harness_version": prior_gate.get("required_harness_version"),
         "session_id": args.session_id,
         "loaded_contract_digest": args.loaded_digest,
-        "installed_contract_digest": None,
-        "status": "unobserved",
+        "installed_contract_digest": installed_digest,
+        "status": status,
         "evidence": (
             f"record-runtime observed provider {args.provider} with drivers "
             + ", ".join(args.driver)
