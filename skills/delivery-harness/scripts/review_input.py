@@ -6,7 +6,8 @@ Clones --repo to <out>/clone, checks out --head detached, and writes
 changed-files.txt, parent-status.txt, one scope-<name>.diff per --scope, and
 tracked-files.sha256 (SHA-256 of every clone file except .git/ and review-input/).
 The reviewer proves candidate identity and a clean checkout from that manifest,
-parent-status.txt and HEAD.txt instead of running git.
+parent-status.txt and HEAD.txt instead of running git. parent-status.txt warns
+when the parent's info/attributes holds rules, since the clone does not get them.
 
 --scope name=pathspec[,pathspec...] limits one diff to those git pathspecs.
 Exit 0 on success, 2 on any failure.
@@ -80,6 +81,13 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     status = git(repo, "status", "--porcelain", "--untracked-files=all")
     tracked_dirty = any(line and not line.startswith(b"??") for line in status.splitlines())
     untracked = sum(1 for line in status.splitlines() if line.startswith(b"??"))
+    local_attributes = repo / os.fsdecode(git(repo, "rev-parse", "--git-path", "info/attributes").strip())
+    attributes_warning = ""
+    if local_attributes.is_file() and local_attributes.stat().st_size:
+        attributes_warning = (
+            f"warning: {local_attributes.as_posix()} holds attribute rules that do not reach clones; "
+            "they must be in the committed .gitattributes (delivery-harness/references/gitattributes-contract.md)\n"
+        )
 
     out.mkdir(parents=True)
     clone = out / "clone"
@@ -109,6 +117,7 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     put("parent-status.txt", (
         f"repo: {repo.as_posix()}\nhead: {repo_head}\nstatus: {state}\nuntracked: {untracked}\n"
         "note: the clone holds committed content only; untracked and ignored parent files are not in it\n"
+        + attributes_warning
     ).encode() + status)
     scope_lines = {}
     for name, paths in scopes:
