@@ -1616,7 +1616,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             )
 
         self.assertIn("Schema v10 additionally requires `plan_revision` and `plan_digest_sha256`", reference)
-        self.assertIn('"plan_digest_sha256": "<64-hex>"', reference)
+        self.assertIn("Record the authorized entry with `harness_transition.py record-grant`", reference)
         self.assertIn("the invalidation rule is inert there", reference)
 
     def test_unfilled_observed_snapshot_empties_dispatchable_nodes(self) -> None:
