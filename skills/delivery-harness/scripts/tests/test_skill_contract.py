@@ -1105,8 +1105,23 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertIn(anchor, stage_headings(stage))
         self.assertIn("references/review-method.md#surface-lenses", entry)
         self.assertIn("surface-lenses", stage_headings(method))
-        for surface_class in ("hosted_web", "ios, android", "mcp_server", "messaging_bot", "social, video_channel"):
-            self.assertIn(f"| {surface_class}", method)
+        def table_rows(text: str, heading: str) -> list[list[str]]:
+            section = text.split(f"{heading}\n", 1)[1].split("\n## ", 1)[0]
+            return [[cell.strip() for cell in line.strip().strip("|").split("|")]
+                    for line in section.splitlines() if line.startswith("| ") and not line.startswith("| ---")]
+
+        def classes(cell: str) -> set[str]:
+            return {re.sub(r"\s*\(.*?\)", "", item).strip() for item in cell.split(",")}
+
+        # Every catalog class or presence kind with a growth lens has a Surface Lenses row.
+        header, *build_rows = table_rows(self.read("references/surface-catalog.md"), "## Build Surfaces")
+        lens = header.index("Growth lens")
+        required = {name for row in build_rows if row[lens] != "none" for name in classes(row[0])}
+        required |= {"social", "video_channel", "newsletter", "community", "docs_site"}
+        lensed = {name for row in table_rows(method, "## Surface Lenses")[1:] if row[1] != "none"
+                  for name in classes(row[0])}
+        self.assertIn("macos", required)
+        self.assertEqual(set(), required - lensed)
 
         workflow = stage.split("## Workflow\n", 1)[1].split("\n## ", 1)[0]
         self.assertNotIn("## Workflow", entry)
