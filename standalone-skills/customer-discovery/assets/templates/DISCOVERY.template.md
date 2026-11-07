@@ -68,7 +68,7 @@ A pattern needs three independent participants to be called `observed`.
 | RA ID | Finding | Confidence | Sources | Decision it informs |
 | --- | --- | --- | --- | --- |
 
-Mint one stable `RA-*` ID per decision-relevant finding. `Sources` holds interview codes and dates.
+Number one `RA-*` ID per decision-relevant finding after the highest in `docs/product/research-assessment.md`. Confidence is `sourced` (observed) or `UNVALIDATED` (hypothesis). `Sources` starts with the study's proposed `S-NN` source row, then interview codes and dates.
 
 ## Handoff
 
