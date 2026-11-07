@@ -13,6 +13,7 @@ from harness_schema import run_required_harness_version, version_at_least
 from harness_git import GitMetadataError, reject_object_substitution
 
 INTRODUCTION_VERSION = (0, 60, 0)
+ACCEPTANCE_GATE_VERSION = (0, 79, 0)
 RESULTS_PATH = "docs/verification/delivery-results.json"
 
 
@@ -65,7 +66,7 @@ def _command(gate, script, expected):
         ep.fail("eval/acceptance argv must exactly join frozen source paths/hashes and register")
 
 
-def _topology(plan, gates):
+def _topology(plan, gates, chain):
     graph = plan.get("graph")
     if not isinstance(graph, dict) or not isinstance(graph.get("nodes"), list) or not isinstance(graph.get("edges"), list):
         ep.fail("eval acceptance needs an executable verifier graph")
@@ -94,12 +95,25 @@ def _topology(plan, gates):
                 pending.extend(adjacency.get(node, ()))
         return False
 
-    for before, after in (("eval-acceptance", "delivery-acceptance"), ("delivery-acceptance", "final-closeout")):
+    for before, after in zip(chain, chain[1:]):
         if not reaches(bindings[before], bindings[after]):
-            ep.fail("required dependency path: eval-acceptance -> delivery-acceptance -> final-closeout")
-    broad = set(gates) - {"eval-acceptance", "delivery-acceptance", "final-closeout"}
-    if not broad or any(not reaches(bindings[name], bindings["eval-acceptance"]) for name in broad):
-        ep.fail("every broad final check must precede eval acceptance")
+            ep.fail("required dependency path: " + " -> ".join(chain))
+    broad = set(gates) - set(chain)
+    if not broad or any(not reaches(bindings[name], bindings[chain[0]]) for name in broad):
+        ep.fail(f"every broad final check must precede {chain[0]}")
+
+
+def _frozen_contract_source(plan, key, root, source_rows, resolve_source):
+    rows, errors = source_rows(plan, key)
+    if errors or len(rows) != 1:
+        return None, None, errors or [f"eval-plan: requires one frozen {key} source"]
+    source = rows[0]
+    ep.safe_relative(source["location"])
+    bounded = _read_bytes(root / source["location"], key, root)
+    payload, errors = resolve_source(source, root, label=key, strict=True)
+    if errors or payload != bounded:
+        return None, None, errors or ["eval-plan: frozen contract changed during read"]
+    return source, _load_json(payload, key), []
 
 
 def validate_eval_plan(plan, repo_root, *, run=None, source_rows, resolve_source):
@@ -145,20 +159,32 @@ def validate_eval_plan(plan, repo_root, *, run=None, source_rows, resolve_source
         if errors or frozen != raw:
             return errors or ["eval-plan: adopted policy differs from the canonical frozen PRD authority"]
         if policy["applicability"] == "not_required":
+            if not version_at_least(run_required_harness_version(run), ACCEPTANCE_GATE_VERSION):
+                return []
+            delivery_ref, delivery, errors = _frozen_contract_source(plan, "delivery-acceptance", root, source_rows, resolve_source)
+            if errors:
+                return errors
+            if delivery.get("prd_sha256") != _sha256(raw):
+                return ["eval-plan: delivery contract must bind frozen PRD hash"]
+            gates = plan.get("final_gates")
+            if not isinstance(gates, list) or any(not isinstance(gate, dict) for gate in gates):
+                ep.fail("eval-plan: final gates missing")
+            gate_map = {gate.get("id"): gate for gate in gates}
+            if len(gate_map) != len(gates) or not {"delivery-acceptance", "final-closeout"} <= set(gate_map):
+                ep.fail("eval-plan: required delivery/closeout final gates missing or duplicate")
+            _command(gate_map["delivery-acceptance"], "check_delivery_acceptance.py", {
+                "--repo-root": ".", "--prd": prd_source["location"], "--results": RESULTS_PATH,
+                "--candidate-from-head": True, "--contract": delivery_ref["location"],
+                "--contract-sha256": delivery_ref["content_sha256"]})
+            _topology(plan, gate_map, chain=("delivery-acceptance", "final-closeout"))
             return []
         sources = {}
         resolved = {}
         for key in ("eval-contract", "delivery-acceptance"):
-            rows, errors = source_rows(plan, key)
-            if errors or len(rows) != 1:
-                return errors or [f"eval-plan: requires one frozen {key} source"]
-            source = rows[0]
-            ep.safe_relative(source["location"])
-            bounded = _read_bytes(root / source["location"], key, root)
-            payload, errors = resolve_source(source, root, label=key, strict=True)
-            if errors or payload != bounded:
-                return errors or ["eval-plan: frozen contract changed during read"]
-            sources[key], resolved[key] = source, _load_json(payload, key)
+            source, payload, errors = _frozen_contract_source(plan, key, root, source_rows, resolve_source)
+            if errors:
+                return errors
+            sources[key], resolved[key] = source, payload
         prd_hash = _sha256(raw)
         validate_contract(resolved["eval-contract"], policy, prd_hash)
         delivery = resolved["delivery-acceptance"]
@@ -192,7 +218,7 @@ def validate_eval_plan(plan, repo_root, *, run=None, source_rows, resolve_source
             "--delivery-contract": delivery_ref["location"], "--delivery-contract-sha256": delivery_ref["content_sha256"]})
         _command(gate_map["delivery-acceptance"], "check_delivery_acceptance.py", {
             **common, "--contract": delivery_ref["location"], "--contract-sha256": delivery_ref["content_sha256"]})
-        _topology(plan, gate_map)
+        _topology(plan, gate_map, chain=("eval-acceptance", "delivery-acceptance", "final-closeout"))
         return []
     except (ep.PolicyError, AcceptanceError, GitMetadataError) as exc:
         return [f"eval-plan: {exc}"]
