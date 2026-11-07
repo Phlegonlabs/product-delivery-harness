@@ -14,7 +14,7 @@ Baseline: `origin/main` `12eecf90` (0.76.1 merged through PR #179).
 
 Frozen conventions. Every writer and reviewer applies these without re-deciding them.
 
-- Feature files live at `docs/product/features/<scope>.feature`. `standard` and `mvp` packages use `product.feature`; a `program` package uses one file per module scope token in lowercase (`inv.feature`) plus `program.feature` for `TEST-E2E-*` and `TEST-MIG-*`.
+- Feature files live at `docs/product/features/<scope>.feature`. `standard` and `mvp` packages use `product.feature`; a `program` package uses one file per module scope token in lowercase (`inv.feature`) plus `program.feature` for the program PRD's own TESTs (`TEST-PRG-*`, `TEST-E2E-*`, `TEST-MIG-*`). With `--module`, only the program's and that module's rows need a scenario; any module's TEST may be named.
 - A feature file is part of the PRD package: staged, approved, hashed and archived with `PRD.md`. Its text is owner-approved product content. Step definitions are implementation code owned by the writer.
 - Every scenario carries exactly one `@TEST-...` tag. Its id is `<TEST-ID>/<slug of the scenario name>` and is the `scenarios[].id` of the delivery-acceptance register.
 - A `Required: Yes` Test Obligation whose type is E2E, integration or contract needs at least one scenario. Other obligations may have scenarios.
@@ -62,22 +62,27 @@ Outside judge: a blank consumer project whose `check_product_package.py --featur
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
-| Shared feature-file reader | One parser for both skills, frozen before the writers start | pending | `test_feature_file.py` |
+| Shared feature-file reader | One parser for both skills, frozen before the writers start | `7be60715` | `test_feature_file.py` 8 tests, exit 0 |
+| Epic opened | Conventions frozen before launch | `ce08d8f7` | `git diff --check` exit 0 |
+| W1: product-definition-builder side | Feature template, `check_feature_coverage.py`, `--features` on the package checker, output contract, stage steps 12 and 19, lifecycle, delta `## Changed Scenarios`, entry points | `2935bae7`..`9d348b4c`, fast-forwarded onto `feat/bdd-scenarios` at `9d348b4c` | On the integrated head: pdb suite 430 tests exit 0; `test_skill_contract.py`, `test_docs_reading_budget.py`, `check_skill_spec.py`, pyflakes, `git diff --check` exit 0; docs weight +287 words. `test_cli_utf8_output.py` inventory entry is a parent edit after W2 |
 
 ## Results And Remaining Work
 
-Pending.
+- W1 integrated at `9d348b4c`; parent read of the diff found no blocking finding.
+- The approval package digest still covers only PRD, architecture and stack decisions. This round lists each feature file with its SHA-256 in the approval request, as eval inputs are listed; folding feature files into `canonical_product_bytes` and the approval check is a later round.
+- `TEST-PRG-*` scenarios live in `program.feature`; W1 also split lifecycle steps 3 and 4 and corrected the interview turn count in `openai.yaml` from three to four.
+- W2 running; W3, review, version bump and the full matrix follow.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/bdd-scenarios / 12eecf90 plus this round's commits / task/ untracked
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/bdd-scenarios / 9d348b4c plus this record / task/ untracked
 Stage and skill: source maintenance, managed topology by hand (delivery-harness governance)
 Inputs consumed (path + hash or revision): origin/main 12eecf90; source-maintenance.md, delegation-contract.md, commit-convention.md at that revision
 Approvals in force (gate, owner, date, candidate): owner direction 2026-11-07 for the scope, writers and reviewer above; local branches, worktrees and commits; no push, tag, install or release
-Done and verified (command, exit code): pending
-Remaining: W1, W2, integration, review, W3, version bump, full matrix
+Done and verified (command, exit code): W1 integration at 9d348b4c: python -B -m unittest discover -s skills/product-definition-builder/scripts/tests (430 tests, exit 0); test_skill_contract.py and test_docs_reading_budget.py (exit 0); check_skill_spec.py, pyflakes, docs_weight.py, git diff --check (exit 0)
+Remaining: W2 integration; parent edit of the test_cli_utf8_output.py inventory for both new scripts; unified review; W3 READMEs; version bump 0.77.0; full matrix
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): launch W1 and W2 from the committed reader
+Next action (one command or one owner decision): merge W2's branch with --no-ff when it reports, then rerun its suites on the integrated head
 Next owner (skill or human): harness parent
 ```
