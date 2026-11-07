@@ -93,7 +93,14 @@ class NewRunTests(unittest.TestCase):
             "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
             "docs/verification/delivery-acceptance.json": b'{"schema": "delivery-acceptance/1"}\n',
             "docs/product/features/product.feature": b"Feature: Fixture\n@TEST-001\nScenario: Fixture scenario\nWhen the owner acts\nThen the result shows\n",
+            "docs/product/features/receive.feature": (
+                b"Feature: Receive stock\n\n  @TEST-001\n  Scenario: Receive the full quantity\n"
+                b"    Given a warehouse clerk\n    When the clerk receives 10 units\n    Then stock shows 10 units\n"
+            ),
         }
+        for source in self.plan["sources"]:
+            if source["kind"] == "feature":
+                source["location"] = "docs/product/features/receive.feature"
         for location, value in product_sources.items():
             path = self.dir / location
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -134,6 +141,14 @@ class NewRunTests(unittest.TestCase):
         run = load_run(self.generate())
 
         self.assertEqual([], validate_current_plan_run(self.plan, run, repo_root=self.dir))
+
+    def test_run_title_follows_the_plan_heading(self) -> None:
+        text = self.plan_path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("# Plan: <feature or product slice>\n"))
+        self.plan_path.write_text(text.replace("# Plan: <feature or product slice>", "# Plan: Receive stock", 1),
+                                  encoding="utf-8")
+        self.assertTrue(self.generate().read_text(encoding="utf-8").startswith("# Run: Receive stock\n"))
+        self.assertTrue(new_run.render({}).startswith("# Run: <feature or product slice>\n"))
 
     def test_graph_and_mission_state_mirror_the_plan(self) -> None:
         run = load_run(self.generate())

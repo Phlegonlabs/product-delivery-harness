@@ -38,6 +38,7 @@ from harness_manifest import (  # noqa: E402
 )
 from harness_authorization import authorization_covers, execution_covers  # noqa: E402
 from harness_schema import version_at_least  # noqa: E402
+import new_run  # noqa: E402
 
 
 # The PLAN/RUN fixture builders live in manifest_fixtures.py; they are
@@ -1123,8 +1124,7 @@ class RunValidationTests(unittest.TestCase):
         """
         root = SCRIPTS_DIR.parent
         plan = load_plan(root / "assets/templates/HARNESS_PLAN.template.md")
-        run = load_run(root / "assets/templates/MISSION_RUNBOOK.template.md")
-        run["plan"]["digest_sha256"] = plan_digest(plan)
+        run = new_run.build_run(plan, run_id="RUN-template", branch="refs/heads/codex/run")
         # The current v10 sequential-parent contract requires the parent-owned
         # isolated worktree mode.  Keep this template-based regression focused
         # on integration history rather than its legacy shared-checkout value.

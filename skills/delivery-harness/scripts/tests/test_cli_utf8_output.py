@@ -18,7 +18,8 @@ RECONFIGURE_CALL = 'stream.reconfigure(encoding="utf-8", errors="backslashreplac
 # entry point, including new commands that need an inventory update.
 EXPECTED_CLI_ENTRYPOINTS = {
     "delivery-harness": {
-        "archive_run.py", "check_delivery_acceptance.py", "check_deployment.py",
+        "archive_run.py", "build_delivery_results.py", "build_verifier_request.py",
+        "check_delivery_acceptance.py", "check_deployment.py",
         "check_document_sync.py", "check_eval_acceptance.py",
         "check_external_skill_dependencies.py", "check_launch_packet.py", "check_prd_delta_scope.py",
         "check_skill_bindings.py", "check_skill_spec.py", "check_ui_contract.py",

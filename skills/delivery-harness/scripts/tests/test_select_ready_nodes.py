@@ -23,9 +23,11 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import harness_transition  # noqa: E402
+import new_run  # noqa: E402
 from harness_core import ManifestError  # noqa: E402
 from harness_manifest import (  # noqa: E402
 
+    load_plan,
     load_run,
     plan_digest,
     validate_run,
@@ -779,8 +781,9 @@ class SelectReadyNodesTests(unittest.TestCase):
         self,
     ) -> None:
         plan, run = current_preintegration_review_state()
-        template_run = load_run(
-            SCRIPTS_DIR.parent / "assets/templates/MISSION_RUNBOOK.template.md"
+        template_run = new_run.build_run(
+            load_plan(SCRIPTS_DIR.parent / "assets/templates/HARNESS_PLAN.template.md"),
+            run_id="RUN-template", branch="refs/heads/codex/run",
         )
         active_state = copy.deepcopy(run["mission_states"]["M1"])
         active_node_state = copy.deepcopy(

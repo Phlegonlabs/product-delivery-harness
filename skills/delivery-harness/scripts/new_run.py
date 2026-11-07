@@ -304,10 +304,14 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
     }
 
 
-def render(run: dict[str, Any]) -> str:
+def render(run: dict[str, Any], plan_text: str = "") -> str:
+    """Render RUN.md, titled `# Run: X` from the PLAN's `# Plan: X` heading."""
+
+    heading = re.search(r"^# Plan: (.+?)[ \t]*$", plan_text, re.MULTILINE)
+    title = heading.group(1) if heading else "<feature or product slice>"
     body = json.dumps({"harness_run": run}, indent=2, ensure_ascii=False)
     return (
-        "# Run: <feature or product slice>\n"
+        f"# Run: {title}\n"
         "\n"
         "Generated from PLAN.md by `scripts/new_run.py`. Every derivable field is\n"
         "filled; authorizations, observations, and the batch base are deliberately\n"
@@ -399,7 +403,7 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {message}", file=sys.stderr)
         return 2
 
-    document = render(run)
+    document = render(run, plan_text)
     if args.out is None:
         print(document, end="")
         return 0
