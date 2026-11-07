@@ -38,6 +38,7 @@ from select_verifiers import (
     normalize_changed_files,
     verifier_is_applicable,
 )
+from verifier_request_context import verifier_context
 # `verifier_runtime` pulls in concurrent.futures -> logging -> traceback for its
 # batch mode, which this validator never uses; importing it at module scope cost
 # about a third of this script's startup. The two symbols below are needed only
@@ -493,17 +494,44 @@ def _retained_verifier_results(
     ):
         expected_checkout_dirty = observed_git["parent_dirty"]
 
+    # The retained records below compare only the parent-observed route
+    # fields; layer, mission, task, lease, and attempt bindings are checked
+    # per record from the declarations and attempt_log. The expected values
+    # come from the one shared verifier context builder.
+    route_context = verifier_context(
+        layer="worker",
+        run=run,
+        plan_revision=result.get("plan_revision"),
+        plan_digest_sha256=result.get("plan_digest_sha256"),
+        batch_base_sha=(
+            worker.get("batch_base_sha")
+            if isinstance(worker, dict)
+            else result.get("base_sha")
+        ),
+        head_sha=observed_head_sha,
+        changed_files=observed_changed_files,
+        checkout_role="worker",
+        checkout_dirty=expected_checkout_dirty,
+        cache_safe=False,
+        mission_id=result.get("mission_id"),
+        task_id=None,
+        attempt_id=None,
+        lease_id=result.get("lease_id"),
+    )
     expected_context = {
-        "run_id": run.get("run_id"),
-        "plan_revision": result.get("plan_revision"),
-        "plan_digest_sha256": result.get("plan_digest_sha256"),
-        "graph_revision": run.get("graph_state", {}).get("graph_revision"),
-        "batch_base_sha": worker.get("batch_base_sha") if isinstance(worker, dict) else result.get("base_sha"),
-        "head_sha": observed_head_sha,
-        "changed_files": sorted(observed_changed_files),
-        "trust_domain": "parent_local",
-        "checkout_role": "worker",
-        "checkout_dirty": expected_checkout_dirty,
+        field: route_context[field]
+        for field in (
+            "run_id",
+            "plan_revision",
+            "plan_digest_sha256",
+            "graph_revision",
+            "batch_base_sha",
+            "head_sha",
+            "changed_files",
+            "trust_domain",
+            "checkout_role",
+            "checkout_dirty",
+        )
     }
     for index, item in enumerate(values):
         path = f"observed.verifier_results[{index}]"
