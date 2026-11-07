@@ -92,7 +92,14 @@ class NewRunTests(unittest.TestCase):
             "docs/product/architecture.md": approved_architecture.encode("utf-8"),
             "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
             "docs/verification/delivery-acceptance.json": b'{"schema": "delivery-acceptance/1"}\n',
+            "docs/product/features/receive.feature": (
+                b"Feature: Receive stock\n\n  @TEST-001\n  Scenario: Receive the full quantity\n"
+                b"    Given a warehouse clerk\n    When the clerk receives 10 units\n    Then stock shows 10 units\n"
+            ),
         }
+        for source in self.plan["sources"]:
+            if source["kind"] == "feature":
+                source["location"] = "docs/product/features/receive.feature"
         for location, value in product_sources.items():
             path = self.dir / location
             path.parent.mkdir(parents=True, exist_ok=True)
