@@ -598,6 +598,8 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
             self.assertIn(status_rule, contract)
         self.assertIn("A section may mix statuses", contract)
         self.assertIn("Authority is not another status label", contract)
+        self.assertIn("Each layer row fills its four empty cells: a status from the rule above", contract)
+        self.assertNotIn("[Cited source]", contract)
         for guide in (frontend, backend, mobile, monetization):
             self.assertIn(
                 "Assign status per layer; one section may mix statuses", guide
