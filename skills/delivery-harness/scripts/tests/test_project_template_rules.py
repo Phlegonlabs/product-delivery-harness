@@ -118,6 +118,15 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("record `unavailable` with the HTTP status and message", contract)
         self.assertIn("landing waits for a recorded owner decision that names its scope", contract)
 
+    def test_store_build_awaiting_availability_stays_pending(self) -> None:
+        # Upload, submission or store approval is not availability.
+        status = self.section(read("assets/templates/DEPLOYMENT.template.md"), "## Release Target Status")
+        contract = read("references/deployment-contract.md")
+        for text in (status, contract):
+            self.assertIn("A store or signed-installer PASS needs install or download proof through the named channel", text)
+            self.assertIn("uploaded, submitted or approved but not yet installable stays `pending`", text)
+        self.assertNotIn("prove install/download or artifact/build identity", status + contract)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.

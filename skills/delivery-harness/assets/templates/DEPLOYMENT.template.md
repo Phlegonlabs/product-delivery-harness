@@ -185,7 +185,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ## Release Target Status
 
-Fill this architecture-backed table from the stable target IDs in `docs/product/architecture.md`. The row set must match that architecture exactly. A current PASS binds the exact target, stage, provider/channel, expected and deployed full SHAs, artifact or build identity, availability evidence, checked time, and status; Expected SHA must equal Deployed SHA. Native `ios`, `android`, `macos`, `windows`, and `linux` targets prove install/download or artifact/build identity rather than URL parity.
+Fill this architecture-backed table from the stable target IDs in `docs/product/architecture.md`. The row set must match that architecture exactly. A current PASS binds the exact target, stage, provider/channel, expected and deployed full SHAs, artifact or build identity, availability evidence, checked time, and status; Expected SHA must equal Deployed SHA. A store or signed-installer PASS needs install or download proof through the named channel, not URL parity. A build that is uploaded, submitted or approved but not yet installable stays `pending` with its SHAs, artifact identity, store state and submission ID.
 
 | Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
