@@ -14,4 +14,4 @@ Run `python "<delivery-harness-skill-root>/scripts/configure_project_context.py"
 
 ## Converted Files
 
-A `bytes differ from HEAD` result can mean line-ending or filter conversion even when `git status` is clean. Files checked out with conversion before the rule landed then show as modified. Checking them out again overwrites the working copy, so it needs owner approval.
+A `bytes differ from HEAD` result can mean line-ending or filter conversion even when `git status` is clean. A hash that matches only after turning CRLF into LF, or LF into CRLF, means Git converted the bytes: fix the attributes, and never regenerate the artifact or re-pin its hash. Files checked out with conversion before the rule landed then show as modified. Checking them out again overwrites the working copy, so it needs owner approval.
