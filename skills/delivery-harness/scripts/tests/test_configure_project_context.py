@@ -345,6 +345,11 @@ class ConfigureProjectContextTests(unittest.TestCase):
                 ["Second Shared Rule"],
                 upgrade_proposal["agents_merge"]["proposed_additions"],
             )
+            self.assertIn(
+                {"heading": "# Project Delivery Harness Shared Guidance",
+                 "diff": ["+## Second Shared Rule"]},
+                upgrade_proposal["agents_merge"]["unresolved_divergences"],
+            )
             self.assertEqual("applied", upgrade["agents_merge"]["status"])
             self.assertEqual(
                 ["Second Shared Rule"], upgrade["agents_merge"]["applied_additions"]
@@ -568,6 +573,120 @@ class ConfigureProjectContextTests(unittest.TestCase):
             self.assertIn('"CLAUDE.md"', result.stdout)
             self.assertFalse((root / "AGENTS.md").exists())
             self.assertFalse((root / "CLAUDE.md").exists())
+
+
+class TemplateAuditTests(unittest.TestCase):
+    """--check --merge-agents and --check --documents report only real drift."""
+
+    def run_check(self, root: Path, *extra: str) -> tuple[int, dict]:
+        before = {path: path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root), "--check", *extra],
+            capture_output=True, text=True, encoding="utf-8", timeout=60,
+        )
+        self.assertEqual(before, {path: path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()})
+        return result.returncode, json.loads(result.stdout)
+
+    def test_trailing_blank_lines_and_line_endings_are_not_divergence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            template = root / "agents-template.md"
+            template.write_bytes(b"# Shared\n\n## Owner Rule\n\n- Same wording.\n\n## Last Rule\n\n- Last.\n")
+            (root / "AGENTS.md").write_bytes(
+                b"# Owner\r\n\r\n## Owner Rule\r\n\r\n- Same wording.\r\n\r\n\r\n\r\n## Last Rule\r\n\r\n- Last.\r\n\r\n"
+            )
+            result = configure_context(root, template, template, merge_agents=True, dry_run=True)
+        self.assertEqual("unchanged", result["agents_merge"]["status"])
+        self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+    def test_divergence_is_a_unified_diff_not_a_hash_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            template = root / "agents-template.md"
+            template.write_bytes(b"# Shared\n\n## Owner Rule\n\n- Context line.\n- Template wording.\n")
+            (root / "AGENTS.md").write_bytes(b"# Owner\n\n## Owner Rule\n\n- Context line.\n- Keep owner wording.\n")
+            divergences = configure_context(
+                root, template, template, merge_agents=True, dry_run=True
+            )["agents_merge"]["unresolved_divergences"]
+        self.assertEqual(["heading", "diff"], list(divergences[0]))
+        self.assertEqual("Owner Rule", divergences[0]["heading"])
+        diff = divergences[0]["diff"]
+        self.assertEqual(["--- AGENTS.md ## Owner Rule", "+++ template ## Owner Rule"], diff[:2])
+        self.assertEqual([" - Context line.", "-- Keep owner wording.", "+- Template wording."], diff[3:])
+
+    def test_filled_skill_bindings_match_the_seed_but_other_cells_do_not(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            agents = root / "AGENTS.md"
+            seeded = agents.read_text(encoding="utf-8")
+            filled = seeded.replace(
+                "| ui_design | approved Product Definition → UI intake, directions, HiFi, approval | `pending` | `pending` |",
+                "|ui_design|approved Product Definition → UI intake, directions, HiFi, approval|`ui-design-builder`|`" + "a" * 64 + "`|",
+            )
+            self.assertNotEqual(seeded, filled)
+            agents.write_text(filled + "\n\n", encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+            self.assertEqual(0, code, result["agents_merge"])
+            self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+            agents.write_text(filled.replace("directions, HiFi, approval", "directions only", 1), encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+        self.assertEqual(1, code)
+        [divergence] = result["agents_merge"]["unresolved_divergences"]
+        self.assertEqual("Skill Bindings", divergence["heading"])
+        self.assertIn("-| ui_design | approved Product Definition → UI intake, directions only | <skill> | <pin> |",
+                      divergence["diff"])
+        self.assertNotIn("a" * 64, "\n".join(divergence["diff"]))
+
+    def test_documents_check_reports_template_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            template = (SCRIPTS_DIR.parent / "assets/templates/DOCUMENTS.template.md").read_text(encoding="utf-8")
+            manifest = root / "docs" / "DOCUMENTS.md"
+            manifest.parent.mkdir()
+            code, result = self.run_check(root, "--documents")
+            self.assertEqual(1, code)
+            self.assertFalse(result["documents"]["present"])
+
+            manifest.write_text(template, encoding="utf-8")
+            code, result = self.run_check(root, "--documents")
+            self.assertEqual(0, code, result["documents"])
+            self.assertEqual(
+                {"path": "docs/DOCUMENTS.md", "present": True, "missing_rows": [],
+                 "single_record_rows": [], "intro_paragraph_missing": False},
+                result["documents"],
+            )
+
+            intro = template.split("\n\n")[1]
+            features_row = next(line for line in template.splitlines() if line.startswith("| `docs/product/features/`"))
+            record_row = "| EPIC-001 | `docs/epics/EPIC-001.md` | enhancement | owner | round record | open |"
+            drifted = (
+                template.replace(intro, "The manifest of every document. Add a row when a document is created.")
+                .replace(features_row, record_row)
+            )
+            manifest.write_text(drifted, encoding="utf-8")
+            code, result = self.run_check(root, "--documents")
+        self.assertEqual(1, code)
+        documents = result["documents"]
+        self.assertEqual(["docs/product/features/"], documents["missing_rows"])
+        line = drifted.splitlines().index(record_row) + 1
+        self.assertEqual(
+            [{"line": line, "path": "docs/epics/EPIC-001.md", "directory": "docs/epics/"}],
+            documents["single_record_rows"],
+        )
+        self.assertTrue(documents["intro_paragraph_missing"])
+
+    def test_documents_requires_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--root", temp, "--documents"],
+                capture_output=True, text=True, encoding="utf-8", timeout=60,
+            )
+            self.assertEqual(2, result.returncode)
+            self.assertIn("--documents requires --check", result.stderr)
+            self.assertEqual([], list(Path(temp).iterdir()))
 
 
 class ByteAttributeCheckTests(unittest.TestCase):
