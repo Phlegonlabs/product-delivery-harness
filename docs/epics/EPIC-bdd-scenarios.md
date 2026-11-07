@@ -1,6 +1,6 @@
 # EPIC-bdd-scenarios: executable scenarios under every Test Obligation
 
-Status: in_progress
+Status: complete locally; candidate `d36c7216` (0.77.0) passed the full matrix; publication, tag and install are owner actions
 
 ## Problem And Baseline
 
@@ -68,6 +68,13 @@ Outside judge: a blank consumer project whose `check_product_package.py --featur
 | W2: delivery-harness side | `render_delivery_acceptance.py` and the profile template, the delta scenario rule, acceptance contract, traceability, gates, enhancement, scaffold, stage card, project templates, SKILL wording | `bf021846`..`51cb05ee`, merged at `73d4a802` | W2's final run: harness suite 112 modules exit 0, golden path exit 0, skill spec, pyflakes, docs weight, `git diff --check` exit 0; docs weight +255 words |
 | Parent: inventory and AGENTS omission | W1's checker in the UTF-8 CLI inventory; this repository omits the template's Behavior Specs | `bec44f2a`, `10b733de` | `test_cli_utf8_output.py` exit 0 |
 | Repair: one scenario per Required TEST | `check_delivery_acceptance.py` rejects a register that omits any Required TEST, so the narrow E2E/integration/contract rule could pass coverage and fail the render; the checker, its tests, the output contract and this Epic now require a scenario for every Required TEST | `20b9e624` | pdb suite 430 tests exit 0; eight harness modules exit 0; pyflakes, skill spec, docs weight, `git diff --check` exit 0 |
+| W3: READMEs and release surfaces | Four READMEs describe the feature files and the rendered register; version 0.77.0 on every surface with the 0.75.2 entry rotated into CHANGELOG | `58a3e82e`, `5d27a648`, fast-forwarded | `test_skill_contract.py`, `test_documented_commands.py`, `test_readme_structure.py`, skill spec, docs weight, `git diff --check` exit 0 |
+| Matrix at `5d27a648` | Full Required Verification run | `task/release-0770/matrix-5d27a648/summary.txt` | harness suite 110 of 112 modules; `test_enhancement_entry_contract.py` (W3 dropped a pinned Chinese sentence) and `test_install_script.py` (digest hashed a `.pytest_cache` the installer skips) failed; every other step exit 0 |
+| Fix: pinned README sentence | Restore `不能手動編輯產生區段` / `不能手动编辑生成区段` beside the new clause | `d512ad11` | `test_enhancement_entry_contract.py`, `test_skill_contract.py` exit 0 |
+| Fix: digest ignores `.pytest_cache` | `contract_digest` now skips what `install.sh` never stages; a clean tree's digest is unchanged | `8ee9054d` | `test_harness_contract.py`, `test_install_script.py` exit 0 |
+| Matrix at `8ee9054d` | Full Required Verification run after the two fixes | `task/release-0770/matrix-8ee9054d/summary.txt` | every step exit 0; harness suite 112 of 112 modules |
+| W4: READMEs end to end | Start here and What is included rows for delivery-harness, the flow diagram's Product and Tests nodes, a Delivery acceptance bullet in Operating rules, and a proofread of the 0.77.0 entry in zh-TW, zh-CN and es | `d36c7216`, fast-forwarded | `test_skill_contract.py`, `test_enhancement_entry_contract.py`, `test_readme_structure.py`, `test_documented_commands.py`, `test_pre_delivery_self_review.py`, skill spec, `git diff --check` exit 0 |
+| Matrix at `d36c7216` | Full Required Verification run at the candidate | `task/release-0770/matrix-d36c7216/summary.txt` | every step exit 0: skill spec, pyflakes, docs weight, harness suite 112 of 112 modules (788 s, 8 workers), golden path, pdb, udb and dsc suites, git diff --check |
 
 ## Results And Remaining Work
 
@@ -77,18 +84,21 @@ Outside judge: a blank consumer project whose `check_product_package.py --featur
 - W2 integrated at `73d4a802`. The parent read of its diff found one blocking mismatch with W1's rule, repaired in `20b9e624`.
 - Open, cosmetic: `check_delivery_acceptance.py` prints a matched scenario as `<test_id>/<scenario id>`, which now doubles the TEST ID because scenario ids start with it.
 - The delta scenario rule compares `--features` with `--features-base`, a directory holding the baseline's feature files; a checkout of the baseline supplies it.
-- W3 READMEs, the unified review of the repair range, the version bump and the full matrix follow.
+- Candidate `d36c7216`, version 0.77.0, branch `feat/bdd-scenarios` from `origin/main` `12eecf90`. Full matrix: every step exit 0: skill spec, pyflakes, docs weight, harness suite 112 of 112 modules (788 s, 8 workers), golden path, pdb, udb and dsc suites, git diff --check.
+- Review at `d36c7216` by the parent (Claude Fable 5.1, owner direction 2026-11-07; the hook refuses Fable children, so the parent read the whole diff itself). Code lens: PASS after one repair (`20b9e624`) and two matrix-driven fixes. Security lens, scope `check_feature_coverage.py`, `check_product_package.py --features`, `render_delivery_acceptance.py`, `check_prd_delta_scope.py`, `harness_contract.py`, `feature_file.py`: repository files and CLI arguments are the only untrusted input; no network, secret or privileged operation; denial behavior is tested (malformed feature file and unknown TEST are `path:line` findings, placeholder profile is a finding, missing directory or unpaired flags exit 2, duplicate scenario ids are findings); PASS for that scope. Visual lens: not applicable, no UI change.
+- Open for a later round: fold feature files into the approval package digest; the doubled TEST ID in the acceptance checker's output; a reading-budget ratchet per entry point.
+- Not done here, owner actions: push the branch and open the PR to `main`, tag `v0.77.0` after the merge, install at a quiescent boundary with `./install.sh`, then consumer adoption. The three record-fix commits and the two harness fixes on `fix/compact-tracked-files-retention` are a separate PR.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/bdd-scenarios / 20b9e624 plus this record / task/ untracked
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/bdd-scenarios / d36c7216 plus this record / task/ untracked
 Stage and skill: source maintenance, managed topology by hand (delivery-harness governance)
 Inputs consumed (path + hash or revision): origin/main 12eecf90; source-maintenance.md, delegation-contract.md, commit-convention.md at that revision
 Approvals in force (gate, owner, date, candidate): owner direction 2026-11-07 for the scope, writers and reviewer above; local branches, worktrees and commits; no push, tag, install or release
-Done and verified (command, exit code): repair 20b9e624: pdb suite 430 tests exit 0; test_skill_contract, test_cli_utf8_output, test_render_delivery_acceptance, test_prd_delta_scope, test_project_template_rules, test_enhancement_entry_contract, test_docs_reading_budget, test_documented_commands exit 0; pyflakes, check_skill_spec, docs_weight, git diff --check exit 0. W1 integration at 9d348b4c: python -B -m unittest discover -s skills/product-definition-builder/scripts/tests (430 tests, exit 0); test_skill_contract.py and test_docs_reading_budget.py (exit 0); check_skill_spec.py, pyflakes, docs_weight.py, git diff --check (exit 0)
-Remaining: unified review of 12eecf90..HEAD with the repair range; W3 READMEs and CHANGELOG rotation; version bump 0.77.0; full matrix at the candidate
-Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): launch W3 for the four READMEs and the CHANGELOG rotation
-Next owner (skill or human): harness parent
+Done and verified (command, exit code): full matrix at d36c7216 (task/release-0770/matrix-d36c7216): every step exit 0: skill spec, pyflakes, docs weight, harness suite 112 of 112 modules (788 s, 8 workers), golden path, pdb, udb and dsc suites, git diff --check. Earlier: repair 20b9e624: pdb suite 430 tests exit 0; test_skill_contract, test_cli_utf8_output, test_render_delivery_acceptance, test_prd_delta_scope, test_project_template_rules, test_enhancement_entry_contract, test_docs_reading_budget, test_documented_commands exit 0; pyflakes, check_skill_spec, docs_weight, git diff --check exit 0. W1 integration at 9d348b4c: python -B -m unittest discover -s skills/product-definition-builder/scripts/tests (430 tests, exit 0); test_skill_contract.py and test_docs_reading_budget.py (exit 0); check_skill_spec.py, pyflakes, docs_weight.py, git diff --check (exit 0)
+Remaining: owner publication only (push, PR to main, tag v0.77.0, install, consumer adoption); worker worktrees under C:/Users/mps19/.t3/worktrees/product-delivery-harness/ await a separate removal decision
+Blocked / waiting (gate name or owner decision): owner decision to publish the branch
+Next action (one command or one owner decision): owner pushes feat/bdd-scenarios at d36c7216 and opens the PR to main
+Next owner (skill or human): human
 ```
