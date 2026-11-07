@@ -18,19 +18,22 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
     def test_eval_approval_and_publication_invocations_keep_both_checks(self) -> None:
-        for path in ("references/stages/product-definition.md", "references/eval-policy-contract.md",
-                     "references/output-contract.md", "references/artifact-lifecycle.md"):
-            text = self.read(path)
-            lines = [line for line in text.splitlines() if "--eval-policy eval-policy/1" in line]
-            self.assertTrue(lines, path)
-            for line in lines:
-                self.assertIn("--repo-root", line, (path, line))
+        # Step 15 holds the one full checker command; the other invocations point to it.
+        step = self.read(STAGE).split("\n15. ", 1)[1].split("\n", 1)[0]
+        self.assertIn("--repo-root <repository-root> --require-filled --require-approved`; "
+                      "new packages add `--eval-policy eval-policy/1`", step)
+        for path in (STAGE, "references/eval-policy-contract.md", "references/output-contract.md",
+                     "references/artifact-lifecycle.md", "agents/openai.yaml"):
+            lines = [line for line in self.read(path).splitlines() if "--eval-policy eval-policy/1" in line]
+            self.assertEqual(1 if path == STAGE else 0, len(lines), path)
         output = self.read("references/output-contract.md")
         completeness = output.split("### Completeness", 1)[1].split("### Publication", 1)[0]
-        self.assertIn("--eval-policy eval-policy/1", completeness)
+        self.assertIn("[Workflow step 15](stages/product-definition.md#workflow)", completeness)
         lifecycle = self.read("references/artifact-lifecycle.md")
         staging = lifecycle.split("## Stage and Validate", 1)[1].split("## Publication Authorization Gate", 1)[0]
-        self.assertIn("--eval-policy eval-policy/1", staging)
+        self.assertIn("[Workflow step 15](stages/product-definition.md#workflow)", staging)
+        self.assertIn("[Workflow step 15](stages/product-definition.md#workflow)", self.read("references/eval-policy-contract.md"))
+        self.assertIn("step 15's package checker", self.read(STAGE).split("\n19. ", 1)[1].split("\n", 1)[0])
 
     def test_skill_routes_browser_products_to_frontend_selection(self) -> None:
         skill = self.read(STAGE)
@@ -1418,8 +1421,9 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         testing = architecture.split("\n## Testing\n", 1)[1].split("\n## ", 1)[0]
         for field in ("`BDD runner` stack row", "`features/` link", "step-definition directory", "sha256", "not_required"):
             self.assertIn(field, testing)
+        self.assertIn("Scenarios for these rows live in `docs/product/features/product.feature`.", tests)
         completeness = contract.split("### Completeness", 1)[1].split("### Publication", 1)[0]
-        self.assertIn("--features <staged features directory>", completeness)
+        self.assertIn("[Workflow step 15](stages/product-definition.md#workflow)", completeness)
         self.assertIn("Each staged scenario states its TEST row's behavior", completeness)
 
     def test_feature_files_are_drafted_checked_and_published_with_the_prd(self) -> None:
@@ -1429,16 +1433,17 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         for rule in ("`features/<scope>.feature`", "`product.feature` for `standard` and `mvp`",
                      "one file per module scope token in lowercase (`inv.feature`)", "`program.feature`"):
             self.assertIn(rule, draft)
-        for step in ("\n15. ", "\n19. "):
-            body = stage.split(step, 1)[1].split("\n", 1)[0]
-            self.assertIn("--eval-policy eval-policy/1 --features <staged features directory>", body)
+        body = stage.split("\n15. ", 1)[1].split("\n", 1)[0]
+        self.assertIn("The PRD's `Scenarios for these rows live in ...` line makes the checker cover "
+                      "the `features/` directory beside the PRD", body)
+        self.assertIn("`--features <directory>` names another one", body)
         self.assertIn("its feature files", stage.split("\n20. ", 1)[1].split("\n", 1)[0])
         locations = lifecycle.split("## Resolve Locations", 1)[1].split("## Inventory Superseded Documents", 1)[0]
         self.assertIn("`docs/product/features/<scope>.feature`, which stage, publish and archive with `PRD.md`", locations)
         self.assertIn("lists each path with its SHA-256", locations)
         staging = lifecycle.split("## Stage and Validate", 1)[1].split("## Publication Authorization Gate", 1)[0]
         self.assertIn("including `features/`", staging)
-        self.assertIn("--eval-policy eval-policy/1 --features <staged features directory>", staging)
+        self.assertIn("[Workflow step 15](stages/product-definition.md#workflow)", staging)
         self.assertIn("\n4. Run ", staging.replace("\r\n", "\n"))
         self.assertIn("every `docs/product/features/*.feature` in full", lifecycle)
         self.assertIn("its changed feature files", lifecycle)
@@ -1450,7 +1455,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("`scripts/check_feature_coverage.py`", skill)
         prompt = " ".join(self.read("agents/openai.yaml").split())
         for phrase in ("four bounded free-text interview turns", "PRD.md with its feature files",
-                       "plus --features for a new package", "check_feature_coverage.py"):
+                       "check_product_package.py as the stage file's step 15 states", "check_feature_coverage.py"):
             self.assertIn(phrase, prompt)
 
 

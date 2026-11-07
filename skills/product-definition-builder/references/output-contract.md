@@ -293,7 +293,7 @@ Older documents may be inspected for history, but a current approval requires th
 ## AI and Automation
 AI and Automation Gate: [required / not_required / blocked] — [reason], decided by [human owner]
 
-New packages include the active `eval-policy/1` JSON block from `eval-policy-contract.md` here and run the core checker with `--repo-root <repository-root> --eval-policy eval-policy/1`. Freeze policy/input bytes before approval. Required AI cannot waive eval.
+New packages include the active `eval-policy/1` JSON block from `eval-policy-contract.md` here and validate it with the package checker command in `stages/product-definition.md` step 15. Freeze policy/input bytes before approval. Required AI cannot waive eval.
 
 When `required`, record:
 
@@ -361,6 +361,8 @@ During candidate refinement, use these existing fields for unresolved lifecycle 
 | TEST ID | Obligation | Test type | Required | Upstream trace IDs | Expected signal |
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | [Observable behavior or quality obligation] | [Unit / integration / contract / E2E / performance / security / accessibility / operational] | [Yes / No] | PRD-001 | [Literal pass signal, measured result, or threshold] |
+
+Scenarios for these rows live in `docs/product/features/product.feature`.
 
 Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row covers several upstream requirements only when one test verifies all of them. Keep a `TEST-*` ID while its meaning holds; retire, never reuse, an ID whose meaning changes.
 
@@ -950,7 +952,7 @@ Before archiving earlier documents or publishing the staged package, verify:
 ### Completeness
 
 - Before first-delivery approval, the one author self-review applies the UI and technical perspectives of `prd-refinement.md` to complete journeys and cross-feature dependencies. Findings retain evidence, stable IDs and dispositions; required gaps cannot be silently deferred. Later findings follow the same rule without rewriting frozen approvals.
-- `PRD.md`, `architecture.md` and `stack-decisions.md` are in the run-specific staging directory with Product Definition Approval and Stack Decision Checkpoint both `approved`. Before publication run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved`; new packages add `--eval-policy eval-policy/1 --features <staged features directory>`, and new whole-platform authoring adds `--platform-delivery platform-delivery/1`. Staged operational documents follow their own applicability rules.
+- `PRD.md`, `architecture.md` and `stack-decisions.md` are in the run-specific staging directory with Product Definition Approval and Stack Decision Checkpoint both `approved`, and the package checker passes there before publication as [Workflow step 15](stages/product-definition.md#workflow) states. Staged operational documents follow their own applicability rules.
 - Each staged scenario states its TEST row's behavior and expected signal in product language, not implementation steps.
 - Required trust, security, AI, monetization, and partner gates carry into architecture, stack decisions, UI surfaces, and `TEST-*` obligations, including failure and termination states.
 - A UI-bearing `PRD.md` records the human owner for later UI design and a complete UI Surface Contract, with no guessed layout, style, motion/media treatment, wireframe approval, or design token. UI preference is not presented as user validation.

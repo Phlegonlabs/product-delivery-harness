@@ -9,11 +9,10 @@ interface:
     PRD.md with its feature files, architecture.md and stack-decisions.md in
     English with Chinese review copies; post-draft market research; the Stack
     Decision Checkpoint; and Product Definition Approval with the exact
-    publish paths in the request. Validate with check_product_package.py
-    --require-filled --require-approved, plus --features for a new package;
-    check_feature_coverage.py checks scenarios alone while drafting. Never
-    choose a stack or approve for the owner, and
-    write only the paths the owner approved. Stop after approval. UI design
+    publish paths in the request. Validate with check_product_package.py as
+    the stage file's step 15 states; check_feature_coverage.py checks
+    scenarios alone while drafting. Never choose a stack or approve for the
+    owner, and write only the paths the owner approved. Stop after approval. UI design
     belongs to $ui-design-builder and implementation to $delivery-harness.
 policy:
   allow_implicit_invocation: false

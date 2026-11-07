@@ -3994,6 +3994,50 @@ class FeaturesFlagTests(unittest.TestCase):
             (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
             self.assertEqual((0, ""), run())
 
+    def test_scenario_pointer_line_turns_coverage_on_without_the_flag(self) -> None:
+        pointer = "Scenarios for these rows live in `docs/product/features/product.feature`.\n"
+        last_row = "| TEST-003 | Deny untrusted fixture input before any write |"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prd = valid_prd()
+            row_end = prd.index("\n", prd.index(last_row)) + 1
+            prd = prd[:row_end] + "\n" + pointer + prd[row_end:]
+            for name, text in zip(
+                ("PRD.md", "architecture.md", "stack-decisions.md"),
+                strictize_approved_package(prd, valid_architecture(), bdd_stack()),
+            ):
+                (root / name).write_text(text, encoding="utf-8")
+            base = ["--prd", str(root / "PRD.md"), "--architecture", str(root / "architecture.md"),
+                    "--stack-decisions", str(root / "stack-decisions.md"), "--require-filled", "--require-approved"]
+
+            def run(*extra: str) -> tuple[int, str, str]:
+                out, errors = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(errors):
+                    return check_product_package.main(base + list(extra)), out.getvalue(), errors.getvalue()
+
+            features = root / "features"
+            code, _, errors = run()
+            self.assertEqual(1, code)
+            self.assertIn(f"FAIL prd: features directory not found: {features}", errors)
+            features.mkdir()
+            (features / "product.feature").write_text(self.FEATURE.split("  @TEST-003", 1)[0], encoding="utf-8")
+            code, out, errors = run()
+            self.assertEqual(1, code)
+            self.assertIn(f"INFO Test Obligations name feature files; checking {features}", out)
+            self.assertIn("FAIL prd: TEST-003 is a required security obligation with no scenario", errors)
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            self.assertEqual(0, run()[0])
+            # An explicit --features still wins over the default.
+            self.assertIn(f"features directory not found: {root / 'missing'}", run("--features", str(root / "missing"))[2])
+            # A PRD without the pointer line keeps the legacy behavior: no coverage check.
+            (root / "PRD.md").write_text(
+                strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())[0], encoding="utf-8"
+            )
+            (root / "stack-decisions.md").write_text(
+                strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())[2], encoding="utf-8"
+            )
+            self.assertEqual((0, ""), run()[0::2])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -242,6 +242,14 @@ class ProgramCheckerWiringTests(unittest.TestCase):
         )
 
 
+    def test_program_scenario_pointer_line_turns_coverage_on(self) -> None:
+        fx.edit(
+            self.files, "PRD.md", "## UI Design Handoff Status\n",
+            "Scenarios for these rows live in `docs/product/features/program.feature`.\n\n## UI Design Handoff Status\n",
+        )
+        failures = self.failures(self.check())
+        self.assertTrue(any(f.startswith("prd: features directory not found: ") for f in failures), failures)
+
     def test_features_cover_the_program_and_the_selected_modules(self) -> None:
         result = self.check("--features", "{root}/features")
         self.assertIn(

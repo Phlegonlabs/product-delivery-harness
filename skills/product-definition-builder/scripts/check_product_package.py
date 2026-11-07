@@ -4464,11 +4464,25 @@ def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
     return problems
 
 
+FEATURES_POINTER_RE = re.compile(r"(?m)^\s*Scenarios for these rows live in ")
+
+
+def declared_features_dir(prd_text: str, prd_path: Path) -> Path | None:
+    """`features/` beside the PRD when its Test Obligations name their feature files."""
+
+    section = _section(prd_text, "## Test Obligations") or ""
+    return prd_path.parent / "features" if FEATURES_POINTER_RE.search(section) else None
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv or sys.argv[1:])
     notes: list[str] = []
     prd_text, _ = safe_read_text(args.prd)
     program = _delivery_profile(prd_text or "") == "program"
+    if args.features is None:
+        args.features = declared_features_dir(prd_text or "", args.prd)
+        if args.features is not None:
+            notes.append(f"Test Obligations name feature files; checking {args.features}")
     if program:
         problems = _validate_program(args, notes)
     else:
