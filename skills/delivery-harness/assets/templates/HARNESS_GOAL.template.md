@@ -3,7 +3,7 @@
 <!--
 Instantiate this template as docs/goal/HARNESS_GOAL.md in the target project.
 This file records owner statements made before launch. It grants nothing by itself.
-The parent transcribes each yes row into the RUN `authorizations` ledger through the documented procedure. The RUN remains authoritative.
+The parent records each yes row into the RUN `authorizations` ledger with `harness_transition.py record-grant`. The RUN remains authoritative.
 Fill instructions sit in HTML comments and <angle-bracket> placeholders. Replace every placeholder before launch.
 -->
 

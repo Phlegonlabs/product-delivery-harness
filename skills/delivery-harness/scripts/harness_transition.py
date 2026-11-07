@@ -54,7 +54,8 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
-from harness_schema import AUTHORIZATION_KEYS, EXPIRY_BOUNDARIES
+from harness_schema import AUTHORIZATION_KEYS, EXPIRY_BOUNDARIES, RUNTIME_DRIVERS
+from harness_schema import SHA256_RE, is_valid_provider_id
 from harness_schema import review_lenses, security_result_decision
 from harness_schema import frozen_coordination_path, supported_coordination_path
 from verifier_runtime import host_executable_identity, observe_plan_host_runtimes
@@ -333,6 +334,8 @@ DISPATCH_COMMANDS = {
     "record-node-result",
     "record-grant",
     "open-run",
+    "close-run",
+    "record-runtime",
 }
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
@@ -4815,6 +4818,179 @@ def _open_run(
     _record_attempt(run, "OPEN-RUN", "run_open", "ready", [args.source])
 
 
+def _route_caps_evidence(items: list[str]) -> list[str]:
+    """Validate recorded route caps and render one evidence string per cap."""
+
+    known_caps = ("wall_clock_seconds", "tool_turns", "max_message_bytes")
+    caps: dict[str, dict[str, int]] = {}
+    for item in items:
+        text = item.strip()
+        if text.startswith("{"):
+            try:
+                document = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ManifestError(f"invalid --route-caps JSON: {exc}") from exc
+            if not isinstance(document, dict):
+                raise ManifestError(
+                    "--route-caps JSON must map route names to cap objects"
+                )
+        else:
+            parts = text.split("=")
+            if len(parts) != 3 or not parts[0] or not parts[1]:
+                raise ManifestError(
+                    "--route-caps takes <route>=<cap>=<integer> or a JSON object"
+                )
+            document = {parts[0]: {parts[1]: parts[2]}}
+        for route, route_document in document.items():
+            if route not in RUNTIME_DRIVERS:
+                raise ManifestError(
+                    f"--route-caps names unknown route {route!r}; use one of "
+                    + ", ".join(sorted(RUNTIME_DRIVERS))
+                )
+            if not isinstance(route_document, dict):
+                raise ManifestError(
+                    f"--route-caps entry for route {route!r} must map cap names to integers"
+                )
+            recorded = caps.setdefault(route, {})
+            for cap, value in route_document.items():
+                if cap not in known_caps:
+                    raise ManifestError(
+                        f"--route-caps names unknown cap {cap!r} for route {route!r}; "
+                        f"use one of {', '.join(known_caps)}"
+                    )
+                if isinstance(value, bool) or not isinstance(value, (int, str)):
+                    raise ManifestError(
+                        f"--route-caps {route}.{cap} must be a positive integer"
+                    )
+                if isinstance(value, str) and not value.isdigit():
+                    raise ManifestError(
+                        f"--route-caps {route}.{cap} must be a positive integer"
+                    )
+                number = int(value)
+                if number < 1:
+                    raise ManifestError(
+                        f"--route-caps {route}.{cap} must be a positive integer"
+                    )
+                recorded[cap] = number
+    return [
+        f"{route}.{cap}={value}"
+        for route, route_caps in sorted(caps.items())
+        for cap, value in sorted(route_caps.items())
+    ]
+
+
+def _record_runtime(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Record the observed runtime adapter surface and its version gate.
+
+    The gate stays unobserved: record-runtime never reads installed bytes, so
+    the installed digest stays null and the loaded digest stays null unless
+    the caller passes --loaded-digest.
+    """
+
+    if not args.driver:
+        raise ManifestError("record-runtime requires at least one --driver")
+    if not args.route_caps:
+        raise ManifestError("record-runtime requires at least one --route-caps")
+    if not is_valid_provider_id(args.provider):
+        raise ManifestError(
+            f"record-runtime needs a valid provider id, got {args.provider!r}"
+        )
+    if args.loaded_digest is not None and SHA256_RE.fullmatch(args.loaded_digest) is None:
+        raise ManifestError("--loaded-digest must be a lowercase SHA-256 digest")
+    runtime = run.get("runtime_capabilities")
+    if not isinstance(runtime, dict):
+        raise ManifestError(
+            "run has no runtime_capabilities block to record the adapter in"
+        )
+    adapter = runtime.get("runtime_adapter")
+    observed_adapter = dict(adapter) if isinstance(adapter, dict) else {}
+    # The run-scoped version pin stays: record-runtime observes one session's
+    # adapter surface, never a new release identity for the run.
+    prior_gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
+    if not isinstance(prior_gate, dict):
+        prior_gate = {}
+    gate = {
+        "host_version": prior_gate.get("host_version"),
+        "minimum_host_version": prior_gate.get("minimum_host_version"),
+        "harness_version": prior_gate.get("harness_version"),
+        "required_harness_version": prior_gate.get("required_harness_version"),
+        "session_id": args.session_id,
+        "loaded_contract_digest": args.loaded_digest,
+        "installed_contract_digest": None,
+        "status": "unobserved",
+        "evidence": (
+            f"record-runtime observed provider {args.provider} with drivers "
+            + ", ".join(args.driver)
+        ),
+    }
+    observed_adapter.update(
+        {
+            "provider": args.provider,
+            "available_drivers": list(args.driver),
+            "detection_source": "observed",
+            "version_gate": gate,
+        }
+    )
+    runtime["runtime_adapter"] = observed_adapter
+    evidence = [gate["evidence"], *_route_caps_evidence(args.route_caps)]
+    _record_attempt(run, "RUNTIME-RECORD", "runtime_record", "observed", evidence)
+
+
+def _run_repository_root(run_path: Path) -> Path:
+    result = run_git(run_path.parent, "rev-parse", "--show-toplevel")
+    if result.returncode != 0:
+        raise ManifestError(
+            "close-run requires --repo-root; the RUN file is not inside a Git checkout"
+        )
+    return Path(result.stdout.strip())
+
+
+def _close_run(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Close an integrated run and preserve its branch at the integration head.
+
+    Completing the status makes the pair validator re-run every closeout
+    condition against the live pair and live Git; any miss refuses the write
+    with the RUN bytes unchanged.
+    """
+
+    if run.get("status") == "complete":
+        raise ManifestError(
+            "run status is already complete; close-run closes a live run"
+        )
+    integration = run.get("integration")
+    head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not is_full_sha(head):
+        raise ManifestError(
+            "close-run closes an integrated run; record an integration head first"
+        )
+    landing = run.get("landing")
+    continuity = landing.get("continuity") if isinstance(landing, dict) else None
+    if (
+        not isinstance(continuity, dict)
+        or continuity.get("status") not in {"planned", "preserved"}
+    ):
+        raise ManifestError(
+            "close-run preserves the recorded run branch; landing.continuity is "
+            "missing or blocked, so continuity cannot be preserved"
+        )
+    if args.repo_root is None:
+        # The closeout conditions bind live Git, so close-run defaults
+        # --repo-root to the repository the RUN file lives in.
+        args.repo_root = _run_repository_root(args.run)
+    continuity["status"] = "preserved"
+    continuity["head_sha"] = head
+    run["status"] = "complete"
+    _record_attempt(run, "CLOSE-RUN", "run_closed", "complete", [args.source])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
@@ -4988,6 +5164,18 @@ def build_parser() -> argparse.ArgumentParser:
     open_command.add_argument("--mission-id", action="append", default=[])
     open_command.add_argument("--expires-when", choices=tuple(EXPIRY_BOUNDARIES))
     open_command.add_argument("--source", required=True)
+    close_command = subparsers.add_parser("close-run")
+    close_command.add_argument("--source", required=True)
+    runtime_parser = subparsers.add_parser("record-runtime")
+    runtime_parser.add_argument("--provider", required=True)
+    runtime_parser.add_argument("--driver", action="append", default=[])
+    runtime_parser.add_argument(
+        "--route-caps",
+        action="append",
+        default=[],
+        help="repeatable <route>=<cap>=<integer> or a JSON object",
+    )
+    runtime_parser.add_argument("--loaded-digest")
     parser.add_argument("--session-id")
     return parser
 
@@ -5118,6 +5306,10 @@ def _transition_under_lock(
         _record_grant(plan, run, args)
     elif args.command == "open-run":
         _open_run(plan, run, args)
+    elif args.command == "close-run":
+        _close_run(plan, run, args)
+    elif args.command == "record-runtime":
+        _record_runtime(plan, run, args)
     elif args.command != "watchdog":
         receipt = _record_review_attempt(plan, run, args)
     # A session holding the durable lock keeps it fresh through its own
