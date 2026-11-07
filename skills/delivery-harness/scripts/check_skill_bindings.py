@@ -12,7 +12,10 @@ which is the review moment: a skill update is a code change to the instruction
 path.
 
 Read-only. --show-hashes prints the current hashes to pin; it never edits
-AGENTS.md.
+AGENTS.md. --previous-skill-dir names the installer backup of the previous
+release: each mismatched pin is then labeled `previous_release` when it equals
+that target's hash in the backup, or `owner_pin` when it does not, with the old
+and new hashes and a `git log -S` hint for the pin's history.
 """
 
 from __future__ import annotations
@@ -245,8 +248,31 @@ def hash_reference(path: Path) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def previous_hash(target: str, previous_dirs: list[Path]) -> str | None:
+    """Hash a bound target in the previous release tree, or None if absent."""
+
+    try:
+        if target == SECURITY_REFERENCE:
+            located = locate_reference(target, previous_dirs)
+            return hash_reference(located) if located else None
+        located = locate_skill(target, previous_dirs)
+        return hash_skill(located) if located else None
+    except (OSError, ValueError):
+        return None
+
+
+def mismatch_label(target: str, pin: str, current: str, previous_dirs: list[Path] | None) -> str:
+    """Return the previous-release suffix for a mismatch finding."""
+
+    if previous_dirs is None:
+        return ""
+    label = "previous_release" if previous_hash(target, previous_dirs) == pin else "owner_pin"
+    return f"; {label}: old {pin} new {current}; history: git log -S {pin} -- AGENTS.md"
+
+
 def check_security_reference_binding(
-    cell: str, pin: str, number: int, skill_dirs: list[Path], hashes: dict[str, str]
+    cell: str, pin: str, number: int, skill_dirs: list[Path], hashes: dict[str, str],
+    previous_dirs: list[Path] | None = None,
 ) -> list[str]:
     value = cell.strip().strip("`")
     if value != SECURITY_REFERENCE:
@@ -277,6 +303,7 @@ def check_security_reference_binding(
             f"line {number}: pinned hash for {SECURITY_REFERENCE} does not match "
             f"the installed reference (pinned {pin[:12]}..., installed "
             f"{current[:12]}...); review the change, then update the pin deliberately"
+            + mismatch_label(SECURITY_REFERENCE, pin, current, previous_dirs)
         ]
     return []
 
@@ -321,7 +348,8 @@ def hash_skill(path: Path) -> str:
 
 
 def check_bindings(
-    agents_md: Path, skill_dirs: list[Path], *, stage: str = "all"
+    agents_md: Path, skill_dirs: list[Path], *, stage: str = "all",
+    previous_dirs: list[Path] | None = None,
 ) -> tuple[list[str], dict[str, str]]:
     findings: list[str] = []
     hashes: dict[str, str] = {}
@@ -333,7 +361,7 @@ def check_bindings(
             continue
         if slot == "code_security_verification" and slot in STAGE_SLOTS[stage]:
             findings.extend(
-                check_security_reference_binding(cell, pin, number, skill_dirs, hashes)
+                check_security_reference_binding(cell, pin, number, skill_dirs, hashes, previous_dirs)
             )
             continue
         if (
@@ -380,6 +408,7 @@ def check_bindings(
                 f"line {number}: pinned hash for {name!r} does not match the "
                 f"installed skill (pinned {pin[:12]}..., installed {current[:12]}...); "
                 "review the skill change, then update the pin deliberately"
+                + mismatch_label(name, pin, current, previous_dirs)
             )
     return findings, hashes
 
@@ -408,14 +437,28 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="print the current full-tree hash for each bound skill to pin",
     )
+    parser.add_argument(
+        "--previous-skill-dir",
+        type=Path,
+        help="installer backup of the previous release; labels each mismatched pin "
+        "previous_release or owner_pin",
+    )
     args = parser.parse_args(argv)
 
     agents_md: Path = args.agents_md
     if not agents_md.is_file():
         print(f"AGENTS.md not found: {agents_md}", file=sys.stderr)
         return 2
+    previous_dirs = None
+    if args.previous_skill_dir is not None:
+        if not args.previous_skill_dir.is_dir():
+            print(f"previous skill directory not found: {args.previous_skill_dir}", file=sys.stderr)
+            return 2
+        previous_dirs = [args.previous_skill_dir]
     skill_dirs = list(args.skill_dir) or default_skill_dirs(agents_md)
-    findings, hashes = check_bindings(agents_md, skill_dirs, stage=args.stage)
+    findings, hashes = check_bindings(
+        agents_md, skill_dirs, stage=args.stage, previous_dirs=previous_dirs
+    )
     if args.show_hashes:
         for name, digest in sorted(hashes.items()):
             print(f"{name}: {digest}")
