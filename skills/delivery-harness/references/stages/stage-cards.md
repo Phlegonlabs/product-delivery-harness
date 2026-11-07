@@ -94,7 +94,7 @@ python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <
 
 `plan_readiness` is `ready`, the version gate passes, and execution plus launch authorization covers the wave.
 
-Acquire the durable run lock first. Refresh it with `heartbeat-run-lock`; every successful transition also refreshes it. Record the observation, then select the frontier with the read-only step command. Accept the proposal into RUN; recompute it when the revision, digest, or base went stale. Create each worktree and branch only under its own grants. `lease-worker` materializes exact targets only from active wildcard grants. Render the bounded `WORKER_GOAL.template.md` packet per mission. Check the complete packet before dispatch. Lease each worker, then launch every ready sibling before waiting on any result. From `accept-wave` until each `record-integration`, the run branch takes only the mission merge: leave RUN and the declared tasks view uncommitted, write Epic and DECISIONS entries only after `record-integration` (they are not exempt from the clean check), and commit them as the coordination child.
+Acquire the durable run lock first. Refresh it with `heartbeat-run-lock`; every successful transition also refreshes it. Record the observation, then select the frontier with the read-only step command. Accept the proposal into RUN; recompute it when the revision, digest, or base went stale. Create each worktree and branch only under its own grants. `lease-worker` materializes exact targets only from active wildcard grants. With `--packet-out` and `--max-message-bytes`, the same call renders the bounded `WORKER_GOAL.template.md` packet, checks it before the RUN write, and creates it after. Lease each worker, then launch every ready sibling before waiting on any result. From `accept-wave` until each `record-integration`, the run branch takes only the mission merge: leave RUN and the declared tasks view uncommitted, write Epic and DECISIONS entries only after `record-integration` (they are not exempt from the clean check), and commit them as the coordination child.
 
 **Commands in order**
 
@@ -103,8 +103,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-observation
 python "<delivery-harness-skill-root>/scripts/harness_step.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> accept-wave --wave-id <id> --mission-id <id> --batch-base-sha <sha>
-python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> lease-worker --mission-id <id> --node-id <id> --worker-id <id> --lease-id <id> --attempt-id <id> --branch-ref <branch-ref> --worktree-path <worktree-path>
-python "<delivery-harness-skill-root>/scripts/check_launch_packet.py" --message-file <file> --max-message-bytes <n>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> lease-worker --mission-id <id> --node-id <id> --worker-id <id> --lease-id <id> --attempt-id <id> --branch-ref <branch-ref> --worktree-path <worktree-path> --packet-out <file> --max-message-bytes <n>
 ```
 
 **Stop when**
