@@ -58,7 +58,7 @@ Repair context (omit for an initial implementation):
 ## Work
 
 - Make the smallest coherent change inside the write scope.
-- For architecture-bearing work, apply `references/delegation-contract.md#architecture-method`; start with a caller example before deriving interfaces and types.
+- For architecture-bearing work, apply `references/architecture-method.md`; start with a caller example before deriving interfaces and types.
 - Never edit PLAN/RUN, create another worker/task/branch/worktree/lease, or delegate.
 - Do not pull, rebase, merge, integrate, push, archive, remove a worktree, or delete a branch.
 - With `create_local_commits` authorized, run the focused verifier and create the atomic task commit. Confirm its checkpoint; only then begin the next task. Each commit names one task; commit repairs separately for that task. Report each SHA once in Git order; the last commit equals the reported head.
