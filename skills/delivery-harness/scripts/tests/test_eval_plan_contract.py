@@ -351,6 +351,12 @@ class EvalPlanContractTests(unittest.TestCase):
         with patch.object(join, "_validate_product_frozen_contract_joins", return_value=[]):
             self.assertEqual([], join.validate_frozen_contract_joins(self.plan, self.root, run=self.at_pin("0.79.0")))
 
+    def test_a_review_node_that_cites_a_gate_does_not_break_the_gate_binding(self):
+        self.materialize_waived(self.waived_files())
+        self.plan["graph"]["nodes"].append({"id": "N-SECURITY-REVIEW", "kind": "verifier", "ref": "final-check",
+                                            "executor": "runtime_worker"})
+        self.assertEqual([], self.check(run=self.at_pin("0.79.0")))
+
     def test_pins_before_the_next_release_keep_the_not_required_exemption(self):
         self.materialize_waived(self.waived_files())
         stripped = copy.deepcopy(self.plan)

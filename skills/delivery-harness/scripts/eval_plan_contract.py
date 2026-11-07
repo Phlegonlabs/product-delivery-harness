@@ -73,9 +73,10 @@ def _topology(plan, gates, chain):
     nodes = graph["nodes"]
     bindings = {}
     for gate_id in gates:
-        matches = [node for node in nodes if isinstance(node, dict) and node.get("ref") == gate_id]
-        if (len(matches) != 1 or matches[0].get("kind") != "verifier"
-                or matches[0].get("executor") != "local_command"):
+        # A review node may cite a gate as its ref; only the deterministic node runs the gate.
+        matches = [node for node in nodes if isinstance(node, dict) and node.get("ref") == gate_id
+                   and node.get("kind") == "verifier" and node.get("executor") == "local_command"]
+        if len(matches) != 1:
             ep.fail("each eval/final gate needs one local-command verifier node")
         bindings[gate_id] = matches[0]["id"]
     adjacency = {}
