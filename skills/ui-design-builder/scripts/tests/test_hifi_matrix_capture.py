@@ -427,6 +427,19 @@ class MatrixExpansionTests(unittest.TestCase):
         no_ready = m.sample_axis_cases([self.surface(states=("idle", "busy:n/a"))], "index.html", widths, {})
         self.assertEqual({"idle"}, {c.state for c in no_ready})
 
+    def test_the_reflow_axis_keeps_the_sampled_states_at_the_smallest_target(self):
+        rows = [self.surface(states=("ready", "loading", "empty"), targets=(768, 390, 1200))]
+        widths = {"390": 390, "768": 768, "1200": 1200}
+        counts = {("UI-001", "ready"): 9, ("UI-001", "loading"): 4, ("UI-001", "empty"): 30}
+        sampled = m.sample_axis_cases(rows, "index.html", widths, counts)
+        self.assertEqual([("ready", "390"), ("ready", "1200"), ("empty", "390"), ("empty", "1200")],
+                         [(c.state, c.target) for c in sampled])
+        reflow = m.reflow_axis_cases(rows, sampled, widths)
+        self.assertEqual([("ready", "390"), ("empty", "390")], [(c.state, c.target) for c in reflow])
+        classes = [self.surface(states=("ready",), targets=("compact", "regular"))]
+        sampled = m.sample_axis_cases(classes, "index.html", {}, {})
+        self.assertEqual([("ready", "compact")], [(c.state, c.target) for c in m.reflow_axis_cases(classes, sampled, {})])
+
 
 class NamingAndFingerprintTests(unittest.TestCase):
     def test_capture_name_carries_a_stable_tuple_hash(self):
@@ -802,6 +815,35 @@ class AxisTests(unittest.TestCase):
         self.assertEqual(["dark", "none", "zoom-200", "none"] * 2, applied)
         self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
 
+    def test_reflow_320_runs_the_sampled_states_at_the_smallest_target_and_a_320px_canvas(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver, "--axes", "reflow-320")
+        output, sidecar = cli.load(out)
+        self.assertEqual(0, code, summary)
+        self.assertEqual((12, 4, 0), (len(output["matrix"]["cases"]), summary["axisCases"], summary["axisFail"]))
+        # per surface: ready + the busiest state (loading, most nodes), once, at the smallest target
+        self.assertEqual([("UI-001", "ready", "390"), ("UI-001", "loading", "390"),
+                          ("UI-002", "ready", "390"), ("UI-002", "loading", "390")],
+                         [(r["surface"], r["state"], r["target"]) for r in sidecar["axes"]])
+        self.assertEqual({"reflow-320"}, {r["axis"] for r in sidecar["axes"]})
+        self.assertEqual([("390", 320.0)] * 4, [(f["target"], f["widthPx"])
+                                                for op, f in driver.calls if op == "case" and f["widthPx"]])
+        self.assertTrue(all(r["geometry"]["canvasWidth"] == 320.0 for r in sidecar["axes"]))
+        self.assertEqual(["reflow-320", "none"] * 2, [f["name"] for op, f in driver.calls if op == "axis"])
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_a_reflow_case_fails_on_the_wrong_width_or_overflow_but_not_the_base_matrix(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.overrides[("UI-001", "ready", "320")] = {"geometry": {"canvasWidth": 390.0}}
+        driver.overrides[("UI-002", "loading", "320")] = {"geometry": {"overflowX": 30}}
+        code, summary, out = cli.run(driver, "--axes", "reflow-320")
+        output, sidecar = cli.load(out)
+        self.assertEqual(1, code)
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual((4, 2), (summary["axisCases"], summary["axisFail"]))
+        failed = {(r["surface"], r["state"]): r["reasons"] for r in sidecar["axes"] if r["result"] != "PASS"}
+        self.assertIn("the reflow-320 axis needs 320px", " | ".join(failed[("UI-001", "ready")]))
+        self.assertIn("horizontal overflow 30px", " | ".join(failed[("UI-002", "loading")]))
     def test_axis_artifacts_are_bound_in_the_execution_block(self):
         cli = Cli(self)
         _, _, out = cli.run(FakeDriver(), "--axes", "dark")
@@ -873,8 +915,8 @@ class AxisTests(unittest.TestCase):
         self.assertEqual((4, 4), (summary["axisCases"], summary["axisFail"]))
         self.assertTrue(all(r["result"] == "BLOCKED" and "restart limit" in r["reasons"][0] for r in axes))
 
-    def test_the_four_axes_are_supported_and_others_refused(self):
-        self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200"), m.AXES)
+    def test_the_five_axes_are_supported_and_others_refused(self):
+        self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320"), m.AXES)
         code, summary, _ = Cli(self).run(FakeDriver(), "--axes", "sepia")
         self.assertEqual(2, code)
         self.assertIn("sepia", summary["error"])
@@ -1584,6 +1626,29 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual(sorted(map(json.dumps, observed)), sorted(map(json.dumps, receipt["receipt"]["matrix"]["cases"])))
             self.assertEqual([], ui_design_v3.intermediate_width_findings(observed, scope))
 
+    def test_reflow_320_axis_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_interactions_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/reflow", "--axes", "reflow-320")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/reflow" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/reflow" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+            # ready is the busiest state here, so one sampled state per surface, at the smallest target
+            self.assertEqual([("UI-001", "ready", "390"), ("UI-002", "ready", "390")],
+                             [(r["surface"], r["state"], r["target"]) for r in sidecar["axes"]])
+            self.assertEqual({"PASS"}, {r["result"] for r in sidecar["axes"]})
+            self.assertEqual({320}, {r["geometry"]["canvasWidth"] for r in sidecar["axes"]})
+            base = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+            for row in sidecar["axes"]:
+                self.assertNotEqual(base[(row["surface"], row["state"], row["target"])]["renderFingerprint"],
+                                    row["renderFingerprint"])
+            self.assertEqual([], output["network"] + output["popups"] + output["forms"])
+            # the interaction pass after the axis still sees the declared widths
+            self.assertEqual((8, {"PASS"}), (len(sidecar["interactions"]), {r["result"] for r in sidecar["interactions"]}))
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/reflow/" + m.OUTPUT_NAME)["result"])
     def test_the_drivers_own_open_is_not_a_navigation_but_a_later_allowlisted_one_is(self):
         module = self.playwright()
         leave = "<script>setTimeout(() => { location.href = 'index.html'; }, 300);</script>"
