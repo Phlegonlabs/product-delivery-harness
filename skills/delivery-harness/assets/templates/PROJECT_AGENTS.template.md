@@ -28,6 +28,12 @@ These reading requirements apply only within an explicitly requested skill workf
 - Before any product-affecting direct work, the session reads the affected sections of `docs/product/PRD.md` plus every document `docs/DOCUMENTS.md` names for that scope (retained wireframes, design package, architecture). A named source that does not exist yet is reported, not skipped.
 - Skipping this reading is a blocking review finding: a change built on unread contracts is not a completed change.
 
+## Behavior Specs
+
+- Feature files live in `docs/product/features/` and belong to the PRD package. The owner approves scenario text; the writer owns step definitions and the code under them.
+- Each scenario has one `@TEST-...` tag. `delivery-harness/scripts/render_delivery_acceptance.py` renders the delivery-acceptance register from them; never edit the register by hand.
+- Changing scenario text is a product decision and goes through a PRD delta. Changing only step definitions or implementation is a small fix on the existing Epic.
+
 ## Skill Bindings
 
 The delivery flow binds stage slots, not fixed skill names. This table binds the project's installed skills to those slots; updating it to adopt a new skill is a project edit, not a harness change, and a bound skill inherits the same modes, frozen sources, and review gates as the default.
