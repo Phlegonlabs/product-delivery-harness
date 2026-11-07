@@ -77,6 +77,8 @@ Keep the normal implementation groups:
 - `radius`
 - `fontSize`
 - `lineHeight`
+- `fontFamily`
+- `fontWeight`
 - `shadow`
 - `duration`
 - `easing`

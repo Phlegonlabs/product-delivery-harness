@@ -49,6 +49,8 @@
     "radius": { "<--radius-sm>": "<value>", "<--radius-md>": "<value>", "<--radius-lg>": "<value>" },
     "fontSize": { "<--text-body>": "<value>", "<--text-heading>": "<value>", "<--text-display>": "<value>" },
     "lineHeight": { "<--leading-body>": "<value>", "<--leading-heading>": "<value>" },
+    "fontFamily": { "<--font-body>": "<value>", "<--font-display>": "<value>" },
+    "fontWeight": { "<--weight-body>": "<value>", "<--weight-heading>": "<value>" },
     "shadow": { "<--shadow-raised>": "<value>", "<--shadow-overlay>": "<value>" },
     "duration": { "<--duration-fast>": "<value>", "<--duration-base>": "<value>" },
     "easing": { "<--ease-standard>": "<value>" }

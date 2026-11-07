@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -125,6 +126,13 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn('"sourceBindings"', template_json)
         self.assertIn('"hifi"', template_json)
         self.assertIn('"requiredContentOrder"', template_json)
+
+    def test_template_declares_the_font_groups_the_preview_renders(self) -> None:
+        tokens = json.loads(self.read("assets/templates/DESIGN_SYSTEM.template.json"))["tokens"]
+        guide = self.read("references/design-system-guide.md")
+        for group in ("fontFamily", "fontWeight"):
+            self.assertIsInstance(tokens.get(group), dict, group)
+            self.assertIn(f"- `{group}`", guide)
 
     def test_inputs_name_the_sections_compilation_reads(self) -> None:
         stage = self.read(STAGE)
