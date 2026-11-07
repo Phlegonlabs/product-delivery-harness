@@ -241,6 +241,8 @@ Fixture PF-BASE: [one company, a 12-month calendar, parties, items, warehouses, 
 | TEST-E2E-002 | Procure-to-pay on fixture PF-BASE: [requisition, PO, receipt, three-way match, payment] | E2E | Yes | PRD-PRG-005, PRD-<SCOPE>-<NNN> | [AP sub-ledger equals the GL control account; the mismatched invoice is held and not paid] |
 | TEST-E2E-003 | Period close on fixture PF-BASE after TEST-E2E-001 and TEST-E2E-002 | E2E | Yes | PRD-PRG-006, PRD-<SCOPE>-<NNN> | Close succeeds only when sub-ledgers reconcile; a posting into the closed period is rejected with zero rows written; reopening needs role `controller` and is audited |
 
+Scenarios for these rows live in `docs/product/features/program.feature`.
+
 ---
 
 ## UI Design Handoff Status

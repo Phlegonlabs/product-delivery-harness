@@ -49,6 +49,32 @@ class TemplateTests(unittest.TestCase):
             self.assertIn(word, "\n".join(comments))
 
 
+class PrdTemplateTests(unittest.TestCase):
+    def test_test_obligations_tables_still_parse_with_the_scenario_pointer(self):
+        templates = SCRIPTS.parent / "assets" / "templates"
+        for name, rows, pointer in (
+            ("MODULE_PRD", ["TEST-<SCOPE>-001", "TEST-<SCOPE>-002"], "`docs/product/features/<scope>.feature`"),
+            ("PROGRAM_PRD", ["TEST-PRG-001", "TEST-PRG-002", "TEST-E2E-001", "TEST-E2E-002", "TEST-E2E-003"],
+             "`docs/product/features/program.feature`"),
+        ):
+            text = (templates / f"{name}.template.md").read_text(encoding="utf-8")
+            self.assertEqual(rows, list(cfc.obligation_rows(text)), name)
+            section = text.split("## Test Obligations", 1)[1].split("\n## ", 1)[0]
+            self.assertIn(f"Scenarios for these rows live in {pointer}", section)
+
+    def test_delta_template_and_contract_list_changed_scenarios(self):
+        delta = (SCRIPTS.parent / "assets" / "templates" / "PRD_DELTA.template.md").read_text(encoding="utf-8")
+        contract = (SCRIPTS.parent / "references" / "output-contract.md").read_text(encoding="utf-8")
+        contract = contract.split("## `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`", 1)[1]
+        for text in (delta, contract):
+            changed = text.index("## Changed Requirements")
+            scenarios = text.index("## Changed Scenarios")
+            self.assertLess(changed, scenarios)
+            self.assertLess(scenarios, text.index("## Decisions"))
+            self.assertIn("| Scenario ID | Change | TEST ID |", text[scenarios:])
+            self.assertIn("new / revised / retired", text[scenarios:text.index("## Decisions")])
+
+
 class CoverageTests(unittest.TestCase):
     def check(self, files: dict[str, str], prd: str = PRD) -> list[str]:
         with tempfile.TemporaryDirectory() as directory:

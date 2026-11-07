@@ -554,6 +554,11 @@ Use this structure:
 | --- | --- | --- | --- | --- |
 | PRD-0xx | new / revised / retired | [summary or n/a] | [summary] | TEST-0xx |
 
+## Changed Scenarios
+| Scenario ID | Change | TEST ID |
+| --- | --- | --- |
+| TEST-0xx/[scenario-slug] | new / revised / retired | TEST-0xx |
+
 ## Decisions
 - decision:<slug> — [one line]
 
