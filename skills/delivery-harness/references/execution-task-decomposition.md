@@ -144,7 +144,7 @@ Rules:
 - Loading the owner-bound frontend-authoring skill does not change that route-task boundary. The Harness applies its own conformance contract around that authoring work; any proposed addition returns as a design-input delta instead of joining the route commit. Never claim the external skill defines a conformance mode absent from its pinned tree.
 - Each layer is one or more tasks, never one task spanning two layers — a task that adds a token and the component consuming it cannot fail the token independently.
 - A route's required states from its recipe are acceptance-matrix items inside that route's task, not separate tasks (see `What Deserves A Task` above). The same holds for every entry in the registry's responsive set.
-- For an existing product, keep the same layer order but sequence it around already-shipped routes rather than building bottom-up from nothing: adopt tokens and primitives behind the current implementation first, migrate routes in the order the Open-Ended Refinement audit in `references/design-input-updates.md` establishes, and let the two coexist until the last route moves.
+- For an existing product, keep the same layer order but sequence it around already-shipped routes rather than building bottom-up from nothing: adopt tokens and primitives behind the current implementation first, migrate routes in the order the [Open-Ended Refinement](open-ended-refinement.md) audit establishes, and let the two coexist until the last route moves.
 
 ## Backend Build Order
 

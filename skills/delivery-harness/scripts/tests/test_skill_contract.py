@@ -980,6 +980,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         gates = self.read("references/verification-gates.md")
         skill = self.read("SKILL.md")
         updates = self.read("references/design-input-updates.md")
+        refinement = self.read("references/open-ended-refinement.md")
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
 
@@ -997,7 +998,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
         self.assertIn("rule-8 UI-impact classification", skill)
-        self.assertIn("never a silent local restyle", updates)
+        self.assertIn("never a silent local restyle", refinement)
         self.assertIn(
             "return to `ui-design-builder`",
             updates,
