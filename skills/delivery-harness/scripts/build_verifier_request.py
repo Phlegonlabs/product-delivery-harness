@@ -29,6 +29,7 @@ from harness_git import GitMetadataError
 from harness_manifest import ManifestError, _verifier_owners, load_plan, load_run
 from harness_transition import _coordination_ignored_paths
 from validate_worker_result import _observe_git_worker
+from verifier_request_context import verifier_context
 from verifier_runtime import observe_plan_host_runtimes
 
 
@@ -89,24 +90,22 @@ def build_request(
         "protocol": "harness-verifier-request-v1",
         "verifier": declaration,
         "checkout_root": str(repo_root),
-        "context": {
-            "run_id": run.get("run_id"),
-            "plan_revision": plan.get("revision"),
-            "plan_digest_sha256": digest,
-            "graph_revision": run.get("graph_state", {}).get("graph_revision"),
-            "batch_base_sha": worker.get("batch_base_sha"),
-            "head_sha": head_sha,
-            "changed_files": changed_files,
-            "trust_domain": "parent_local",
-            "checkout_role": "worker",
-            "checkout_dirty": False,
-            "cache_safe": False,
-            "layer": layer,
-            "mission_id": mission_id,
-            "task_id": task_id,
-            "attempt_id": attempt_id,
-            "lease_id": lease_id,
-        },
+        "context": verifier_context(
+            layer=layer,
+            run=run,
+            plan_revision=plan.get("revision"),
+            plan_digest_sha256=digest,
+            batch_base_sha=worker.get("batch_base_sha"),
+            head_sha=head_sha,
+            changed_files=changed_files,
+            checkout_role="worker",
+            checkout_dirty=False,
+            cache_safe=False,
+            mission_id=mission_id,
+            task_id=task_id,
+            attempt_id=attempt_id,
+            lease_id=lease_id,
+        ),
         "git_guard": {
             "expected_branch": str(worker.get("branch_ref") or "").removeprefix("refs/heads/"),
             "expected_head_sha": head_sha,
