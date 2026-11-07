@@ -104,7 +104,7 @@ For a new stateful binding (KV namespace, D1 database, R2 bucket, Durable Object
 1. Create the development-side resource for D1/KV/R2 by adding `-dev` to its canonical production name, and record its ID. Native Previews provision their isolated Durable Object namespace at deployment; record that observed identity instead of precreating it. Any ID the wrangler config needs must exist before the declaration is written.
 2. Declare the binding in the development environment: native `previews`, or `env.development` only for an approved isolated fallback. Then deploy the exact candidate branch/SHA with `wrangler preview` and verify its fixed deployment URL; the fallback uses its recorded command. Add the binding class row to Resource Isolation.
 3. Create the production-side resource. This is an owner action — do not skip it or swap the order.
-4. Add the production declaration to the same candidate lineage. Use the recorded Wrangler production configuration, such as `env.production` when configured. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL.
+4. Add the production declaration to the same candidate lineage. Use the recorded Wrangler production configuration, such as `env.production` when configured. If that changes the SHA, redeploy the new candidate and repeat internal verification. Then fast-forward the exact verified SHA to `main` and verify every production URL. With `@cloudflare/vite-plugin`, build each environment with `CLOUDFLARE_ENV=<env> vite build`, never a deploy-time `--env`; a production deploy that reports a redirected dev config or a `-dev` Worker or binding name has failed.
 5. Secrets for the new binding: fake or dedicated values on the development worker, real values only in production, never in the wrangler config.
 6. With a D1 schema change: apply the migration to the development database and verify it there first; coordinate the production database migration with the protected-`main` deploy so new code never ships before the production schema exists.
 
@@ -117,15 +117,20 @@ Do not reuse the cloudflare commands. Keep the same order: create and attach non
 Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this record from read-back evidence; a future intention is not a completed row.
 
 - Delivery kind: <initial_delivery | enhancement>
+- Main protection readback: <host capability; ruleset/review policy; required checks; checked RFC3339; evidence | unavailable: HTTP status, message, owner decision ref | pending>
 - Run branch: <full branch ref>
+- Frozen base SHA: <full SHA>
 - Candidate SHA: <full SHA>
 - Candidate branch pushed and read back: <full SHA | local_only | pending>
 - Preview fixed deployment URL / ID: <observed URL or ID | pending>
 - Candidate environment verification: <PASS/FAIL/not applicable/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
+- Promotion authorization: <statement reference naming remote, main and candidate SHA | pending>
 - Main before: <full SHA>
-- Main ancestry/fast-forward proof: <PASS/FAIL/pending>
-- Main pushed and read back: <full SHA | pending>
-- Main exact-SHA result: <PASS when remote main equals the verified candidate SHA | pending>
+- Candidate ancestry from frozen base: <PASS/FAIL/pending>
+- Mechanism: <PR URL | merge queue | fast-forward | pending>
+- Main after (S), read back: <full SHA | pending>
+- Main exact-SHA result: <exact | tree_equal_S (candidate tree, main tree) | new_candidate | pending>
+- Inherited evidence origin: <candidate SHA plus original review, security and CI result identities | n/a | pending>
 - Production deployed SHA and smoke: <full SHA plus PASS/FAIL/pending>
 
 ## Human Setup Checklist
@@ -134,7 +139,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ### Protection and configuration readback (both modes)
 
-- [ ] Before repository connection, CI bootstrap, or workflow enablement, configure actual protection for the exact repository and ref; record non-secret readback for the host capability, ruleset/review policy, required checks, and checked time.
+- [ ] Before repository connection, CI bootstrap, or workflow enablement, configure actual protection for the exact repository and ref; record its non-secret readback in the Branch Promotion record.
 - [ ] Use the owner's separate external grants. Never push, force-update, or delete a protected branch to test protection, and do not treat this checklist as proof that the host is configured.
 
 ### Git connection (git_connected mode)
@@ -180,7 +185,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ## Release Target Status
 
-Fill this architecture-backed table from the stable target IDs in `docs/product/architecture.md`. The row set must match that architecture exactly. A current PASS binds the exact target, stage, provider/channel, expected and deployed full SHAs, artifact or build identity, availability evidence, checked time, and status; Expected SHA must equal Deployed SHA. Native `ios`, `android`, `macos`, `windows`, and `linux` targets prove install/download or artifact/build identity rather than URL parity.
+Fill this architecture-backed table from the stable target IDs in `docs/product/architecture.md`. The row set must match that architecture exactly. A current PASS binds the exact target, stage, provider/channel, expected and deployed full SHAs, artifact or build identity, availability evidence, checked time, and status; Expected SHA must equal Deployed SHA. A store or signed-installer PASS needs install or download proof through the named channel, not URL parity. A build that is uploaded, submitted or approved but not yet installable stays `pending` with its SHAs, artifact identity, store state and submission ID.
 
 | Release target | Surface | Stage | Provider / channel | Endpoint / domain | Expected SHA | Deployed SHA | Artifact / build identity | Availability evidence | Checked | Status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -196,6 +201,14 @@ Keep this legacy table for repositories and reviewers that inspect environment U
 | production | | | | | |
 
 Verification is read-only: record what deployed, compare it to the expected head, and route any mismatch to the owner or a new mission — never redeploy from here.
+
+## Release Log
+
+Append one row per release before the next release overwrites Branch Promotion and Release Target Status, as `deployment-contract.md` "Recording The Model In A Repository" says.
+
+| Date | Release (slug or tag) | Candidate / main SHA | Units: deploy or build ID, status | Migrations | Rollback target | Evidence |
+| --- | --- | --- | --- | --- | --- | --- |
+| <YYYY-MM-DD> | <slug or tag> | <candidate SHA> / <main SHA> | <release-target-id>: <provider deploy or build ID>, <status> | <applied migrations / none> | <rollback target> | <docs/release/YYYYMMDD-slug/ / n/a> |
 
 ## External Setup
 

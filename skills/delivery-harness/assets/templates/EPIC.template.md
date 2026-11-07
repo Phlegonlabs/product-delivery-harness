@@ -39,7 +39,7 @@ the current PRD and stays valid.
 
 ## Change Log
 
-Record each entry as `delivery-harness/references/governance/task-and-handoff.md#repository-change-checkpoints` describes. Add an entry only for a new meaningful change, verification result or unresolved state. A Harness bundle adoption is one row with the adopted digest. This record grants no authority and requires no PLAN/RUN.
+Record each entry as `delivery-harness/references/governance/task-and-handoff.md#repository-change-checkpoints` describes. Add an entry only for a new meaningful change, verification result or unresolved state. A Harness bundle adoption is one row with the adopted digest. A reviewed row's Verification cell records `<SHA> <PASS|fix_required>; security: required | not_applicable (<reason>; <paths>)`. This record grants no authority and requires no PLAN/RUN.
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
@@ -67,6 +67,7 @@ state source.
 Repository / branch / HEAD / dirty paths:
 Stage and skill:
 Inputs consumed (path + hash or revision):
+Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes):
 Approvals in force (gate, owner, date, candidate):
 Done and verified (command, exit code):
 Remaining:

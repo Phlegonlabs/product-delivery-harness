@@ -1,6 +1,6 @@
 # Design Input Updates
 
-Use this reference when the user provides a new or updated PRD, approved HTML wireframe, design system, design inspiration, or explicit page-faithful target for a new build or an existing app refinement.
+Use this reference when the user provides a new or updated PRD, approved HiFi, design system, design inspiration, or explicit page-faithful target for a new build or an existing app refinement.
 
 ## Design And Maintenance Routing
 
@@ -15,7 +15,7 @@ Classify every visual source before planning or implementation:
 
 For a new initial delivery or design enhancement, implementation uses the route's `UI-*` entry in `PRD.md`, current approved `ui-design.md`, the route's approved HiFi page with its embedded `ui-hifi-copy/1` copy (`ui-design/3`; a retained `ui-design/2` contract uses `ui-design/2`; a pinned wireframe contract follows [legacy pins](legacy/legacy-pins.md#legacy-ui-contracts-before-059)), and the active visual route. Static strings, action labels, feedback, and alternate-state messages are implementation-bound; dynamic examples are illustrative while their approved source/order/format/count/length/fallback contracts bind implementation. A `required` gate binds `design-system.md` and `design-system.json` together; `design-system/4` also binds its frozen derived HTML. A `not_required` gate binds the approved immutable page-faithful target instead. See `ui-implementation-contract.md`.
 
-A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply a new visual direction, token, variant, component, motion pattern, or structure directly. Return target, direction or wireframe changes to `ui-design-builder`; return product behavior, copy/display contracts or stack changes to `product-definition-builder`; return formal pair changes to `design-system-compiler`. Resume only against the revised active source.
+A `frontend-design` result produced or requested during implementation is a proposed design-input delta, not code-side authority. Do not apply a new visual direction, token, variant, component, motion pattern, or structure directly. Return target, direction or HiFi changes to `ui-design-builder`; return product behavior, copy/display contracts or stack changes to `product-definition-builder`; return formal pair changes to `design-system-compiler`. Resume only against the revised active source.
 
 ```text
 1. Identify source type and version.
@@ -35,7 +35,7 @@ A `frontend-design` result produced or requested during implementation is a prop
 Updated PRD: changed workflows, scope, roles, data, success criteria, non-goals
 Updated UI Design Intake: changed experience priority, guidance/control, density, interaction/layout, style, motion/media, references, validation depth, decision owner, or decision status
 Updated PRD UI surface contract: screen structure, navigation, page regions, content responsibilities, actions, state coverage, and per-screen copy status
-Updated validated wireframe: `wireframes.html` covering region order, grouping, element inventory, state placement, section labels, page switching, responsive rearrangement, exact static/action/feedback/alternate-state copy, dynamic display contracts, and copy completeness tied to `UI-*`, with internal Wireframe Validation recorded in `ui-design.md` for schema 5 (legacy approvals retain their meaning)
+Updated approved HiFi: `ui-hifi/2` pages and the embedded `ui-hifi-copy/1` record, with HiFi Review and Visual Approval recorded in `ui-design.md`
 Updated design system: tokens, typography, spacing, radius, color, added/removed primitives, changed closed variant sets, interaction states, motion variants, product components, content contracts, state matrix, responsive set
 Design inspiration: screenshot, image, Figma frame, website, named product, or visual reference used only for confirmed design principles
 Page-faithful target: version-bound screenshot, Figma frame, mockup, handoff spec, or page target the user explicitly requires the implementation to match
@@ -71,12 +71,12 @@ Rules:
 
 - A delta can add, modify, or explicitly remove behavior. Record superseded requirements; do not silently drop existing behavior.
 - A UI delta that changes visual values must record the styles, classes, and values it supersedes and name every call site where the implementation removes them. Carrying a superseded style into the accepted delta's implementation is a contract violation.
-- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Update the affected PRD `` `copy` `` anchors. In an active initial design or enhancement, return affected schema-5 copy items and screen `copyStatus` to draft, re-check text reflow across every affected responsive target and state, and renew Product Definition Approval, copy completeness, Wireframe Validation and affected Visual Approval before implementation. In routine maintenance, update effective requirements and the product with focused verification; do not regenerate historical design artifacts solely to match an accepted change.
+- A user-visible wording or dynamic display-contract change is a `structure` copy delta. Update the affected PRD `` `copy` `` anchors. In an active initial design or enhancement, return the affected `ui-hifi-copy/1` items and surface `copyStatus` to draft, re-check reflow across every affected responsive target and state, and renew Product Definition Approval, the full HiFi copy review and affected Visual Approval before implementation. In routine maintenance, update effective requirements and the product with focused verification; do not regenerate historical design artifacts solely to match an accepted change.
 - A backend or app delta must record the endpoints, business rules, queries, migrations, flags, jobs, and configuration it supersedes and name every call site where the implementation removes them, or record an explicit owner-accepted reason when a superseded surface is retained for compatibility.
 - Design-system deltas must map to affected components and variants and name every route that uses the changed entry. A delta that removes an entry must state what replaces it at each call site; an entry that disappears from `design-system.json` while a route still uses it is a break, not a cleanup.
 - When the gate is `required`, `design-system.md` and `design-system.json` are binding sources, so a design-system delta must be frozen before implementation. For `design-system/4`, regenerate and freeze the derived HTML from the accepted pair and bound sources. When it is `not_required`, a target change returns to `ui-design-builder` and Human Visual Approval. A code-side "we already built it this way" is not an accepted delta.
 - PRD deltas that change data/API/auth/permissions must trigger architecture and E2E updates.
-- In active initial design or enhancement, new product behavior, wording, and dynamic display-contract decisions return to `product-definition-builder`; copy completeness, wireframe, style, motion/media, and HiFi-target deltas return to `ui-design-builder`. Renew the applicable decisions and checks on the affected scope. Routine maintenance follows the accepted current product and effective requirements without rewriting historical visual approvals.
+- In active initial design or enhancement, new product behavior, wording, and dynamic display-contract decisions return to `product-definition-builder`; copy completeness, style, motion/media, and HiFi-target deltas return to `ui-design-builder`. Renew the applicable decisions and checks on the affected scope. Routine maintenance follows the accepted current product and effective requirements without rewriting historical visual approvals.
 - A legacy two-target web responsive set follows [legacy pins](legacy/legacy-pins.md#legacy-ui-contracts-before-059) before its package is next edited or re-validated.
 - UI Design Intake deltas preserve their human owner, map to affected `UX-*`, `UI-*`, `MM-*`, and `DS-*` traces, and name any required prototype or usability revalidation.
 
@@ -141,7 +141,7 @@ Use before/after captures for UI changes: "before" proves the current state, "af
 
 The stale-carryover check is the after-side companion: an affected surface's after state must not show any visual element, style, or class the previous version had that the accepted delta supersedes; such a remnant is a failed delta, whether from an uncleaned production stylesheet or a reference file that accumulated superseded CSS. It also covers backend and app surfaces: no route to a removed endpoint, no superseded business rule, no retired flag or config key, no superseded query or job still running. An enhancement that leaves the old path beside the new one has not finished; superseded behavior survives only where the accepted delta explicitly records a compatibility retention.
 
-This flow is primary whenever an updated input exists. When no updated PRD, design system, or page UI reference exists — an open-ended "make it better" — use the Open-Ended Refinement section below instead. When both conditions hold, run this flow and fold that section into it, not two mission sets:
+This flow is primary whenever an updated input exists. When no updated PRD, design system, or page UI reference exists — an open-ended "make it better" — use [Open-Ended Refinement](open-ended-refinement.md) instead. When both conditions hold, run this flow and fold that reference into it, not two mission sets:
 
 - Its baseline-evidence lenses supply what M1 captures.
 - Its backlog rows and ranking rules supply how M2 records what it finds.
@@ -152,7 +152,7 @@ This flow is primary whenever an updated input exists. When no updated PRD, desi
 
 Stop and ask when:
 
-- Updated PRD UI surface entries or wireframes conflict with other updated product requirements.
+- Updated PRD UI surface entries or HiFi pages conflict with other updated product requirements.
 - UI Design Intake conflicts with observed user needs, accessibility, product requirements, or platform conventions and no validation decision resolves the conflict.
 - An updated required design system conflicts with the approved page-faithful target.
 - A page-faithful target omits required states, breakpoints, source version, or tolerance.
@@ -178,109 +178,3 @@ Design-input verification should include:
 - Builder direction conformance: selected choices are reflected and provisional/assumed choices remain explicit; this proves direction conformance, not usability.
 - Usability evidence: when required, representative users or an approved equivalent complete the named task against the specified prototype or implementation; agent preference, screenshots, and automated E2E do not substitute for that evidence.
 - Regression: preserved routes, permissions, data behavior, content, analytics, and E2E journeys still pass.
-
-## Open-Ended Refinement
-
-Use this section when the user has an already-developed app, site, dashboard, SaaS product, or prototype and wants refinement, polish, optimization, cleanup, or evidence-backed improvement with no updated design or product input to conform to.
-
-### Refinement Rule
-
-Do not start by rewriting. Start by proving the current state.
-
-```text
-1. Identify the app archetype and target surfaces.
-2. Capture a baseline from the running or buildable app.
-3. Rank concrete issues by user impact, confidence, effort, and regression risk.
-4. Convert accepted candidates into small missions.
-5. Implement one improvement at a time.
-6. Verify before/after evidence and run regression checks.
-```
-
-### Intake Fields
-
-```text
-Refinement target: UX | visual polish | performance | accessibility | SEO | conversion | reliability | test coverage | code quality
-Current state: deployed URL | local app route | screenshots | failing checks | user complaints | analytics | known TODOs
-Baseline command:
-Primary journey:
-Must preserve:
-Out of scope:
-Acceptance threshold:
-```
-
-If the user says "make it better" without a target, perform a refinement audit first and record a ranked backlog in `RUN.md`. Do not create a separate backlog file unless the list becomes materially difficult to scan; then expand it into one under `docs/goal/` linked from `RUN.md`. Do not implement the backlog until the user accepts candidates or authorizes defaults.
-
-### Baseline Evidence
-
-Capture only evidence that matches the requested lens:
-
-```text
-UX: journey friction, navigation dead ends, form errors, empty/error/loading states, task completion
-Visual polish: layout consistency, spacing, typography, overflow, responsive behavior, design-system drift
-Performance: build size, Lighthouse/Core Web Vitals, slow routes, API latency, expensive queries
-Accessibility: keyboard, focus, labels, landmarks, contrast, heading order, alt text, form errors
-SEO/content: metadata, canonical, sitemap, structured data, internal links, content completeness
-Conversion: CTA visibility, form completion, event tracking, thank-you/confirmation states
-Reliability: console/network errors, failed requests, flaky tests, error boundaries, retries
-Test coverage: missing tests around changed behavior, weak E2E journeys, unverified permissions
-Code quality: duplication, unclear ownership, brittle state, dead code, overly broad components
-```
-
-Evidence can be command output, screenshots, traces, console logs, metrics, file references, or a rendered-page observation. When PLAN marks UI evidence required, retain a real screenshot for every planned breakpoint and state; the other evidence types are supplemental. Mark unverifiable surfaces as `UNVALIDATED`.
-
-### Refinement Backlog Rows
-
-Each candidate must be concrete:
-
-```text
-| ID | Lens | Finding | Evidence | Impact | Effort | Risk | Proposed verifier | Status |
-|---|---|---|---|---|---|---|---|---|
-| REF-001 | performance | <finding> | <metric/path> | high | M | medium | <cmd/threshold> | proposed |
-```
-
-Ranking rules:
-
-- Prefer issues with direct user impact and deterministic verification.
-- Prefer small improvements that preserve existing information architecture and contracts.
-- Do not hide product rewrites inside "polish".
-- Separate bug fixes from visual opinion changes; a visual opinion change that departs from a recorded visual value is a design-input delta under the rules above, never a silent local restyle.
-- Treat design-system drift as a contract issue when a design system exists.
-
-### Mission Patterns
-
-Use this pattern when refinement starts from an audit. When an updated input did arrive, `design-input-updates.md`'s "Existing App Refinement Flow" is primary instead.
-
-Use one mission per accepted refinement theme:
-
-```text
-M1 baseline and backlog
-M2 targeted UX/visual refinement
-M3 performance or accessibility pass
-M4 platform-specific refinement, such as SaaS auth/tenant or public-site SEO
-M5 regression verification
-```
-
-For small accepted refinements, skip worktrees and run direct work with before/after evidence. Use worktrees when several accepted refinements can run independently or when the parent checkout must remain stable.
-
-Every refinement mission that touches UI records its UI-impact classification — `none`, `style`, `structure`, or `both` — in its result under the same rule as `ui-implementation-contract.md`. A refinement that changes regions, states, actions, routes, or responsive behavior is structural: route the affected wireframe and UI target through `ui-design-builder` before integration. New product behavior, wording, display contracts or stack decisions first return to `product-definition-builder`.
-
-### Regression Protection
-
-Before closeout, verify:
-
-- The original primary journey still passes.
-- The accepted metric or visual state improved or is explicitly accepted.
-- Existing app contracts, routes, permissions, content, and data behavior did not regress.
-- Screenshots/traces compare before and after for UI changes.
-- Performance/accessibility/SEO changes include a threshold or artifact.
-- Any skipped checks are recorded with risk.
-
-### Stop And Ask Conditions
-
-Stop before implementation when:
-
-- The requested refinement implies a product redesign or information-architecture change.
-- The app cannot build or run and no baseline can be captured.
-- The only available evidence is subjective preference with no design source or user goal.
-- A change would remove existing behavior, content, routes, analytics, permissions, or data.
-- The requested change has no safe local verification path.

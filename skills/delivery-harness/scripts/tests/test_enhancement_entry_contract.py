@@ -62,6 +62,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "Repository / branch / HEAD / dirty paths:",
             "Stage and skill:",
             "Inputs consumed (path + hash or revision):",
+            "Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, "
+            "loaded identity or unknown; differences, or the reused audit's matching hashes):",
             "Approvals in force (gate, owner, date, candidate):",
             "Done and verified (command, exit code):",
             "Remaining:",
@@ -196,7 +198,6 @@ class EnhancementEntryContractTests(unittest.TestCase):
                 self.assertIn(phrase, sync)
         for phrase in (
             "A later invocation reuses it while HEAD and the instruction bytes match",
-            "one Change Log row with the adopted digest in the current Epic, never a new Epic",
             "Reuse a semantic template audit",
             "recorded SHA-256 values",
             "newly applicable, missing, or changed input invalidates reuse",
@@ -207,6 +208,9 @@ class EnhancementEntryContractTests(unittest.TestCase):
             with self.subTest(reference="task-and-handoff", phrase=phrase):
                 self.assertIn(phrase, owner)
         self.assertIn("semantic template audit", bounded)
+        adoption = (SKILLS / "delivery-harness/references/bundle-adoption.md").read_text(encoding="utf-8")
+        self.assertIn("one Change Log row with the adopted digest in the current Epic, never a new Epic", adoption)
+        self.assertIn("[Bundle Adoption](../bundle-adoption.md)", owner)
         delegation = (SKILLS / "delivery-harness/references/delegation-contract.md").read_text(encoding="utf-8")
         performance = (SKILLS / "delivery-harness/references/runtime-performance.md").read_text(encoding="utf-8")
         self.assertIn("source hashes", delegation)

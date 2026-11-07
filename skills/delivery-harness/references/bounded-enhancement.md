@@ -4,7 +4,7 @@ Apply this policy after the owner accepts one enhancement scope. It applies to d
 
 ## One Scope Decision
 
-Use one Epic under `docs/epics/` per complete enhancement outcome, started from `assets/templates/EPIC.template.md` and indexed with its status in `docs/DOCUMENTS.md`. A small fix appends to the matching Epic and may link its direct-task evidence; never open an Epic, PLAN or RUN per edit. The Epic records why the round exists, its current-PRD baseline, requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not copy the PRD, authorization ledger, task scheduler or evidence register. Unresolved Epic work stays visible in the next session; a closed conversation is not completion.
+Use one Epic under `docs/epics/` per complete enhancement outcome, started from `assets/templates/EPIC.template.md`. Its status lives only on its own `Status:` line; `docs/DOCUMENTS.md` carries the one `docs/epics/` directory row and the `Current Epic:` line. A small fix appends to the matching Epic and may link its direct-task evidence; never open an Epic, PLAN or RUN per edit. The Epic records why the round exists, its current-PRD baseline, requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not copy the PRD, authorization ledger, task scheduler or evidence register. Unresolved Epic work stays visible in the next session; a closed conversation is not completion.
 
 A change to scenario text in a feature file is a product decision and goes through a PRD delta. A change only to step definitions or implementation is a small fix on the existing Epic.
 
@@ -22,7 +22,7 @@ Reuse of a semantic template audit follows [Handoff Documentation Audit](governa
 
 Classify the record before implementation, after the owner accepts the outcome:
 
-- Create one Epic for a new feature or complete enhancement with its own goal and acceptance conditions. Index it in `docs/DOCUMENTS.md`; do not create a competing PRD.
+- Create one Epic for a new feature or complete enhancement with its own goal and acceptance conditions. Do not create a competing PRD.
 - Extend the existing Epic when a small fix, test, copy correction or implementation repair serves the same accepted outcome. A new commit, session, worker or release number is not a new Epic.
 - For an isolated small fix with no suitable Epic, create a concise bounded Epic; it may link detailed direct-task evidence rather than duplicate it.
 - A follow-up to a closed Epic may append a dated fix record without rewriting its earlier result. A new outcome or changed acceptance criteria needs a linked new Epic; do not quietly broaden the closed one.
