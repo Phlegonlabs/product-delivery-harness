@@ -12,7 +12,8 @@ Conventions frozen by the Harness:
 - every scenario carries exactly one `@TEST-...` tag (its Test Obligation);
 - the scenario id is `<TEST-ID>/<slug of the scenario name>`;
 - `@platform:<value>`, `@auth:<value>` and `@env:<value>` tags override the
-  run profile for that scenario; any other tag is kept but not interpreted;
+  run profile for that scenario, take only the values in PROFILE_VALUES and
+  never sit on the Feature line; any other tag is kept but not interpreted;
 - Background steps are Given steps of every scenario in the file;
 - And/But continue the previous keyword.
 """
@@ -26,6 +27,16 @@ PROFILE_TAG = re.compile(r"^@(platform|auth|env):([a-z][a-z0-9-]*)$")
 STEP = re.compile(r"^(Given|When|Then|And|But)\s+(\S.*?)\s*$")
 KEYWORDS = ("Given", "When", "Then")
 UNSUPPORTED = ("Scenario Outline:", "Scenario Template:", "Examples:", "Scenarios:", "Rule:")
+# The delivery-acceptance profile values (delivery-harness check_delivery_acceptance.py),
+# copied so a bad tag fails before Product Definition Approval, not after it.
+PROFILE_VALUES = {
+    "platform": frozenset({
+        "web", "browser-extension", "ios", "android", "macos", "windows", "linux",
+        "desktop", "agent", "api", "cli",
+    }),
+    "auth": frozenset({"mock", "real", "none"}),
+    "env": frozenset({"local", "test", "preview", "staging", "production"}),
+}
 
 
 class FeatureError(ValueError):
@@ -127,6 +138,9 @@ def parse_feature_text(text: str, path: str = "<text>") -> Feature:
             name = line[len("Feature:"):].strip()
             if not name:
                 raise fail(number, "Feature needs a name")
+            profile_tags = [tag for tag in pending_tags if tag.startswith(("@platform:", "@auth:", "@env:"))]
+            if profile_tags:
+                raise fail(number, f"{' '.join(profile_tags)} belongs on a Scenario, not the Feature")
             feature = Feature(name=name, tags=pending_tags, scenarios=[], path=path)
             pending_tags = []
             continue
@@ -152,8 +166,14 @@ def parse_feature_text(text: str, path: str = "<text>") -> Feature:
             if len(test_tags) != 1:
                 raise fail(number, f"Scenario {name!r} needs exactly one @TEST-... tag, found {len(test_tags)}")
             for tag in pending_tags:
-                if tag.split(":", 1)[0] in ("@platform", "@auth", "@env") and not PROFILE_TAG.match(tag):
+                key = tag.split(":", 1)[0][1:]
+                if key not in PROFILE_VALUES:
+                    continue
+                match = PROFILE_TAG.match(tag)
+                if not match:
                     raise fail(number, f"malformed profile tag {tag!r}")
+                if match.group(2) not in PROFILE_VALUES[key]:
+                    raise fail(number, f"{tag} must be one of {sorted(PROFILE_VALUES[key])}")
             current = Scenario(name=name, tags=pending_tags, steps=list(feature.background), line=number)
             feature.scenarios.append(current)
             pending_tags = []
