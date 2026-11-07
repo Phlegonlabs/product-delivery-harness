@@ -183,6 +183,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
             "mission_ids": ["M1"],
             "scope": [
               "src/example/**",
+              "tests/example/**",
               "docs/verification/delivery-results.json",
               "docs/verification/evidence/**"
             ],
@@ -262,6 +263,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
         "trace_ids": ["PRD-001"],
         "write_scope": [
           "src/example/**",
+          "tests/example/**",
           "docs/verification/delivery-results.json",
           "docs/verification/evidence/**"
         ],
@@ -283,7 +285,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
               "resources": [],
               "isolation": "host"
             },
-            "selection": {"mode": "changed_files", "scopes": ["src/example/**"]}
+            "selection": {"mode": "changed_files", "scopes": ["src/example/**", "tests/example/**"]}
           }
         ],
         "integration_verifiers": [
@@ -318,7 +320,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
             "replaced_by": [],
             "split_reason": null,
             "refinement_generation": 0,
-            "write_scope": ["src/example/**"],
+            "write_scope": ["src/example/**", "tests/example/**"],
             "verifiers": [
               {
                 "id": "task-focused",
@@ -331,7 +333,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
                   "resources": [],
                   "isolation": "host"
                 },
-                "selection": {"mode": "changed_files", "scopes": ["src/example/**"]}
+                "selection": {"mode": "changed_files", "scopes": ["src/example/**", "tests/example/**"]}
               }
             ]
           }
@@ -383,7 +385,7 @@ New plans set `review_policy: "final_candidate"`, as shown. One integration-stag
 
 For UI work, load `references/ui-implementation-contract.md`. Freeze the approved UI contract, HiFi target, capture mode, and exactly one visual route. `design-system-compiler` owns the required `design-system/4` package and frozen derived HTML for `ui-design/3`; a retained `ui-design/2` package owns its conditional schema-3 pair; otherwise use the exact `not_required` replacement. UI implementation uses the owner-bound frontend-authoring skill under Harness conformance. A missing source is a design-input delta. Run platform-correct evidence after exact-SHA review and repair converge.
 
-Use immutable flat task IDs such as `M1/T01`. Each task has a structured acceptance row exactly `{test_id, trace_ids, criterion}` and a verifier. Task dependencies are same-mission only; cross-mission ordering belongs in typed graph dependency edges. Scope entries are POSIX repository-relative paths or terminal `/**` subtrees. Workers never edit PLAN/RUN or frozen contract sources.
+Use immutable flat task IDs such as `M1/T01`. Each task has a structured acceptance row exactly `{test_id, trace_ids, criterion}` and a verifier. Task dependencies are same-mission only; cross-mission ordering belongs in typed graph dependency edges. Scope entries are POSIX repository-relative paths or terminal `/**` subtrees. Each task `write_scope` lists the tests and fixtures the task adds or edits, every config file it edits (tsconfig, package manifest, lockfile, bundler or test config) and the output files of any generator it runs, because worker-result validation rejects any task commit outside that scope. Workers never edit PLAN/RUN or frozen contract sources.
 
 ## Source Map
 

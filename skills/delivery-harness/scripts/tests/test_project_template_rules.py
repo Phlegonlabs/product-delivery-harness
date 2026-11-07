@@ -222,6 +222,17 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("A package without feature files keeps its hand-written register.",
                       read("references/delivery-acceptance-contract.md"))
 
+    def test_plan_task_scope_covers_tests_config_and_generator_output(self) -> None:
+        # A scope miss forces a PLAN revision, so the template names the usual gaps.
+        plan = read("assets/templates/HARNESS_PLAN.template.md")
+        self.assertIn(
+            "Each task `write_scope` lists the tests and fixtures the task adds or edits, every config file it "
+            "edits (tsconfig, package manifest, lockfile, bundler or test config) and the output files of any "
+            "generator it runs",
+            plan,
+        )
+        self.assertIn('"write_scope": ["src/example/**", "tests/example/**"]', plan)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
