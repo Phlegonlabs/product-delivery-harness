@@ -98,6 +98,7 @@ const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [
 let events = emptyEvents();
 let browser, context, page, pages = {};
 let currentPage = null;
+let baseColorScheme = 'light';   // the run's context theme; an axis reset returns to it, not to plain light
 let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
@@ -211,10 +212,11 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
 
 async function start(request) {
   for (const [name, file] of Object.entries(request.files)) pages[name] = fs.readFileSync(file);
+  baseColorScheme = request.colorScheme === 'dark' ? 'dark' : 'light';
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({
     viewport: request.viewport, serviceWorkers: 'block', acceptDownloads: false,
-    colorScheme: 'light', reducedMotion: 'no-preference', forcedColors: 'none', deviceScaleFactor: 1,
+    colorScheme: baseColorScheme, reducedMotion: 'no-preference', forcedColors: 'none', deviceScaleFactor: 1,
   });
   await context.route('**/*', route => {
     const req = route.request();
@@ -412,7 +414,7 @@ async function shot(request) {
 async function axis(request) {
   const name = request.name;
   await page.emulateMedia({
-    colorScheme: name === 'dark' ? 'dark' : 'light',
+    colorScheme: (name === 'dark' || baseColorScheme === 'dark') ? 'dark' : 'light',
     reducedMotion: name === 'reduced-motion' ? 'reduce' : 'no-preference',
     forcedColors: name === 'forced-colors' ? 'active' : 'none',
   });
@@ -454,8 +456,9 @@ lines.on('close', () => { chain.then(() => (browser ? browser.close().catch(() =
 class NodeDriver:
     """Speaks the JSON-lines protocol to one Node Playwright process."""
 
-    def __init__(self, node, module, files, scratch):
+    def __init__(self, node, module, files, scratch, color_scheme="light"):
         self.node, self.module, self.files, self.scratch = node, module, files, Path(scratch)
+        self.color_scheme = color_scheme
         self.proc = None
         self.environment = {}
         self._lines = queue.Queue()
@@ -473,7 +476,7 @@ class NodeDriver:
         threading.Thread(target=self._pump, args=(self.proc.stdout, self._lines), daemon=True).start()
         threading.Thread(target=self._pump, args=(self.proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
-                          viewport={"width": 1920, "height": 1080})
+                          viewport={"width": 1920, "height": 1080}, colorScheme=self.color_scheme)
         self.environment = reply["result"]["environment"]
 
     def _pump(self, stream, sink):
@@ -1181,6 +1184,8 @@ def parse_args(argv=None):
     parser.add_argument("--derived-once", action="store_true", help="observe derived states once, at the smallest target")
     parser.add_argument("--ui-design", type=Path, help="ui-design.md whose Approved target scope names the derived states")
     parser.add_argument("--derived", type=Path, help='JSON map {"UI-001": ["state", ...]} that replaces the --ui-design set')
+    parser.add_argument("--color-scheme", choices=("light", "dark"), default="light",
+                        help="browser context theme for the whole run; dark writes its own base matrix output")
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
@@ -1211,16 +1216,17 @@ def derived_from_ui_design(path):
             if isinstance(item.get("derivedStates"), dict) and item["derivedStates"]}
 
 
-def node_driver(package, root, scratch):
+def node_driver(package, root, scratch, color_scheme="light"):
     node = shutil.which("node")
     if node is None:
         raise UsageError("Node.js is required")
-    return NodeDriver(node, find_playwright(root, node), package.files, scratch)
+    return NodeDriver(node, find_playwright(root, node), package.files, scratch, color_scheme)
 
 
 def execute(args, make_driver=node_driver):
     root = args.repo_root.resolve()
     package_dir, out_dir = inside(root, args.package, "--package"), inside(root, args.out, "--out")
+    color_scheme = args.color_scheme
     axes = [a for a in args.axes.split(",") if a]
     unknown = [a for a in axes if a not in AXES]
     if unknown:
@@ -1258,7 +1264,7 @@ def execute(args, make_driver=node_driver):
     subject = {"path": (subject_dir + "/" if subject_dir != "." else "") + "index.html", "sha256": package.sha["index.html"]}
     started = now_iso()
     with tempfile.TemporaryDirectory(prefix="pdh-matrix-") as scratch:
-        driver = make_driver(package, root, scratch)
+        driver = make_driver(package, root, scratch, color_scheme=color_scheme)
         try:
             try:
                 driver.start()
@@ -1277,7 +1283,8 @@ def execute(args, make_driver=node_driver):
             raise UsageError(f"{name} changed while it was being captured")
     options = {"only": sorted(only) if only else None, "axes": axes, "derivedOnce": bool(args.derived_once),
                "derived": derived, "derivedFrom": "--derived" if args.derived else ("--ui-design" if ui_design else None),
-               "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried)}
+               "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried),
+               "colorScheme": None if color_scheme == "light" else color_scheme}
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)
