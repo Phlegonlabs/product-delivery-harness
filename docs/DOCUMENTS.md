@@ -6,6 +6,7 @@ Index of live documents. Only open Epics are indexed; closed Epics live in Git h
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior, installation and release instructions | Documentation of record |
 | `CHANGELOG.md` | Release history older than the newest README entries | Added with the 0.66.0 README diet |
+| `docs/epics/EPIC-suite-review-2026-11.md` | Suite review: 91 verified findings to simplify, template and fill the skills, in two writer waves plus a round 2 | in_progress; branch `feat/suite-review-r1` from `0974cbe4` |
 | `docs/epics/EPIC-bdd-scenarios.md` | Executable scenarios under every Test Obligation: feature files in the PRD package, coverage check, rendered delivery-acceptance register, delta scenario rule | complete locally: candidate `d36c7216` (0.77.0) passed the full matrix on `feat/bdd-scenarios`; push, PR, tag and install pending owner action |
 | `docs/epics/EPIC-ui-review-speed.md` | Faster UI review: derived states, sampled axes, fingerprint carry-forward, diff-first review, matrix driver, verify-then-sample review, acceptance closes the round | branch `ui-review-speed` integrating; not released |
 | `docs/epics/EPIC-suite-additions-0.75.md` | 0.74.2 to 0.75.3: review fixes and Linux desktop, GA4 admin setup, design-first UI flow, AI and cost contracts, the `program` profile, thinner reading, template fixes and the consumer updates | complete: v0.75.3 released, installed and adopted in 19 consumers, all pushed |
