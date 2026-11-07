@@ -39,10 +39,12 @@ from pathlib import Path
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
+from ui_design_v3 import intermediate_width_findings
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
 OUTPUT_NAME = "ui-output.json"
 SIDECAR_NAME = "matrix-capture.json"
+INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200")
 TRIGGERS = ("click", "keyboard")
@@ -109,6 +111,11 @@ const packageVersion = () => {
     try { return require(path.join(dir, 'package.json')).version; } catch (_) {}
   }
   return 'unknown';
+};
+
+const SET_CANVAS_WIDTH = px => {
+  const canvas = document.querySelector('[data-hifi-canvas]');
+  if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
 };
 
 const SETTLE = async ({ cap, margin }) => {
@@ -392,6 +399,10 @@ async function runCase(request) {
     }
   }
   if (problems.length) return { problems, settle: null, probe: null };
+  await page.evaluate(px => {
+    const canvas = document.querySelector('[data-hifi-canvas]');
+    if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
+  }, request.widthPx || null);
   const settle = await page.evaluate(SETTLE, { cap: request.settleCapMs, margin: request.marginMs });
   const probe = await page.evaluate(PROBE, {
     surfaceId: request.surface, state: request.state, limit: 400, reportLimit: 10, props: STYLE_PROPS,
@@ -956,6 +967,56 @@ def interaction_plan(package, only=None):
     return [a for a in plan if only is None or a["source"]["surface"] in only]
 
 
+def intermediate_widths(row):
+    """Sorted numeric viewport targets of a surface, or None when it has no web interval to sweep."""
+    responsive = row.get("responsive") or {}
+    if responsive.get("kind") != "viewports":
+        return None
+    try:
+        widths = sorted({float(target) for target in responsive.get("targets", [])})
+    except (TypeError, ValueError):
+        return None
+    return widths if len(widths) > 1 else None
+
+
+def midpoint_width(low, high):
+    value = (low + high) / 2
+    return str(int(value)) if value.is_integer() else str(value)
+
+
+def intermediate_plan(package, only=None):
+    """One case per non-n/a state, at the midpoint of each adjacent pair of numeric viewport targets."""
+    cases = []
+    for row in package.manifest["surfaces"]:
+        if only and row["id"] not in only:
+            continue
+        widths = intermediate_widths(row)
+        states = [str(state) for state in row["states"] if not _is_na_state(state)]
+        if not widths or not states:
+            continue
+        for state in states:
+            for low, high in zip(widths, widths[1:]):
+                cases.append(Case(row["id"], row["page"], state, midpoint_width(low, high)))
+    return cases
+
+
+def intermediate_scope(package, plan):
+    """The checker-scope shape `ui_design_v3.intermediate_width_findings` reads: exactly what the plan covers."""
+    rows = {row["id"]: row for row in package.manifest["surfaces"]}
+    surfaces = []
+    for surface in dict.fromkeys(case.surface for case in plan):
+        states = sorted({case.state for case in plan if case.surface == surface})
+        surfaces.append({"id": surface, "states": states,
+                         "responsive": {"kind": "viewports", "targets": intermediate_widths(rows[surface])}})
+    return {"surfaces": surfaces}
+
+
+def intermediate_findings(package, plan, results):
+    """The checker's own intermediate-width coverage rule over a written intermediate output."""
+    observed = [{key: row[key] for key in ("surface", "state", "target")} for row in results]
+    return intermediate_width_findings(observed, intermediate_scope(package, plan))
+
+
 def tuple_hash(case):
     return sha256_bytes("\x1f".join((case.surface, case.state, case.target, case.axis or "")).encode("utf-8"))[:10]
 
@@ -1065,12 +1126,14 @@ def reviewer_plan(package):
 # --- The run --------------------------------------------------------------------
 class Runner:
     def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None, derived=None,
-                 interactions=(), recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
+                 interactions=(), recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S,
+                 intermediate=False):
         self.driver, self.package, self.root, self.out_dir = driver, package, root, out_dir
         self.axes, self.carry, self.carry_source, self.derived = tuple(axes), carry or {}, carry_source, derived
         self.interactions = list(interactions)
         self.recapture, self.diff_against = recapture, diff_against
         self.settle_cap_ms, self.case_timeout_s = settle_cap_ms, case_timeout_s
+        self.intermediate = intermediate
         self.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
         self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
@@ -1238,11 +1301,19 @@ class Runner:
         record["durationMs"] = round((time.perf_counter() - began) * 1000)
         return record
 
+    def shell_target(self, case):
+        """The shell control an intermediate case drives: its surface's smallest target, widened from there."""
+        if not self.intermediate:
+            return case.target
+        row = next(row for row in self.package.manifest["surfaces"] if row["id"] == case.surface)
+        return smallest_target([str(t) for t in row["responsive"]["targets"]], self.package.widths[case.page])
+
     def run_case(self, case, record):
         reasons, keep = record["reasons"], case.axis is None
         try:
             reply = self.driver.call("case", timeout=self.case_timeout_s + 10, surface=case.surface, state=case.state,
-                                     target=case.target, settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
+                                     target=self.shell_target(case), widthPx=float(case.target) if self.intermediate else None,
+                                     settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
                                      timeoutMs=self.case_timeout_s * 1000)
         except DriverTimeout as error:
             reasons.append(f"case timed out after {self.case_timeout_s}s")
@@ -1262,7 +1333,10 @@ class Runner:
         geometry = probe["geometry"]
         record.update(geometry=geometry, settle=result["settle"], renderFingerprint=render_fingerprint(probe),
                       fingerprintIncomplete=bool(probe.get("incomplete")))
-        if self.kinds[case.surface] == "viewports":
+        if self.intermediate:
+            if abs(geometry["canvasWidth"] - float(case.target)) > WIDTH_TOLERANCE_PX:
+                reasons.append(f"product canvas is {geometry['canvasWidth']}px wide, the intermediate width needs {case.target}px")
+        elif self.kinds[case.surface] == "viewports":
             declared = self.package.widths[case.page][case.target]
             if abs(geometry["canvasWidth"] - declared) > WIDTH_TOLERANCE_PX:
                 reasons.append(f"product canvas is {geometry['canvasWidth']}px wide at target {case.target}, declared {declared}px")
@@ -1520,6 +1594,8 @@ def parse_args(argv=None):
     parser.add_argument("--derived", type=Path, help='JSON map {"UI-001": ["state", ...]} that replaces the --ui-design set')
     parser.add_argument("--color-scheme", choices=("light", "dark"), default="light",
                         help="browser context theme for the whole run; dark writes its own base matrix output")
+    parser.add_argument("--intermediate", action="store_true",
+                        help="also capture every state at the midpoints between adjacent viewport targets into OUT/intermediate")
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
@@ -1588,6 +1664,9 @@ def execute(args, make_driver=node_driver):
     if not cases:
         raise UsageError("the selection has no applicable cases")
     interactions = interaction_plan(package, only)
+    intermediate_cases = intermediate_plan(package, only) if args.intermediate else []
+    if args.intermediate and not intermediate_cases:
+        raise UsageError("--intermediate found no surface with two or more numeric viewport widths")
     carry_path = inside(root, args.carry_from, "--carry-from") if args.carry_from else None
     carry, carry_source = load_carry(root, carry_path) if carry_path else (None, None)
     if carry and args.overwrite and any(related(out_dir, folder) for folder in carry_folders(root, carry_path, carry)):
@@ -1599,6 +1678,7 @@ def execute(args, make_driver=node_driver):
     started = now_iso()
     with tempfile.TemporaryDirectory(prefix="pdh-matrix-") as scratch:
         driver = make_driver(package, root, scratch, color_scheme=color_scheme)
+        intermediate_runner = None
         try:
             try:
                 driver.start()
@@ -1608,6 +1688,12 @@ def execute(args, make_driver=node_driver):
                             derived=derived, interactions=interactions, recapture=args.recapture_carried,
                             diff_against=diff_against)
             runner.run(cases)
+            if intermediate_cases:
+                intermediate_dir = out_dir / INTERMEDIATE_DIR
+                intermediate_dir.mkdir(parents=True, exist_ok=True)
+                intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
+                                             interactions=interactions, intermediate=True)
+                intermediate_runner.run(intermediate_cases)
             environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
         finally:
             driver.stop()
@@ -1615,18 +1701,29 @@ def execute(args, make_driver=node_driver):
     for name, path in package.files.items():
         if sha256_bytes(path.read_bytes()) != package.sha[name]:
             raise UsageError(f"{name} changed while it was being captured")
+    intermediate = None
+    if intermediate_runner is not None:
+        inter_output, inter_path, inter_summary = build_outputs(
+            intermediate_runner, package, intermediate_cases, root, out_dir / INTERMEDIATE_DIR, subject, started,
+            finished, environment, {"only": sorted(only) if only else None, "intermediate": True})
+        findings = intermediate_findings(package, intermediate_cases, inter_output["results"])
+        intermediate = {"output": inter_path.relative_to(root).as_posix(), "cases": inter_summary["cases"],
+                        "fail": inter_summary["cases"] - inter_summary["pass"],
+                        "interactionsFail": inter_summary["interactionsFail"], "findings": findings}
     options = {"only": sorted(only) if only else None, "axes": axes, "derivedOnce": bool(args.derived_once),
                "derived": derived, "derivedFrom": "--derived" if args.derived else ("--ui-design" if ui_design else None),
                "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried),
-               "colorScheme": None if color_scheme == "light" else color_scheme}
+               "colorScheme": None if color_scheme == "light" else color_scheme, "intermediate": intermediate}
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)
     failed = (any(row["result"] != "PASS" for row in output["results"]) or summary["axisFail"]
-              or summary["interactionsFail"])
+              or summary["interactionsFail"]
+              or bool(intermediate and (intermediate["fail"] or intermediate["interactionsFail"]
+                                        or intermediate["findings"])))
     print(json.dumps({"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
                       "output": output_path.relative_to(root).as_posix(), **summary,
-                      "restarts": runner.restarts, "problems": problems[:5]}))
+                      "restarts": runner.restarts, "problems": problems[:5], "intermediate": intermediate}))
     return 3 if problems and not failed else (1 if failed else 0)
 
 
