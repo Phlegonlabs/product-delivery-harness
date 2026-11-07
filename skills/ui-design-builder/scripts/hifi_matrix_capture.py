@@ -38,6 +38,7 @@ from pathlib import Path
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
+from ui_design_v3 import intermediate_width_findings
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
 OUTPUT_NAME = "ui-output.json"
@@ -391,6 +392,10 @@ async function runCase(request) {
     }
   }
   if (problems.length) return { problems, settle: null, probe: null };
+  await page.evaluate(px => {
+    const canvas = document.querySelector('[data-hifi-canvas]');
+    if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
+  }, request.widthPx || null);
   const settle = await page.evaluate(SETTLE, { cap: request.settleCapMs, margin: request.marginMs });
   const probe = await page.evaluate(PROBE, {
     surfaceId: request.surface, state: request.state, limit: 400, reportLimit: 10, props: STYLE_PROPS,
