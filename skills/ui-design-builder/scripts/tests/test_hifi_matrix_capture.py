@@ -177,7 +177,7 @@ class FakeDriver:
                            "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}, "events": events}
 
     def _interact(self, fields):
-        script = self.interact_scripts.get((fields["id"], fields["target"], fields["trigger"]), {})
+        script = self.interact_scripts.get((fields["interaction"], fields["target"], fields["trigger"]), {})
         if "raise" in script:
             raise script["raise"]
         events = dict(script.get("events", {}))
@@ -775,7 +775,7 @@ class InteractionTests(unittest.TestCase):
                           ("UI-001-to-details", "1200", "click"), ("UI-001-to-details", "1200", "keyboard"),
                           ("UI-002-to-desk", "390", "click"), ("UI-002-to-desk", "390", "keyboard"),
                           ("UI-002-to-desk", "1200", "click"), ("UI-002-to-desk", "1200", "keyboard")],
-                         [(f["id"], f["target"], f["trigger"]) for op, f in driver.calls if op == "interact"])
+                         [(f["interaction"], f["target"], f["trigger"]) for op, f in driver.calls if op == "interact"])
         first = next(f for op, f in driver.calls if op == "interact")
         self.assertEqual(("UI-001", "ready", "to-details", "navigate", "UI-002", "details.html", "click"),
                          (first["surface"], first["state"], first["control"], first["kind"],
@@ -824,7 +824,7 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual(4, len(blocked))
         self.assertEqual({"BLOCKED"}, {r["result"] for r in blocked})
         self.assertIn("page did not open", blocked[0]["reasons"][0])
-        self.assertEqual({"UI-001-to-details"}, {f["id"] for op, f in driver.calls if op == "interact"})
+        self.assertEqual({"UI-001-to-details"}, {f["interaction"] for op, f in driver.calls if op == "interact"})
 
     def test_only_narrows_the_interaction_pass(self):
         cli, driver = self.cli(), FakeDriver()
@@ -851,6 +851,24 @@ class InteractionTests(unittest.TestCase):
         driver = FakeDriver()
         _, summary, _ = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
         self.assertEqual((12, 8, 8), (summary["carried"], summary["interactions"], driver.count("interact")))
+
+class DriverWireTests(unittest.TestCase):
+    """The JSON-lines envelope: a payload field must not clobber the reply correlation id."""
+
+    def wire_driver(self):
+        driver = m.NodeDriver("node", "module", {}, ".")
+        driver.proc = type("Proc", (), {})()
+        driver.proc.stdin = io.StringIO()
+        return driver
+
+    def test_a_payload_field_named_id_cannot_clobber_the_correlation_id(self):
+        driver = self.wire_driver()
+        driver._lines.put(json.dumps({"id": 1, "ok": True, "result": {}}))
+        reply = driver.call("interact", interaction="UI-001-x", page="index.html")
+        self.assertEqual({}, reply["result"])
+        wire = json.loads(driver.proc.stdin.getvalue().splitlines()[0])
+        self.assertEqual(1, wire["id"])
+        self.assertEqual("UI-001-x", wire["interaction"])
 
 
 class FailureTests(unittest.TestCase):

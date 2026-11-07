@@ -349,7 +349,9 @@ async function interact(request) {
       const url = page.url();
       arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
-      focusCorrect = Boolean(pressedFocused) && events.focus.length === 1 && events.focus[0].control === request.control;
+      // Both triggers must land product focus on the control alone; keyboard also had to press from it.
+      focusCorrect = events.focus.length === 1 && events.focus[0].control === request.control
+        && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
     }
   }
   return { problems, visible, focusCorrect, arrivedTo };
@@ -487,7 +489,8 @@ class NodeDriver:
     def call(self, op, timeout=CASE_TIMEOUT_S + 10, **fields):
         self._seq += 1
         try:
-            self.proc.stdin.write(json.dumps({"id": self._seq, "op": op, **fields}) + "\n")
+            # id and op go last so a payload field of the same name cannot clobber the reply correlation.
+            self.proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
             self.proc.stdin.flush()
         except OSError as error:
             raise DriverError("driver is not running: " + self._tail()) from error
@@ -934,7 +937,7 @@ class Runner:
     def run_interaction(self, action, target, trigger, record):
         reasons = record["reasons"]
         try:
-            reply = self.driver.call("interact", timeout=self.case_timeout_s + 10, page=action["page"], id=action["id"],
+            reply = self.driver.call("interact", timeout=self.case_timeout_s + 10, page=action["page"], interaction=action["id"],
                                      surface=action["source"]["surface"], state=action["source"]["state"],
                                      target=target, control=action["control"], kind=action["kind"],
                                      destination=action["destination"], destinationPage=action["destinationPage"],
