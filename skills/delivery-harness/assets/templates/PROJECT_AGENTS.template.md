@@ -20,6 +20,11 @@ Existing data protection and action authorization still apply.
 - The managed-run rules (`delivery-harness/references/project-operating-rules.md#managed-product-delivery-harness-runs`) apply only after the Harness routes work into PLAN/RUN. Explicitly requested Harness direct work follows the shared principles, Git safety, and verification rules without creating Harness state, missions, workers, or worktrees unless the repository or user requires them.
 - Preserve unrelated local work. Important local data needs explicit owner approval before deletion, overwrite, or move.
 
+## Harness Version
+
+- Shared installation: Harness `<version>` from tag `v<version>` (`<tag commit SHA>`), installed `<YYYY-MM-DD>` under `<skills root>`.
+- Five-skill contract SHA-256: `<harness_contract.py digest>`.
+
 ## Required Reading
 
 These reading requirements apply only within an explicitly requested skill workflow.

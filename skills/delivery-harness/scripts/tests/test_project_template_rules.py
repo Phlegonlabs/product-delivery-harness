@@ -233,6 +233,20 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         )
         self.assertIn('"write_scope": ["src/example/**", "tests/example/**"]', plan)
 
+    def test_bundle_adoption_updates_the_harness_version_bullets(self) -> None:
+        section = self.section(read("assets/templates/PROJECT_AGENTS.template.md"), "## Harness Version")
+        bullets = [line.split(":", 1)[0] for line in section.splitlines() if line.startswith("- ")]
+        self.assertEqual(["- Shared installation", "- Five-skill contract SHA-256"], bullets)
+        steps = re.findall(r"^\d+\. (.+)$", read("references/bundle-adoption.md"), re.MULTILINE)
+        self.assertEqual(8, len(steps))
+        for index, needle in enumerate(
+            ("harness_contract.py", "`## Harness Version` bullets", "check_skill_bindings.py",
+             "--check --merge-agents", "outside `docs/epics/` and `docs/goal/`", "never a dated section",
+             "document-sync snapshot", "`## Handoff` block")
+        ):
+            with self.subTest(step=index + 1):
+                self.assertIn(needle, steps[index])
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
@@ -287,7 +301,7 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         }
         template_only_headings = {
             "Skill Activation", "Runtime Boundary", "Mandatory Governance Routes", "Deployment",
-            "Behavior Specs",
+            "Behavior Specs", "Harness Version",
         }
         template = read("assets/templates/PROJECT_AGENTS.template.md")
         for heading in re.findall(r"^## (.+)$", template, re.MULTILINE):
