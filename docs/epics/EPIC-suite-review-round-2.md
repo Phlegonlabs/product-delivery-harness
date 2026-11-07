@@ -4,7 +4,7 @@ Status: proposed
 
 ## Problem And Baseline
 
-The suite review of 2026-11-07 (`docs/epics/EPIC-suite-review-2026-11.md`, workflow `wf_19618f07-bb2`) verified 91 findings. Eighty-one landed in that Epic's two waves. These ten need a RUN schema change, a browser-driver extension, a new read-only promotion script or a contract change behind a version pin, so they wait for their own round. Each item keeps its review id; the refuter's refined proposal is the specification and its existing-coverage list is what must not be duplicated.
+The suite review of 2026-11-07 (`docs/epics/EPIC-suite-review-2026-11.md`, workflow `wf_19618f07-bb2`) verified 91 findings. Seventy-eight landed in that Epic's two waves and W12's closing pass. These ten need a RUN schema change, a browser-driver extension, a new read-only promotion script or a contract change behind a version pin, so they wait for their own round. Each item keeps its review id; the refuter's refined proposal is the specification and its existing-coverage list is what must not be duplicated.
 
 Baseline: the 0.78.0 candidate on `feat/suite-review-r1`.
 
