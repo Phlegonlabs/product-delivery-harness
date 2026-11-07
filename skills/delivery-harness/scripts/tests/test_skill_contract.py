@@ -354,24 +354,23 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("docs/goal/DECISIONS.md", graph)
         self.assertIn("stable mission + review surface + root-cause lineage", graph)
         self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
+        self.assertIn("never author a successor review node", decomposition)
+        self.assertNotIn("successor review node's `max_attempts`", decomposition)
         self.assertIn("Do not authorize another example-specific patch", verification)
         self.assertIn("A replan does not grant a fresh review budget", plan)
         self.assertIn("Repair context (omit for an initial implementation)", worker)
         self.assertIn("fix the named root-cause family", worker)
-        gen_verify = self.read("references/gen-verify-correct.md")
         self.assertIn("wait until every required review of that candidate has returned", graph)
         self.assertIn("never make `fix_required`", graph)
         self.assertIn("Collect every required review result for the same candidate", skill)
         self.assertIn("it is not a fresh full review", skill)
-        self.assertIn("A failed re-check hands remaining defects to the Isolated Repair", gen_verify)
+        self.assertIn("every remaining or newly found defect enters the Isolated Repair Protocol", verification)
 
     def test_review_convergence_rules_are_documented(self) -> None:
         skill = self.read("SKILL.md")
         gates = self.read("references/verification-gates.md")
-        gen_verify = self.read("references/gen-verify-correct.md")
         state = self.read("references/execution-state-model.md")
         delegation = self.read("references/delegation-contract.md")
-        bounded = self.read("references/bounded-enhancement.md")
         stage = self.read(MANAGED_STAGE)
 
         # Reviewers triage blocking findings from non-blocking notes; only
@@ -383,11 +382,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "Security findings of severity critical/high are always blocking", gates
         )
-        self.assertIn("separates blocking findings from non-blocking notes", delegation)
+        self.assertIn("separates blocking findings from non-blocking notes", gates)
+        self.assertIn("verification-gates.md#review-topology", delegation)
+        self.assertIn(
+            "the findings with capture references, the spot-check sample and the commands run",
+            gates,
+        )
+        self.assertIn("stays out of the packet", gates)
         # The re-check is scoped to prior findings plus the repair range.
         self.assertIn("Re-check scope", gates)
         self.assertIn("resolved / unresolved / superseded", gates)
-        self.assertIn("repair range `<prior>..<head>`", state)
+        self.assertIn("repair range `<prior>..<head>`", gates)
+        self.assertIn("owns the re-check packet and scope", state)
         # The author proves the repair before it reaches a reviewer.
         self.assertIn("Pre-review repair gate", gates)
         self.assertIn("focused verifier PASS at the new head", gates)
@@ -398,9 +404,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("at most two per review lineage per RUN", gates)
         self.assertIn("not a review verdict and never a PASS", gates)
         self.assertIn("--blocker-class environment|review", state)
-        self.assertIn("environment-blocked review attempt is", gen_verify)
-        self.assertIn("Environment-blocked review attempts do not count", bounded)
-        self.assertIn("a note never opens a round", bounded)
+        self.assertIn("consumes neither the node's attempt nor the repair budget", gates)
+        self.assertIn("Only blocking findings produce `fix_required`", gates)
         # The security lens follows the diff, not a fixed rule.
         self.assertIn("Security lens applicability", gates)
         self.assertIn("security: not_applicable (<reason>)", gates)
@@ -420,7 +425,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         gates = self.read("references/verification-gates.md")
         gen_verify = self.read("references/gen-verify-correct.md")
         state = self.read("references/execution-state-model.md")
-        delegation = self.read("references/delegation-contract.md")
         bounded = self.read("references/bounded-enhancement.md")
 
         # Each candidate stage gets at most two independent review passes.
@@ -454,14 +458,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("record-review-attempt --scoped", state)
         self.assertIn("reconcile-candidate-head --repair-path", state)
         # The scoped reviewer brief is bounded to the repair.
-        self.assertIn("An isolated-repair brief carries only the finding", delegation)
-        # The loop docs route remaining defects into the protocol.
-        self.assertIn("remaining defects then continue as isolated", gen_verify)
-        self.assertIn("A failed re-check hands remaining defects to the Isolated Repair", gen_verify)
-        self.assertIn(
-            "Remaining defects continue as isolated repairs under `verification-gates.md`'s Isolated Repair Protocol",
-            bounded,
-        )
+        self.assertIn("The reviewer receives only the finding, the repair diff, and its direct consumers", gates)
+        # The loop docs route remaining defects into the protocol, which
+        # verification-gates.md owns.
+        self.assertIn("verification-gates.md#isolated-repair-protocol", gen_verify)
+        self.assertIn("every remaining or newly found defect enters the Isolated Repair Protocol", gates)
         self.assertIn(
             "stop only on a contract gap, a missing capability, or an unsafe repair",
             bounded,
@@ -991,7 +992,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
         )
-        self.assertIn("The RUN `deviation_ledger` is complete", gates)
+        self.assertIn("Every `deviation` difference has one ledger row", gates)
         self.assertIn("classify the completed change", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
@@ -1015,7 +1016,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("`integration_notes`", worker_goal)
         self.assertIn("is a recorded attestation, not a validator-proven fact", gates)
-        self.assertIn("strongest task impact the mission's workers reported", gates)
+        self.assertIn("The parent records the strongest task impact in `ui_impact_summary`", contract)
 
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")
@@ -1386,8 +1387,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("default immediately after Plan Readiness", state)
         self.assertIn("Observe actual required capabilities before dispatch", state)
         self.assertIn("Observe every advertised current driver", selector)
-        self.assertIn("Observe each advertised driver", orchestration)
-        self.assertIn("no launch grant is implied", orchestration)
+        # The observation rules live once in runtime-adapters.md; the
+        # orchestration file links there.
+        self.assertIn("runtime-adapters.md#observe-the-current-session", orchestration)
+        self.assertIn("Capability does not grant an action", self.read("references/runtime-adapters.md"))
         self.assertIn("Observe the actual driver", runbook)
         self.assertNotIn("capability_probe", runbook)
         self.assertIn("## Default Plan-Backed Wave", orchestration)

@@ -63,7 +63,7 @@ python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run
 
 PLAN is validated, RUN exists, and the first dispatch approaches. Recheck before each new wave.
 
-Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. After every readiness row passes, set `plan_readiness: ready` through the parent-owned readiness procedure.
+Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. Run the Environment Preflight once in the clean base checkout and record its rows in the Epic or task record. After every readiness row passes, set `plan_readiness: ready` through the parent-owned readiness procedure.
 
 **Commands in order**
 
@@ -77,11 +77,12 @@ python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <
 - A mission lacks a verifier or an executable provider.
 - An authorization entry lacks its exact source and scope.
 - The Mission Cohesion Gate fails for a mission.
+- An Environment Preflight row fails or is unobserved (an `environment` block, not a mission or review failure).
 - `plan_readiness` stays `blocked`.
 
 **Read on failure**
 
-- `references/stages/managed-delivery.md` — "Pass Plan Readiness"
+- `references/stages/managed-delivery.md` — "Pass Plan Readiness", "Environment Preflight"
 - `references/execution-state-model.md` — "Authorization Action Ledger"
 - `references/execution-task-decomposition.md` — Mission Cohesion Gate
 
@@ -91,7 +92,7 @@ python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <
 
 `plan_readiness` is `ready`, the version gate passes, and execution plus launch authorization covers the wave.
 
-Acquire the durable run lock first. Refresh it with `heartbeat-run-lock`; every successful transition also refreshes it. Record the observation, then select the frontier with the read-only step command. Accept the proposal into RUN; recompute it when the revision, digest, or base went stale. Create each worktree and branch only under its own grants. `lease-worker` materializes exact targets only from active wildcard grants. Render the bounded `WORKER_GOAL.template.md` packet per mission. Check the complete packet before dispatch. Lease each worker, then launch every ready sibling before waiting on any result.
+Acquire the durable run lock first. Refresh it with `heartbeat-run-lock`; every successful transition also refreshes it. Record the observation, then select the frontier with the read-only step command. Accept the proposal into RUN; recompute it when the revision, digest, or base went stale. Create each worktree and branch only under its own grants. `lease-worker` materializes exact targets only from active wildcard grants. Render the bounded `WORKER_GOAL.template.md` packet per mission. Check the complete packet before dispatch. Lease each worker, then launch every ready sibling before waiting on any result. From `accept-wave` until each `record-integration`, the run branch takes only the mission merge: leave RUN and the declared tasks view uncommitted, write Epic and DECISIONS entries only after `record-integration` (they are not exempt from the clean check), and commit them as the coordination child.
 
 **Commands in order**
 
@@ -143,6 +144,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 - Changed files leave the mission write scope.
 - A result has no matching reserved attempt or lease.
 - A selected mission is still queued or running at close.
+- `record-integration` reports paths outside mission scopes because a parent commit sits between the recorded integration head (or batch base) and the merge.
 
 **Read on failure**
 
@@ -186,7 +188,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 Every mission is integrated, the review converged, and final gates have run on the exact head.
 
-Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Check every closeout bar item and every `status: complete` condition. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
+Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--prd <PRD.md>` when PLAN freezes a PRD, and `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Then check the remaining Closeout Bar rows. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
 
 **Commands in order**
 
@@ -208,3 +210,33 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 - `references/verification-gates.md` — "Closeout Bar"
 - `references/execution-state-model.md` — exact RUN lifecycle values and `status: complete` conditions
 - `references/branch-promotion-contract.md` — "Managed RUN Archive Before Promotion"
+
+## Card 8: Archive, Publish And Promote
+
+**When**
+
+The RUN closed `local_only` at candidate C, and the owner asks to archive, publish or promote.
+
+Review the archive dry run, then apply it on the same run branch against a freshly read `main` SHA. Commit only the archive bookkeeping as A and revalidate the archive. Publish A only after the owner's exact instruction naming its SHA and branch: observe the remote ref, run the argv `prepare` prints, then read it back with `verify-receipt` and record it in the Epic. Promotion to `main` needs its own exact-SHA grant. Never force-push.
+
+**Commands in order**
+
+```text
+python "<delivery-harness-skill-root>/scripts/archive_run.py" --repo-root <root>
+python "<delivery-harness-skill-root>/scripts/archive_run.py" --repo-root <root> --apply --expected-main <full-sha> --main-ref <main-ref>
+python "<delivery-harness-skill-root>/scripts/push_archived_candidate.py" prepare --repo-root <root> --archive <archive-dir> --remote <name> --request-out <file>
+python "<delivery-harness-skill-root>/scripts/push_archived_candidate.py" verify-receipt --repo-root <root> --request <file>
+```
+
+**Stop when**
+
+- `archive_run.py --apply` refuses a binding, branch or `main` mismatch.
+- `prepare` rejects A's parentage, receipt or allowlist.
+- The remote ref moved unexpectedly, or the read-back is not A.
+- A candidate, preview or smoke gate fails after A.
+
+**Read when**
+
+- Archiving: `references/branch-promotion-contract.md` — "Managed RUN Archive Before Promotion"
+- Promoting: `references/branch-promotion-contract.md` — "Candidate Gate", "Promote To Main"
+- A post-A gate fails: `references/branch-promotion-contract.md` — "Post-A Candidate Or Preview Failure"

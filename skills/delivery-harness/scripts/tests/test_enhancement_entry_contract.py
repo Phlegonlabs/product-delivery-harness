@@ -137,6 +137,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "current`, `stale` or `unknown`", "update only stale shared instructions in place",
             "A read-only handoff reports proposed updates", "not a timer",
             "This audit is the one exit check",
+            "rerun the entry's context check", "`proposed_additions` and `unresolved_divergences`",
+            "`template_sha256` plus `delivery-harness/VERSION`",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, seeded)

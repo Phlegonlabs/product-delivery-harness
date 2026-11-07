@@ -25,11 +25,7 @@ If an optional combination is unsupported, use sequential parent execution only 
 
 ## Runtime Adapter Routing
 
-Use the one general contract in `runtime-adapters.md`. Observe the current host's native tools, effective instructions, permission boundary, completion channel and isolation. Record a lowercase provider identity (or `generic` when unknown), ordered `available_drivers`, and `detection_source`. Current drivers are `subagents` and `sequential_parent`; provider names never choose a driver.
-
-Observe each advertised driver before ready/running dispatch; provider names do not prove capability. Record only relevant capabilities; no launch grant is implied. Models and effort remain null unless explicitly selected and supported. Requested independent user-owned tasks cannot be replaced by direct subagents or a parent fallback.
-
-The node is eligible on the current host exactly when its `allowed_providers` includes that host. `preferred_provider` is advisory ordering among allowed hosts and never blocks an otherwise allowed current host. Never probe or launch another runtime as a bridge. Driver bindings must match the recorded workspace and completion axes.
+Observe the host, drivers and node eligibility under [Observe The Current Session](runtime-adapters.md#observe-the-current-session). Driver bindings must match the recorded workspace and completion axes.
 
 ## Default Plan-Backed Wave
 
@@ -101,26 +97,7 @@ The review, integration, and final-validation gates that follow are defined in `
 
 ## Launch Preconditions
 
-Before proposing any write wave, the parent confirms:
-
-```text
-canonical PLAN and RUN manifests validate
-plan revision and digest match
-plan readiness and execution authorization are true
-the exact spawn/worktree/branch/commit actions are authorized
-integration branch/ref and immutable batch_base_sha are observed
-parent dirty files are attributed and do not overlap mission scopes
-each new mission worktree has the expected repository/branch/base and a clean status
-mission/task dependency DAGs are acyclic
-shared APIs, schemas, and types are frozen before dependent write fan-out
-resource_inventory_complete is true for every candidate
-write/deny scopes use the supported grammar
-runtime slots and isolation capacity are known
-provider, available drivers, and selected route are observed
-required environment and verifier tools are available
-selected permission boundary and worker inheritance are observed
-linked-worktree Git metadata, temp/cache, network, local-binding, and socket requirements fit that boundary
-```
+Before proposing any write wave, the parent confirms the [Ready Frontier](parallel-mission-selection.md#ready-frontier) and re-observes the [Parent Launch Gate](parallel-mission-selection.md#parent-launch-gate) facts.
 
 Also inspect the current Git status, worktree list, existing branches/refs, and intended integration head. Stop before overwriting, moving, deleting, resetting, or cleaning anything.
 
@@ -128,30 +105,15 @@ Branch and worktree identities are runtime allocations, not static PLAN truth. D
 
 ## Select And Confirm A Wave
 
-Run the pure validator and selector before any mutating Git or runtime action. The selector emits a proposal bound to:
-
-```text
-plan_id
-plan_revision
-plan_digest_sha256
-graph_revision
-ready_frontier
-dispatchable_nodes with per-node launch directives
-deferred_nodes with reason codes
-conflict_edges with reason codes
-```
-
-The selector does not emit a batch base, an effective budget, or a bundled wave. The parent binds the committed `batch_base_sha` (the observed parent head), confirms the budget it applied, and records the accepted wave in `RUN.md`. The parent allocates the authorized worktree and branch before `lease-worker`, then binds the actual returned worker identity. The scripted write path uses `harness_transition.py record-observation` (live-Git snapshot), `accept-wave` (reruns selection and accepts the current mission frontier), `lease-worker` (derives and records the complete worker binding and exact identities), `reserve-node-attempt` (reserves approval, external-wait, lifecycle, or deterministic batch/final-verifier work), `record-node-result` (records the matching outcome/evidence and traverses routes), `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-coordination-head` (binds a committed coordination-only checkpoint), and `close-wave`. A selected `worker_passed` mission may close under a surviving `run_complete` grant and integrate afterward; a `wave_closed` grant must first resolve every selected mission. Hand-editing the RUN JSON for these steps is forbidden. Selector and validator scripts do not mutate Git, PLAN, or RUN; `harness_transition.py` is the sole scripted RUN writer. Lifecycle actions execute outside the transition lock and lifecycle targets must already be exact.
+Run the pure validator and selector before any mutating Git or runtime action. Its output and the parent's batch-base binding follow [Inputs And Output](parallel-mission-selection.md#inputs-and-output). The parent allocates the authorized worktree and branch before `lease-worker`, then binds the actual returned worker identity. The scripted write path uses `harness_transition.py record-observation` (live-Git snapshot), `accept-wave` (reruns selection and accepts the current mission frontier), `lease-worker` (derives and records the complete worker binding and exact identities), `reserve-node-attempt` (reserves approval, external-wait, lifecycle, or deterministic batch/final-verifier work), `record-node-result` (records the matching outcome/evidence and traverses routes), `record-worker-result`, `reject-worker-result`, `record-integration`, `reconcile-coordination-head` (binds a committed coordination-only checkpoint), and `close-wave`. A selected `worker_passed` mission may close under a surviving `run_complete` grant and integrate afterward; a `wave_closed` grant must first resolve every selected mission. Hand-editing the RUN JSON for these steps is forbidden. Selector and validator scripts do not mutate Git, PLAN, or RUN; `harness_transition.py` is the sole scripted RUN writer. Lifecycle actions execute outside the transition lock and lifecycle targets must already be exact.
 
 When no safe set exists, run the next dependency-ready mission sequentially. Parallel execution is an optimization, not a completion requirement.
 
 ## Launch Selected Native Workers
 
-`runtime-adapters.md` owns the observed native launch mapping. The parent accepts the frontier, rechecks exact grants, supplies bounded fresh-context packets, binds real worker identities and assigned checkouts, and validates terminal results. It never substitutes a guessed tool name, model, script or task ID.
+Launch steps follow [Authorization And Dispatch](runtime-adapters.md#authorization-and-dispatch). Delegated writers use clean exact-base parent-managed worktrees. Resolve ambiguous launch outcomes against actual sessions before retrying; never create a duplicate automatically. Every explorer, writer and reviewer remains a parent-dispatched sibling.
 
-Delegated writers use clean exact-base parent-managed worktrees. Resolve ambiguous launch outcomes against actual sessions before retrying; never create a duplicate automatically. Every explorer, writer and reviewer remains a parent-dispatched sibling.
-
-Launch all selected siblings before waiting. Prefer terminal events or cursor-based waits, then bounded polling. A result starts validation; it does not prove a PASS. Native resume must first reconcile canonical PLAN/RUN, authorizations, live Git and retained evidence.
+A result starts validation; it does not prove a PASS. Native resume must first reconcile canonical PLAN/RUN, authorizations, live Git and retained evidence.
 
 ## Worker Handoff
 
@@ -178,9 +140,7 @@ A mission that authors or repairs Wireframes, directions or connected HiFi carri
 The launch packet carries the delegation contract's maximum-creativity brief, and every direction/HiFi authoring or repair prompt restates it: pursue the most distinctive, high-craft visual concept the frozen PRD allows, not a generic template. A bare task list is not a valid frontend dispatch.
 
 Resolve the configured frontend author and reviewer before allocating their workspaces.
-Record actual model, effort, session and result origin in attempt evidence.
-A configured availability fallback needs the explicit host failure, confirmed predecessor stop and inspected partial work.
-Recheck tools, isolation and exact grants; a fallback grants no retry or extra review budget.
+On a configured fallback ([Models, Roles And Context](runtime-adapters.md#models-roles-and-context)), recheck tools, isolation and exact grants; it grants no retry or extra review budget.
 
 Prefer structured result data returned directly to the parent. Use temporary `docs/goal/evidence/<mission>/REPORT.md` only when the completion channel or durable handoff requires it; the file contains the exact `## Worker Result Manifest` heading and fenced JSON from the worker template. Record that one path as worker-owned handoff scope; every other PLAN/RUN/evidence state path remains parent-owned. The parent validates claims against observed workspace and Git facts before integration.
 

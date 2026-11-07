@@ -27,30 +27,7 @@ The parent owns every launch, result reconciliation, canonical coordination reco
 
 ## Architecture Method
 
-Apply this method to initial architecture and scoped changes to state, trust, integration or migration boundaries.
-For a repair with unchanged boundaries, reuse the accepted design and verify the affected behavior.
-
-1. Start with a concrete caller example and its expected result.
-2. Derive responsibilities and interfaces from that example.
-3. For mutable state, name its owner, readers and permitted transitions.
-4. State invariants, invalid states and trust boundaries.
-5. For side effects, define repeat-call behavior and recovery after failure between steps.
-6. Link those observable outcomes to existing acceptance checks and `TEST-*` obligations when available.
-
-Product Definition records conceptual contracts in the existing architecture package.
-Implementation design derives signatures and types inside the accepted write scope.
-It does not select an unapproved stack or change product decisions.
-
-When coupling, durability, trust or migration remains unresolved, compare the smallest viable structural alternatives.
-Explain each alternative's effect on the caller, state ownership and failure recovery.
-Do not require alternatives for every local fix.
-
-When repeated failures challenge the design, recheck its premises before another repair.
-Count the applicable actors, load and concurrent operations from evidence.
-Classify tool and environment failures separately from design failures.
-This review does not reset repair budgets, authorize a rewrite or replace existing owner decisions.
-Code reviewers apply the same method only to the affected boundaries.
-Use existing review outcomes and task evidence; do not create another gate or decision ledger.
+When an assignment bears on architecture, apply [Architecture Method](architecture-method.md).
 
 ## Resolve Roles Before Direct Or Managed Work
 
@@ -68,7 +45,7 @@ An external bridge needs `invoke_external_runtime` and applicable delegation aut
 
 ## Assignment And Result Evidence
 
-Each assignment carries a unique assignment ID, attempt ID, execution role, question IDs or bounded outcome, input identity, dependencies, checkout, read/write scope, required skills/tools, acceptance criteria and result contract. Input identity includes the relevant source hashes as well as the base SHA when inputs contain uncommitted files. Give the worker a fresh bounded packet, not the full parent transcript. Include the effective instruction paths and source hashes when the bridge disables automatic discovery. The child reads those sources independently, verifies their hashes, and reports its own read evidence as source paths and any hash mismatch; a parent claim does not substitute. For every NEW parent launch, state an explicit observed or task `max_message_bytes`. Check the complete parent-visible UTF-8 bytes before launch. Overflow means use smaller scoped optional content or defer; it does not authorize a larger default. A re-check reviewer brief carries the prior reviewed head, the prior blocking findings, the prior notes, the repair range, and the author's repair evidence. A reviewer result holds the verdict, the exact SHA, the findings with capture references, the spot-check sample and the commands run. It separates blocking findings from non-blocking notes. It does not restate matrices, hash lists or the packet. An isolated-repair brief carries only the finding, the repair diff, and its direct consumers; it never asks for a fresh full review.
+Each assignment carries a unique assignment ID, attempt ID, execution role, question IDs or bounded outcome, input identity, dependencies, checkout, read/write scope, required skills/tools, acceptance criteria and result contract. Input identity includes the relevant source hashes as well as the base SHA when inputs contain uncommitted files. Give the worker a fresh bounded packet, not the full parent transcript. Include the effective instruction paths and source hashes when the bridge disables automatic discovery. The child reads those sources independently, verifies their hashes, and reports its own read evidence as source paths and any hash mismatch; a parent claim does not substitute. For every NEW parent launch, state an explicit observed or task `max_message_bytes`. Check the complete parent-visible UTF-8 bytes before launch. Overflow means use smaller scoped optional content or defer; it does not authorize a larger default. Re-check and isolated-repair briefs and the reviewer result follow [Review Topology](verification-gates.md#review-topology) and the [Isolated Repair Protocol](verification-gates.md#isolated-repair-protocol).
 
 Each assignment records the route's observed caps: the wall-clock cap in seconds, the tool-turn cap, and `max_message_bytes`. The parent sizes the brief to the route before launch. One writer brief holds one task or one root-cause family. One reviewer call holds one scoped path group when the full diff would exceed the route's packet or time cap. A visual review whose matrix exceeds what the wall-clock cap can inspect goes out as several scoped calls by page group. The parent splits a brief that cannot fit before launch. The calls are one review attempt. A deadline reached with no verdict is an environment-blocked attempt. The parent re-dispatches it as smaller scoped calls. It is not a failed wave, and it does not use a slot replacement. Caps are observed host facts recorded in the attempt evidence; they are not new schema fields.
 
