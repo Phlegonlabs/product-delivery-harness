@@ -134,16 +134,12 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 
 | 階段 | 預設 review 與停止條件 |
 | --- | --- |
-| Product Definition | 封閉式決策前先回讀 Product Thesis。草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更；之後再做一次獨立唯讀 PRD review 與一次定向複查，owner 依十題 review 指南決定。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每輪 PRD 發布與其 Epic 對齊的 delta。At a Glance 的 `Shape` 列宣告 track、companion 介面與 console，交由 checker 驗證；`## Growth Contract` 記錄 north star、再觸及、discovery surfaces 與 launch window。套件預算是作者自查、一次獨立 review 與一次定向複查；之後的缺陷走隔離修復加 scoped review。 |
-| 方向 | 原作者先檢查並修復已渲染的研究，再交 owner 選擇。三個研究；修改只新增一個所選方向的修訂研究與一次決定，拒絕才重做整組。 |
-| HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。自查由工具驅動：執行矩陣 driver、修正幾何 FAIL 與 console 錯誤，並閱讀有改動頁面的渲染圖。一次診斷 wave、一批集中修復與一次受影響範圍複查。保留必要瀏覽器覆蓋、Impeccable `critique` **與** `audit`、四捨五入的 H1–H9 總平均 **至少 85** 及每項 **至少 80**，再取得 Visual Approval。未變的 case 依 render fingerprint（幾何加計算樣式）而非頁面 bytes 連同身分沿用。此階段保有同樣的兩次 review 預算；之後的缺陷走隔離修復，並對修復差異做 scoped review，最多兩次 scoped 複查。其後仍未結的列，以列出的 advisory 或 block 交給 Visual Approval。 |
-| 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），findings 分為 blocking 與 notes，另加一次定向複查。複查後每個剩餘或新缺陷各成一筆有界修復，附自己的聚焦 verifier，並只對修復差異做 scoped review（finding、修復差異、直接消費者）；差異碰到信任邊界時安全維度才加入，scoped PASS 重新綁定被修復路徑，scoped review 不佔用 attempt 預算。除非修復碰到 UI 頁面，否則不重跑 Final UI Acceptance，碰到時只重新擷取該頁面的條目，其餘依 render fingerprint 沿用，並以 diff 優先判定 parity（`parity_capture.py` 會分類 pair）；broad final validation 每個候選於最後跑一次。環境受阻的 attempt 不佔用預算。 |
+| Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更；之後再做一次獨立唯讀 PRD review 與一次定向複查，owner 依十題 review 指南決定。其後的缺陷走隔離修復加 scoped review。 |
+| 方向 | 原作者先檢查並修復已渲染的研究，再交 owner 選擇。三個研究，由 owner 選定。 |
+| HiFi | 完整性 preflight 後，原作者先自查及修復，再交獨立 review。Impeccable `critique` **與** `audit` 完成，且四捨五入的 H1–H9 總平均 **至少 85**、每項 **至少 80** 後，才取得 Visual Approval。 |
+| 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），另加一次定向複查。之後每個剩餘缺陷各成一筆有界修復，只對其修復差異做 scoped review。 |
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
 | 外部設定 | `docs/DEPLOYMENT.md` 每個動作一列 External Console Setup，另有 Measurement Sources 表。逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。 |
-
-缺少 `review_policy` 時保留舊版 `per_mission` 行為。保留凍結 PLAN/RUN pin 與歷史批准，不可改 node 名稱重設已用 attempts。預算用完後，剩餘缺陷走隔離修復，並對每個修復差異做 scoped review；多個未結 family 合併為一次 consolidated repair，用一個 review point 審查，並以基線對比控件把關；沒有額外 review 輪次。可執行差異必須有安全審查，缺少時報 `UNVALIDATED`，不能報 PASS。僅含 docs、copy、Epic、證據或簿記的差異改記 `security: not_applicable (<reason>)` 並列出路徑。範圍不相交而沿用的 PASS 保留原始 SHA，不得改稱全新。 HiFi 初審跑基礎矩陣，並在代表性 case 上抽樣壓力軸：200% 文字、forced colors、長文案、中間寬度、320 px reflow 與 reduced motion。每個 surface × state × target case 只擷取一次，供該 case 上所有觀察共用。PRD 的 UI surface 可宣告 `derivedStates`：版面相同的 overlay 或子狀態，每個只在該 surface 最小的 target 擷取一次。每個 motion intent 在一個代表性 target 上留下 trigger frame、end-state frame 與 reduced-motion 時長檢查。其 receipt 是該單一 intent 的離線 receipt，不帶 bundle 的 interaction、navigation 與 reviewer 證據。矩陣 driver `hifi_matrix_capture.py` 在同一個瀏覽器 context 內走完整個矩陣，附幾何探測、render fingerprint、從先前執行沿用與抽樣軸，並寫出 `ui-output/3` 結果。複查在受影響頁面與狀態重跑 critique 和 audit，只重新觀察 render fingerprint（幾何、computed styles 與媒體識別）有變的 case，不完整的 fingerprint 不得沿用，並以 diff 優先：相同的列自動記錄，reviewer 只判定被標記的列。沿用讓完整證據矩陣得以保留。
-
-HiFi 仍須使用 Impeccable，但它不是預設的唯讀實作 reviewer。其 workflow 的 subagent、瀏覽器／server、snapshot 寫入與可選下載須另有授權。產品、stack、方向與 Visual Approval 決定仍屬原 owner。Owner 的 Visual Approval（含附後續事項的接受）會結束該設計輪次；未結的列成為 Epic 的後續事項。一輪以進場時的 bundle pin 完成；輪次中途安裝造成的 drift 只記錄，不阻擋。
 
 ## 通用 runtime adapter
 
