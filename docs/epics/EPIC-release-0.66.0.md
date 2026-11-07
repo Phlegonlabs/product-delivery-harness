@@ -1,6 +1,6 @@
 # Release 0.66.0: Fewer Review Rounds
 
-Status: in_progress
+Status: complete; v0.66.0 tagged
 Design workflow: enhancement
 UI impact: none (skill contracts, validators and documentation; no product UI).
 

@@ -1,6 +1,6 @@
 # Review Budget And MVP Profile
 
-Status: candidate verified; publication pending
+Status: complete; candidate 54fc51e9 released in v0.70.0
 Design workflow: enhancement
 UI impact: none (Harness review rules, managed route, READMEs and documentation; no product UI changes).
 

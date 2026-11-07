@@ -1,6 +1,6 @@
 # Worker ingestion reconciliation
 
-Status: in_progress
+Status: complete; candidate 1dea7fd4 released in v0.66.0
 
 ## Problem and scope
 

@@ -1759,6 +1759,12 @@ def full_product_package_checker_errors(
         kwargs["repo_root"] = Path(repo_root)
     if ui_contract is not None:
         kwargs["ui_contract"] = ui_contract
+    if repo_root is not None and "deltas_dir" in inspect.signature(validate_package).parameters:
+        # A delta-mode PRD (one that records `Latest delta:`) needs its deltas
+        # directory, exactly as the checker's own CLI derives it from the PRD path.
+        deltas_dir = Path(repo_root) / "docs" / "product" / "deltas"
+        if deltas_dir.is_dir():
+            kwargs["deltas_dir"] = deltas_dir
     try:
         return validate_package(
             prd_text,

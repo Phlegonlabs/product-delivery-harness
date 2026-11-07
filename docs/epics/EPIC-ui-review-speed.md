@@ -1,6 +1,6 @@
 # UI Review Speed
 
-Status: branch `ui-review-speed` integrating; not released
+Status: complete; v0.76.0 released 2026-11-04 (PR #178); 0.76.1 merged and installed 2026-11-06 (PR #179), tag pending; two follow-up fixes on `fix/compact-tracked-files-retention` unreleased
 Design workflow: enhancement
 UI impact: none (review rules, evidence rules, two scripts and documentation; no product UI changes).
 
@@ -63,9 +63,51 @@ Five Sonnet 5.5 writers (claude-t3-direct, effort xhigh) in separate worktrees w
 
 Parent commits: SKILL.md cap sentence, CLI inventory, cross-reference reconciliation, fingerprint-only carry in the driver, one motion target in the checker.
 
+### 0.76.1 Follow-Up
+
+Candidate branch `review-speed-0761`, head `8f15687c`, base v0.76.0. A motion receipt validates without the HiFi bundle; `review_input.py` builds git-free review packets with a SHA-256 manifest; `security-review.md` accepts that manifest as the clean-checkout proof; `verification-gates.md` records the consolidated isolated repair and the baseline comparison gate; four README entries and the CHANGELOG rotation.
+
+Verification at `8f15687c` (`task/release-0761/matrix-8f15687c/summary.txt`): skill spec, pyflakes, docs weight, harness suite (111 modules, 8 workers), golden path, the product-definition-builder, ui-design-builder and design-system-compiler suites and `git diff --check`, all exit 0.
+
+Reviews: three protected read-only rounds (gpt-6.1-sol, xhigh) on `ea2c1d04`, `240ae793` and `8f15687c`; round 3 PASS on every scope.
+
+Merged to `main` through PR #179 (`12eecf90`, 2026-11-06). Installed from `8f15687c` on 2026-11-06 (backup `20261106-023245`). Tag `v0.76.1` is not on origin; the agentkiosk re-pin and the formal motion collection have not run.
+
+### Follow-Up Fixes (unreleased)
+
+Branch `fix/compact-tracked-files-retention` from `8f15687c`:
+
+- `6c4934bf` — `validate_harness_plan.py --repo-root` failed on every delta-mode PRD because the product-package join never passed the deltas directory; the join now derives `docs/product/deltas/` from the repository root when it exists.
+- `1a7f035e` — each retained verifier execution copied the per-file tracked-file snapshot into `RUN.md` (48 MB for four verifiers on a 25k-file repository), which the write guard refuses; RUN now keeps the digest and count, and the external result file keeps the snapshot.
+
+Verified: `python -B -m unittest tests.test_compact_tracked_files_retention tests.test_harness_contract_join_loader tests.test_harness_strict_authority` from `skills/delivery-harness/scripts` (26 tests, exit 0). No independent review, version bump or merge yet.
+
 ## Open
 
 - Docs weight is up about 2,500 words against v0.75.3, 832 of them the new matrix-capture page. The ratchet is visibility only.
 - `hifi_reviewer.py` still requires a state-view variant at every target for a derived state (authoring side). The PLAN parity matrix still treats derived states as ordinary states.
 - No script records an owner waiver of a required check before Visual Approval; the checker still rejects an approval dated before the newest receipt.
 - Verify-then-sample caps the random PASS sample at 20 rows.
+
+## Change Log
+
+| Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
+| --- | --- | --- | --- |
+| Faster UI review (v0.76.0) | Accepted Scope above | PR #178 `ece15219` | Full matrix at the candidate; released and tagged 2026-11-04 |
+| 0.76.1 follow-up | Motion receipts without the bundle, git-free review packets, consolidated repair | PR #179 `12eecf90` | `matrix-8f15687c` all exit 0; three protected review rounds; installed 2026-11-06; tag and agentkiosk re-pin pending |
+| Deltas directory in the product-package join | Delta-mode PRDs failed `validate_harness_plan.py --repo-root` | `6c4934bf` | 26-test unittest run exit 0; review and release pending |
+| Compact tracked-file retention in RUN | RUN manifest exceeded the write guard on large repositories | `1a7f035e` | `test_compact_tracked_files_retention.py` exit 0; review and release pending |
+
+## Handoff
+
+```text
+Repository / branch / HEAD / dirty paths: product-delivery-harness / fix/compact-tracked-files-retention / 1a7f035e plus the record commits that follow / task/ untracked
+Stage and skill: source maintenance, direct route (delivery-harness)
+Inputs consumed (path + hash or revision): origin/main 12eecf90 (PR #179); task/release-0761/README.md, matrix-8f15687c/summary.txt and install.log (2026-11-06); git tags through v0.76.0
+Approvals in force (gate, owner, date, candidate): local commits only; no push, tag, install or release authorized in this session
+Done and verified (command, exit code): python -B -m unittest tests.test_compact_tracked_files_retention tests.test_harness_contract_join_loader tests.test_harness_strict_authority (26 tests, exit 0); git diff --check (exit 0)
+Remaining: independent review of 6c4934bf and 1a7f035e; version bump and README entry at release; tag v0.76.1 on origin; agentkiosk re-pin; formal motion collection; local main is behind origin/main
+Blocked / waiting (gate name or owner decision): owner decision to publish the branch and open its PR
+Next action (one command or one owner decision): owner decides whether the two fixes ship as 0.76.2
+Next owner (skill or human): human
+```
