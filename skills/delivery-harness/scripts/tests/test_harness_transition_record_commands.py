@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import contextlib
 import io
 import json
@@ -415,7 +416,18 @@ class CloseRunTests(RecordCommandsFixture):
         self.assertIn("owner closes the delivered run", attempt["evidence"])
 
     def test_refuses_an_unintegrated_run(self) -> None:
+        # Only a fresh draft run validates without an integration head; a
+        # running pair without one is already refused by acquire-run-lock.
+        self.run = mf.valid_run(self.plan)
+        self.run["integration"]["branch"] = "integration"
+        self.run["integration"]["batch_base_sha"] = None
         self.run["integration"]["integration_head_sha"] = None
+        self.run["landing"]["continuity"] = {
+            "status": "planned",
+            "branch_ref": "refs/heads/integration",
+            "head_sha": None,
+            "reason": "Keep the reviewed run branch so the user can read it",
+        }
         self.rewrite_run()
         self.assertEqual(0, self.transition("acquire-run-lock"))
         before = self.run_path.read_bytes()
@@ -426,19 +438,23 @@ class CloseRunTests(RecordCommandsFixture):
         self.assertEqual(before, self.run_path.read_bytes())
 
     def test_refuses_when_continuity_cannot_be_preserved(self) -> None:
+        # Blocked continuity cannot pass acquire-run-lock beside authorized
+        # execution, so the refusal runs _close_run on the in-memory pair
+        # while the validating pair stays on disk.
+        self.rewrite_run()
+        before = self.run_path.read_bytes()
         self.run["landing"]["continuity"] = {
             "status": "blocked",
             "branch_ref": "refs/heads/integration",
             "head_sha": self.head,
             "reason": "the run branch was deleted after integration",
         }
-        self.rewrite_run()
-        self.assertEqual(0, self.transition("acquire-run-lock"))
-        before = self.run_path.read_bytes()
-        with contextlib.redirect_stderr(io.StringIO()) as stderr:
-            code = self.transition("close-run", "--source", "owner words")
-        self.assertEqual(2, code)
-        self.assertIn("continuity", stderr.getvalue())
+        arguments = argparse.Namespace(
+            source="owner words", repo_root=None, run=self.run_path
+        )
+        with self.assertRaises(harness_transition.ManifestError) as raised:
+            harness_transition._close_run(self.plan, self.run, arguments)
+        self.assertIn("continuity", str(raised.exception))
         self.assertEqual(before, self.run_path.read_bytes())
 
     def test_requires_the_held_run_lock(self) -> None:
@@ -508,6 +524,12 @@ class RecordRuntimeTests(RecordCommandsFixture):
         runtime = self.run["runtime_capabilities"]
         runtime["worker_runtime"] = "subagent"
         runtime["completion_channel"] = "agent_result"
+        # The on-disk pair must validate: route the recorded adapter to the
+        # subagents driver the mutated axes support.
+        runtime["runtime_adapter"]["available_drivers"] = [
+            "subagents",
+            "sequential_parent",
+        ]
         self.rewrite_run()
         self.assertEqual(0, self.transition("acquire-run-lock"))
         self.assertEqual(

@@ -4818,8 +4818,8 @@ def _open_run(
     _record_attempt(run, "OPEN-RUN", "run_open", "ready", [args.source])
 
 
-def _route_caps_evidence(items: list[str]) -> str:
-    """Validate recorded route caps and render them as one evidence line."""
+def _route_caps_evidence(items: list[str]) -> list[str]:
+    """Validate recorded route caps and render one evidence string per cap."""
 
     known_caps = ("wall_clock_seconds", "tool_turns", "max_message_bytes")
     caps: dict[str, dict[str, int]] = {}
@@ -4872,11 +4872,11 @@ def _route_caps_evidence(items: list[str]) -> str:
                         f"--route-caps {route}.{cap} must be a positive integer"
                     )
                 recorded[cap] = number
-    return " ".join(
+    return [
         f"{route}.{cap}={value}"
         for route, route_caps in sorted(caps.items())
         for cap, value in sorted(route_caps.items())
-    )
+    ]
 
 
 def _record_runtime(
@@ -4906,11 +4906,16 @@ def _record_runtime(
         )
     adapter = runtime.get("runtime_adapter")
     observed_adapter = dict(adapter) if isinstance(adapter, dict) else {}
+    # The run-scoped version pin stays: record-runtime observes one session's
+    # adapter surface, never a new release identity for the run.
+    prior_gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
+    if not isinstance(prior_gate, dict):
+        prior_gate = {}
     gate = {
-        "host_version": None,
-        "minimum_host_version": None,
-        "harness_version": None,
-        "required_harness_version": None,
+        "host_version": prior_gate.get("host_version"),
+        "minimum_host_version": prior_gate.get("minimum_host_version"),
+        "harness_version": prior_gate.get("harness_version"),
+        "required_harness_version": prior_gate.get("required_harness_version"),
         "session_id": args.session_id,
         "loaded_contract_digest": args.loaded_digest,
         "installed_contract_digest": None,
@@ -4929,10 +4934,7 @@ def _record_runtime(
         }
     )
     runtime["runtime_adapter"] = observed_adapter
-    evidence = [gate["evidence"]]
-    route_caps = _route_caps_evidence(args.route_caps)
-    if route_caps:
-        evidence.append(f"observed route caps {route_caps}")
+    evidence = [gate["evidence"], *_route_caps_evidence(args.route_caps)]
     _record_attempt(run, "RUNTIME-RECORD", "runtime_record", "observed", evidence)
 
 
