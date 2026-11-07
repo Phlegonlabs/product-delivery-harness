@@ -69,7 +69,11 @@ from select_ready_nodes import (
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
-from check_launch_packet import InvalidMessageBudgetError, check_message
+from check_launch_packet import (
+    InvalidMessageBudgetError,
+    MessageBudgetOverflowError,
+    check_message,
+)
 from security_review_result import (
     SecurityReviewResultError,
     load_security_review_result,
@@ -2286,6 +2290,289 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "evidence": [f"leased worker {args.worker_id} on {args.branch_ref}"],
         }
     )
+
+
+_WORKER_PACKET_TEMPLATE = (
+    Path(__file__).resolve().parents[1] / "assets" / "templates" / "WORKER_GOAL.template.md"
+)
+_WORKER_PACKET_HOST_LABELS = (
+    "Worker contract",
+    "Parent launch identity",
+    "Route caps",
+    "Permissions",
+    "Visual inputs",
+)
+_WORKER_PACKET_REPAIR_LABELS = (
+    "Root-cause families",
+    "Known variants and acceptance matrix",
+    "Rejected narrow approach",
+    "Review lineage",
+)
+
+
+def _read_worker_packet_host_values(args: argparse.Namespace) -> dict[str, str]:
+    """Load the host-supplied placeholder values for the worker packet."""
+
+    host_file = getattr(args, "host_file", None)
+    if host_file is None:
+        return {}
+    try:
+        payload = json.loads(host_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ManifestError(f"cannot read --host-file {host_file}: {exc}") from exc
+    if not isinstance(payload, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in payload.items()
+    ):
+        raise ManifestError(
+            "--host-file must hold a JSON object of placeholder name to string"
+        )
+    unknown = sorted(set(payload) - set(_WORKER_PACKET_HOST_LABELS + _WORKER_PACKET_REPAIR_LABELS))
+    if unknown:
+        raise ManifestError(
+            f"--host-file has unknown placeholder names {', '.join(unknown)}; "
+            f"known names are {', '.join(_WORKER_PACKET_HOST_LABELS + _WORKER_PACKET_REPAIR_LABELS)}"
+        )
+    return payload
+
+
+def _render_worker_packet(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> str:
+    """Render WORKER_GOAL.template.md from the in-memory leased RUN.
+
+    Every fillable placeholder takes its value from the lease, PLAN, the CLI
+    arguments, or --host-file. The caller size-checks the result before the
+    durable RUN write and creates the packet exclusively after it.
+    """
+
+    template_text = _WORKER_PACKET_TEMPLATE.read_text(encoding="utf-8")
+    mission = next(
+        (
+            item
+            for item in plan.get("missions", [])
+            if isinstance(item, dict) and item.get("id") == args.mission_id
+        ),
+        None,
+    )
+    if not isinstance(mission, dict):
+        raise ManifestError(f"no PLAN mission for {args.mission_id!r}")
+    worker = next(
+        (
+            item
+            for item in run.get("workers", [])
+            if isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
+        ),
+        None,
+    )
+    if not isinstance(worker, dict):
+        raise ManifestError(f"no leased worker for attempt {args.attempt_id!r}")
+    host_values = _read_worker_packet_host_values(args)
+    binding = worker.get("runtime_binding") or {}
+    tasks = [item for item in mission.get("tasks", []) if isinstance(item, dict)]
+    task_ids = [str(item.get("id")) for item in tasks if item.get("id")]
+    verifier_ids = [
+        str(item.get("id"))
+        for item in mission.get("worker_verifiers", [])
+        if isinstance(item, dict) and item.get("id")
+    ] + [
+        str(item.get("id"))
+        for task in tasks
+        for item in task.get("verifiers", [])
+        if isinstance(item, dict) and item.get("id")
+    ]
+    platform_tests = sorted(
+        {
+            str(test_id)
+            for item in mission.get("integration_verifiers", [])
+            if isinstance(item, dict)
+            for test_id in (item.get("acceptance_test_ids") or [])
+            if isinstance(test_id, str)
+        }
+    )
+    security_pairs = []
+    for task in tasks:
+        for row in task.get("acceptance_matrix") or []:
+            if not isinstance(row, dict):
+                continue
+            for trace_id in row.get("trace_ids") or []:
+                if (
+                    isinstance(trace_id, str)
+                    and trace_id.startswith("PRD-")
+                    and row.get("test_id")
+                ):
+                    security_pairs.append(f"{trace_id}/{row['test_id']}")
+    commit_grant = (run.get("authorizations") or {}).get("create_local_commits") or {}
+    context_entries = []
+    for raw in getattr(args, "context_path", None) or []:
+        path = Path(raw)
+        if not path.is_file():
+            raise ManifestError(
+                f"lease-worker --context-path {str(raw)!r} is not a readable file"
+            )
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        context_entries.append(f"{path.as_posix()} sha256:{digest}")
+    result_contract = (
+        Path(__file__).resolve().parents[1] / "references" / "worker-result-contract.md"
+    )
+    if not result_contract.is_file():
+        raise ManifestError("worker result contract is missing next to the skill")
+    stop_conditions = "; ".join(
+        str(item)
+        for item in mission.get("stop_conditions", []) or []
+        if str(item).strip()
+    )
+    values = {
+        "PLAN": (
+            f"{args.plan}; ID {(run.get('plan') or {}).get('id')}; "
+            f"revision {(run.get('plan') or {}).get('revision')}; "
+            f"digest {(run.get('plan') or {}).get('digest_sha256')}"
+        ),
+        "RUN snapshot": str(args.run),
+        "Mission/tasks": f"{args.mission_id}: {', '.join(task_ids)}",
+        "Lease": str(worker.get("lease_id")),
+        "Batch base": str(worker.get("batch_base_sha")),
+        "required_skills": (
+            ", ".join(
+                str(item)
+                for item in mission.get("required_skills", []) or []
+                if str(item).strip()
+            )
+            or "none"
+        ),
+        "Provider/driver": f"{binding.get('provider')} / {binding.get('driver')}",
+        "Executor/model/effort": (
+            f"{binding.get('model') or 'provider default'} / "
+            f"{binding.get('reasoning_effort') or 'provider default'}"
+        ),
+        "Worker/workspace/completion": (
+            f"{worker.get('worker_runtime')} / {worker.get('workspace_mode')} / "
+            f"{worker.get('completion_channel')}"
+        ),
+        "Worktree and branch/ref": (
+            f"{worker.get('worktree_path')} / {worker.get('branch_ref')}"
+        ),
+        "Handoff": f"this packet; max_message_bytes {args.max_message_bytes}",
+        "Context source hashes": "; ".join(context_entries),
+        "Host-specific context": "; ".join(
+            Path(raw).as_posix() for raw in getattr(args, "context_path", None) or []
+        ),
+        "Result contract": str(result_contract),
+        "Resource claims": (
+            "; ".join(
+                [
+                    *(
+                        f"{item.get('key')} ({item.get('access')})"
+                        for item in mission.get("runtime_resources", []) or []
+                        if isinstance(item, dict)
+                    ),
+                    *(
+                        f"{item} (serialized)"
+                        for item in mission.get("serialized_resources", []) or []
+                        if isinstance(item, str)
+                    ),
+                ]
+            )
+            or "none"
+        ),
+        "Write": ", ".join(str(item) for item in mission.get("write_scope", []) or []),
+        "Deny": (
+            ", ".join(str(item) for item in mission.get("deny_scope", []) or [])
+            + ", PLAN.md, RUN.md, frozen contracts, and unrelated files"
+        ),
+        "Objective and stop conditions": (
+            f"{mission.get('objective')} — stop when: {stop_conditions}"
+        ),
+        "Verifiers": (
+            f"{'; '.join(verifier_ids) or 'none'}; "
+            f"platform {', '.join(platform_tests) or 'none'}"
+        ),
+        "Security requirements": ", ".join(security_pairs) or "none",
+        "Commit authorization": (
+            f"true ({commit_grant.get('source')})"
+            if commit_grant.get("authorized") is True
+            else "false"
+        ),
+    }
+    values.update(host_values)
+    ui_mission = mission_has_ui_authoring_action(plan, mission)
+    filled: list[str] = []
+    in_block = False
+    dropping_repair = False
+    for line in template_text.splitlines():
+        if line.startswith("# Worker Goal: "):
+            filled.append(
+                f"# Worker Goal: {args.mission_id} — {mission.get('objective')}"
+            )
+            continue
+        if line.startswith("Complete ") and line.endswith(" only."):
+            filled.append(
+                f"Complete {args.mission_id} ({mission.get('objective')}) only."
+            )
+            continue
+        if line.strip() == "```text":
+            in_block = True
+            filled.append(line)
+            continue
+        if in_block and line.strip() == "```":
+            in_block = False
+            filled.append(line)
+            continue
+        if not in_block:
+            filled.append(line)
+            continue
+        if dropping_repair:
+            if line.startswith("- "):
+                continue
+            dropping_repair = False
+        if line.startswith("Repair context (omit for an initial implementation):"):
+            if not any(name in values for name in _WORKER_PACKET_REPAIR_LABELS):
+                dropping_repair = True
+                continue
+            filled.append(line)
+            continue
+        if line.startswith("- ") and ": " in line:
+            label = line[2:].partition(": ")[0]
+            if label == "Visual inputs" and not ui_mission:
+                continue
+            if label in values:
+                filled.append(f"- {label}: {values[label]}")
+                continue
+        filled.append(line)
+    unfilled = []
+    in_block = False
+    for line in filled:
+        if line.strip() == "```text":
+            in_block = True
+            continue
+        if in_block and line.strip() == "```":
+            in_block = False
+            continue
+        if not in_block or "<" not in line:
+            continue
+        index = line.find("<")
+        while index != -1:
+            end = line.find(">", index + 1)
+            if end == -1:
+                break
+            label = line[2:].partition(": ")[0] if line.startswith("- ") else ""
+            unfilled.append(label or line.strip())
+            break
+    if unfilled:
+        raise ManifestError(
+            "lease-worker packet still has unfilled placeholders: "
+            + ", ".join(dict.fromkeys(unfilled))
+        )
+    packet_text = "\n".join(filled)
+    if template_text.endswith("\n"):
+        packet_text += "\n"
+    try:
+        check_message(packet_text, args.max_message_bytes)
+    except MessageBudgetOverflowError as exc:
+        raise ManifestError(
+            f"lease-worker packet exceeds the message budget: {exc}"
+        ) from exc
+    return packet_text
 
 
 def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -4619,6 +4906,18 @@ def build_parser() -> argparse.ArgumentParser:
     lease.add_argument("--workspace-mode")
     lease.add_argument("--completion-channel")
     lease.add_argument("--report-path")
+    lease.add_argument(
+        "--packet-out",
+        type=Path,
+        help="also render the worker goal packet from the in-memory leased run",
+    )
+    lease.add_argument("--max-message-bytes", type=int)
+    lease.add_argument(
+        "--context-path",
+        action="append",
+        help="repeatable ordered context source path; the packet records its hash",
+    )
+    lease.add_argument("--host-file", type=Path)
     reserve_node = subparsers.add_parser("reserve-node-attempt")
     reserve_node.add_argument("--node-id", required=True)
     reserve_node.add_argument("--attempt-id", required=True)
@@ -4711,9 +5010,10 @@ def _transition_under_lock(
                 "--max-diff-bytes and --max-message-bytes require --packet-out; "
                 "the budgets must validate the complete packet before durable writes"
             )
-        if args.command != "reserve-review-dispatch":
+        if args.command not in {"reserve-review-dispatch", "lease-worker"}:
             raise ManifestError(
-                "packet byte budgets are valid only with reserve-review-dispatch"
+                "packet byte budgets are valid only with reserve-review-dispatch "
+                "or lease-worker"
             )
     if getattr(args, "max_message_bytes", None) is not None:
         try:
@@ -4722,6 +5022,21 @@ def _transition_under_lock(
             raise ManifestError(f"invalid packet message budget: {exc}") from exc
     if diff_budget is not None and diff_budget < 1:
         raise ManifestError("invalid packet diff budget: --max-diff-bytes must be positive")
+    if args.command == "lease-worker":
+        lease_packet_out = getattr(args, "packet_out", None)
+        if lease_packet_out is None and (
+            getattr(args, "context_path", None)
+            or getattr(args, "host_file", None) is not None
+        ):
+            raise ManifestError(
+                "--context-path and --host-file require --packet-out; "
+                "the context and host facts belong in the rendered packet"
+            )
+        if lease_packet_out is not None and message_budget is None:
+            raise ManifestError(
+                "--packet-out requires --max-message-bytes; the packet is "
+                "size-checked before the durable RUN write"
+            )
     original_text = args.run.read_text(encoding="utf-8")
     original = extract_json_manifest_text(
         original_text,
@@ -4825,6 +5140,11 @@ def _transition_under_lock(
     diff_artifacts = []
     if getattr(args, "diff_artifact_out", None) and not getattr(args, "packet_out", None):
         raise ManifestError("--diff-artifact-out requires --packet-out")
+    lease_packet = None
+    if args.command == "lease-worker" and getattr(args, "packet_out", None):
+        if args.packet_out.exists():
+            raise ManifestError(f"refusing to overwrite {args.packet_out}")
+        lease_packet = _render_worker_packet(plan, run, args)
     if receipt is not None and getattr(args, "packet_out", None):
         from render_review_packet import render_packet
 
@@ -4886,6 +5206,14 @@ def _transition_under_lock(
         before_commit = recheck_integration
     _ensure_plan_unchanged(args.plan, expected_plan_text)
     _replace_run_document(args.run, run, expected_text=original_text, before_commit=before_commit)
+    if lease_packet is not None:
+        try:
+            _write_text_exclusive(args.packet_out, lease_packet)
+        except (ManifestError, OSError) as exc:
+            raise ManifestError(
+                f"{exc}; the RUN lease is durable. Re-render the packet for the "
+                "same lease to a new output path before launch"
+            ) from exc
     if packet is not None:
         from render_review_packet import write_diff_artifact
 

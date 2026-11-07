@@ -63,9 +63,9 @@ Worktree, branch, commit, integration and cleanup actions retain their separate 
 1. Validate PLAN/RUN and accept the selected frontier.
 2. Reserve runtime reviews with `reserve-review-dispatch` before launch; never reconstruct the reservation afterward.
 3. Verify repository, branch, exact base and clean status before allocating an authorized isolated writer.
-4. Render `../assets/templates/WORKER_GOAL.template.md` with scope, skills, permissions, verifier, result contract and exact input identity.
-5. Launch all selected siblings before waiting; run a blocking bridge asynchronously.
-6. Bind the real worker identity and assigned checkout through `lease-worker`.
+4. Bind the real worker identity and assigned checkout through `lease-worker`.
+5. With `--packet-out <new-path> --max-message-bytes <n>`, the same `lease-worker` call also renders `../assets/templates/WORKER_GOAL.template.md` from the leased run. Repeat `--context-path` for each ordered source; pass `--host-file` for the facts only the host holds. The call size-checks the packet before the RUN write and creates it after.
+6. Launch all selected siblings before waiting; run a blocking bridge asynchronously.
 7. Consume terminal events or waits; use bounded polling only when the host has neither.
 8. Validate each result against its current reservation, live Git, scope, commits and verifier evidence.
 9. Integrate serially after the gates required by `review_policy` pass.
