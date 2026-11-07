@@ -16,9 +16,10 @@ from pathlib import Path
 # Module-attribute access only: check_product_package imports this module too,
 # so nothing here may read either module at import time.
 import check_product_package as cpp
+import eval_policy
 import program_package
 from contract_utils import safe_read_text
-from feature_file import FeatureError, parse_feature_text
+from feature_file import Feature, FeatureError, parse_feature_text
 
 def obligation_rows(prd_text: str) -> dict[str, tuple[str, ...]]:
     """TEST ID -> full-width row of the PRD's Test Obligations table."""
@@ -33,19 +34,11 @@ def needs_scenario(row: tuple[str, ...]) -> bool:
     return row[3].strip().casefold() == "yes"
 
 
-def coverage_problems(
-    rows: dict[str, tuple[str, ...]], features_dir: Path, *, checked: set[str] | None = None
-) -> list[str]:
-    """Findings for every feature file in `features_dir` against these Test Obligations rows.
+def read_features(features_dir: Path) -> tuple[list[Feature], list[str]]:
+    """The feature files in `features_dir` by name, and findings for files that fail to read or parse."""
 
-    `checked` limits which rows need a scenario; any row may be named by one.
-    """
-
-    if not features_dir.is_dir():
-        return [f"features directory not found: {features_dir}"]
+    features: list[Feature] = []
     problems: list[str] = []
-    covered: set[str] = set()
-    first_seen: dict[str, str] = {}
     for path in sorted((entry for entry in features_dir.iterdir() if entry.is_file()), key=lambda entry: entry.name):
         label = path.as_posix()
         if path.name != path.name.lower() or not path.name.endswith(".feature"):
@@ -61,8 +54,26 @@ def coverage_problems(
         except FeatureError as exc:
             problems.append(str(exc))
             continue
+        features.append(feature)
+    return features, problems
+
+
+def coverage_problems(
+    rows: dict[str, tuple[str, ...]], features_dir: Path, *, checked: set[str] | None = None
+) -> list[str]:
+    """Findings for every feature file in `features_dir` against these Test Obligations rows.
+
+    `checked` limits which rows need a scenario; any row may be named by one.
+    """
+
+    if not features_dir.is_dir():
+        return [f"features directory not found: {features_dir}"]
+    features, problems = read_features(features_dir)
+    covered: set[str] = set()
+    first_seen: dict[str, str] = {}
+    for feature in features:
         for scenario in feature.scenarios:
-            where = f"{label}:{scenario.line}"
+            where = f"{feature.path}:{scenario.line}"
             if scenario.test_id not in rows:
                 problems.append(f"{where}: {scenario.test_id} is not a Test Obligations row")
             covered.add(scenario.test_id)
@@ -83,6 +94,46 @@ def feature_coverage_problems(prd_text: str, features_dir: Path) -> list[str]:
     """Coverage findings for a standard or mvp package."""
 
     return coverage_problems(obligation_rows(prd_text), features_dir)
+
+
+def eval_scenario_problems(prd_text: str, features_dir: Path) -> list[str]:
+    """Each `<TEST-ID>/<slug>` scenario id in the PRD's eval policy needs that
+    scenario under that TEST in the feature files. Other ids are left alone."""
+
+    try:
+        policy = eval_policy.parse_eval_policy(prd_text)
+    except eval_policy.PolicyError:
+        return []  # validate_eval_policy reports it
+    if policy is None or not features_dir.is_dir():
+        return []
+    features, _ = read_features(features_dir)  # coverage_problems reports unreadable files
+    found = {
+        scenario.scenario_id: f"{feature.path}:{scenario.line}"
+        for feature in features
+        for scenario in feature.scenarios
+    }
+    problems: list[str] = []
+    for purpose in ("quality", "handoff"):
+        entry = policy.get(purpose)
+        scenario_id = entry.get("scenario_id") if isinstance(entry, dict) else None
+        match = eval_policy.FEATURE_SCENARIO_ID.fullmatch(scenario_id) if isinstance(scenario_id, str) else None
+        if match is None or scenario_id in found:
+            continue
+        slug = scenario_id.split("/", 1)[1]
+        elsewhere = [
+            f"@{other.split('/', 1)[0]} ({where})" for other, where in found.items() if other.split("/", 1)[1] == slug
+        ]
+        if elsewhere:
+            problems.append(
+                f"eval-policy {purpose} scenario {scenario_id} is tagged {', '.join(elsewhere)}; "
+                f"expected @{match.group(1)}"
+            )
+        else:
+            problems.append(
+                f"eval-policy {purpose} scenario {scenario_id} is not in the feature files; "
+                f"expected a scenario tagged @{match.group(1)}"
+            )
+    return problems
 
 
 def program_coverage_problems(

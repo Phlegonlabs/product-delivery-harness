@@ -2725,6 +2725,9 @@ def validate_texts(
         # A program checks coverage once across all modules in _validate_program.
         for problem in check_feature_coverage.feature_coverage_problems(prd_text, features_dir):
             _add(problems, "prd", problem)
+    if features_dir is not None and eval_policy is not None and not module:
+        for problem in check_feature_coverage.eval_scenario_problems(prd_text, features_dir):
+            _add(problems, "prd", problem)
     reported_depends: set[str] = set()
 
     def resolve_foreign(identifiers: set[str], family: str) -> set[str]:
