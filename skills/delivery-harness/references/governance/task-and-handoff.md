@@ -17,7 +17,7 @@ This is the entry checklist for an explicitly requested skill workflow. Run it a
    ```
 
    Read [document-sync-contract](../document-sync-contract.md) when the report needs review or input is invalid, when no baseline exists, and before a child inventory. Design consumers then apply [UI Artifact Impact](../document-sync-contract.md#ui-artifact-impact).
-3. Select the record before implementation. A new accepted outcome gets `docs/epics/EPIC-<id>.md`, indexed in `docs/DOCUMENTS.md`. When the task selects or creates a different Epic, rewrite the `Current Epic:` line. Small fixes append to the matching Epic. A Harness bundle adoption is one Change Log row with the adopted digest in the current Epic, never a new Epic. Keep one current PRD. [Epic Selection](../bounded-enhancement.md#epic-selection-and-change-history) owns the details.
+3. Select the record before implementation. A new accepted outcome gets `docs/epics/EPIC-<id>.md`. When the task selects or creates a different Epic, rewrite the `Current Epic:` line. Small fixes append to the matching Epic. A Harness bundle adoption is one Change Log row with the adopted digest in the current Epic, never a new Epic. Keep one current PRD. [Epic Selection](../bounded-enhancement.md#epic-selection-and-change-history) owns the details.
 4. Record the goal, write scope, design source, dependencies and acceptance checks in the existing task record or PLAN/RUN. Preserve valid decisions and authorizations; ask only about a concrete missing dependency.
 5. Read these contracts on their trigger:
    - [bounded-enhancement](../bounded-enhancement.md): the owner accepts an enhancement scope, or a repair, module replacement or next-round handoff starts.

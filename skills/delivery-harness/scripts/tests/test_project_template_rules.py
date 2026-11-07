@@ -82,6 +82,19 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         card = read("references/stages/stage-cards.md").split("## Card 1", 1)[1].split("## Card 2", 1)[0]
         self.assertIn("the Epic the `Current Epic:` line in `docs/DOCUMENTS.md` names", card)
 
+    def test_epic_status_lives_only_on_the_epic(self) -> None:
+        bounded = read("references/bounded-enhancement.md")
+        self.assertIn("Its status lives only on its own `Status:` line", bounded)
+        self.assertNotIn("indexed with its status", bounded)
+        self.assertNotIn("indexed in `docs/DOCUMENTS.md`", self.read_owner("task-and-handoff.md"))
+        index = REPO_ROOT / "docs/DOCUMENTS.md"
+        if index.is_file() and (REPO_ROOT / "install.sh").is_file():
+            text = index.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"\| `docs/epics/EPIC-")
+            target = re.search(r"^Current Epic: \[[^]]+\]\(([^)]+)\)$", text, re.MULTILINE)
+            self.assertIsNotNone(target)
+            self.assertTrue((index.parent / target.group(1)).is_file())
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
