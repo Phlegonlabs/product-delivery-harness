@@ -95,6 +95,25 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             self.assertIsNotNone(target)
             self.assertTrue((index.parent / target.group(1)).is_file())
 
+    def test_branch_promotion_record_carries_landing_fields(self) -> None:
+        # Condition 7 lets a tree-equal server SHA S land, so the record names
+        # base, protection, authorization, mechanism, S and its evidence origin.
+        block = self.section(read("assets/templates/DEPLOYMENT.template.md"), "## Branch Promotion")
+        labels = re.findall(r"^- ([^:]+):", block, re.MULTILINE)
+        self.assertEqual(
+            [
+                "Delivery kind", "Main protection readback", "Run branch", "Frozen base SHA",
+                "Candidate SHA", "Candidate branch pushed and read back",
+                "Preview fixed deployment URL / ID", "Candidate environment verification",
+                "Promotion authorization", "Main before", "Candidate ancestry from frozen base",
+                "Mechanism", "Main after (S), read back", "Main exact-SHA result",
+                "Inherited evidence origin", "Production deployed SHA and smoke",
+            ],
+            labels,
+        )
+        self.assertIn("<exact | tree_equal_S (candidate tree, main tree) | new_candidate | pending>", block)
+        self.assertNotIn("PASS when remote main equals", block)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.

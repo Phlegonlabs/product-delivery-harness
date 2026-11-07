@@ -117,15 +117,20 @@ Do not reuse the cloudflare commands. Keep the same order: create and attach non
 Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this record from read-back evidence; a future intention is not a completed row.
 
 - Delivery kind: <initial_delivery | enhancement>
+- Main protection readback: <host capability; ruleset/review policy; required checks; checked RFC3339; evidence | recorded owner exception | pending>
 - Run branch: <full branch ref>
+- Frozen base SHA: <full SHA>
 - Candidate SHA: <full SHA>
 - Candidate branch pushed and read back: <full SHA | local_only | pending>
 - Preview fixed deployment URL / ID: <observed URL or ID | pending>
 - Candidate environment verification: <PASS/FAIL/not applicable/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
+- Promotion authorization: <statement reference naming remote, main and candidate SHA | pending>
 - Main before: <full SHA>
-- Main ancestry/fast-forward proof: <PASS/FAIL/pending>
-- Main pushed and read back: <full SHA | pending>
-- Main exact-SHA result: <PASS when remote main equals the verified candidate SHA | pending>
+- Candidate ancestry from frozen base: <PASS/FAIL/pending>
+- Mechanism: <PR URL | merge queue | fast-forward | pending>
+- Main after (S), read back: <full SHA | pending>
+- Main exact-SHA result: <exact | tree_equal_S (candidate tree, main tree) | new_candidate | pending>
+- Inherited evidence origin: <candidate SHA plus original review, security and CI result identities | n/a | pending>
 - Production deployed SHA and smoke: <full SHA plus PASS/FAIL/pending>
 
 ## Human Setup Checklist
@@ -134,7 +139,7 @@ These steps are performed by a person with platform access; the Harness never pe
 
 ### Protection and configuration readback (both modes)
 
-- [ ] Before repository connection, CI bootstrap, or workflow enablement, configure actual protection for the exact repository and ref; record non-secret readback for the host capability, ruleset/review policy, required checks, and checked time.
+- [ ] Before repository connection, CI bootstrap, or workflow enablement, configure actual protection for the exact repository and ref; record its non-secret readback in the Branch Promotion record.
 - [ ] Use the owner's separate external grants. Never push, force-update, or delete a protected branch to test protection, and do not treat this checklist as proof that the host is configured.
 
 ### Git connection (git_connected mode)
