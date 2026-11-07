@@ -196,10 +196,24 @@ KNOWN_LEVEL_TWO_SECTIONS = (
     "## Release Source Provenance",
     "## Environment Status",
 )
-NATIVE_RELEASE_RE = re.compile(
-    r"\b(?:ios|android|macos|windows|ipa|aab|dmg|pkg|msix|signed installer)\b",
-    re.IGNORECASE,
-)
+# Store and signed-installer classes are available only once installable; an
+# uploaded artifact or build stays pending until install or download proof.
+INSTALLABLE_SURFACE_CLASSES = frozenset({
+    "ios",
+    "android",
+    "macos",
+    "windows",
+    "linux",
+    "browser_extension",
+    "marketplace_app",
+    "assistant_listing",
+})
+NATIVE_SURFACE_CLASSES = INSTALLABLE_SURFACE_CLASSES | {
+    "skill_or_plugin",
+    "library_or_sdk",
+    "mcp_server",
+    "container_or_self_hosted",
+}
 NO_INDEPENDENT_ARTIFACT_VALUES = {
     "no independent artifact",
     "no-independent-artifact",
@@ -350,21 +364,7 @@ def _endpoint_findings(
         return ["endpoint/domain is missing"]
     if re.search(r"https?://[^\s/:]+:[^\s/@]+@", value, re.I):
         return ["endpoint/domain must not contain credentials"]
-    native_classes = {
-        "ios",
-        "android",
-        "macos",
-        "windows",
-        "linux",
-        "browser_extension",
-        "marketplace_app",
-        "assistant_listing",
-        "skill_or_plugin",
-        "library_or_sdk",
-        "mcp_server",
-        "container_or_self_hosted",
-    }
-    if surface_class in native_classes:
+    if surface_class in NATIVE_SURFACE_CLASSES:
         if lowered.startswith("https://"):
             parsed = urlparse(value)
             if (
@@ -934,31 +934,20 @@ def _validate_release_target_status(
                 findings.append(
                     f"{label}: PASS target {target_id} needs availability evidence"
                 )
-            native = target.surface_class in {
-                "ios",
-                "android",
-                "macos",
-                "windows",
-                "linux",
-                "browser_extension",
-                "marketplace_app",
-                "assistant_listing",
-                "skill_or_plugin",
-                "library_or_sdk",
-                "mcp_server",
-                "container_or_self_hosted",
-            }
-            availability_terms = (
-                ("install", "download", "artifact", "build")
-                if native
-                else ("url", "route", "api", "smoke", "acceptance")
-            )
+            if target.surface_class in INSTALLABLE_SURFACE_CLASSES:
+                availability_terms = ("install", "download")
+                proof = "install/download proof; upload-only evidence stays pending"
+            elif target.surface_class in NATIVE_SURFACE_CLASSES:
+                availability_terms = ("install", "download", "artifact", "build")
+                proof = "install/download or artifact/build proof"
+            else:
+                availability_terms = ("url", "route", "api", "smoke", "acceptance")
+                proof = "hosted route/API or smoke proof"
             if availability.casefold() not in ABSENT_VALUES and not any(
                 term in availability.casefold() for term in availability_terms
             ):
                 findings.append(
-                    f"{label}: PASS target {target_id} availability evidence must name "
-                    + ("install/download or artifact/build proof" if native else "hosted route/API or smoke proof")
+                    f"{label}: PASS target {target_id} availability evidence must name {proof}"
                 )
 
     missing = sorted(set(architecture_targets) - seen)

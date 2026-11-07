@@ -639,6 +639,32 @@ class TemplateAuditTests(unittest.TestCase):
                       divergence["diff"])
         self.assertNotIn("a" * 64, "\n".join(divergence["diff"]))
 
+    def test_harness_version_values_are_not_divergence_but_labels_are(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            agents = root / "AGENTS.md"
+            seeded = agents.read_text(encoding="utf-8")
+            install = next(line for line in seeded.splitlines() if line.startswith("- Shared installation:"))
+            digest = next(line for line in seeded.splitlines() if line.startswith("- Five-skill contract SHA-256:"))
+            filled = seeded.replace(install, "- Shared installation: Harness `0.78.0` from tag `v0.78.0` "
+                                    "(`" + "b" * 40 + "`), installed `2026-11-07` under `~/.agents/skills`.")
+            filled = filled.replace(digest, "- Five-skill contract SHA-256: `" + "c" * 64 + "`.")
+            self.assertNotEqual(seeded, filled)
+            agents.write_text(filled, encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+            self.assertEqual(0, code, result["agents_merge"])
+            self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+            agents.write_text(filled.replace("- Five-skill contract SHA-256:", "- Contract digest:", 1),
+                              encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+        self.assertEqual(1, code)
+        [divergence] = result["agents_merge"]["unresolved_divergences"]
+        self.assertEqual("Harness Version", divergence["heading"])
+        self.assertIn("-- Contract digest: <value>", divergence["diff"])
+        self.assertNotIn("c" * 64, "\n".join(divergence["diff"]))
+
     def test_documents_check_reports_template_drift(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
@@ -678,6 +704,42 @@ class TemplateAuditTests(unittest.TestCase):
         )
         self.assertTrue(documents["intro_paragraph_missing"])
 
+    def test_bootstrap_seeds_a_missing_gitattributes_and_keeps_an_existing_one(self) -> None:
+        template = SCRIPTS_DIR.parent / "assets/templates/PROJECT_GITATTRIBUTES.template"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.assertFalse(configure_context(root, dry_run=True)["gitattributes_created"])
+            self.assertFalse((root / ".gitattributes").exists())
+            self.assertTrue(configure_context(root)["gitattributes_created"])
+            self.assertEqual(template.read_bytes(), (root / ".gitattributes").read_bytes())
+            owner = b"* text=auto\n"
+            (root / ".gitattributes").write_bytes(owner)
+            self.assertFalse(configure_context(root)["gitattributes_created"])
+            self.assertEqual(owner, (root / ".gitattributes").read_bytes())
+
+    def test_check_lists_template_lines_an_existing_gitattributes_lacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            code, result = self.run_check(root)
+            self.assertEqual(0, code, result)
+            self.assertEqual({"present": True, "missing_template_lines": []}, result["gitattributes"])
+
+            attributes = root / ".gitattributes"
+            attributes.write_bytes(b"* text=auto\r\ndocs/product/**   -text -filter\r\ndocs/** -text\r\n")
+            code, result = self.run_check(root)
+            self.assertEqual(0, code, result)
+            self.assertEqual(
+                ["docs/design/** -text -filter", "docs/goal/** -text -filter",
+                 "docs/verification/** -text -filter",
+                 "docs/verification/evidence/** -text -filter -whitespace"],
+                result["gitattributes"]["missing_template_lines"],
+            )
+
+            attributes.unlink()
+            code, result = self.run_check(root)
+        self.assertEqual({"present": False, "missing_template_lines": []}, result["gitattributes"])
+
     def test_documents_requires_check(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             result = subprocess.run(
@@ -710,6 +772,9 @@ class ByteAttributeCheckTests(unittest.TestCase):
         if attributes is not None:
             (root / ".gitattributes").write_bytes(attributes.encode("utf-8"))
         configure_context(root)
+        if attributes is None:
+            # The bootstrap seeds the template; these cases need the file absent.
+            (root / ".gitattributes").unlink()
         agents = root / "AGENTS.md"
         import re
         agents.write_text(

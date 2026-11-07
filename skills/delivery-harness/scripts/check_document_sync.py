@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Read-only document drift inventory; hashes are not semantic approval.
 
-Epic hashes leave out the `## Handoff` section.
+Epic hashes leave out the `## Handoff` section. Once docs/epics/ holds an Epic,
+docs/DOCUMENTS.md needs a `Current Epic:` line that names an existing file.
 """
 
 import argparse
 import hashlib
 import json
 import os
+import posixpath
 import re
 import sys
 from pathlib import Path
@@ -47,6 +49,7 @@ RETIREMENT_CATALOG = re.compile(
 )
 FENCE = re.compile(r"^\s*(`{3,}|~{3,})")
 MARKDOWN_LINK = re.compile(r"\[[^\]\r\n]*\](?:\([^\r\n)]*\)|\[[^\]\r\n]*\])")
+CURRENT_EPIC = re.compile(r"^Current Epic: \[[^\]\r\n]+\]\(([^)\r\n]+)\)[ \t\r]*$", re.MULTILINE)
 
 
 def unique_object(pairs):
@@ -218,6 +221,31 @@ def _scoped_markdown_children(root, name, label, paths):
                 raise ValueError(f"scope the {label} inventory explicitly")
 
 
+def current_epic_findings(root, index_text):
+    """Once docs/epics/ holds an Epic, the index's `Current Epic:` line must name an existing file."""
+    folder = safe_path(root, "docs/epics")
+    if not folder.is_dir():
+        return []
+    with os.scandir(folder) as entries:
+        if not any(entry.name.endswith(".md") and entry.is_file(follow_symlinks=False)
+                   and not excluded_name(entry.name) for entry in entries):
+            return []
+    targets = CURRENT_EPIC.findall(index_text)
+    if not targets:
+        return [{"kind": "current_epic_missing", "path": "docs/DOCUMENTS.md"}]
+    findings = []
+    for target in targets:
+        try:
+            exists = safe_path(root, posixpath.normpath("docs/" + target.split("#", 1)[0]),
+                               document=True).is_file()
+        except ValueError:
+            exists = False
+        if not exists:
+            findings.append({"kind": "current_epic_missing", "path": "docs/DOCUMENTS.md",
+                             "target": target})
+    return findings
+
+
 def default_inventory(root, baseline=None):
     """Include live Epic and PRD delta names without following links or scanning history."""
     paths = list(DEFAULT_PATHS)
@@ -322,7 +350,9 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             impacts.append(impact_for(name, "first_observation"))
         for skill in _retired_pointers(text):
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
-    snapshot = {"schema": SCHEMA, "installed_digest": installed_digest,
+        if name == "docs/DOCUMENTS.md":
+            findings.extend(current_epic_findings(root, text))
+    snapshot ={"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     review = [row for row in findings
               if "session_marker" not in row and row["kind"] != "oversized_document"]

@@ -80,6 +80,24 @@ class DocumentSyncTests(unittest.TestCase):
         result = self.observe(observed["snapshot"], paths)
         self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
 
+    def test_current_epic_line_must_name_an_existing_epic(self):
+        index = self.root / "docs/DOCUMENTS.md"
+        (self.root / "docs/epics").mkdir(parents=True)
+        index.write_text("# Documents\n\nNo Epic yet.\n", encoding="utf-8")
+        paths = ["docs/DOCUMENTS.md"]
+        kinds = {row["kind"] for row in self.observe(paths=paths)["findings"]}
+        self.assertNotIn("current_epic_missing", kinds)
+        (self.root / "docs/epics/EPIC-1.md").write_text("# EPIC-1\n", encoding="utf-8")
+        self.assertIn({"kind": "current_epic_missing", "path": "docs/DOCUMENTS.md"},
+                      self.observe(paths=paths)["findings"])
+        index.write_bytes(b"# Documents\r\n\r\nCurrent Epic: [EPIC-2](epics/EPIC-2.md)\r\n")
+        result = self.observe(paths=paths)
+        self.assertIn({"kind": "current_epic_missing", "path": "docs/DOCUMENTS.md",
+                       "target": "epics/EPIC-2.md"}, result["findings"])
+        index.write_bytes(b"# Documents\r\n\r\nCurrent Epic: [EPIC-1](epics/EPIC-1.md)\r\n")
+        result = self.observe(self.observe(paths=paths)["snapshot"], paths)
+        self.assertEqual("unchanged", result["status"], result["findings"])
+
     def test_epic_handoff_rewrite_is_not_drift_but_other_sections_are(self):
         name = "docs/epics/EPIC-1.md"
         epic = self.root / name

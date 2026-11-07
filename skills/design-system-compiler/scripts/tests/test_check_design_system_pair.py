@@ -703,6 +703,30 @@ class CheckDesignSystemPairTests(unittest.TestCase):
         _, problems = self.run_pair(markdown, data, require_filled=True)
         self.assertTrue(any("current publication requires design-system/2" in item for item in problems))
 
+    def test_crlf_copy_of_a_bound_source_names_the_attribute_check(self):
+        path = SOURCE_BINDINGS["prd"][0]
+        hint = (f"`{path}` differs only by line-ending conversion; check "
+                f"`git check-attr text eol filter -- {path}` against "
+                "delivery-harness/references/gitattributes-contract.md#converted-files; "
+                "do not regenerate or re-pin")
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            data = prepare_source_bindings(registry(schema="design-system/2"), root)
+            data["sourceBindings"]["prd"]["sha256"] = hashlib.sha256(b"# PRD\nline\n").hexdigest()
+            markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)
+            (root / path).write_bytes(b"# PRD\r\nline\r\n")
+            problems = checker.compare(markdown, data, repo_root=root)
+            self.assertIn(
+                f"design-system.json sourceBindings.prd sha256 does not match current bytes: {path}; {hint}",
+                problems,
+            )
+            (root / path).write_bytes(b"# PRD\r\nchanged\r\n")
+            problems = checker.compare(markdown, data, repo_root=root)
+        self.assertIn(
+            f"design-system.json sourceBindings.prd sha256 does not match current bytes: {path}", problems
+        )
+        self.assertNotIn("line-ending conversion", "\n".join(problems))
+
     def test_current_schema_two_publication_rejects_opaque_ui_design_binding(self):
         data = registry(schema="design-system/2")
         markdown = checker.replace_generated_contract(MATCHING_MARKDOWN, data)

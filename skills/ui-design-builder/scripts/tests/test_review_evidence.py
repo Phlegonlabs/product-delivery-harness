@@ -60,6 +60,23 @@ class EvidenceTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             evidence.build_receipt(self.root, "output.json")
 
+    def test_crlf_copy_names_the_attribute_check_but_a_real_change_does_not(self):
+        artifact = self.root / "page.html"
+        binding = {"path": "page.html", "sha256": hashlib.sha256(b"<h1>A</h1>\n<p>B</p>\n").hexdigest()}
+        artifact.write_bytes(b"<h1>A</h1>\r\n<p>B</p>\r\n")
+        with self.assertRaises(ValueError) as converted:
+            evidence.read_identity(self.root, binding)
+        self.assertEqual(
+            "artifact identity is stale: page.html; `page.html` differs only by line-ending conversion; "
+            "check `git check-attr text eol filter -- page.html` against "
+            "delivery-harness/references/gitattributes-contract.md#converted-files; do not regenerate or re-pin",
+            str(converted.exception),
+        )
+        artifact.write_bytes(b"<h1>A</h1>\r\n<p>C</p>\r\n")
+        with self.assertRaises(ValueError) as changed:
+            evidence.read_identity(self.root, binding)
+        self.assertEqual("artifact identity is stale: page.html", str(changed.exception))
+
     def test_future_missing_environment_and_wrong_time_fail(self):
         for mutation in (
             lambda out: out["execution"].update(finishedAt="2999-01-01T00:00:00Z"),
