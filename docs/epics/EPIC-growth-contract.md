@@ -1,6 +1,6 @@
 # Growth Contract, Product Tracks And The Agentic Operations Console
 
-Status: candidate verified; publication pending
+Status: complete; candidate 061c605b released in v0.71.0
 Design workflow: enhancement
 UI impact: none (skill rules for consumer products, READMEs and documentation; no product UI in this repository).
 

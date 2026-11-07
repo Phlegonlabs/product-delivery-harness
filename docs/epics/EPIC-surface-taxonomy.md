@@ -1,6 +1,6 @@
 # Surface Taxonomy And The Five-Skill Bundle
 
-Status: candidate verified locally; independent review and publication pending
+Status: complete; candidate a8ab0b29 released in v0.73.0
 Design workflow: enhancement
 UI impact: none (skill rules for consumer products, READMEs and documentation; no product UI in this repository).
 

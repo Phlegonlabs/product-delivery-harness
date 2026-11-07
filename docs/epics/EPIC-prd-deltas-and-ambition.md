@@ -1,6 +1,6 @@
 # PRD Deltas And Ambition
 
-Status: PR #158 open; alignment repair reviewed; final CI pending
+Status: complete; PR #158 repair a6fd7baa released in v0.70.0
 Design workflow: enhancement
 UI impact: none (discovery interview, PRD contract, Harness rules and documentation; no product UI changes).
 
