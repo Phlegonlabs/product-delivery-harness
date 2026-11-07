@@ -283,5 +283,90 @@ class RecordGrantTests(RecordCommandsFixture):
         self.assertEqual(before, self.run_path.read_bytes())
 
 
+class OpenRunTests(RecordCommandsFixture):
+    def test_opens_a_draft_run_ready(self) -> None:
+        self.assertEqual(0, self.transition("acquire-run-lock"))
+        self.assertEqual(
+            0,
+            self.transition(
+                "open-run",
+                "--intent", "plan-then-execute",
+                "--source", "owner opens the run for delivery",
+            ),
+        )
+        live = self.reload_run()
+        self.assertEqual("ready", live["status"])
+        self.assertEqual("ready", live["plan_readiness"])
+        self.assertEqual("plan-then-execute", live["intent"])
+        self.assertFalse(live["execution_authorized"])
+        attempt = live["attempt_log"][-1]
+        self.assertEqual("run_open", attempt["kind"])
+        self.assertIn("owner opens the run for delivery", attempt["evidence"])
+
+    def test_execution_flags_authorize_execution(self) -> None:
+        self.assertEqual(0, self.transition("acquire-run-lock"))
+        self.assertEqual(
+            0,
+            self.transition(
+                "open-run",
+                "--intent", "execute-ready-plan",
+                "--mission-id", "M1",
+                "--mission-id", "M2",
+                "--expires-when", "run_complete",
+                "--source", "owner opens the run for execution",
+            ),
+        )
+        live = self.reload_run()
+        self.assertTrue(live["execution_authorized"])
+        self.assertEqual("owner opens the run for execution", live["execution_authorization_source"])
+        self.assertEqual(
+            {
+                "run_id": live["run_id"],
+                "plan_revision": live["plan"]["revision"],
+                "plan_digest_sha256": live["plan"]["digest_sha256"],
+                "mission_ids": ["M1", "M2"],
+                "expires_when": "run_complete",
+            },
+            live["execution_authorization_scope"],
+        )
+
+    def test_refuses_execution_flags_on_a_plan_only_intent(self) -> None:
+        self.assertEqual(0, self.transition("acquire-run-lock"))
+        before = self.run_path.read_bytes()
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            code = self.transition(
+                "open-run",
+                "--intent", "plan-only",
+                "--mission-id", "M1",
+                "--expires-when", "run_complete",
+                "--source", "owner words",
+            )
+        self.assertEqual(2, code)
+        self.assertIn("cannot authorize execution", stderr.getvalue())
+        self.assertEqual(before, self.run_path.read_bytes())
+
+    def test_refuses_to_open_a_running_or_complete_run(self) -> None:
+        self.run["status"] = "running"
+        self.rewrite_run()
+        self.assertEqual(0, self.transition("acquire-run-lock"))
+        before = self.run_path.read_bytes()
+        with contextlib.redirect_stderr(io.StringIO()) as stderr:
+            code = self.transition(
+                "open-run", "--intent", "plan-then-execute", "--source", "owner words"
+            )
+        self.assertEqual(2, code)
+        self.assertIn("running", stderr.getvalue())
+        self.assertEqual(before, self.run_path.read_bytes())
+        self.run["status"] = "complete"
+        self.rewrite_run()
+        with contextlib.redirect_stderr(io.StringIO()):
+            self.assertEqual(
+                2,
+                self.transition(
+                    "open-run", "--intent", "plan-then-execute", "--source", "owner words"
+                ),
+            )
+
+
 if __name__ == "__main__":
     unittest.main()

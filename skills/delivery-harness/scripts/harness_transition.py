@@ -328,6 +328,7 @@ DISPATCH_COMMANDS = {
     "reserve-node-attempt",
     "record-node-result",
     "record-grant",
+    "open-run",
 }
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
@@ -4489,6 +4490,44 @@ def _record_grant(
     )
 
 
+def _open_run(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Open a generated RUN for readiness and, when owner-authorized, execution.
+
+    `plan_readiness` and `status` become ready only when the pair validator
+    accepts the whole PLAN/RUN pair afterwards; the command itself writes no
+    readiness evidence. Repeat it after fixing a failed readiness row.
+    """
+
+    status = run.get("status")
+    if status in {"running", "complete"}:
+        raise ManifestError(
+            f"run status is {status!r}; open-run opens a draft, ready, or blocked run"
+        )
+    authorizing = bool(args.mission_id or args.expires_when)
+    if authorizing and (not args.mission_id or not args.expires_when):
+        raise ManifestError(
+            "open-run authorizes execution only with --mission-id and --expires-when "
+            "together"
+        )
+    if authorizing and args.intent not in _EXECUTION_INTENTS:
+        raise ManifestError(
+            f"intent {args.intent!r} cannot authorize execution; use one of "
+            + ", ".join(_EXECUTION_INTENTS)
+        )
+    run["intent"] = args.intent
+    run["plan_readiness"] = "ready"
+    run["status"] = "ready"
+    if authorizing:
+        run["execution_authorized"] = True
+        run["execution_authorization_source"] = args.source
+        run["execution_authorization_scope"] = _execution_scope(
+            run, args.mission_id, args.expires_when
+        )
+    _record_attempt(run, "OPEN-RUN", "run_open", "ready", [args.source])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
@@ -4645,6 +4684,11 @@ def build_parser() -> argparse.ArgumentParser:
     grant.add_argument("--mission-id", action="append", default=[])
     grant.add_argument("--expires-when", required=True, choices=tuple(EXPIRY_BOUNDARIES))
     grant.add_argument("--source", required=True)
+    open_command = subparsers.add_parser("open-run")
+    open_command.add_argument("--intent", required=True, choices=_RUN_INTENT_CHOICES)
+    open_command.add_argument("--mission-id", action="append", default=[])
+    open_command.add_argument("--expires-when", choices=tuple(EXPIRY_BOUNDARIES))
+    open_command.add_argument("--source", required=True)
     parser.add_argument("--session-id")
     return parser
 
@@ -4757,6 +4801,8 @@ def _transition_under_lock(
         _heartbeat_run_lock(run, args)
     elif args.command == "record-grant":
         _record_grant(plan, run, args)
+    elif args.command == "open-run":
+        _open_run(plan, run, args)
     elif args.command != "watchdog":
         receipt = _record_review_attempt(plan, run, args)
     # A session holding the durable lock keeps it fresh through its own
