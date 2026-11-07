@@ -6,6 +6,7 @@ Index of live documents. Only open Epics are indexed; closed Epics live in Git h
 | --- | --- | --- |
 | `README.md`, `README.zh-TW.md`, `README.zh-CN.md`, `README.es.md` | Skill behavior, installation and release instructions | Documentation of record |
 | `CHANGELOG.md` | Release history older than the newest README entries | Added with the 0.66.0 README diet |
+| `docs/epics/EPIC-bdd-scenarios.md` | Executable scenarios under every Test Obligation: feature files in the PRD package, coverage check, rendered delivery-acceptance register, delta scenario rule | in_progress; branch `feat/bdd-scenarios` from `12eecf90` |
 | `docs/epics/EPIC-ui-review-speed.md` | Faster UI review: derived states, sampled axes, fingerprint carry-forward, diff-first review, matrix driver, verify-then-sample review, acceptance closes the round | branch `ui-review-speed` integrating; not released |
 | `docs/epics/EPIC-suite-additions-0.75.md` | 0.74.2 to 0.75.3: review fixes and Linux desktop, GA4 admin setup, design-first UI flow, AI and cost contracts, the `program` profile, thinner reading, template fixes and the consumer updates | complete: v0.75.3 released, installed and adopted in 19 consumers, all pushed |
 | `docs/epics/EPIC-surface-taxonomy.md` | Surface catalog, five tracks, presence surfaces, and the five-skill bundle (activation collapse, growth-review, security fold, GTM merge) | candidate `a8ab0b29` verified locally on `feat/surface-taxonomy`; independent review and publication pending |
