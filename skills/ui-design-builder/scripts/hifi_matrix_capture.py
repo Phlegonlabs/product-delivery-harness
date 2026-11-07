@@ -46,7 +46,7 @@ OUTPUT_NAME = "ui-output.json"
 SIDECAR_NAME = "matrix-capture.json"
 INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
-AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200")
+AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
 TRIGGERS = ("click", "keyboard")
 INTERACT_KINDS = ("navigate", "state")
 DRIVER_BASE = "https://hifi.invalid/pkg/"
@@ -56,6 +56,7 @@ CASE_TIMEOUT_S = 30
 MAX_RESTARTS = 3
 OVERFLOW_TOLERANCE_PX = 1
 WIDTH_TOLERANCE_PX = 1
+REFLOW_WIDTH_PX = 320
 SANDBOX = {"network": "disabled", "topNavigation": "allowlisted-local-pages",
            "popups": "blocked", "forms": "blocked"}
 TRANSCRIPT_KINDS = ("console", "network", "navigation", "popups", "forms")
@@ -434,6 +435,9 @@ async function axis(request) {
     for (const surface of document.querySelectorAll('[data-ui-surface]')) {
       if (zoom) surface.style.setProperty('zoom', '2'); else surface.style.removeProperty('zoom');
     }
+    // a reflow case leaves its inline width behind; the next pass must meet the declared widths again
+    const canvas = document.querySelector('[data-hifi-canvas]');
+    if (canvas) canvas.style.removeProperty('width');
   }, name === 'zoom-200');
   return {};
 }
@@ -929,6 +933,12 @@ def sample_axis_cases(rows, page, widths, counts, derived=None):
     return cases
 
 
+def reflow_axis_cases(rows, sampled, widths):
+    """The reflow-320 slice of the sampled cases: every sampled state once, at its surface's smallest target."""
+    smallest = {row["id"]: smallest_target([str(t) for t in row["responsive"]["targets"]], widths) for row in rows}
+    return [case for case in sampled if case.target == smallest[case.surface]]
+
+
 def group_by_page(cases):
     grouped = {}
     for case in cases:
@@ -1191,7 +1201,8 @@ class Runner:
                     counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
             sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
             for axis in self.axes:
-                self.run_axis(page, axis, sampled)
+                picked = reflow_axis_cases(rows, sampled, self.package.widths[page]) if axis == "reflow-320" else sampled
+                self.run_axis(page, axis, picked)
         self.run_interactions(page)
 
     def run_interactions(self, page):
@@ -1310,11 +1321,17 @@ class Runner:
         row = next(row for row in self.package.manifest["surfaces"] if row["id"] == case.surface)
         return smallest_target([str(t) for t in row["responsive"]["targets"]], self.package.widths[case.page])
 
+    def case_width(self, case):
+        """The inline canvas width a case is driven at: 320 px for a reflow case, the midpoint for an intermediate one."""
+        if case.axis == "reflow-320":
+            return float(REFLOW_WIDTH_PX)
+        return float(case.target) if self.intermediate else None
+
     def run_case(self, case, record):
         reasons, keep = record["reasons"], case.axis is None
         try:
             reply = self.driver.call("case", timeout=self.case_timeout_s + 10, surface=case.surface, state=case.state,
-                                     target=self.shell_target(case), widthPx=float(case.target) if self.intermediate else None,
+                                     target=self.shell_target(case), widthPx=self.case_width(case),
                                      settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
                                      timeoutMs=self.case_timeout_s * 1000)
         except DriverTimeout as error:
@@ -1338,6 +1355,9 @@ class Runner:
         if self.intermediate:
             if abs(geometry["canvasWidth"] - float(case.target)) > WIDTH_TOLERANCE_PX:
                 reasons.append(f"product canvas is {geometry['canvasWidth']}px wide, the intermediate width needs {case.target}px")
+        elif case.axis == "reflow-320":
+            if abs(geometry["canvasWidth"] - REFLOW_WIDTH_PX) > WIDTH_TOLERANCE_PX:
+                reasons.append(f"product canvas is {geometry['canvasWidth']}px wide, the reflow-320 axis needs {REFLOW_WIDTH_PX}px")
         elif self.kinds[case.surface] == "viewports":
             declared = self.package.widths[case.page][case.target]
             if abs(geometry["canvasWidth"] - declared) > WIDTH_TOLERANCE_PX:
