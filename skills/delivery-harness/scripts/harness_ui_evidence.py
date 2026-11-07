@@ -172,6 +172,21 @@ def _strict_ui_evidence_required(run: dict[str, Any]) -> bool:
     )
 
 
+UI_HIFI_PARITY_REQUIRED_VERSION = (0, 79, 0)
+
+
+def _hifi_parity_required(run: dict[str, Any]) -> bool:
+    """RUN-v11 files pinned to harness 0.79.0+ bind the approved HiFi.
+
+    Runs without the version gate, or pinned to an older harness, keep their
+    frozen authority shape so in-flight RUN files stay valid.
+    """
+
+    return version_at_least(
+        run_required_harness_version(run), UI_HIFI_PARITY_REQUIRED_VERSION
+    )
+
+
 def _valid_source_path(value: Any) -> bool:
     """Accept only repository-relative POSIX source paths."""
 
@@ -200,14 +215,18 @@ def _source_identity(row: dict[str, Any]) -> dict[str, str] | None:
 
 
 def _expected_authority_sources(
-    plan: dict[str, Any] | None, baseline: str
+    plan: dict[str, Any] | None,
+    baseline: str,
+    run: dict[str, Any] | None = None,
 ) -> list[dict[str, str]] | None:
     """Resolve the exact frozen visual authority rows for a baseline.
 
     Harness 0.38 freezes the approved target as an explicit ``approved ui
     target`` PLAN source.  A required design system uses the two pair rows in
     semantic order (Markdown first, then JSON); it never accepts an arbitrary
-    contract-check key.
+    contract-check key.  Harness 0.79 also binds the approved HiFi into a
+    design-system comparison: the pair rows are followed by the frozen
+    ``approved ui target`` row whenever the PLAN freezes one.
     """
 
     rows = _source_rows(plan)
@@ -233,8 +252,19 @@ def _expected_authority_sources(
         if len(markdown) != 1 or len(registry) != 1:
             return []
         identities = [_source_identity(markdown[0]), _source_identity(registry[0])]
-        return [identity for identity in identities if identity is not None] \
-            if all(identity is not None for identity in identities) else []
+        if not all(identity is not None for identity in identities):
+            return []
+        expected = [identity for identity in identities if identity is not None]
+        if _hifi_parity_required(run or {}):
+            targets = [row for row in rows if row.get("kind") == "approved ui target"]
+            if len(targets) > 1:
+                return []
+            if targets:
+                target = _source_identity(targets[0])
+                if target is None:
+                    return []
+                expected.append(target)
+        return expected
     return None
 
 
@@ -514,7 +544,7 @@ def _validate_target_comparison(
                     if source_location in seen_paths:
                         _add(errors, source_path, "duplicates an earlier authority source")
                     seen_paths.add(source_location)
-            expected = _expected_authority_sources(plan, baseline)
+            expected = _expected_authority_sources(plan, baseline, run)
             if expected is not None and authority != expected:
                 _add(
                     errors,
@@ -531,7 +561,9 @@ def _validate_target_comparison(
                     "must be one of browser-extension|desktop|hosted-browser|native",
                 )
             elif baseline in UI_TARGET_COMPARISON_BASELINES:
-                has_ds_pair = bool(_expected_authority_sources(plan, "design_system"))
+                has_ds_pair = bool(
+                    _expected_authority_sources(plan, "design_system", run)
+                )
                 expected_baseline = "design_system" if has_ds_pair else "html_target"
                 if baseline != expected_baseline:
                     _add(
