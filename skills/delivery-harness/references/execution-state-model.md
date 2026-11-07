@@ -222,7 +222,7 @@ After a confirmed stopped review fan-out, run `harness_transition.py reconcile-i
 
 ## Repairing The Integrated Candidate
 
-For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>`; `verification-gates.md#review-topology` owns the scope.
+For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck. `verification-gates.md#review-topology` owns the re-check packet and scope.
 
 A passed or failed integration reviewer at a recorded prior head stays admissible after its graph binding is cleared (unique retained attempt, matching outcome and lineage); a blocked one qualifies only through the interrupted-review reconciliation receipt or an environment-blocked attempt entry (`--blocker-class environment`), using the same predicates as closeout; other blocked or active old reviewers refuse candidate movement. The older fix_required prior-head rule keeps its pinned semantics. Admission never revives the old PASS or security coverage for the new candidate.
 
