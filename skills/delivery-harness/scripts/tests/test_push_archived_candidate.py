@@ -314,15 +314,6 @@ class ArchivePublicationTests(unittest.TestCase):
         self.assertEqual(fixture["candidate_c"], verified["candidate_c"])
         self.assertEqual(fixture["candidate_a"], verified["candidate_a"])
         self.assertIsNone(verified["replacement_base"])
-        receipt = json.loads((Path(fixture["archive"]) / "ARCHIVE_RECEIPT.json").read_text(encoding="utf-8"))
-        self.assertFalse(set(receipt) & archive_run.ARCHIVE_RECEIPT_LEGACY_ANCHOR_KEYS)
-
-    def test_a_receipt_archived_before_0_66_with_anchor_keys_still_verifies(self) -> None:
-        fixture = self._fixture()
-        candidate_a = self._rewrite_receipt(fixture, lambda value: value.update(
-            anchor_path=None, anchor_path_sha256=None, anchor_nonce=None))
-        verified = subject.verify_archive_candidate(Path(fixture["root"]), archive_path=Path(fixture["archive"]), candidate_a=candidate_a)
-        self.assertEqual(candidate_a, verified["candidate_a"])
 
     def test_main_preview_archive_verifies_without_development_branch(self) -> None:
         fixture = self._fixture(main_preview=True)

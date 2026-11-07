@@ -63,9 +63,6 @@ ARCHIVE_RECEIPT_KEYS = {
     "archive_path", "moves", "documents_before_sha256", "documents_after_sha256",
     "receipt_sha256",
 }
-# Receipts archived before 0.66 also name an external anchor. They stay valid;
-# new receipts omit these keys.
-ARCHIVE_RECEIPT_LEGACY_ANCHOR_KEYS = {"anchor_path", "anchor_path_sha256", "anchor_nonce"}
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
@@ -390,8 +387,7 @@ def validate_archive_receipt(receipt: object) -> list[str]:
     errors: list[str] = []
     if not isinstance(receipt, dict):
         return ["archive receipt must be an object"]
-    legacy = set(receipt) & ARCHIVE_RECEIPT_LEGACY_ANCHOR_KEYS
-    if legacy not in (set(), ARCHIVE_RECEIPT_LEGACY_ANCHOR_KEYS) or set(receipt) - legacy != ARCHIVE_RECEIPT_KEYS:
+    if set(receipt) != ARCHIVE_RECEIPT_KEYS:
         errors.append("archive receipt has missing or extra fields")
     if receipt.get("protocol") != ARCHIVE_RECEIPT_PROTOCOL:
         errors.append("archive receipt protocol is invalid")
