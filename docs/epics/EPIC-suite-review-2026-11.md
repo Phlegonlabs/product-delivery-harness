@@ -141,22 +141,30 @@ Full text of each item (problem, evidence, refined proposal, existing coverage) 
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
-| Epic opened with the verified backlog | 91 surviving findings from `wf_19618f07-bb2`, assigned to two waves, round 2, superseded or owner | this commit | none |
+| Epic opened with the verified backlog | 91 surviving findings from `wf_19618f07-bb2`, assigned to two waves, round 2, superseded or owner | `2389a383` | none |
+| W10: ui-design-builder | S5, S14, S22, T1, T4, T9, M21, M22, M43: budget and thresholds stated once, three new templates, mvp alignment, uncapped preview read | `d94fc68e`..`131c8594`, fast-forwarded | udb suite 451 tests exit 0; harness doc modules exit 0; udb must-read 32,758 to 30,990 |
+| W5: delivery-harness references | S2, S4, S8, S9, S10, S20, S23, S24, M18, M28, M30, M39: anchored managed reads, one owner per restated rule, Card 8, `architecture-method.md`, read-only entry check, readiness preflight | `d5bada44`..`84ae9bc5`, merged at `1a1602f9`; parent cross-file edits `cb2521f2` | nine doc modules exit 0; managed must-read 41,245 to 28,543 |
+| W7: delivery-harness scripts | M19, M31, M17, M37, M38, M13, M9: security result CLI, render `--check`, Handoff left out of document-sync hashes, contract digest CLI and installer line, frozen feature-file PLAN rows, byte-attribute and diff output in the context check | `755a5103`..`2845c719`, merged at `9df9e298`; parent cross-file edits `54906acb` | harness suite 112 modules exit 0 on the worker branch; golden path and installer tests exit 0 |
+| W9: product-definition-builder | S11, S12, S13, T8, M6, M44, M24, M32: coverage from the PRD's own pointer line, anchored playbook reads, one status rule for the stack guides, skeletons out of the output contract, BDD runner rows, `Feature files` approval digest, validated profile tag values | `8d49e8f0`..`d1fa2cc0`, merged at `4c3127a0`; parent deferred edits `146947ee` | pdb suite 440 tests exit 0; dsc suite exit 0 after the one-line test fix; pdb must-read 41,475 to 37,919 |
 
 ## Results And Remaining Work
 
-Pending: wave A (W5 delivery-harness references, W7 delivery-harness scripts, W9 product-definition-builder, W10 ui-design-builder) runs first; wave B (W6 references and templates, W8 scripts, W11 design-system-compiler, growth-review and standalone skills, W12 cross-cutting and READMEs) follows integration; then the 0.78.0 bump and the full matrix.
+- Wave A integrated at `146947ee`: 36 backlog items done, none skipped. Parent review of the four diffs found no blocking finding; the review notes are in the Change Log rows.
+- Decisions taken in wave A: the entry runs `configure_project_context.py --check --merge-agents` and the readiness card runs `--check --require-resolved`; `--check` on the renderer is named in Card 2 and the acceptance contract, not in SKILL.md, which sits one word under its cap; the PLAN template carries a feature-file source row but no acceptance-profile row (the frozen register embeds the profile); the package checker requires one BDD runner row anywhere, not one per table; the renderer and the reader share one profile vocabulary, pinned by `test_profile_tag_vocabulary.py`.
+- Entry must-read after wave A: delivery-harness 31,076 (from 43,863), product-definition-builder 37,641 (from 41,185), ui-design-builder 30,794 (from 32,758). Docs weight 189,855 against 193,298 at v0.76.0.
+- Left for wave B or later: step 9 of the product-definition stage still reads `output-contract.md` whole (13,188 words); the READMEs do not yet name the new templates, flags and Card 8.
+- Wave B (W6 references and templates, W8 scripts, W11 design-system-compiler, growth-review and standalone skills, W12 cross-cutting and READMEs) follows; then the 0.78.0 bump and the full matrix.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r1 / 0974cbe4 plus this record / task/ untracked
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r1 / 146947ee plus this record / task/ untracked
 Stage and skill: source maintenance, managed topology by hand (delivery-harness governance)
 Inputs consumed (path + hash or revision): workflow result wf_19618f07-bb2; feat/bdd-scenarios 0974cbe4; source-maintenance.md, delegation-contract.md, commit-convention.md at that revision
 Approvals in force (gate, owner, date, candidate): owner direction 2026-11-07 to review the suite and fill the verified gaps with Opus 5.5 xhigh writers and Fable 5.1 review; local branches, worktrees and commits; no push, tag, install or release
-Done and verified (command, exit code): pending
-Remaining: wave A, wave B, integration, review, 0.78.0 bump, full matrix; round 2 Epic for the heavy items
+Done and verified (command, exit code): wave A at 146947ee: pdb suite 440 tests, udb suite 451 tests, dsc suite, and the harness doc, template, anchor, render, document-sync, context and security-result modules (exit 0); check_skill_spec.py, docs_weight.py, docs_reading_budget.py, git diff --check (exit 0); harness suite 112 modules exit 0 on W7's branch
+Remaining: wave B, integration, review, 0.78.0 bump, full matrix at the candidate; round 2 Epic for the heavy items
 Blocked / waiting (gate name or owner decision): owner action M20 (land fix/compact-tracked-files-retention before v0.77.0)
-Next action (one command or one owner decision): launch W5, W7, W9, W10 from this commit
+Next action (one command or one owner decision): launch W6, W8, W11, W12 from this commit
 Next owner (skill or human): harness parent
 ```
