@@ -5,9 +5,10 @@ Each page loads once. Targets and states change through the real reviewer shell
 controls, never by reloading. The matrix pass clicks no product control; the
 interaction pass then clicks and keyboard-activates every manifest interaction
 at every source target. Output: one PNG per case, ``ui-output.json``
-(``ui-output/3``: matrix, ``interactions`` rows and ``navigation`` events) and
-``matrix-capture.json`` (per-case fingerprints, geometry, carried rows, axis
-runs and interaction records).
+(``ui-output/3``: matrix, ``interactions`` rows, ``navigation`` events and the
+``reviewer`` object) and ``matrix-capture.json`` (per-case fingerprints,
+geometry, carried rows, axis runs, interaction records and reviewer
+measurements).
 
 The browser is Node Playwright, the repo's pinned test dependency
 (``PLAYWRIGHT_MODULE`` or ``node_modules/playwright`` under ``--repo-root``).
@@ -36,7 +37,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
-from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths
+from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
@@ -426,12 +427,200 @@ async function axis(request) {
   return {};
 }
 
+// The reviewer pass, once per page after the interaction pass: one fresh open
+// (the reviewer's stored selections are cleared first), the entry observations,
+// the page-bound specimen source reads at the default target, the contract's
+// viewport rows, and the entry-side specimen display reads. Only reviewer shell
+// controls are clicked; no product control is touched.
+async function reviewer(request) {
+  const timeout = request.timeoutMs;
+  const press = async (attribute, value) => {
+    const control = page.locator('[' + attribute + '=' + quote(value) + ']');
+    if (await control.count() !== 1) throw new Error('reviewer control missing: ' + value);
+    if (await control.getAttribute('aria-pressed') !== 'true') await control.click({ timeout });
+  };
+  const selectSurface = async (surface, state) => {
+    const control = page.locator('[data-hifi-state-control=' + quote(state) + '][data-hifi-state-surface=' + quote(surface) + ']');
+    if (await control.count() !== 1) return;
+    if (await control.isVisible()) await press('data-hifi-state-control', state);
+    else {
+      await page.evaluate(hash => { location.hash = hash; },
+        '#hifi-state=' + encodeURIComponent(surface) + '/' + encodeURIComponent(state));
+      await page.waitForFunction(surface => {
+        const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
+        return Boolean(el) && !el.hidden;
+      }, surface, { timeout }).catch(() => {});
+    }
+  };
+  const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => {
+    for (const key of Object.keys(sessionStorage)) if (key.startsWith('hifi-reviewer:')) sessionStorage.removeItem(key);
+  });
+  await openPage(request.page, timeout);
+  const result = {};
+  if (request.entry) {
+    result.entry = await page.evaluate(() => {
+      const collect = selector => {
+        const found = [];
+        const walk = root => {
+          if (!root) return;
+          let all;
+          try { found.push(...root.querySelectorAll(selector)); all = root.querySelectorAll('*'); } catch (_) { return; }
+          for (const el of all) if (el.shadowRoot) walk(el.shadowRoot);
+        };
+        walk(document);
+        return found;
+      };
+      const visible = Array.from(document.querySelectorAll('[data-ui-surface]'))
+        .filter(el => !el.hidden && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0)
+        .map(el => el.dataset.uiSurface);
+      const defaultSurface = (document.body.dataset || {}).hifiDefaultSurface || null;
+      return { defaultSurface, defaultVisible: visible.includes(defaultSurface),
+        overviewInitiallyHidden: collect('[data-hifi-panel]').every(panel => panel.hidden) };
+    });
+  }
+  if (request.sources && request.sources.length) {
+    result.sources = await page.evaluate(specs => {
+      const host = document.querySelector('[data-hifi-canvas]') || document.body;
+      const identity = spec => ({ kind: spec.kind, name: spec.name, sourcePage: spec.sourcePage, source: spec.source,
+        property: spec.property, variant: spec.variant, state: spec.state, element: spec.element,
+        sharedGroup: spec.sharedGroup || null });
+      return specs.map(spec => {
+        const row = { ...identity(spec), sourceValue: null, sourceComputedValue: null };
+        try {
+          if (spec.kind === 'token') {
+            row.sourceValue = getComputedStyle(document.documentElement).getPropertyValue(spec.property).trim() || null;
+            if (spec.previewProperty && row.sourceValue) {
+              const probe = document.createElement(spec.element || 'span');
+              probe.style.setProperty(spec.previewProperty, 'var(' + spec.property + ')');
+              host.appendChild(probe);
+              row.sourceComputedValue = getComputedStyle(probe).getPropertyValue(spec.previewProperty).trim() || null;
+              probe.remove();
+            }
+          } else {
+            const attr = (el, name, fallback) => el.getAttribute(name) || el.getAttribute(fallback) || 'default';
+            const candidates = Array.from(host.querySelectorAll(spec.source)).filter(el =>
+              attr(el, 'data-specimen-variant', 'data-variant') === spec.variant
+              && attr(el, 'data-specimen-state', 'data-state') === spec.state);
+            const el = candidates.find(item => { const view = item.closest('[data-hifi-state-view]'); return !view || !view.hidden; })
+              || candidates[0];
+            if (el) row.sourceValue = getComputedStyle(el).getPropertyValue(spec.property).trim() || null;
+          }
+        } catch (_) {}
+        return row;
+      });
+    }, request.sources);
+  }
+  if (request.viewport && request.viewport.length) {
+    result.viewport = [];
+    for (const row of request.viewport) {
+      if (row.state) await selectSurface(row.surface, row.state);
+      await press('data-hifi-target-control', row.target);
+      await page.waitForFunction(t => {
+        const el = document.querySelector('[data-hifi-canvas]');
+        return Boolean(el) && el.dataset.hifiTarget === t;
+      }, row.target, { timeout });
+      await settle();
+      result.viewport.push(await page.evaluate(surface => {
+        const el = document.querySelector('[data-hifi-canvas]');
+        const mediaApplied = () => {
+          let applied = false;
+          const scan = sheet => {
+            try {
+              for (const rule of sheet.cssRules || []) {
+                if (rule.media && /\b(?:width|height|inline-size|block-size)\b|device-(?:width|height)|orientation|aspect-ratio|resolution/i.test(rule.media.mediaText || '')
+                    && matchMedia(rule.media.mediaText).matches) applied = true;
+                if (rule.styleSheet) scan(rule.styleSheet);
+              }
+            } catch (_) {}
+          };
+          for (const sheet of document.styleSheets) scan(sheet);
+          return applied;
+        };
+        return { surface, target: el.dataset.hifiTarget,
+          measuredProductWidth: Math.round(el.getBoundingClientRect().width * 100) / 100,
+          containerQueryApplied: getComputedStyle(el).containerType === 'inline-size',
+          hostMediaQueryApplied: mediaApplied(),
+          visibleSurfaces: Array.from(document.querySelectorAll('[data-ui-surface]'))
+            .filter(item => !item.hidden && item.getBoundingClientRect().width > 0 && item.getBoundingClientRect().height > 0)
+            .map(item => item.dataset.uiSurface) };
+      }, row.surface));
+    }
+  }
+  if (request.reads && request.reads.length) {
+    const defaults = request.defaults || {};
+    if (defaults.state && defaults.surface) await selectSurface(defaults.surface, defaults.state);
+    if (defaults.target) await press('data-hifi-target-control', defaults.target);
+    const tokens = page.locator('[data-hifi-review-view="design-tokens"]');
+    if (await tokens.count() === 1) {
+      await tokens.click({ timeout });
+      await page.waitForFunction(() => {
+        const open = root => {
+          if (!root) return false;
+          for (const el of root.querySelectorAll('[data-hifi-panel]')) if (el.dataset.hifiPanel === 'design-tokens' && !el.hidden) return true;
+          for (const el of root.querySelectorAll('*')) if (el.shadowRoot && open(el.shadowRoot)) return true;
+          return false;
+        };
+        return open(document);
+      }, { timeout });
+      result.reads = await page.evaluate(specs => {
+        const identity = spec => ({ kind: spec.kind, name: spec.name, sourcePage: spec.sourcePage, source: spec.source,
+          property: spec.property, variant: spec.variant, state: spec.state, element: spec.element,
+          sharedGroup: spec.sharedGroup || null });
+        const identityOf = el => ({ kind: el.getAttribute('data-hifi-spec'), name: el.getAttribute('data-name') || '',
+          sourcePage: el.getAttribute('data-source-page') || '', source: el.getAttribute('data-source') || '',
+          property: el.getAttribute('data-property') || '', variant: el.getAttribute('data-variant') || '',
+          state: el.getAttribute('data-state') || '', element: el.getAttribute('data-specimen-element') || '',
+          sharedGroup: el.getAttribute('data-shared-group') || null });
+        const collect = selector => {
+          const found = [];
+          const walk = root => {
+            if (!root) return;
+            let all;
+            try { found.push(...root.querySelectorAll(selector)); all = root.querySelectorAll('*'); } catch (_) { return; }
+            for (const el of all) if (el.shadowRoot) walk(el.shadowRoot);
+          };
+          walk(document);
+          return found;
+        };
+        const groups = new Map();
+        for (const spec of collect('[data-hifi-spec]')) {
+          const key = JSON.stringify(identityOf(spec));
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(spec);
+        }
+        return specs.map(spec => {
+          const queue = groups.get(JSON.stringify(identity(spec))) || [];
+          const el = queue.length ? queue.shift() : null;
+          const read = { ...identity(spec), specimenValue: null, displayValue: null, specimenComputedValue: null };
+          if (!el) return read;
+          const sample = el.querySelector('[data-hifi-specimen-content]');
+          const output = el.querySelector('output');
+          if (sample) {
+            const computed = getComputedStyle(sample);
+            read.specimenValue = computed.getPropertyValue(spec.property).trim() || null;
+            if (spec.kind === 'token' && spec.previewProperty) {
+              read.specimenComputedValue = computed.getPropertyValue(spec.previewProperty).trim() || null;
+            }
+          }
+          const shown = output && output.textContent ? output.textContent.trim() : '';
+          read.displayValue = shown || read.specimenValue || null;
+          return read;
+        });
+      }, request.reads);
+      await page.evaluate(() => { location.hash = ''; });
+      await settle();
+    }
+  }
+  return result;
+}
+
 async function close() {
   if (browser) await browser.close();
   return {};
 }
 
-const handlers = { start, open, case: runCase, interact, shot, axis, close };
+const handlers = { start, open, case: runCase, interact, reviewer, shot, axis, close };
 let chain = Promise.resolve();
 const lines = readline.createInterface({ input: process.stdin });
 lines.on('line', line => {
@@ -841,6 +1030,38 @@ def related(left, right):
     return left == right or left in right.parents or right in left.parents
 
 
+# --- Reviewer object ----------------------------------------------------------
+def reviewer_plan(package):
+    """The reviewer rows ``hifi_reviewer.reviewer_contract`` derives, grouped per page in contract order.
+
+    The rows describe what a correct package shows; the run measures every row in
+    the browser and writes the rows as measured, whatever they show."""
+    try:
+        documents = {name: path.read_text(encoding="utf-8") for name, path in package.files.items()}
+    except (OSError, UnicodeError):
+        return None
+    errors, contract = reviewer_contract(documents, package.manifest)
+    if contract is None:
+        return None
+    first_states = {row["id"]: next((str(state) for state in row["states"] if not _is_na_state(state)), None)
+                    for row in package.manifest["surfaces"]}
+    pages = {}
+    for row in contract["viewport"]:
+        page = pages.setdefault(row["page"], {"entry": False, "viewport": [], "sources": [], "reads": [], "defaults": None})
+        page["viewport"].append({"surface": row["surface"], "target": row["target"], "state": first_states.get(row["surface"]),
+                                 "expectedWidth": row["measuredProductWidth"]})
+    entry = pages.setdefault("index.html", {"entry": False, "viewport": [], "sources": [], "reads": [], "defaults": None})
+    entry["entry"] = True
+    entry["sources"] = [spec for spec in contract["specimens"] if spec["sourcePage"] == "index.html"]
+    entry["reads"] = list(contract["specimens"])
+    entry["defaults"] = {"surface": contract["defaultSurface"], "state": first_states.get(contract["defaultSurface"]),
+                         "target": contract["viewport"][0]["target"] if contract["viewport"] else None}
+    for page in pages:
+        if page != "index.html":
+            pages[page]["sources"] = [spec for spec in contract["specimens"] if spec["sourcePage"] == page]
+    return {"contract": contract, "pages": pages}
+
+
 # --- The run --------------------------------------------------------------------
 class Runner:
     def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None, derived=None,
@@ -855,6 +1076,7 @@ class Runner:
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
+        self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
 
     # events: base-case events join the transcript; axis-case events only decide that case
     def absorb(self, events, page, keep=True):
@@ -880,6 +1102,7 @@ class Runner:
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
             self.run_page(page, page_cases)
+        self.run_reviewer()
 
     def run_page(self, page, cases):
         if not self.aborted:
@@ -1085,6 +1308,48 @@ class Runner:
             record["pixelDiff"] = pixel_diff(self.diff_against / path.name, path)
 
 
+    def run_reviewer(self):
+        """Measure the reviewer viewport and specimen rows in the contract's order, after the interactions."""
+        plan = self.reviewer_plan
+        if not plan:
+            return
+        for page, page_plan in plan["pages"].items():
+            self.reviewer_records.append(self.observe_reviewer(page, page_plan))
+
+    def observe_reviewer(self, page, page_plan):
+        record = {"page": page, "result": None, "reasons": [], "entry": None, "viewport": [], "sources": [],
+                  "reads": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
+        began = time.perf_counter()
+        reasons = record["reasons"]
+        blocked = ("page did not open, so its reviewer rows were not measured" if page in self.unopened
+                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        if blocked:
+            record["result"] = "BLOCKED"
+            reasons.append(blocked)
+        else:
+            try:
+                reply = self.driver.call("reviewer", timeout=self.case_timeout_s * 3 + 20, page=page,
+                                         timeoutMs=self.case_timeout_s * 1000, **page_plan)
+            except DriverTimeout as error:
+                reasons.append(f"reviewer pass timed out after {self.case_timeout_s * 3 + 20}s")
+                reasons.extend(self.absorb(error.events, page))
+                self.recover(page)
+            except DriverError as error:
+                reasons.append(f"driver error: {error}")
+                reasons.extend(self.absorb(error.events, page))
+            else:
+                reasons.extend(self.absorb(reply["events"], page))
+                result = reply["result"]
+                record["entry"] = result.get("entry")
+                record["viewport"] = result.get("viewport") or []
+                record["sources"] = result.get("sources") or []
+                record["reads"] = result.get("reads") or []
+            record["result"] = "FAIL" if reasons else "PASS"
+        record["finishedAt"] = now_iso()
+        record["durationMs"] = round((time.perf_counter() - began) * 1000)
+        return record
+
+
 def pixel_diff(before, after):
     """Compare two PNGs with Pillow: a pixel is changed when any RGBA channel differs. The geometry fingerprint stays the primary signal."""
     from PIL import Image, ImageChops
@@ -1115,6 +1380,72 @@ def interaction_rows(runner):
     return results, navigation
 
 
+def reviewer_identity(row):
+    return (row["kind"], row["name"], row["sourcePage"], row["source"], row["property"], row["variant"],
+            row["state"], row["element"], row["sharedGroup"])
+
+
+def reviewer_object(runner):
+    """The closed reviewer receipt object: contract identity carrying this run's browser measurements.
+
+    Rows are written as measured; ``validate_output`` fails the output with the
+    checker's own reviewer rule when a measured row disagrees with the contract."""
+    plan = runner.reviewer_plan
+    if plan is None:
+        return None
+    viewport_rows, source_rows, read_rows, entry = {}, {}, {}, None
+    for record in runner.reviewer_records:
+        for row in record["viewport"]:
+            viewport_rows[(row["surface"], row["target"])] = row
+        for row in record["sources"]:
+            source_rows[reviewer_identity(row)] = row
+        for row in record["reads"]:
+            read_rows[reviewer_identity(row)] = row
+        if record["page"] == "index.html" and record["entry"] is not None:
+            entry = record["entry"]
+    contract = plan["contract"]
+    viewport = []
+    for row in contract["viewport"]:
+        got = viewport_rows.get((row["surface"], row["target"]))
+        if got is None:
+            viewport.append(dict(row, measuredProductWidth=None, containerQueryApplied=None,
+                                 hostMediaQueryApplied=None, visibleSurfaces=None, result="BLOCKED"))
+            continue
+        passed = (got.get("measuredProductWidth") == row["measuredProductWidth"] and got.get("containerQueryApplied")
+                  and not got.get("hostMediaQueryApplied") and got.get("visibleSurfaces") == [row["surface"]])
+        viewport.append(dict(row, **{key: got.get(key) for key in ("measuredProductWidth", "containerQueryApplied",
+                                                                   "hostMediaQueryApplied", "visibleSurfaces")},
+                             result="PASS" if passed else "FAIL"))
+    specimens = []
+    for spec in contract["specimens"]:
+        source, read = source_rows.get(reviewer_identity(spec)), read_rows.get(reviewer_identity(spec))
+        row = dict(spec, sourceValue=(source or {}).get("sourceValue"), specimenValue=(read or {}).get("specimenValue"),
+                   displayValue=(read or {}).get("displayValue"))
+        if spec["kind"] == "token":
+            row["sourceComputedValue"] = (source or {}).get("sourceComputedValue")
+            row["specimenComputedValue"] = (read or {}).get("specimenComputedValue")
+        specimens.append(row)
+    return {"defaultSurface": (entry or {}).get("defaultSurface", contract["defaultSurface"]),
+            "defaultVisible": (entry or {}).get("defaultVisible"),
+            "overviewInitiallyHidden": (entry or {}).get("overviewInitiallyHidden"),
+            "overview": contract["overview"], "viewport": viewport, "specimens": specimens}
+
+
+def reviewer_findings(root, output):
+    """The checker's own reviewer rule over the output this run wrote."""
+    subject = output.get("subject") if isinstance(output, dict) else None
+    path = subject.get("path") if isinstance(subject, dict) else None
+    if not isinstance(path, str) or not path.endswith("index.html"):
+        return []
+    try:
+        plan = reviewer_plan(read_package((root / path).parent))
+    except (OSError, ValueError, TypeError, KeyError, UsageError):
+        return []
+    if plan is None:
+        return []
+    return reviewer_evidence_findings(output.get("reviewer"), plan["contract"])
+
+
 def build_outputs(runner, package, cases, root, out_dir, subject, started, finished, environment, options):
     records = [runner.records.get(case.key) for case in cases]
     summary = {
@@ -1124,11 +1455,12 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
         "axisFail": sum(1 for r in runner.axis_records if r["result"] != "PASS"),
         "interactions": len(runner.interaction_records),
         "interactionsFail": sum(1 for r in runner.interaction_records if r["result"] != "PASS"),
+        "reviewerFail": sum(1 for r in runner.reviewer_records if r["result"] != "PASS"),
     }
     sidecar = {"schema": SIDECAR_SCHEMA, "subject": subject,
                "run": dict(options, startedAt=started, finishedAt=finished, **summary),
                "cases": [r for r in records if r], "axes": runner.axis_records,
-               "interactions": runner.interaction_records}
+               "interactions": runner.interaction_records, "reviewer": runner.reviewer_records}
     sidecar_bytes = (json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sidecar_path = out_dir / SIDECAR_NAME
     sidecar_path.write_bytes(sidecar_bytes)
@@ -1147,6 +1479,7 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
         "schema": "ui-output/3", "check": CHECK, "subject": subject, "matrix": {"cases": matrix},
         "results": [dict(case, result=(r["result"] if r else "MISSING")) for case, r in zip(matrix, records)],
         "interactions": interactions,
+        "reviewer": reviewer_object(runner),
         "sandbox": SANDBOX, "console": runner.transcript["console"], "network": runner.transcript["network"],
         "navigation": declared_navigation + runner.transcript["navigation"], "popups": runner.transcript["popups"],
         "forms": runner.transcript["forms"], "popupAttempts": len(runner.transcript["popups"]),
@@ -1169,6 +1502,7 @@ def validate_output(root, output_path, output):
     baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked",
                                                     "popups": "blocked", "forms": "blocked"})
     problems.extend(_offline_transcript_findings(baseline))
+    problems.extend(reviewer_findings(root, output))
     return problems
 
 

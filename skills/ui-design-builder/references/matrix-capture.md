@@ -40,7 +40,15 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 | `--color-scheme dark` | Run the whole base matrix with the browser context at `colorScheme: dark`, from the first page load to the interaction pass. The dark run goes to its own `--out` as a separate `ui-output/3`. |
 | `--overwrite` | Write into a non-empty `--out`. Refused (exit 2) with `--carry-from` when `--out` is, holds or sits inside the folder of the carry source or of a capture it carries. |
 
-`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. After the matrix, the run clicks and Enter/Space-activates every manifest interaction at every source target and writes the `interactions` rows and `navigation` events; a failed attempt fails the run. What the output still lacks is the `reviewer` object (see below).
+`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. After the matrix, the run clicks and Enter/Space-activates every manifest interaction at every source target and writes the `interactions` rows and `navigation` events; a failed attempt fails the run. It then measures the `reviewer` object (see below).
+
+## Reviewer object
+
+`hifi_reviewer.reviewer_contract` derives the expected viewport and specimen rows from the package bytes, and the run measures every row in that order. Each page is opened again from scratch (the reviewer's stored selections are cleared first), so the entry observations and the specimen source reads happen at the default target, surface and state. Only reviewer shell controls are clicked; the pass never touches a product control, and its fresh opens are not navigation attempts.
+
+The `viewport` rows record the measured canvas width per surface and target, whether the container query is applied, whether a host viewport media query is applied, and the visible surfaces. The `specimens` rows take each specimen's identity from the contract and its values from the browser: the source value from the bound source page (plus the browser-normalized probe value for tokens), and the specimen and display values from the in-page specimen the HIFI_REVIEWER template renders, including its `output` text.
+
+Rows are written as measured. `validate_output` applies the checker's own reviewer rule (`reviewer_evidence_findings`) to the written output, so a measured row that disagrees with the derived one fails the run (exit 3) with the checker's finding; the sidecar's `reviewer` records keep the per-page measurements and reasons. A `--only` run still measures the full reviewer pass.
 
 ## Carrying
 
@@ -54,7 +62,6 @@ Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix
 
 ## What it does not prove
 
-- Reviewer measurement. The `reviewer` viewport and specimen rows are not measured, and the checker's `ui-output/3` for a HiFi surface check requires that object.
 - Appearance. A fingerprint or pixel diff shows change, not correctness. A screenshot is evidence for a reviewer and grades nothing.
 - Motion quality. Use the `motion-preview` check.
 - Native, real-login or service behavior.
