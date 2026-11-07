@@ -4,7 +4,7 @@ This rubric defines the Product-Definition-bound diagnostic and grading stage fo
 
 ## Frozen Grading Basis
 
-Before dispatch, the parent records the exact PRD and `ui-design.md` paths plus revisions or SHA-256 values and the candidate HTML path plus SHA-256. Every current grader receives the same frozen inputs: the `UI-*` surfaces, `UX-*` traces, actions, flows, states, responsive targets, UI Design Intake, complete sourced copy, Motion and Media Intent, selected direction and confirmed journey set when applicable, and the candidate HTML. Graders score only conformance to those inputs. They do not add screens, flows, visual preferences, copy, media, or motion. A grader packet carries this rubric, the `ui-output/3` and HiFi Review rules of `output-contract.md`, the browser procedure in `ui-design-pass.md` and, for a re-review, the defect ledger. Graders do not read the intake, translation, reference, motion-routing, page-profile or enhancement guides.
+Before dispatch, the parent records the exact PRD and `ui-design.md` paths plus revisions or SHA-256 values and the candidate HTML path plus SHA-256. Every current grader receives the same frozen inputs: the `UI-*` surfaces, `UX-*` traces, actions, flows, states, responsive targets, UI Design Intake, complete sourced copy, Motion and Media Intent, selected direction and confirmed journey set when applicable, and the candidate HTML. Graders score only conformance to those inputs. They do not add screens, flows, visual preferences, copy, media, or motion. Each grader, Impeccable operator and scoped re-review gets a filled [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md). Graders do not read the intake, translation, reference, motion-routing, page-profile or enhancement guides.
 
 A missing or contradictory product obligation returns to `product-definition-builder`; a missing UI direction returns to `ui-design-builder`. Graders never resolve either by inventing a preferred behavior. A direct contradiction with a frozen requirement or approved UI decision is a `block` regardless of numeric score.
 
@@ -142,7 +142,7 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 
 The initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis.
 Its repair re-review follows the same lineage and attempt budget; it does not open another broad qualitative search.
-The repair packet contains the existing defect ledger, the source diff, direct consumers and observable closure cases. Read the diff first, as [Diff-first re-review](review-evidence.md#diff-first-re-review) states.
+The repair packet is the scoped re-review block of [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md). Read the diff first, as [Diff-first re-review](review-evidence.md#diff-first-re-review) states.
 Direct consumers are the pages and states that render a changed source, including shared styles, navigation and motion dependencies.
 Use one consolidated response for Impeccable and rubric findings. Do not commission separate aesthetic or scoring reviews after that response.
 

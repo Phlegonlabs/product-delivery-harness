@@ -434,7 +434,8 @@ console.log("hybrid fallback and stale QA assertions completed");
                       "and one Impeccable operator who runs critique and audit", rubric)
         self.assertIn("Neither reviews its own work", rubric)
         self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
-        self.assertIn("A grader packet carries this rubric", rubric)
+        self.assertIn("gets a filled [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md)", rubric)
+        self.assertIn("references/ui-grading-rubric.md", self.read("assets/templates/UI_REVIEW_PACKET.template.md"))
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
 

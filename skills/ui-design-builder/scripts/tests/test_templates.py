@@ -89,5 +89,58 @@ class DefectLedgerTemplateTests(unittest.TestCase):
                 self.assertIn("(../assets/templates/UI_DEFECT_LEDGER.template.json)", text)
 
 
+class ReviewPacketTemplateTests(unittest.TestCase):
+    def setUp(self):
+        text = read("UI_REVIEW_PACKET.template.md")
+        self.packet = text.split("```text\n", 1)[1].split("\n```", 1)[0]
+        self.blocks = {}
+        block = None
+        for line in self.packet.splitlines():
+            if line and not line.startswith("- "):
+                block = line.rstrip(":")
+                self.blocks[block] = []
+            elif line.startswith("- "):
+                self.blocks[block].append(line[2:].split(": ", 1)[0] if ": " in line else line[2:])
+
+    def test_packet_template_has_the_closed_field_set(self):
+        self.assertEqual({
+            "Assignment": ["Assignment ID", "Attempt", "Role", "Route caps"],
+            "Frozen inputs (path @ sha256)": ["PRD", "Architecture", "Stack", "ui-design.md", "HiFi entry",
+                                              "HiFi pages", "Selected direction", "Journey map",
+                                              "Impeccable authorization"],
+            "Scoped re-review only": ["Defect ledger", "Prior candidate", "Source diff", "Direct consumers",
+                                      "Closure cases", "Tolerance source"],
+            "Return": ["Verdict", "Candidate SHA-256", "Findings", "ui-output/3", "Receipt", "Commands run"],
+        }, {name: fields for name, fields in self.blocks.items() if name not in {"Read", "Do not read", "Write scope"}})
+        self.assertIn("time <seconds> / turns <n> / max_message_bytes <n>", self.packet)
+        self.assertIn("lead grader | Impeccable operator | scoped re-review", self.packet)
+        self.assertEqual(["docs/design/evidence/<run-id>/ only"], self.blocks["Write scope"])
+
+    def test_packet_read_lists_are_existing_sections_and_the_rubric_exclusions(self):
+        headings = {}
+        for line in self.blocks["Read"]:
+            if not line.startswith("<ui-design-builder-skill-root>/"):
+                self.assertTrue(line.startswith("Impeccable SKILL.md"), line)
+                continue
+            relative, _, anchor = line.removeprefix("<ui-design-builder-skill-root>/").partition("#")
+            path = SKILL_ROOT / relative
+            self.assertTrue(path.is_file(), relative)
+            if anchor:
+                if relative not in headings:
+                    headings[relative] = {
+                        re.sub(r"\s+", "-", re.sub(r"[^a-z0-9\s-]", "", heading.lstrip("#").strip().lower()))
+                        for heading in path.read_text(encoding="utf-8").splitlines() if heading.startswith("#")}
+                self.assertIn(anchor, headings[relative], line)
+        excluded = [name.strip() for name in self.blocks["Do not read"][0].split(",")]
+        for name in excluded:
+            self.assertTrue((SKILL_ROOT / "references" / name).is_file(), name)
+        rubric = (SKILL_ROOT / "references/ui-grading-rubric.md").read_text(encoding="utf-8")
+        self.assertIn("Graders do not read the intake, translation, reference, motion-routing, page-profile or "
+                      "enhancement guides", rubric)
+        self.assertEqual(6, len(excluded))
+        self.assertEqual(2, rubric.count("(../assets/templates/UI_REVIEW_PACKET.template.md)"))
+        self.assertNotIn("The repair packet contains", rubric)
+
+
 if __name__ == "__main__":
     unittest.main()
