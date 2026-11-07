@@ -76,6 +76,7 @@ EVIDENCE_FIELDS = (
     ("typeSteps", ("role", "fontSize", "lineHeight", "kind"), "usage", "kind", check_type_scale.KIND_THRESHOLDS),
 )
 VAR_RE = re.compile(r"var\(\s*(--[\w-]+)\s*\)")
+CUSTOM_PROPERTY_RE = re.compile(r"(?<![\w-])(--[\w-]+)\s*:\s*([^;{}]*)")
 RGB_RE = re.compile(
     r"rgba?\(\s*([0-9.]+)[\s,]+([0-9.]+)[\s,]+([0-9.]+)(?:\s*[,/]\s*([0-9.]+%?))?\s*\)",
     re.IGNORECASE,
@@ -1201,6 +1202,28 @@ def read_repo_file(root: Path, relative: str) -> bytes | None:
         return None
 
 
+def _css_value(value: str) -> str:
+    value = re.sub(r"\s*!important$", "", value.strip(), flags=re.IGNORECASE)
+    return re.sub(r"\s*([,()/])\s*", r"\1", " ".join(value.split())).casefold()
+
+
+def token_value_findings(registry: dict[str, Any], documents: dict[str, str]) -> list[str]:
+    """A JSON token the HiFi CSS also declares must match one of its declarations."""
+
+    declared: dict[str, set[str]] = {}
+    for html in documents.values():
+        for name, value in CUSTOM_PROPERTY_RE.findall(design_system_showcase.analysis_css(html)):
+            if "var(" not in value.casefold():
+                declared.setdefault(name, set()).add(_css_value(value))
+    tokens = registry.get("tokens")
+    return [
+        f"design-system.json tokens.{group}.{name} value {value!r} matches no {name} declaration in the approved HiFi CSS"
+        for group, values in (tokens.items() if isinstance(tokens, dict) else [])
+        for name, value in (values.items() if isinstance(values, dict) else [])
+        if isinstance(value, str) and name in declared and _css_value(value) not in declared[name]
+    ]
+
+
 def showcase_source_findings(registry: dict[str, Any], root: Path) -> list[str]:
     """Every design-system/4 specimen must resolve to approved HiFi source."""
 
@@ -1208,6 +1231,7 @@ def showcase_source_findings(registry: dict[str, Any], root: Path) -> list[str]:
     if problems:
         return problems
     found = design_system_showcase.resolve(registry, documents)[1]
+    found += token_value_findings(registry, documents)
     if registry["showcase"].get("schema") == showcase_runtime.SCHEMA_V2:
         found += showcase_runtime.resolve_runtime(registry, documents, manifest, lambda path: read_repo_file(root, path))[1]
         trees = {page: design_system_showcase.SourceTree(html) for page, html in documents.items()}
