@@ -356,6 +356,29 @@ def _execution_id(run: dict[str, Any], verifier_id: str, execution_key: str) -> 
     return candidate
 
 
+def _compact_git_guard_attestation(attestation: dict[str, Any]) -> dict[str, Any]:
+    """Retain the Git guard attestation without the per-file fingerprint map.
+
+    The runtime attests every tracked file (stat plus sha256). A repository
+    with tens of thousands of tracked files turns each retained execution into
+    megabytes of RUN.md, and the document write guard refuses the manifest
+    after a handful of verifiers. The external result file keeps the complete
+    map; RUN keeps its canonical digest and entry count so the record still
+    binds the exact snapshot the runtime observed.
+    """
+
+    compact = copy.deepcopy(attestation)
+    tracked = compact.get("tracked_files")
+    if isinstance(tracked, dict) and tracked:
+        canonical = json.dumps(
+            tracked, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+        ).encode("utf-8")
+        compact["tracked_files"] = {}
+        compact["tracked_files_sha256"] = hashlib.sha256(canonical).hexdigest()
+        compact["tracked_files_count"] = len(tracked)
+    return compact
+
+
 def _retained_execution(
     run: dict[str, Any],
     retained: dict[str, Any],
@@ -425,7 +448,7 @@ def _retained_execution(
         ),
         **(
             {
-                "git_guard_attestation": copy.deepcopy(
+                "git_guard_attestation": _compact_git_guard_attestation(
                     retained["git_guard_attestation"]
                 )
             }
