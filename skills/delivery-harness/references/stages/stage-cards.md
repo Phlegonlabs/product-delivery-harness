@@ -64,13 +64,16 @@ python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run
 
 PLAN is validated, RUN exists, and the first dispatch approaches. Recheck before each new wave.
 
-Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. Run the Environment Preflight once in the clean base checkout and record its rows in the Epic or task record. After every readiness row passes, set `plan_readiness: ready` through the parent-owned readiness procedure.
+Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. Run the Environment Preflight once in the clean base checkout and record its rows in the Epic or task record. After every readiness row passes, set `plan_readiness: ready` with `open-run`.
 
 **Commands in order**
 
 ```text
 python "<delivery-harness-skill-root>/scripts/configure_project_context.py" --root <root> --check --require-resolved
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> record-observation
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-grant --action <action> --expires-when <boundary> --source <owner words>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-runtime --provider <provider> --driver <driver> --route-caps <route>=<cap>=<n>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> open-run --intent plan-then-execute --source <owner words>
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
 ```
 
@@ -189,12 +192,13 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 Every mission is integrated, the review converged, and final gates have run on the exact head.
 
-Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--prd <PRD.md>` when PLAN freezes a PRD, and `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Then check the remaining Closeout Bar rows. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
+Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--prd <PRD.md>` when PLAN freezes a PRD, and `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Then check the remaining Closeout Bar rows. Record the close with `close-run`; it sets `status: complete` and preserves the run branch at the integration head. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
 
 **Commands in order**
 
 ```text
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> close-run --source <owner words>
 python "<delivery-harness-skill-root>/scripts/render_tasks_view.py" --plan <PLAN.md> --run <RUN.md> --out docs/tasks.md --repo-root <root> --check
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> release-run-lock
 ```
