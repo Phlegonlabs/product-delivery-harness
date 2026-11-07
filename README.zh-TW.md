@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.78.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.79.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -185,7 +185,7 @@ git diff --check
 
 遵循[來源 Git flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) 與[必要驗證](skills/delivery-harness/references/governance/source-maintenance.md#required-verification)。已審查的來源候選經必要 PR 進入受保護 `main`，並在該 commit 加上 `v<version>` tag。設定版本時，把四段版本紀錄寫進同一目錄的 `en.md`、`zh-TW.md`、`zh-CN.md` 與 `es.md`（各一行），再執行 `python skills/delivery-harness/scripts/prepare_release.py --version <X.Y.Z> --entries <dir>`。任何版本欄位不一致時它會拒絕；一致時把新版本寫進 `VERSION`、`package.json`、`package-lock.json` 與四份 README，並把 README 最舊的一筆紀錄移到 `CHANGELOG.md`。測試從 `VERSION` 讀取版本，不新增 hard-coded literal。
 
-Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸檔驗證後才繼承 C 的證據。差異只可包含收據列出的 coordination／evidence 搬移、可選的衍生 `docs/tasks.md`、`docs/DOCUMENTS.md` 更新與 `ARCHIVE_RECEIPT.json`，其他路徑保持不變。保留 C 已審 SHA 與各結果的原始來源，不把繼承證據當作 A 的新執行。Server 產生的 main SHA S 若 tree 相同，連同原始來源繼承候選證據；不因 tree 相同而重跑完整 suite 或安全審查。Tree 不同則重新驗證新候選。
+Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸檔驗證後才繼承 C 的證據。差異只可包含收據列出的 coordination／evidence 搬移、可選的衍生 `docs/tasks.md`、`docs/DOCUMENTS.md` 更新與 `ARCHIVE_RECEIPT.json`，其他路徑保持不變。保留 C 已審 SHA 與各結果的原始來源，不把繼承證據當作 A 的新執行。Server 產生的 main SHA S 若 tree 相同，連同原始來源繼承候選證據，由 `promotion_readback.py post` 的 JSON 證明；不因 tree 相同而重跑完整 suite 或安全審查。Tree 不同則重新驗證新候選。
 
 發佈須綁定 owner 授權的準確 SHA 與 branch，使用 no-force push 並讀回遠端。一個 release 指令可同時綁定這些授權；遇到 drift 或 gate 失敗就停止。正式 release 驗證完成後，若已安裝 bundle 不同，在相關 session 靜止時以官方安裝器更新，保留備份及驗證。Badge 不能證明已安裝或已部署。
 
@@ -199,6 +199,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.79.0** — 整套 review 第二輪。0.78.0 那次審查留下的十項在此版落地。RUN 裡權限最高的幾個改動現在都有守衛的 transition：`harness_transition.py record-grant`、`open-run`、`close-run`、`record-runtime` 會取鎖、帶著 owner 的原話、從 RUN 填入 run_id 與 plan revision 和 digest、寫入前驗證整個 pair，並拒絕 `push`；`lease-worker --packet-out` 直接從已租用的 RUN 渲染並檢查 worker goal 封包大小，Card 4 因此拿掉獨立的渲染與檢查步驟。`build_verifier_request.py --layer mission_integration` 產生 integration verifier 的 request，builder 與兩個 validator 現在共用同一個 `verifier_context`。`promotion_readback.py pre` 與 `post` 以唯讀方式證明 main 的前狀態、祖先關係與 tree 相等；README 以 `post` 的 JSON 作為 tree 相等的證明。`hifi_matrix_capture.py` 會點擊並以鍵盤觸發 manifest 的每個互動、量測 reviewer 列、用 `--color-scheme dark` 跑完整基礎矩陣、用 `--intermediate` 寫出中間寬度的輸出，並新增 `reflow-320` 軸。`parity_capture.py --hifi-package` 透過 reviewer 控制項比對 ui-hifi/2 套件，route map 用 `PARITY_ROUTE_MAP.template.json`。consumer 會察覺的變化，在 0.79.0 pin 之後：eval policy 為 `not_required` 的 managed PLAN 仍須凍結 delivery-acceptance source、宣告 acceptance 與 closeout gate 及 pass-only 鏈；system-conformance 的 `target_comparison` 必須引用凍結的已核准 HiFi。pin 在 0.79.0 之前的 run 維持現行行為。bundle 新增契約，因此升 minor 版本。
+
 - **0.78.0** — 整套 review。一次唯讀的整套審查問了三件事：哪裡能簡化、哪些該做成模板、還缺什麼；91 項已驗證的發現中，78 項分兩波在此版落地，另外十項較大的留待第二輪。各入口行動前必讀的字數下降：delivery-harness 由 43,863 降到約 31,100（managed 路線由 41,245 降到 28,389），product-definition-builder 由 41,185 降到約 37,700，ui-design-builder 由 32,758 降到約 30,800。新模板：`UI_DESIGN`、`UI_DEFECT_LEDGER`、`UI_REVIEW_PACKET`、`PROJECT_GITATTRIBUTES`、`DIRECT_REVIEW_BRIEF`、`ASSIGNMENT` 與 `DELIVERY_EVIDENCE`，初始化的紀錄另有 Release Log、`Current Epic:` 行與 `Harness Version` 段落。新 reference：architecture method、gitattributes 契約、bundle adoption、open-ended refinement 與 Card 8。新指令：`build_delivery_results.py`、`build_verifier_request.py`、`prepare_release.py`、`ci_test_shards.py matrix`、`security_review_result.py` 的 CLI、`render_delivery_acceptance.py --check` 與 profile variants，以及 `check_design_system_pair.py --write-bindings` 和自動計算的對比與字級證據。consumer 會察覺的變化：JSON 與 HiFi CSS 不一致的既有 `design-system/4` pair 可能在 token 值檢查失敗；商店與安裝程式 target 須有安裝或下載證明；`MISSION_RUNBOOK.template.md` 已移除，它的預設值不再是版本欄位；帶 pre-0.66 anchor key 的 archive receipt 會失敗；Epic 雜湊不含 Handoff 區塊。bundle 新增契約，因此升 minor 版本。
 
 - **0.77.0** — 可執行的 scenario。`docs/product/features/` 下的 feature 檔案納入 PRD 套件，與 PRD 一起批准。每個 scenario 恰好帶一個 `@TEST-*` tag，每個 `Required: Yes` 的 Test Obligation 至少要有一個 scenario。`check_feature_coverage.py` 雙向檢查，新套件執行 `check_product_package.py` 時另加 `--features <dir>`。`render_delivery_acceptance.py` 由 feature 檔案加一份 run profile 產生交付驗收 register；`@platform:`、`@auth:` 與 `@env:` tag 只針對單一 scenario 覆寫 profile，register 不能手動編輯。加上 `--features` 與 `--features-base` 時，`check_prd_delta_scope.py` 要求 delta 中每個新增或修訂需求的 Required TEST 都有新增或改動的 scenario，否則拒絕。專案 AGENTS 模板新增 Behavior Specs 段落，Greenfield scaffold 會設定已批准的 BDD runner（新的 stack 層）及其 step definition 目錄。改 scenario 文字是產品決定，須走 PRD delta；只改 step definition 是現有 Epic 上的小修正。
@@ -206,7 +208,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.76.1** — 更快的 review 循環。motion receipt 按單一 intent 在代表性 target 上的離線 receipt 校驗，沙箱為 allowlisted-local-pages，不再要求 HiFi bundle 的 interaction、navigation 與 reviewer 證據，motion collector 因此能通過安裝的契約。沙箱內跑不了 git 的 reviewer 改用父程序以 `review_input.py` 產生的 packet（detached clone、按範圍切分的 diff、父程序 status 與全檔 SHA-256 清單）證明候選身分與 checkout 乾淨；有該 packet 時 git 失敗不再算 environment block。targeted re-check 後若仍有多個 finding family，合併成一次 consolidated repair，用一個 review point 審查，只有 packet 超過路線上限時才按路徑組拆分；pre-review gate 要求基線對比控件，對綁定的 base 位元組記錄每個案例的預期轉變（無效輸入 old=accept new=reject，恢復的合法行為 old=reject new=accept，保留的正向樣本兩邊都 accept）。
 
 - **0.76.0** — 更快的 UI review。PRD UI surface 可宣告 `derivedStates`，只在最小 target 取證一次；第一波 stress axes 改為代表性抽樣；isolated repair 最多兩次 scoped re-review。沿用改以 render fingerprint（幾何、computed styles 與媒體識別）而非頁面 bytes；re-review 與 parity 先 diff 再判，並加區域規則；一個 case 一張 capture 供所有觀察引用；motion 證據為單一代表 target 上的三項觀察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以單一瀏覽器 context 跑完整 HiFi 矩陣，`parity_capture.py` 每條路由兩側各載入一次、分類配對並沿用未變者。瀏覽器矩陣的獨立審查改為先驗收再抽樣，packet 在啟動前按路線上限切分，瀏覽器能力探測每 session 重用，必要檢查全過後 owner 接受即關閉該輪設計，一輪以進場時的 bundle pin 收尾。
-
-- **0.75.4** — Security 內容校訂。`security-review.md` 不再允許直接路線上的 inline security review，trust boundary 改從 PRD Security Requirements 列及其 `TEST-*` trace 取得，在受審 head 上確認每個 planned boundary 的 denial test，`scope` 逐字照抄 packet，並說明 environment block 的記錄方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到來源清單之前。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

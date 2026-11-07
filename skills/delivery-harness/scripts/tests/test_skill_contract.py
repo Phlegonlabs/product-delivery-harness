@@ -1616,7 +1616,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             )
 
         self.assertIn("Schema v10 additionally requires `plan_revision` and `plan_digest_sha256`", reference)
-        self.assertIn('"plan_digest_sha256": "<64-hex>"', reference)
+        self.assertIn("Record the authorized entry with `harness_transition.py record-grant`", reference)
         self.assertIn("the invalidation rule is inert there", reference)
 
     def test_unfilled_observed_snapshot_empties_dispatchable_nodes(self) -> None:
@@ -1849,7 +1849,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Host-specific context:", worker_goal)
         self.assertIn("Worker contract:", worker_goal)
         self.assertIn("Context source hashes:", worker_goal)
-        self.assertIn("parent ran `scripts/check_launch_packet.py` before dispatch", worker_goal)
+        self.assertIn("parent size-checked this packet", worker_goal)
         self.assertIn("resources, permissions, authorizations", worker_goal)
         self.assertIn("Keep automatic context discovery enabled", worker_goal)
         self.assertIn('path.open("xb")', configurator)

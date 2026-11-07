@@ -64,13 +64,16 @@ python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run
 
 PLAN is validated, RUN exists, and the first dispatch approaches. Recheck before each new wave.
 
-Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. Run the Environment Preflight once in the clean base checkout and record its rows in the Epic or task record. After every readiness row passes, set `plan_readiness: ready` through the parent-owned readiness procedure.
+Pass the Mission Cohesion Gate for every mission. Require one verifier per mission, one atomic commit boundary per executable task, and one bounded worker slice per task. Require an executable provider for every runtime-worker node. Record exact authorization in the RUN ledger: each action this run will take needs `authorized: true` with an explicit user source, exact scope, and `expires_when`; every other action, and `push` always, stays `authorized: false` ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)). Record live Git facts and capacity with `record-observation`; supply capacity flags only from observed host evidence. Validate the pair with the RUN bound. Run the Environment Preflight once in the clean base checkout and record its rows in the Epic or task record. After every readiness row passes, set `plan_readiness: ready` with `open-run`.
 
 **Commands in order**
 
 ```text
 python "<delivery-harness-skill-root>/scripts/configure_project_context.py" --root <root> --check --require-resolved
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> record-observation
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-grant --action <action> --expires-when <boundary> --source <owner words>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-runtime --provider <provider> --driver <driver> --route-caps <route>=<cap>=<n>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> open-run --intent plan-then-execute --source <owner words>
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
 ```
 
@@ -94,7 +97,7 @@ python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <
 
 `plan_readiness` is `ready`, the version gate passes, and execution plus launch authorization covers the wave.
 
-Acquire the durable run lock first. Refresh it with `heartbeat-run-lock`; every successful transition also refreshes it. Record the observation, then select the frontier with the read-only step command. Accept the proposal into RUN; recompute it when the revision, digest, or base went stale. Create each worktree and branch only under its own grants. `lease-worker` materializes exact targets only from active wildcard grants. Render the bounded `WORKER_GOAL.template.md` packet per mission. Check the complete packet before dispatch. Lease each worker, then launch every ready sibling before waiting on any result. From `accept-wave` until each `record-integration`, the run branch takes only the mission merge: leave RUN and the declared tasks view uncommitted, write Epic and DECISIONS entries only after `record-integration` (they are not exempt from the clean check), and commit them as the coordination child.
+Acquire the durable run lock first. Refresh it with `heartbeat-run-lock`; every successful transition also refreshes it. Record the observation, then select the frontier with the read-only step command. Accept the proposal into RUN; recompute it when the revision, digest, or base went stale. Create each worktree and branch only under its own grants. `lease-worker` materializes exact targets only from active wildcard grants. With `--packet-out` and `--max-message-bytes`, the same call renders the bounded `WORKER_GOAL.template.md` packet, checks it before the RUN write, and creates it after. Lease each worker, then launch every ready sibling before waiting on any result. From `accept-wave` until each `record-integration`, the run branch takes only the mission merge: leave RUN and the declared tasks view uncommitted, write Epic and DECISIONS entries only after `record-integration` (they are not exempt from the clean check), and commit them as the coordination child.
 
 **Commands in order**
 
@@ -103,8 +106,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-observation
 python "<delivery-harness-skill-root>/scripts/harness_step.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> accept-wave --wave-id <id> --mission-id <id> --batch-base-sha <sha>
-python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> lease-worker --mission-id <id> --node-id <id> --worker-id <id> --lease-id <id> --attempt-id <id> --branch-ref <branch-ref> --worktree-path <worktree-path>
-python "<delivery-harness-skill-root>/scripts/check_launch_packet.py" --message-file <file> --max-message-bytes <n>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> lease-worker --mission-id <id> --node-id <id> --worker-id <id> --lease-id <id> --attempt-id <id> --branch-ref <branch-ref> --worktree-path <worktree-path> --packet-out <file> --max-message-bytes <n>
 ```
 
 **Stop when**
@@ -136,6 +138,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> reserve-node-attempt --node-id <id> --attempt-id <id> --request-out <file>
 python "<delivery-harness-skill-root>/scripts/verifier_runtime.py" --request <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-node-result --node-id <id> --attempt-id <id> --outcome pass --evidence <text> --verifier-result <file>
+python "<delivery-harness-skill-root>/scripts/build_verifier_request.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --mission-id <id> --verifier-id <id> --layer mission_integration --integrated-sha <sha> --out <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-integration --mission-id <id> --integrated-sha <sha>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> close-wave --source <text>
 ```
@@ -190,12 +193,13 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 Every mission is integrated, the review converged, and final gates have run on the exact head.
 
-Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--prd <PRD.md>` when PLAN freezes a PRD, and `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Then check the remaining Closeout Bar rows. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
+Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--prd <PRD.md>` when PLAN freezes a PRD, and `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Then check the remaining Closeout Bar rows. Record the close with `close-run`; it sets `status: complete` and preserves the run branch at the integration head. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
 
 **Commands in order**
 
 ```text
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> close-run --source <owner words>
 python "<delivery-harness-skill-root>/scripts/render_tasks_view.py" --plan <PLAN.md> --run <RUN.md> --out docs/tasks.md --repo-root <root> --check
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> release-run-lock
 ```

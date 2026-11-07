@@ -44,6 +44,20 @@ def save_state():
             json.dump(state, handle)
 
 
+def hifi_control(env):
+    # Result of parity_capture's package target/state control evals.
+    mode = os.environ.get(env, "ok")
+    if mode == "missing":
+        if env == "STUB_HIFI_TARGET":
+            return {"applied": False, "clean": True, "reason": "target control missing: 390"}
+        return {"applied": False, "clean": True, "reason": "state control missing: UI-001 ready"}
+    if mode == "notapplied":
+        if env == "STUB_HIFI_TARGET":
+            return {"applied": False, "clean": False, "reason": "target did not apply: 768"}
+        return {"applied": False, "clean": False, "reason": "state did not apply: UI-001 ready"}
+    return {"applied": True, "clean": True, "reason": None}
+
+
 def solid_png(size, color, patch=None):
     # A tiny truecolor PNG; an optional (w, h) patch at the top left is red.
     width, height = (int(part) for part in size.split("x"))
@@ -112,6 +126,10 @@ if argv[:1] == ["eval"]:
     elif "prefers-reduced-motion" in body:
         print(json.dumps({"scheme": state.get("scheme", "light"),
                           "reduced": state.get("reduced", False)}))
+    elif "data-hifi-state-control" in body:
+        print(json.dumps(hifi_control("STUB_HIFI_STATE")))
+    elif "data-hifi-target-control" in body:
+        print(json.dumps(hifi_control("STUB_HIFI_TARGET")))
     else:
         print("undefined")
     raise SystemExit(0)
@@ -120,7 +138,7 @@ print("stub ok")
 
 STUB_ENV = (
     "PATH", "STUB_LOG", "STUB_STATE", "STUB_PROBE_RESULT", "STUB_GEOMETRY_MODE",
-    "STUB_GEOMETRY_SCANNED", "STUB_SHOT_MODE",
+    "STUB_GEOMETRY_SCANNED", "STUB_SHOT_MODE", "STUB_HIFI_TARGET", "STUB_HIFI_STATE",
     "STUB_SHOT_SIZE_TARGET", "STUB_SHOT_SIZE_ACTUAL",
     "STUB_SHOT_COLOR_TARGET", "STUB_SHOT_COLOR_ACTUAL",
     "STUB_SHOT_PATCH_TARGET", "STUB_SHOT_PATCH_ACTUAL",

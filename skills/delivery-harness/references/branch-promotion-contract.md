@@ -79,17 +79,17 @@ Promotion to main requires all these conditions:
    Do not push, force, or delete a protected branch to test protection, and never claim that this source edit configured it.
    If the host refuses the protection or ruleset read, for example HTTP 403 on a private plan, record `unavailable` with the HTTP status and message. Condition 2 then stays unmet: landing waits for a recorded owner decision that names its scope, and every other condition still applies.
 3. Preview evidence records the PR or branch, immutable deployment identity, observed URL, deployed SHA and acceptance result.
-4. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base.
+4. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base. Run `promotion_readback.py pre` to read remote `refs/heads/main` once and record its JSON.
 5. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
 6. Use the required PR or merge-queue mechanism. A direct authorized update must be a fast-forward to that exact SHA.
-7. Fetch and read back main. If the server creates SHA S, require its tree to equal the verified candidate tree; S then inherits the candidate's evidence with its original origin.
+7. Fetch and read back main. After the separately authorized fetch, `promotion_readback.py post` proves main ancestry and tree equality. If the server creates SHA S, require its tree to equal the verified candidate tree; S then inherits the candidate's evidence with its original origin.
 8. A different tree is a new candidate: verify it as an exact SHA before promotion or release completion.
 9. Verify the production deployment and required smoke against the actual main SHA, independently of Preview acceptance.
 
 A moving branch Preview URL is not immutable evidence. Record the fixed deployment URL or identity alongside the Git SHA.
 A changed tree, repaired code or configuration invalidates earlier exact-SHA evidence.
 Only receipt-verified archive A and provider-created tree-equal main S use the inheritance exceptions defined here.
-Record S's observed SHA, exact tree-equality proof and original candidate/result identities.
+Record S's observed SHA, the `post` JSON and original candidate/result identities.
 Do not repeat the full suite or security review solely because the server assigned tree-equal S a new SHA.
 Never relabel inherited candidate, security or CI results as fresh executions at S.
 A different tree is a new candidate and needs fresh applicable checks and exact-SHA security review.

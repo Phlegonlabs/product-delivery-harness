@@ -12,6 +12,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -28,12 +29,112 @@ SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import check_ui_design_contract as checker  # noqa: E402
 import hifi_matrix_capture as m  # noqa: E402
+import ui_design_v3  # noqa: E402
 from assemble_ui_review import assemble  # noqa: E402
 from review_evidence import build_receipt  # noqa: E402
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures/matrix-hifi"
 HAS_PILLOW = importlib.util.find_spec("PIL") is not None
 PACKAGE_DIR = "docs/design/ui-references/matrix"
+# The navigate interactions the fixture pages really support: one product anchor per surface's ready view.
+INTERACTIONS = [
+    {"id": "UI-001-to-details", "source": {"surface": "UI-001", "state": "ready"},
+     "control": "to-details", "kind": "navigate", "destination": {"surface": "UI-002", "state": "ready"}},
+    {"id": "UI-002-to-desk", "source": {"surface": "UI-002", "state": "ready"},
+     "control": "to-desk", "kind": "navigate", "destination": {"surface": "UI-001", "state": "ready"}},
+]
+
+
+def build_interactions_package(root, interactions=INTERACTIONS, **kwargs):
+    """The fixture with its real product anchors declared as manifest interactions."""
+    return build_package(root, manifest_edit=lambda manifest: manifest.update(interactions=interactions), **kwargs)
+
+
+def bundle_contract(package):
+    """The reviewer rows the checker derives for an assembled package, plus its findings."""
+    documents = {name: (package / name).read_text(encoding="utf-8")
+                 for name in ("index.html", *(row["path"] for row in json.loads(
+                     m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data")
+                 ).get("pages", [])))}
+    manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
+    return checker.reviewer_contract(documents, manifest)
+
+
+def build_specimens_package(root):
+    """The fixture with a complete reviewer: summaries, state coverage and source-bound specimens.
+
+    ``reviewer_contract`` derives its rows with no findings, so the browser-measured
+    reviewer object can be checked against it. Synthetic fixture only."""
+    css = ".product-link{color:var(--ink)}.product-feedback{color:var(--ink)}.desk>h1{color:var(--accent)}"
+    child_tokens = ' style="--ink:#16324f;--paper:#f4f7fa;--accent:#2f6f8f;--alarm:#b3261e"'
+
+    def edits(html):
+        index = "Harbor desk" in html
+        page = "index.html" if index else "details.html"
+        html = html.replace("</style>", css + "</style>", 1)
+        html = re.sub(r'(<section class="card[^"]*" data-hifi-state-view="[\w-]+")',
+                      r'\1 data-responsive-target="390"', html)
+        states = ("ready", "loading", "empty") if index else ("ready", "loading", "error")
+        copies = "".join(f'<section class="card" data-hifi-state-view="{state}" data-responsive-target="1200" hidden>'
+                         f"<p>{state} wide.</p></section>" for state in states)
+        link = ' class="product-link" data-specimen-variant="default" data-specimen-state="default"'
+        html = html.replace('<a href="details.html" data-navigation-id="to-details">',
+                            f'<a href="details.html"{link} data-navigation-id="to-details">')
+        html = html.replace('<a href="index.html" data-navigation-id="to-desk">',
+                            f'<a href="index.html"{link} data-navigation-id="to-desk">')
+        html = html.replace("</main>",
+                            '<section class="product-feedback" data-specimen-variant="default" '
+                            f'data-specimen-state="default">Saved locally.</section>{copies}</main>', 1)
+        if not index:
+            return html
+
+        def token(name, source_page, prop, preview, style=""):
+            return (f'<article data-hifi-spec="token" data-name="{name}" data-source-page="{source_page}" '
+                    f'data-source=":root" data-property="{prop}" data-variant="default" data-state="default" '
+                    f'data-token-preview="{preview}" data-token-purpose="Readable product text" '
+                    f'data-specimen-element="span"><span{style} data-hifi-specimen-content="{name} specimen">Aa'
+                    f"</span><output></output></article>")
+
+        def bound(kind, name, source_page, element, cls, sample):
+            return (f'<article data-hifi-spec="{kind}" data-name="{name}" data-source-page="{source_page}" '
+                    f'data-source="{cls}" data-property="color" data-variant="default" '
+                    f'data-state="default" data-specimen-element="{element}">{sample}<output></output></article>')
+
+        specimens = (token("Desk ink", page, "--ink", "color")
+                     + token("Desk paper", page, "--paper", "background-color")
+                     + token("Desk accent", page, "--accent", "color")
+                     + token("Berth ink", "details.html", "--ink", "color", child_tokens)
+                     + token("Berth paper", "details.html", "--paper", "background-color", child_tokens)
+                     + token("Berth accent", "details.html", "--accent", "color", child_tokens)
+                     + token("Berth alarm", "details.html", "--alarm", "color", child_tokens)
+                     + bound("component", "Desk action link", page, "a", ".product-link",
+                             '<a class="product-link" href="#design-tokens" '
+                             'data-hifi-specimen-content="link specimen">Open tokens</a>')
+                     + bound("component", "Berth action link", "details.html", "a", ".product-link",
+                             '<a class="product-link" href="#design-tokens" '
+                             'data-hifi-specimen-content="link specimen">Open tokens</a>')
+                     + bound("pattern", "Desk feedback", page, "section", ".product-feedback",
+                             '<section class="product-feedback" '
+                             'data-hifi-specimen-content="feedback specimen">Saved locally.</section>')
+                     + bound("pattern", "Berth feedback", "details.html", "section", ".product-feedback",
+                             '<section class="product-feedback" '
+                             'data-hifi-specimen-content="feedback specimen">Saved locally.</section>'))
+        coverage = lambda surface, page_name, route, states: (
+            f'<article data-hifi-summary="{surface}" data-route="{route}" data-states="{" ".join(states)}" '
+            f'data-targets="390 1200"><h2>{surface}</h2><p>Screen purpose and contents.</p>'
+            + "".join(f'<a data-hifi-state-coverage="{surface} {state}" data-state-destination="{state}" '
+                      f'href="{page_name}">Open {state}</a>' for state in states) + "</article>")
+        overview = (coverage("UI-001", "index.html", "/", ("ready", "loading", "empty"))
+                    + coverage("UI-002", "details.html", "/details", ("ready", "loading", "error")))
+        html = html.replace('<section data-hifi-panel="overview" hidden><h1 tabindex="-1">Overview</h1></section>',
+                            f'<section data-hifi-panel="overview" hidden><h1 tabindex="-1">Overview</h1>'
+                            f"{overview}</section>")
+        html = html.replace('<section data-hifi-panel="design-tokens" hidden><h1 tabindex="-1">Design Tokens</h1></section>',
+                            '<section data-hifi-panel="design-tokens" hidden><h1 tabindex="-1">Design Tokens</h1>'
+                            f"{specimens}</section>")
+        return html
+
+    return build_package(root, page_edit=edits)
 
 
 def size_classes(html):
@@ -109,11 +210,15 @@ class FakeDriver:
         self.environment = {"playwright": "fake", "chromium": "fake", "node": "fake"}
         self.calls, self.restarts, self.axis = [], 0, None
         self.overrides = {}      # (surface, state, target) -> {"geometry", "events", "raise", "style", "inputs", "incomplete"}
+        self.interact_scripts = {}   # (id, target, trigger) -> {"problems", "visible", "focusCorrect", "arrivedTo", "raise", "events"}
         self.open_events = {}    # page -> events
         self.open_error = {}     # page -> exception
         self.axis_events = {}    # axis -> events
         self.axis_error = {}     # axis name (or "none") -> exception raised by the axis op
         self.paint = {}          # capture name -> text that changes its pixels
+        self.reviewer_overrides = {}   # (surface, target) -> {"width", "container", "media", "visible"}
+        self.reviewer_events = {}      # page -> events
+        self.reviewer_error = {}       # page -> exception raised by the reviewer op
 
     def start(self):
         pass
@@ -143,12 +248,15 @@ class FakeDriver:
         return {"result": {}, "events": {}}
 
     def _case(self, fields):
-        key = (fields["surface"], fields["state"], fields["target"])
+        # An intermediate case drives the shell at its smallest target but is keyed by the width it asks for.
+        width_key = str(int(fields["widthPx"])) if fields.get("widthPx") else fields["target"]
+        key = (fields["surface"], fields["state"], width_key)
         script = self.overrides.get(key, {})
         if "raise" in script:
             raise script["raise"]
+        width = fields.get("widthPx") or (float(fields["target"]) if fields["target"].isdigit() else 0.0)
         geometry = {
-            "canvasWidth": float(fields["target"]) if fields["target"].isdigit() else 0.0,
+            "canvasWidth": width,
             "surface": {"x": 0, "y": 0, "width": 390, "height": 300}, "scrollWidth": 390, "clientWidth": 390,
             "scrollHeight": 300, "clientHeight": 300, "overflowX": 0, "elementCount": 3 + len(fields["state"]),
             "scanned": 3, "overlapCount": 0, "overlaps": [], "stateViews": 1,
@@ -162,6 +270,58 @@ class FakeDriver:
                  "inputsSha256": sha("inputs" + script.get("inputs", "")), "incomplete": script.get("incomplete", False)}
         return {"result": {"problems": script.get("problems", []), "probe": None if script.get("problems") else probe,
                            "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}, "events": events}
+
+    def _interact(self, fields):
+        script = self.interact_scripts.get((fields["interaction"], fields["target"], fields["trigger"]), {})
+        if "raise" in script:
+            raise script["raise"]
+        events = dict(script.get("events", {}))
+        if fields["kind"] == "navigate":
+            events.setdefault("navigation", [{"url": "https://hifi.invalid/pkg/" + fields["destinationPage"],
+                                              "method": "GET", "resourceType": "document", "allowlisted": True}])
+        problems = script.get("problems", [])
+        result = {"problems": problems, "visible": script.get("visible", not problems),
+                  "focusCorrect": script.get("focusCorrect", None if problems else True),
+                  "arrivedTo": script.get("arrivedTo", fields["destinationPage"] if fields["kind"] == "navigate" else None)}
+        return {"result": result, "events": events}
+
+    @staticmethod
+    def _identity(spec):
+        keys = ("kind", "name", "sourcePage", "source", "property", "variant", "state", "element", "sharedGroup")
+        return {key: spec[key] for key in keys}
+
+    def _source_read(self, spec):
+        row = dict(self._identity(spec), sourceValue="#243447", sourceComputedValue=None)
+        if spec["kind"] == "token":
+            row["sourceComputedValue"] = "rgb(36, 52, 71)"
+        return row
+
+    def _display_read(self, spec):
+        row = dict(self._identity(spec), specimenValue="#243447", displayValue="#243447", specimenComputedValue=None)
+        if spec["kind"] == "token":
+            row["specimenComputedValue"] = "rgb(36, 52, 71)"
+        return row
+
+    def _reviewer(self, fields):
+        page = fields["page"]
+        self.calls.append(("open", {"page": page}))   # the real handler reopens the page fresh
+        if page in self.reviewer_error:
+            raise self.reviewer_error[page]
+        result = {}
+        if fields.get("entry"):
+            result["entry"] = {"defaultSurface": "UI-001", "defaultVisible": True, "overviewInitiallyHidden": True}
+        result["sources"] = [self._source_read(spec) for spec in fields.get("sources", [])]
+        result["reads"] = [self._display_read(spec) for spec in fields.get("reads", [])]
+        viewport = []
+        for row in fields.get("viewport", []):
+            script = self.reviewer_overrides.get((row["surface"], row["target"]), {})
+            viewport.append({"surface": row["surface"], "target": row["target"],
+                             "measuredProductWidth": script.get("width", row["expectedWidth"]),
+                             "containerQueryApplied": script.get("container", True),
+                             "hostMediaQueryApplied": script.get("media", False),
+                             "visibleSurfaces": script.get("visible", [row["surface"]])})
+        result["viewport"] = viewport
+        return {"result": result, "events": self.reviewer_events.get(page, {})}
 
     def _shot(self, fields):
         path = Path(fields["path"])
@@ -185,14 +345,20 @@ class Cli:
         self.root = Path(self.tmp.name)
         self.package = build_package(self.root)
         self.runs = 0
+        self.driver_schemes = []
+
+    def make_driver(self, package, root, scratch, color_scheme="light"):
+        self.driver_schemes.append(color_scheme)
+        return self.test_driver
 
     def run(self, driver, *extra, out=None, package=None):
         self.runs += 1
+        self.test_driver = driver
         out = out or f"docs/evidence/run{self.runs}"
         argv = ["--repo-root", str(self.root), "--package", str(package or self.package), "--out", out, *extra]
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            code = m.main(argv, make_driver=lambda package, root, scratch: driver)
+            code = m.main(argv, make_driver=self.make_driver)
         text = buffer.getvalue().strip().splitlines()
         return code, json.loads(text[-1]) if text else {}, self.root / out
 
@@ -261,6 +427,19 @@ class MatrixExpansionTests(unittest.TestCase):
         no_ready = m.sample_axis_cases([self.surface(states=("idle", "busy:n/a"))], "index.html", widths, {})
         self.assertEqual({"idle"}, {c.state for c in no_ready})
 
+    def test_the_reflow_axis_keeps_the_sampled_states_at_the_smallest_target(self):
+        rows = [self.surface(states=("ready", "loading", "empty"), targets=(768, 390, 1200))]
+        widths = {"390": 390, "768": 768, "1200": 1200}
+        counts = {("UI-001", "ready"): 9, ("UI-001", "loading"): 4, ("UI-001", "empty"): 30}
+        sampled = m.sample_axis_cases(rows, "index.html", widths, counts)
+        self.assertEqual([("ready", "390"), ("ready", "1200"), ("empty", "390"), ("empty", "1200")],
+                         [(c.state, c.target) for c in sampled])
+        reflow = m.reflow_axis_cases(rows, sampled, widths)
+        self.assertEqual([("ready", "390"), ("empty", "390")], [(c.state, c.target) for c in reflow])
+        classes = [self.surface(states=("ready",), targets=("compact", "regular"))]
+        sampled = m.sample_axis_cases(classes, "index.html", {}, {})
+        self.assertEqual([("ready", "compact")], [(c.state, c.target) for c in m.reflow_axis_cases(classes, sampled, {})])
+
 
 class NamingAndFingerprintTests(unittest.TestCase):
     def test_capture_name_carries_a_stable_tuple_hash(self):
@@ -305,14 +484,16 @@ class RunOutputTests(unittest.TestCase):
         code, summary, out = cli.run(FakeDriver())
         self.assertEqual(0, code, summary)
         output, sidecar = cli.load(out)
-        self.assertEqual(["schema", "check", "subject", "matrix", "results", "sandbox", "console", "network",
-                          "navigation", "popups", "forms", "popupAttempts", "formAttempts", "execution"], list(output))
+        self.assertEqual(["schema", "check", "subject", "matrix", "results", "interactions", "reviewer", "sandbox",
+                          "console", "network", "navigation", "popups", "forms", "popupAttempts", "formAttempts",
+                          "execution"], list(output))
         self.assertEqual(("ui-output/3", "hifi-browser"), (output["schema"], output["check"]))
         self.assertEqual({"path": f"{PACKAGE_DIR}/index.html", "sha256": hashlib.sha256(
             (cli.package / "index.html").read_bytes()).hexdigest()}, output["subject"])
         self.assertEqual(12, len(output["matrix"]["cases"]))
         self.assertEqual(output["matrix"]["cases"], [{k: r[k] for k in ("surface", "state", "target")} for r in output["results"]])
         self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual(([], []), (output["interactions"], output["navigation"]))
         self.assertEqual({"network": "disabled", "topNavigation": "allowlisted-local-pages", "popups": "blocked",
                           "forms": "blocked"}, output["sandbox"])
         execution = output["execution"]
@@ -338,7 +519,9 @@ class RunOutputTests(unittest.TestCase):
     def test_each_page_opens_once_and_cases_never_reload(self):
         cli, driver = Cli(self), FakeDriver()
         cli.run(driver)
-        self.assertEqual(["index.html", "details.html"], [f["page"] for op, f in driver.calls if op == "open"])
+        opens = [f["page"] for op, f in driver.calls if op == "open"]
+        self.assertEqual(["index.html", "details.html"], opens[:2])   # the matrix opens each page once
+        self.assertEqual(["index.html", "details.html"], opens[2:])   # the reviewer pass reopens each, fresh
         self.assertEqual(12, driver.count("case"))
 
     def test_only_writes_a_partial_matrix(self):
@@ -398,6 +581,31 @@ class RunOutputTests(unittest.TestCase):
         _, _, out = cli.run(driver, "--axes", "dark", "--derived-once", "--ui-design", str(design))
         axis_states = {r["state"] for r in cli.load(out)[1]["axes"] if r["surface"] == "UI-001"}
         self.assertEqual({"ready", "loading"}, axis_states)
+
+    def test_dark_runs_the_whole_matrix_in_the_dark_context_and_records_it(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver, "--color-scheme", "dark")
+        output, sidecar = cli.load(out)
+        self.assertEqual(0, code, summary)
+        self.assertEqual(["dark"], cli.driver_schemes)
+        self.assertEqual("dark", sidecar["run"]["colorScheme"])
+        self.assertEqual(12, len(output["results"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_light_is_the_default_scheme_and_stays_unrecorded(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, _, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        self.assertEqual((0, ["light"], None), (code, cli.driver_schemes, sidecar["run"]["colorScheme"]))
+
+    def test_an_unknown_color_scheme_is_refused_before_any_browser_work(self):
+        cli, driver = Cli(self), FakeDriver()
+        with self.assertRaises(SystemExit) as raised:
+            cli.run(driver, "--color-scheme", "nocturnal")
+        self.assertEqual(2, raised.exception.code)
+        self.assertEqual([], driver.calls)
+        self.assertEqual([], cli.driver_schemes)
 
 
 class CarryTests(unittest.TestCase):
@@ -607,6 +815,35 @@ class AxisTests(unittest.TestCase):
         self.assertEqual(["dark", "none", "zoom-200", "none"] * 2, applied)
         self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
 
+    def test_reflow_320_runs_the_sampled_states_at_the_smallest_target_and_a_320px_canvas(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver, "--axes", "reflow-320")
+        output, sidecar = cli.load(out)
+        self.assertEqual(0, code, summary)
+        self.assertEqual((12, 4, 0), (len(output["matrix"]["cases"]), summary["axisCases"], summary["axisFail"]))
+        # per surface: ready + the busiest state (loading, most nodes), once, at the smallest target
+        self.assertEqual([("UI-001", "ready", "390"), ("UI-001", "loading", "390"),
+                          ("UI-002", "ready", "390"), ("UI-002", "loading", "390")],
+                         [(r["surface"], r["state"], r["target"]) for r in sidecar["axes"]])
+        self.assertEqual({"reflow-320"}, {r["axis"] for r in sidecar["axes"]})
+        self.assertEqual([("390", 320.0)] * 4, [(f["target"], f["widthPx"])
+                                                for op, f in driver.calls if op == "case" and f["widthPx"]])
+        self.assertTrue(all(r["geometry"]["canvasWidth"] == 320.0 for r in sidecar["axes"]))
+        self.assertEqual(["reflow-320", "none"] * 2, [f["name"] for op, f in driver.calls if op == "axis"])
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_a_reflow_case_fails_on_the_wrong_width_or_overflow_but_not_the_base_matrix(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.overrides[("UI-001", "ready", "320")] = {"geometry": {"canvasWidth": 390.0}}
+        driver.overrides[("UI-002", "loading", "320")] = {"geometry": {"overflowX": 30}}
+        code, summary, out = cli.run(driver, "--axes", "reflow-320")
+        output, sidecar = cli.load(out)
+        self.assertEqual(1, code)
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual((4, 2), (summary["axisCases"], summary["axisFail"]))
+        failed = {(r["surface"], r["state"]): r["reasons"] for r in sidecar["axes"] if r["result"] != "PASS"}
+        self.assertIn("the reflow-320 axis needs 320px", " | ".join(failed[("UI-001", "ready")]))
+        self.assertIn("horizontal overflow 30px", " | ".join(failed[("UI-002", "loading")]))
     def test_axis_artifacts_are_bound_in_the_execution_block(self):
         cli = Cli(self)
         _, _, out = cli.run(FakeDriver(), "--axes", "dark")
@@ -678,11 +915,336 @@ class AxisTests(unittest.TestCase):
         self.assertEqual((4, 4), (summary["axisCases"], summary["axisFail"]))
         self.assertTrue(all(r["result"] == "BLOCKED" and "restart limit" in r["reasons"][0] for r in axes))
 
-    def test_the_four_axes_are_supported_and_others_refused(self):
-        self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200"), m.AXES)
+    def test_the_five_axes_are_supported_and_others_refused(self):
+        self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320"), m.AXES)
         code, summary, _ = Cli(self).run(FakeDriver(), "--axes", "sepia")
         self.assertEqual(2, code)
         self.assertIn("sepia", summary["error"])
+
+
+class IntermediateTests(unittest.TestCase):
+    def plan(self, surfaces):
+        return m.intermediate_plan(m.Package({"surfaces": surfaces}, {}, {}, {}, {}))
+
+    def surface(self, ident="UI-001", states=("ready", "loading"), targets=(390, 1200), page="index.html"):
+        return {"id": ident, "page": page, "route": "/", "states": list(states),
+                "responsive": {"kind": "viewports", "targets": list(targets)}}
+
+    def test_the_plan_midpoints_every_adjacent_pair_for_every_observed_state(self):
+        plan = self.plan([self.surface(states=("ready", "error:n/a", "loading"), targets=(768, 390, 1200)),
+                          self.surface("UI-002", ("ready",), targets=("compact", "regular"), page="details.html")])
+        self.assertEqual([("UI-001", "ready", "579"), ("UI-001", "ready", "984"),
+                          ("UI-001", "loading", "579"), ("UI-001", "loading", "984")], [c.key for c in plan])
+        self.assertEqual(("index.html", "index.html", "index.html", "index.html"), tuple(c.page for c in plan))
+
+    def test_the_plan_needs_two_distinct_numeric_targets(self):
+        self.assertEqual([], self.plan([self.surface(targets=(390,)), self.surface("UI-002", targets=("compact", "regular")),
+                                        self.surface("UI-003", targets=[]), self.surface("UI-004", states=("busy:n/a",))]))
+        self.assertEqual([("UI-001", "ready", "795"), ("UI-001", "loading", "795")],
+                         [c.key for c in self.plan([self.surface(targets=(1200, 390, 390))])])
+        self.assertEqual([("UI-001", "ready", "579.5"), ("UI-001", "loading", "579.5")],
+                         [c.key for c in self.plan([self.surface(targets=(390, 769))])])
+
+    def test_only_narrows_the_intermediate_pass(self):
+        package = m.Package({"surfaces": [self.surface(), self.surface("UI-002", ("ready",))]}, {}, {}, {}, {})
+        self.assertEqual({"UI-001", "UI-002"}, {c.surface for c in m.intermediate_plan(package)})
+        self.assertEqual({"UI-002"}, {c.surface for c in m.intermediate_plan(package, only={"UI-002"})})
+
+    def test_intermediate_writes_a_second_output_the_checker_can_receipt(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver, "--intermediate")
+        output, sidecar = cli.load(out)
+        self.assertEqual((0, 12), (code, len(output["matrix"]["cases"])))
+        inter_output, inter_sidecar = cli.load(out / m.INTERMEDIATE_DIR)
+        self.assertEqual(("ui-output/3", "hifi-browser"), (inter_output["schema"], inter_output["check"]))
+        self.assertEqual([("UI-001", "ready", "795"), ("UI-001", "loading", "795"), ("UI-001", "empty", "795"),
+                          ("UI-002", "ready", "795"), ("UI-002", "loading", "795"), ("UI-002", "error", "795")],
+                         [(c["surface"], c["state"], c["target"]) for c in inter_output["matrix"]["cases"]])
+        self.assertEqual([dict(case, result="PASS") for case in inter_output["matrix"]["cases"]], inter_output["results"])
+        self.assertTrue(all(r["geometry"]["canvasWidth"] == 795.0 for r in inter_sidecar["cases"]))
+        self.assertEqual({"output": f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}", "cases": 6, "fail": 0,
+                          "interactionsFail": 0, "findings": []}, summary["intermediate"])
+        self.assertEqual(summary["intermediate"], sidecar["run"]["intermediate"])
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}")["result"])
+
+    def test_the_intermediate_pass_reopens_each_page_and_overrides_the_canvas_width(self):
+        cli, driver = Cli(self), FakeDriver()
+        cli.run(driver, "--intermediate")
+        # base matrix opens, the reviewer pass reopens, then the intermediate sweep opens again (no reviewer there)
+        self.assertEqual(["index.html", "details.html"] * 3,
+                         [f["page"] for op, f in driver.calls if op == "open"])
+        base = [f for op, f in driver.calls if op == "case" and not f["widthPx"]]
+        inter = [f for op, f in driver.calls if op == "case" and f["widthPx"]]
+        self.assertEqual((12, 6), (len(base), len(inter)))
+        self.assertEqual([None] * 12, [f["widthPx"] for f in base])
+        # every intermediate case drives the surface's smallest shell target and widens the canvas to its midpoint
+        self.assertEqual([("390", 795.0)] * 6, [(f["target"], f["widthPx"]) for f in inter])
+
+    def test_a_failing_intermediate_case_fails_the_run_but_not_the_base_matrix(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.overrides[("UI-001", "ready", "795")] = {"geometry": {"canvasWidth": 390.0}}
+        driver.overrides[("UI-002", "error", "795")] = {"geometry": {"overflowX": 30}}
+        code, summary, out = cli.run(driver, "--intermediate")
+        output, _ = cli.load(out)
+        inter_output, inter_sidecar = cli.load(out / m.INTERMEDIATE_DIR)
+        self.assertEqual(1, code)
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual({"FAIL", "PASS"}, {r["result"] for r in inter_output["results"]})
+        self.assertEqual((6, 2), (summary["intermediate"]["cases"], summary["intermediate"]["fail"]))
+        reasons = {r["surface"]: r["reasons"][0] for r in inter_sidecar["cases"] if r["result"] == "FAIL"}
+        self.assertIn("the intermediate width needs 795px", reasons["UI-001"])
+        self.assertIn("horizontal overflow 30px", reasons["UI-002"])
+
+    def test_the_coverage_self_check_flags_a_tampered_output(self):
+        cli = Cli(self)
+        code, _, out = cli.run(FakeDriver(), "--intermediate")
+        self.assertEqual(0, code)
+        inter_output, _ = cli.load(out / m.INTERMEDIATE_DIR)
+        package = m.read_package(cli.package)
+        plan = m.intermediate_plan(package)
+        self.assertEqual([], m.intermediate_findings(package, plan, inter_output["results"]))
+        findings = m.intermediate_findings(package, plan, inter_output["results"][3:])
+        self.assertEqual(["Intermediate width check is missing UI-001 between 390px and 1200px"], findings)
+
+    def test_intermediate_without_a_web_interval_is_refused_before_any_browser_work(self):
+        cli = Cli(self)
+        shutil.rmtree(cli.root / "docs")
+        cli.package = build_package(cli.root, page_edit=size_classes, manifest_edit=lambda manifest: [
+            row["responsive"].update(kind="sizeClasses", targets=["compact", "regular"]) for row in manifest["surfaces"]])
+        driver = FakeDriver()
+        code, summary, _ = cli.run(driver, "--intermediate")
+        self.assertEqual(2, code)
+        self.assertIn("numeric viewport widths", summary["error"])
+        self.assertEqual([], driver.calls)
+
+
+class InteractionTests(unittest.TestCase):
+    def package(self, interactions, surfaces=None):
+        rows = surfaces or [
+            {"id": "UI-001", "page": "index.html", "states": ["ready", "loading"], "responsive": {"targets": [390, 1200]}},
+            {"id": "UI-002", "page": "details.html", "states": ["ready", "error"], "responsive": {"targets": [390, 1200]}}]
+        return m.Package({"surfaces": rows, "interactions": interactions}, {}, {}, {}, {})
+
+    def cli(self):
+        cli = Cli(self)
+        cli.package = build_interactions_package(cli.root)
+        return cli
+
+    def test_the_plan_follows_manifest_order_and_the_source_targets(self):
+        actions = [dict(INTERACTIONS[0]), {"id": "UI-001-show", "source": {"surface": "UI-001", "state": "ready"},
+                                           "control": "show", "kind": "state",
+                                           "destination": {"surface": "UI-001", "state": "loading"}}]
+        plan = m.interaction_plan(self.package(actions))
+        self.assertEqual(["UI-001-to-details", "UI-001-show"], [a["id"] for a in plan])
+        self.assertEqual(("index.html", "details.html"), (plan[0]["page"], plan[0]["destinationPage"]))
+        self.assertEqual(["390", "1200"], plan[0]["targets"])
+        self.assertEqual({"surface": "UI-001", "state": "ready"}, plan[0]["source"])
+
+    def test_only_keeps_the_selected_surfaces_interactions(self):
+        self.assertEqual(["UI-002-to-desk"], [a["id"] for a in m.interaction_plan(self.package(INTERACTIONS), only={"UI-002"})])
+
+    def test_a_malformed_manifest_refuses_before_any_browser_work(self):
+        good = dict(INTERACTIONS[0])
+        cases = [
+            (None, "interactions list"),
+            ([dict(good, id="")], "needs id, source, control, kind and destination"),
+            ([dict(good, control=" ")], "needs id, source, control, kind and destination"),
+            ([{"source": good["source"], "control": "c", "kind": "navigate", "destination": good["destination"]}],
+             "needs id, source, control, kind and destination"),
+            ([dict(good, kind="hover")], "unknown kind"),
+            ([dict(good, source={"surface": "UI-009", "state": "ready"})], "unknown source surface state"),
+            ([dict(good, destination={"surface": "UI-002", "state": "nope"})], "unknown destination surface state"),
+            ([good, dict(good, control="other")], "duplicate interaction id"),
+        ]
+        driver = FakeDriver()
+        for interactions, message in cases:
+            with self.subTest(message=message):
+                cli = Cli(self)
+                cli.package = build_interactions_package(cli.root, interactions=interactions)
+                code, summary, _ = cli.run(driver)
+                self.assertEqual(2, code, message)
+                self.assertIn(message, summary["error"], message)
+        self.assertEqual([], driver.calls)
+
+    def test_the_default_run_writes_the_rows_the_checker_expects(self):
+        cli, driver = self.cli(), FakeDriver()
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        manifest = json.loads(m.HIFI_MANIFEST_RE.search((cli.package / "index.html").read_text(encoding="utf-8")).group("data"))
+        expected, navigation = checker._interaction_expectations(manifest)
+        self.assertEqual(0, code, summary)
+        self.assertEqual((expected, navigation), (output["interactions"], output["navigation"]))
+        self.assertEqual((8, 0), (summary["interactions"], summary["interactionsFail"]))
+        self.assertEqual([("UI-001-to-details", "390", "click"), ("UI-001-to-details", "390", "keyboard"),
+                          ("UI-001-to-details", "1200", "click"), ("UI-001-to-details", "1200", "keyboard"),
+                          ("UI-002-to-desk", "390", "click"), ("UI-002-to-desk", "390", "keyboard"),
+                          ("UI-002-to-desk", "1200", "click"), ("UI-002-to-desk", "1200", "keyboard")],
+                         [(f["interaction"], f["target"], f["trigger"]) for op, f in driver.calls if op == "interact"])
+        first = next(f for op, f in driver.calls if op == "interact")
+        self.assertEqual(("UI-001", "ready", "to-details", "navigate", "UI-002", "details.html", "click"),
+                         (first["surface"], first["state"], first["control"], first["kind"],
+                          first["destination"]["surface"], first["destinationPage"], first["trigger"]))
+        self.assertEqual(8, len(sidecar["interactions"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"]})
+        self.assertEqual({"details.html", "index.html"}, {r["arrived"] for r in sidecar["interactions"]})
+        self.assertTrue(all(isinstance(r["durationMs"], int) and r["startedAt"] <= r["finishedAt"]
+                            for r in sidecar["interactions"]))
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_a_failed_attempt_is_recorded_and_fails_the_run(self):
+        cli, driver = self.cli(), FakeDriver()
+        driver.interact_scripts[("UI-001-to-details", "390", "click")] = {
+            "visible": False, "problems": ["product control is missing or not unique: to-details"]}
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        failed = next(r for r in output["interactions"] if r["result"] != "PASS")
+        self.assertEqual(1, code)
+        self.assertEqual(("FAIL", False, None), (failed["result"], failed["visible"], failed["focusCorrect"]))
+        self.assertIn("not unique", sidecar["interactions"][0]["reasons"][0])
+        self.assertEqual((8, 1), (summary["interactions"], summary["interactionsFail"]))
+
+    def test_an_undeclared_navigation_during_an_interaction_stays_raw_and_fails(self):
+        cli, driver = self.cli(), FakeDriver()
+        row = {"url": "https://hifi.invalid/pkg/missing.html", "method": "GET", "resourceType": "document", "allowlisted": True}
+        driver.interact_scripts[("UI-002-to-desk", "1200", "keyboard")] = {"events": {"navigation": [row]}}
+        code, _, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        self.assertEqual(1, code)
+        self.assertIn(dict(row, page="details.html"), output["navigation"])
+        self.assertEqual(7, len([r for r in output["navigation"] if set(r) == {"id", "target", "trigger", "from", "to"}]))
+        record = next(r for r in sidecar["interactions"] if (r["id"], r["target"], r["trigger"])
+                      == ("UI-002-to-desk", "1200", "keyboard"))
+        self.assertEqual("FAIL", record["result"])
+        self.assertIn("the destination page did not load", record["reasons"])
+        self.assertIn("navigation attempt", " | ".join(record["reasons"]))
+
+    def test_interactions_on_a_page_that_did_not_open_are_blocked_not_omitted(self):
+        cli, driver = self.cli(), FakeDriver()
+        driver.open_error["details.html"] = m.DriverError("page did not load: details.html")
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        blocked = [r for r in sidecar["interactions"] if r["surface"] == "UI-002"]
+        self.assertEqual(1, code)
+        self.assertEqual(4, len(blocked))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in blocked})
+        self.assertIn("page did not open", blocked[0]["reasons"][0])
+        self.assertEqual({"UI-001-to-details"}, {f["interaction"] for op, f in driver.calls if op == "interact"})
+
+    def test_only_narrows_the_interaction_pass(self):
+        cli, driver = self.cli(), FakeDriver()
+        code, summary, out = cli.run(driver, "--only", "UI-001")
+        output, _ = cli.load(out)
+        self.assertEqual((0, 4), (code, summary["interactions"]))
+        self.assertEqual({"UI-001-to-details"}, {r["id"] for r in output["interactions"]})
+
+    def test_an_interaction_timeout_fails_the_attempt_and_restarts(self):
+        cli, driver = self.cli(), FakeDriver()
+        driver.interact_scripts[("UI-001-to-details", "390", "keyboard")] = {"raise": m.DriverTimeout("no reply")}
+        code, summary, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        record = next(r for r in sidecar["interactions"]
+                      if (r["id"], r["target"], r["trigger"]) == ("UI-001-to-details", "390", "keyboard"))
+        self.assertEqual((1, 1), (code, summary["restarts"]))
+        self.assertEqual("FAIL", record["result"])
+        self.assertIn("timed out", record["reasons"][0])
+        self.assertIn("index.html", [f["page"] for op, f in driver.calls if op == "open"])   # the browser reopened it
+
+    def test_carry_never_skips_the_interaction_pass(self):
+        cli = self.cli()
+        _, _, first = cli.run(FakeDriver())
+        driver = FakeDriver()
+        _, summary, _ = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        self.assertEqual((12, 8, 8), (summary["carried"], summary["interactions"], driver.count("interact")))
+
+class ReviewerTests(unittest.TestCase):
+    def contract(self, package):
+        return bundle_contract(package)
+
+    def test_the_default_run_writes_the_reviewer_rows_the_checker_expects(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        errors, contract = self.contract(cli.package)
+        self.assertEqual(0, code, summary)
+        self.assertIsNotNone(contract)
+        self.assertEqual(["defaultSurface", "defaultVisible", "overview", "overviewInitiallyHidden", "specimens",
+                          "viewport"], sorted(output["reviewer"]))
+        self.assertEqual([], checker.reviewer_evidence_findings(output["reviewer"], contract))
+        self.assertEqual([(r["surface"], r["target"]) for r in contract["viewport"]],
+                         [(r["surface"], r["target"]) for r in output["reviewer"]["viewport"]])
+        self.assertEqual([], checker.reviewer_evidence_findings(output["reviewer"], contract))
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+        self.assertEqual((2, 0), (len(sidecar["reviewer"]), sidecar["run"]["reviewerFail"]))
+        self.assertEqual(["index.html", "details.html"], [f["page"] for op, f in driver.calls if op == "reviewer"])
+
+    def test_an_honest_measurement_that_disagrees_fails_validation_with_exit_3(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.reviewer_overrides[("UI-002", "1200")] = {"width": 999.0}
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        _, contract = self.contract(cli.package)
+        row = next(r for r in output["reviewer"]["viewport"] if (r["surface"], r["target"]) == ("UI-002", "1200"))
+        self.assertEqual(3, code)
+        self.assertEqual((999.0, "FAIL"), (row["measuredProductWidth"], row["result"]))
+        self.assertTrue(any("viewport does not match" in problem for problem in summary["problems"]))
+        self.assertEqual([], checker.reviewer_evidence_findings(
+            dict(output["reviewer"], viewport=[r if r is not row else dict(row, measuredProductWidth=1200, result="PASS")
+                                                for r in output["reviewer"]["viewport"]]), contract))
+
+    def test_a_page_that_did_not_open_writes_blocked_reviewer_rows(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.open_error["details.html"] = m.DriverError("page did not load: details.html")
+        code, summary, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        record = next(r for r in sidecar["reviewer"] if r["page"] == "details.html")
+        self.assertEqual(1, code)   # the matrix cases on that page fail anyway
+        self.assertEqual(("BLOCKED", [], None), (record["result"], record["viewport"], record["entry"]))
+        self.assertTrue(all(r["measuredProductWidth"] is None and r["result"] == "BLOCKED"
+                            for r in output["reviewer"]["viewport"] if r["surface"] == "UI-002"))
+        self.assertTrue(any("reviewer" in problem for problem in summary["problems"]))
+
+    def test_a_reviewer_timeout_restarts_the_browser_and_blocks_the_rows(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.reviewer_error["details.html"] = m.DriverTimeout("no reply")
+        code, summary, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        record = next(r for r in sidecar["reviewer"] if r["page"] == "details.html")
+        self.assertEqual((3, 1), (code, summary["restarts"]))
+        self.assertEqual(("FAIL", []), (record["result"], record["viewport"]))
+        self.assertIn("timed out", record["reasons"][0])
+        self.assertIn("details.html", [f["page"] for op, f in driver.calls if op == "open"])   # the browser reopened it
+
+    def test_carry_and_only_never_skip_the_reviewer_pass(self):
+        cli = Cli(self)
+        _, _, first = cli.run(FakeDriver())
+        driver = FakeDriver()
+        code, summary, out = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
+        _, _ = cli.load(out)
+        self.assertEqual((0, 12, 2), (code, summary["carried"], driver.count("reviewer")))
+        code, summary, out = cli.run(FakeDriver(), "--only", "UI-001")
+        output, _ = cli.load(out)
+        _, contract = self.contract(cli.package)
+        self.assertEqual((0, 0, 4), (code, summary["interactions"], len(output["reviewer"]["viewport"])))
+        self.assertEqual([], checker.reviewer_evidence_findings(output["reviewer"], contract))
+
+
+class DriverWireTests(unittest.TestCase):
+    """The JSON-lines envelope: a payload field must not clobber the reply correlation id."""
+
+    def wire_driver(self):
+        driver = m.NodeDriver("node", "module", {}, ".")
+        driver.proc = type("Proc", (), {})()
+        driver.proc.stdin = io.StringIO()
+        return driver
+
+    def test_a_payload_field_named_id_cannot_clobber_the_correlation_id(self):
+        driver = self.wire_driver()
+        driver._lines.put(json.dumps({"id": 1, "ok": True, "result": {}}))
+        reply = driver.call("interact", interaction="UI-001-x", page="index.html")
+        self.assertEqual({}, reply["result"])
+        wire = json.loads(driver.proc.stdin.getvalue().splitlines()[0])
+        self.assertEqual(1, wire["id"])
+        self.assertEqual("UI-001-x", wire["interaction"])
 
 
 class FailureTests(unittest.TestCase):
@@ -790,7 +1352,7 @@ class FailureTests(unittest.TestCase):
         self.assertEqual(11, sum(1 for r in cases.values() if r["result"] == "PASS"))
         self.assertEqual(1, driver.restarts)
         reopened = [f["page"] for op, f in driver.calls if op == "open"]
-        self.assertEqual(["index.html", "index.html", "details.html"], reopened)
+        self.assertEqual(["index.html", "index.html", "details.html"], reopened[:3])   # the matrix and its recover
 
     def test_too_many_restarts_block_the_remaining_cases(self):
         driver = FakeDriver()
@@ -1011,6 +1573,82 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual({"FAIL"}, {r["result"] for r in wide})
             self.assertTrue(all(1000 == r["geometry"]["canvasWidth"] and "1000" in r["reasons"][0] for r in wide))
 
+    def test_color_scheme_dark_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root)
+
+            def run(*extra):
+                return self.run_main(module, root, package, *extra)
+
+            code, text = run("--out", "docs/evidence/light", "--only", "UI-001")
+            self.assertEqual(0, code, text)
+            code, text = run("--out", "docs/evidence/dark", "--color-scheme", "dark", "--only", "UI-001")
+            self.assertEqual(0, code, text)
+            light = json.loads((root / "docs/evidence/light" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            output = json.loads((root / "docs/evidence/dark" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/dark" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual("dark", sidecar["run"]["colorScheme"])
+            self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/dark/" + m.OUTPUT_NAME)["result"])
+            self.assertEqual([], output["network"] + output["navigation"] + output["popups"] + output["forms"])
+            # the fixture styles its dark theme with prefers-color-scheme, so every case renders differently
+            light_rows = {(r["surface"], r["state"], r["target"]): r for r in light["cases"]}
+            for row in sidecar["cases"]:
+                self.assertNotEqual(light_rows[(row["surface"], row["state"], row["target"])]["renderFingerprint"],
+                                    row["renderFingerprint"])
+
+    def test_intermediate_widths_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_interactions_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/inter", "--intermediate")
+            self.assertEqual(0, code, text)
+            inter = root / "docs/evidence/inter" / m.INTERMEDIATE_DIR
+            output = json.loads((inter / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((inter / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            expected = [{"surface": surface, "state": state, "target": "795"}
+                        for surface, states in (("UI-001", ("ready", "loading", "empty")),
+                                                ("UI-002", ("ready", "loading", "error"))) for state in states]
+            self.assertEqual(expected, output["matrix"]["cases"])
+            self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+            self.assertEqual({795}, {r["geometry"]["canvasWidth"] for r in sidecar["cases"]})
+            self.assertEqual(8, len(sidecar["interactions"]))   # the intermediate pass re-observes the interactions
+            self.assertEqual([], output["network"] + output["popups"] + output["forms"])
+            receipt = build_receipt(root, (inter / m.OUTPUT_NAME).relative_to(root).as_posix())
+            self.assertEqual(("PASS", "hifi-browser"), (receipt["result"], receipt["check"]))
+            # the checker's own coverage rule accepts it as Intermediate width check evidence
+            design = write_ui_design(root, {})
+            scope = checker.parse_ui_contract_view(design.read_text(encoding="utf-8"))[0]["target_scope"]
+            observed = [{key: row[key] for key in ("surface", "state", "target")} for row in receipt["receipt"]["results"]]
+            self.assertEqual(sorted(map(json.dumps, observed)), sorted(map(json.dumps, receipt["receipt"]["matrix"]["cases"])))
+            self.assertEqual([], ui_design_v3.intermediate_width_findings(observed, scope))
+
+    def test_reflow_320_axis_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_interactions_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/reflow", "--axes", "reflow-320")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/reflow" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/reflow" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+            # ready is the busiest state here, so one sampled state per surface, at the smallest target
+            self.assertEqual([("UI-001", "ready", "390"), ("UI-002", "ready", "390")],
+                             [(r["surface"], r["state"], r["target"]) for r in sidecar["axes"]])
+            self.assertEqual({"PASS"}, {r["result"] for r in sidecar["axes"]})
+            self.assertEqual({320}, {r["geometry"]["canvasWidth"] for r in sidecar["axes"]})
+            base = {(r["surface"], r["state"], r["target"]): r for r in sidecar["cases"]}
+            for row in sidecar["axes"]:
+                self.assertNotEqual(base[(row["surface"], row["state"], row["target"])]["renderFingerprint"],
+                                    row["renderFingerprint"])
+            self.assertEqual([], output["network"] + output["popups"] + output["forms"])
+            # the interaction pass after the axis still sees the declared widths
+            self.assertEqual((8, {"PASS"}), (len(sidecar["interactions"]), {r["result"] for r in sidecar["interactions"]}))
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/reflow/" + m.OUTPUT_NAME)["result"])
     def test_the_drivers_own_open_is_not_a_navigation_but_a_later_allowlisted_one_is(self):
         module = self.playwright()
         leave = "<script>setTimeout(() => { location.href = 'index.html'; }, 300);</script>"
@@ -1050,6 +1688,123 @@ class RealBrowserTests(unittest.TestCase):
             for row in after["cases"]:
                 self.assertNotEqual(first[key(row)]["renderFingerprint"], row["renderFingerprint"], key(row))
                 self.assertIsNone(row["carriedFrom"], key(row))
+
+    def test_interactions_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_interactions_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/interactions")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/interactions" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/interactions" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
+            expected, navigation = checker._interaction_expectations(manifest)
+            self.assertEqual(expected, output["interactions"])
+            self.assertEqual(navigation, output["navigation"])
+            self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/interactions/" + m.OUTPUT_NAME)["result"])
+            self.assertEqual(8, len(sidecar["interactions"]))
+            self.assertTrue(all(r["result"] == "PASS" and r["visible"] and r["focusCorrect"] and r["arrived"]
+                                for r in sidecar["interactions"]), sidecar["interactions"])
+            arrivals = {(r["id"], r["target"], r["trigger"]): r["arrived"] for r in sidecar["interactions"]}
+            self.assertEqual("details.html", arrivals[("UI-001-to-details", "1200", "keyboard")])
+            self.assertEqual("index.html", arrivals[("UI-002-to-desk", "390", "click")])
+            for row in output["console"]:
+                self.assertEqual("Unrecognized Content-Security-Policy directive 'navigate-to'.", row["message"])
+            self.assertEqual([], output["network"] + output["popups"] + output["forms"])
+
+    def test_reviewer_rows_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/reviewer")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/reviewer" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            errors, contract = bundle_contract(package)
+            self.assertEqual([], checker.reviewer_evidence_findings(output["reviewer"], contract))
+            self.assertEqual({"defaultSurface": "UI-001", "defaultVisible": True, "overviewInitiallyHidden": True},
+                             {key: output["reviewer"][key]
+                              for key in ("defaultSurface", "defaultVisible", "overviewInitiallyHidden")})
+            widths = {(r["surface"], r["target"]): r["measuredProductWidth"] for r in output["reviewer"]["viewport"]}
+            self.assertEqual({("UI-001", "390"): 390, ("UI-001", "1200"): 1200,
+                              ("UI-002", "390"): 390, ("UI-002", "1200"): 1200}, widths)
+            self.assertEqual({"PASS"}, {r["result"] for r in output["reviewer"]["viewport"]})
+            self.assertEqual([], output["network"] + output["navigation"] + output["popups"] + output["forms"])
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/reviewer/" + m.OUTPUT_NAME)["result"])
+            for row in output["console"]:
+                self.assertEqual("Unrecognized Content-Security-Policy directive 'navigate-to'.", row["message"])
+
+    def test_specimen_rows_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_specimens_package(root)
+            errors, contract = bundle_contract(package)
+            self.assertEqual([], errors, errors)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/specimens")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/specimens" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            self.assertEqual([], checker.reviewer_evidence_findings(output["reviewer"], contract),
+                             output["reviewer"]["specimens"])
+            rows = {(r["name"], r["sourcePage"]): r for r in output["reviewer"]["specimens"]}
+            self.assertEqual(11, len(rows))
+            ink = rows[("Desk ink", "index.html")]
+            self.assertEqual("#16324f", ink["sourceValue"])
+            self.assertEqual((ink["sourceValue"], ink["specimenValue"], ink["displayValue"]),
+                             (ink["specimenValue"], ink["displayValue"], "#16324f"))
+            self.assertEqual("rgb(22, 50, 79)", ink["sourceComputedValue"])
+            self.assertEqual(ink["sourceComputedValue"], ink["specimenComputedValue"])
+            self.assertEqual("#b3261e", rows[("Berth alarm", "details.html")]["sourceValue"])
+            link = rows[("Desk action link", "index.html")]
+            self.assertEqual(("rgb(22, 50, 79)", "rgb(22, 50, 79)", "rgb(22, 50, 79)"),
+                             (link["sourceValue"], link["specimenValue"], link["displayValue"]))
+            berth = rows[("Berth action link", "details.html")]
+            self.assertEqual(berth["sourceValue"], berth["specimenValue"])
+            self.assertEqual(berth["specimenValue"], berth["displayValue"])
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/specimens/" + m.OUTPUT_NAME)["result"])
+
+    def test_a_state_interaction_in_real_chromium(self):
+        module = self.playwright()
+        button = ('<button type="button" class="card" data-control-id="report">Report an issue</button>'
+                  '<script>(function () {'
+                  'document.querySelector("[data-control-id=report]").addEventListener("click", function () {'
+                  'document.__hifiReviewerRuntime.selectState("error");'
+                  '});})();</script>')
+        actions = INTERACTIONS + [{"id": "UI-002-report", "source": {"surface": "UI-002", "state": "ready"},
+                                   "control": "report", "kind": "state",
+                                   "destination": {"surface": "UI-002", "state": "error"}}]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, details_extra=button,
+                                    manifest_edit=lambda manifest: manifest.update(interactions=actions))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/state")
+            self.assertEqual(0, code, text)
+            output = json.loads((root / "docs/evidence/state" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/state" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
+            expected, navigation = checker._interaction_expectations(manifest)
+            self.assertEqual(expected, output["interactions"])
+            self.assertEqual(navigation, output["navigation"])
+            self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
+            self.assertEqual(12, len(sidecar["interactions"]))
+            self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"]})
+            self.assertTrue(all(r["focusCorrect"] for r in sidecar["interactions"]), sidecar["interactions"])
+
+    def test_a_missing_product_control_fails_in_real_chromium(self):
+        module = self.playwright()
+        actions = [{"id": "UI-001-ghost", "source": {"surface": "UI-001", "state": "ready"},
+                    "control": "ghost", "kind": "state", "destination": {"surface": "UI-001", "state": "loading"}}]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, manifest_edit=lambda manifest: manifest.update(interactions=actions))
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/ghost")
+            self.assertEqual(1, code, text)
+            sidecar = json.loads((root / "docs/evidence/ghost" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual(4, len(sidecar["interactions"]))
+            self.assertEqual({"FAIL"}, {r["result"] for r in sidecar["interactions"]})
+            self.assertIn("missing or not unique", sidecar["interactions"][0]["reasons"][0])
 
     def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
         module = self.playwright()

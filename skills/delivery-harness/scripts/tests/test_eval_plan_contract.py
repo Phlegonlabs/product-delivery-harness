@@ -80,6 +80,42 @@ class EvalPlanContractTests(unittest.TestCase):
             self.plan["graph"]["edges"].append({"kind": "dependency", "from": "N-" + before, "to": "N-" + after,
                                                 "on_outcomes": ["pass"], "max_traversals": None})
 
+    def at_pin(self, version):
+        run = copy.deepcopy(self.run)
+        run["runtime_capabilities"]["runtime_adapter"]["version_gate"]["required_harness_version"] = version
+        return run
+
+    def waived_files(self):
+        waived = {"schema": "eval-policy/1", "applicability": "not_required", "reason": "Deterministic software requires no AI quality sampling", "owner": "Jacky Chan"}
+        raw = prd(waived).replace("Gate: required", "Gate: not_required").encode()
+        delivery = {"schema": "delivery-acceptance/1", "prd_sha256": hashlib.sha256(raw).hexdigest(), "tests": []}
+        return {"docs/product/PRD.md": raw, "docs/verification/delivery-acceptance.json": encoded(delivery)}
+
+    def materialize_waived(self, files, chain=("final-check", "delivery-acceptance", "final-closeout")):
+        """Write the waived package and freeze a PLAN holding only the acceptance chain."""
+        for path, raw in files.items():
+            target = self.root / path
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(raw)
+        self.plan = {"schema_version": 6, "sources": [], "final_gates": [], "graph": {"nodes": [], "edges": []}}
+        for kind, path in (("prd", "docs/product/PRD.md"), ("delivery acceptance", "docs/verification/delivery-acceptance.json")):
+            self.plan["sources"].append({"id": "SRC-" + str(len(self.plan["sources"]) + 1), "kind": kind,
+                "location": path, "status": "frozen", "content_sha256": hashlib.sha256(files[path]).hexdigest()})
+        acceptance_args = {"--repo-root": ".", "--prd": self.plan["sources"][0]["location"], "--results": pc.RESULTS_PATH,
+                           "--contract": self.plan["sources"][1]["location"], "--contract-sha256": self.plan["sources"][1]["content_sha256"]}
+        for name, script, options in (("final-check", "noop.py", {}), ("delivery-acceptance", "check_delivery_acceptance.py", acceptance_args),
+                                      ("final-closeout", "noop.py", {})):
+            argv = [sys.executable, str(Path(pc.__file__).with_name(script))]
+            argv += [value for pair in options.items() for value in pair]
+            if options:
+                argv.append("--candidate-from-head")
+            self.plan["final_gates"].append({"id": name, "cwd": ".", "argv": argv, "pass_signal": "exit 0",
+                                             "execution": {"isolation": "host"}})
+            self.plan["graph"]["nodes"].append({"id": "N-" + name, "kind": "verifier", "ref": name, "executor": "local_command"})
+        for before, after in zip(chain, chain[1:]):
+            self.plan["graph"]["edges"].append({"kind": "dependency", "from": "N-" + before, "to": "N-" + after,
+                                                "on_outcomes": ["pass"], "max_traversals": None})
+
     def test_a_register_rendered_from_eval_feature_files_satisfies_the_plan(self):
         policy, files, _, _, _, _ = fixture()
         policy["quality"]["scenario_id"] = "TEST-001/full-quality-run"
@@ -308,6 +344,78 @@ class EvalPlanContractTests(unittest.TestCase):
                                 with patch.object(join, "_validate_product_frozen_contract_joins", return_value=[]):
                                     self.assertEqual(expected_failure, bool(join.validate_frozen_contract_joins(plan, self.root, run=run)))
                         (self.root / location).write_bytes(frozen)
+
+    def test_pin_at_or_after_the_next_release_requires_the_acceptance_chain_without_adoption(self):
+        self.materialize_waived(self.waived_files())
+        self.assertEqual([], self.check(run=self.at_pin("0.80.0")))
+        with patch.object(join, "_validate_product_frozen_contract_joins", return_value=[]):
+            self.assertEqual([], join.validate_frozen_contract_joins(self.plan, self.root, run=self.at_pin("0.79.0")))
+
+    def test_a_review_node_that_cites_a_gate_does_not_break_the_gate_binding(self):
+        self.materialize_waived(self.waived_files())
+        self.plan["graph"]["nodes"].append({"id": "N-SECURITY-REVIEW", "kind": "verifier", "ref": "final-check",
+                                            "executor": "runtime_worker"})
+        self.assertEqual([], self.check(run=self.at_pin("0.79.0")))
+
+    def test_pins_before_the_next_release_keep_the_not_required_exemption(self):
+        self.materialize_waived(self.waived_files())
+        stripped = copy.deepcopy(self.plan)
+        stripped["sources"].pop()
+        stripped["final_gates"] = []
+        stripped["graph"] = {"nodes": [], "edges": []}
+        for version in ("0.60.0", "0.78.0", None):
+            with self.subTest(version=version):
+                self.assertEqual([], self.check(stripped, run=self.at_pin(version) if version else None))
+
+    def test_current_pin_refuses_a_missing_or_unbound_acceptance_source(self):
+        run = self.at_pin("0.79.0")
+        self.materialize_waived(self.waived_files())
+        missing = copy.deepcopy(self.plan)
+        missing["sources"].pop()
+        self.assertTrue(any("requires one frozen delivery-acceptance source" in error for error in self.check(missing, run)))
+        files = self.waived_files()
+        delivery = json.loads(files["docs/verification/delivery-acceptance.json"].decode())
+        delivery["prd_sha256"] = "b" * 64
+        files["docs/verification/delivery-acceptance.json"] = encoded(delivery)
+        self.materialize_waived(files)
+        self.assertTrue(any("delivery contract must bind frozen PRD hash" in error for error in self.check(run=run)))
+
+    def test_current_pin_refuses_missing_or_faked_acceptance_gates(self):
+        run = self.at_pin("0.79.0")
+        self.materialize_waived(self.waived_files())
+        cases = (
+            (lambda p: p["final_gates"].pop(1), "required delivery/closeout final gates missing or duplicate"),
+            (lambda p: p["final_gates"].pop(2), "required delivery/closeout final gates missing or duplicate"),
+            (lambda p: p["graph"]["nodes"].pop(1), "each eval/final gate needs one local-command verifier node"),
+            (lambda p: p["final_gates"][1]["argv"].__setitem__(1, "fake/check_delivery_acceptance.py"), "absolute installed checker"),
+            (lambda p: p["final_gates"][1]["argv"].__setitem__(p["final_gates"][1]["argv"].index("--contract-sha256") + 1, "a" * 64), "argv must exactly join"),
+            (lambda p: p["final_gates"][1].update(selection={"mode": "changed_files"}), "must always run"),
+        )
+        for modify, expected in cases:
+            plan = copy.deepcopy(self.plan)
+            modify(plan)
+            with self.subTest(expected=expected):
+                self.assertTrue(any(expected in error for error in self.check(plan, run)))
+
+    def test_current_pin_requires_pass_only_paths_through_acceptance_to_closeout(self):
+        run = self.at_pin("0.79.0")
+        self.materialize_waived(self.waived_files())
+        broken = copy.deepcopy(self.plan)
+        broken["graph"]["edges"].pop()
+        self.assertTrue(any("required dependency path: delivery-acceptance -> final-closeout" in error for error in self.check(broken, run)))
+        detached = copy.deepcopy(self.plan)
+        detached["graph"]["edges"].pop(0)
+        self.assertTrue(any("every broad final check must precede delivery-acceptance" in error for error in self.check(detached, run)))
+        for edge_change in ({"on_outcomes": ["pass", "fail"]}, {"max_traversals": 1}):
+            filtered = copy.deepcopy(self.plan)
+            filtered["graph"]["edges"][0].update(edge_change)
+            with self.subTest(edge=edge_change):
+                self.assertTrue(self.check(filtered, run))
+        no_broad = copy.deepcopy(self.plan)
+        no_broad["final_gates"].pop(0)
+        no_broad["graph"]["nodes"].pop(0)
+        no_broad["graph"]["edges"].pop(0)
+        self.assertTrue(self.check(no_broad, run))
 
     def test_non_ai_reasoned_exemption_needs_no_eval_gates(self):
         waived = {"schema": "eval-policy/1", "applicability": "not_required", "reason": "Deterministic software requires no AI quality sampling", "owner": "Jacky Chan"}

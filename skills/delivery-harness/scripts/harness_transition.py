@@ -54,6 +54,8 @@ from harness_manifest import (
     validate_current_plan_run,
 )
 from harness_schema import EXACT_TARGET_LIFECYCLE_ACTIONS, RUN_DISPATCH_STATUSES, RUN_HEADING
+from harness_schema import AUTHORIZATION_KEYS, EXPIRY_BOUNDARIES, RUNTIME_DRIVERS
+from harness_schema import SHA256_RE, is_valid_provider_id
 from harness_schema import review_lenses, security_result_decision
 from harness_schema import frozen_coordination_path, supported_coordination_path
 from verifier_runtime import host_executable_identity, observe_plan_host_runtimes
@@ -68,7 +70,11 @@ from select_ready_nodes import (
     select_ready_nodes,
 )
 from select_ready_nodes import _runtime_binding
-from check_launch_packet import InvalidMessageBudgetError, check_message
+from check_launch_packet import (
+    InvalidMessageBudgetError,
+    MessageBudgetOverflowError,
+    check_message,
+)
 from security_review_result import (
     SecurityReviewResultError,
     load_security_review_result,
@@ -326,6 +332,10 @@ DISPATCH_COMMANDS = {
     "close-wave",
     "reserve-node-attempt",
     "record-node-result",
+    "record-grant",
+    "open-run",
+    "close-run",
+    "record-runtime",
 }
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
@@ -2283,6 +2293,289 @@ def _lease_worker(plan: dict[str, Any], run: dict[str, Any], args: argparse.Name
             "evidence": [f"leased worker {args.worker_id} on {args.branch_ref}"],
         }
     )
+
+
+_WORKER_PACKET_TEMPLATE = (
+    Path(__file__).resolve().parents[1] / "assets" / "templates" / "WORKER_GOAL.template.md"
+)
+_WORKER_PACKET_HOST_LABELS = (
+    "Worker contract",
+    "Parent launch identity",
+    "Route caps",
+    "Permissions",
+    "Visual inputs",
+)
+_WORKER_PACKET_REPAIR_LABELS = (
+    "Root-cause families",
+    "Known variants and acceptance matrix",
+    "Rejected narrow approach",
+    "Review lineage",
+)
+
+
+def _read_worker_packet_host_values(args: argparse.Namespace) -> dict[str, str]:
+    """Load the host-supplied placeholder values for the worker packet."""
+
+    host_file = getattr(args, "host_file", None)
+    if host_file is None:
+        return {}
+    try:
+        payload = json.loads(host_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ManifestError(f"cannot read --host-file {host_file}: {exc}") from exc
+    if not isinstance(payload, dict) or not all(
+        isinstance(key, str) and isinstance(value, str)
+        for key, value in payload.items()
+    ):
+        raise ManifestError(
+            "--host-file must hold a JSON object of placeholder name to string"
+        )
+    unknown = sorted(set(payload) - set(_WORKER_PACKET_HOST_LABELS + _WORKER_PACKET_REPAIR_LABELS))
+    if unknown:
+        raise ManifestError(
+            f"--host-file has unknown placeholder names {', '.join(unknown)}; "
+            f"known names are {', '.join(_WORKER_PACKET_HOST_LABELS + _WORKER_PACKET_REPAIR_LABELS)}"
+        )
+    return payload
+
+
+def _render_worker_packet(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> str:
+    """Render WORKER_GOAL.template.md from the in-memory leased RUN.
+
+    Every fillable placeholder takes its value from the lease, PLAN, the CLI
+    arguments, or --host-file. The caller size-checks the result before the
+    durable RUN write and creates the packet exclusively after it.
+    """
+
+    template_text = _WORKER_PACKET_TEMPLATE.read_text(encoding="utf-8")
+    mission = next(
+        (
+            item
+            for item in plan.get("missions", [])
+            if isinstance(item, dict) and item.get("id") == args.mission_id
+        ),
+        None,
+    )
+    if not isinstance(mission, dict):
+        raise ManifestError(f"no PLAN mission for {args.mission_id!r}")
+    worker = next(
+        (
+            item
+            for item in run.get("workers", [])
+            if isinstance(item, dict) and item.get("attempt_id") == args.attempt_id
+        ),
+        None,
+    )
+    if not isinstance(worker, dict):
+        raise ManifestError(f"no leased worker for attempt {args.attempt_id!r}")
+    host_values = _read_worker_packet_host_values(args)
+    binding = worker.get("runtime_binding") or {}
+    tasks = [item for item in mission.get("tasks", []) if isinstance(item, dict)]
+    task_ids = [str(item.get("id")) for item in tasks if item.get("id")]
+    verifier_ids = [
+        str(item.get("id"))
+        for item in mission.get("worker_verifiers", [])
+        if isinstance(item, dict) and item.get("id")
+    ] + [
+        str(item.get("id"))
+        for task in tasks
+        for item in task.get("verifiers", [])
+        if isinstance(item, dict) and item.get("id")
+    ]
+    platform_tests = sorted(
+        {
+            str(test_id)
+            for item in mission.get("integration_verifiers", [])
+            if isinstance(item, dict)
+            for test_id in (item.get("acceptance_test_ids") or [])
+            if isinstance(test_id, str)
+        }
+    )
+    security_pairs = []
+    for task in tasks:
+        for row in task.get("acceptance_matrix") or []:
+            if not isinstance(row, dict):
+                continue
+            for trace_id in row.get("trace_ids") or []:
+                if (
+                    isinstance(trace_id, str)
+                    and trace_id.startswith("PRD-")
+                    and row.get("test_id")
+                ):
+                    security_pairs.append(f"{trace_id}/{row['test_id']}")
+    commit_grant = (run.get("authorizations") or {}).get("create_local_commits") or {}
+    context_entries = []
+    for raw in getattr(args, "context_path", None) or []:
+        path = Path(raw)
+        if not path.is_file():
+            raise ManifestError(
+                f"lease-worker --context-path {str(raw)!r} is not a readable file"
+            )
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+        context_entries.append(f"{path.as_posix()} sha256:{digest}")
+    result_contract = (
+        Path(__file__).resolve().parents[1] / "references" / "worker-result-contract.md"
+    )
+    if not result_contract.is_file():
+        raise ManifestError("worker result contract is missing next to the skill")
+    stop_conditions = "; ".join(
+        str(item)
+        for item in mission.get("stop_conditions", []) or []
+        if str(item).strip()
+    )
+    values = {
+        "PLAN": (
+            f"{args.plan}; ID {(run.get('plan') or {}).get('id')}; "
+            f"revision {(run.get('plan') or {}).get('revision')}; "
+            f"digest {(run.get('plan') or {}).get('digest_sha256')}"
+        ),
+        "RUN snapshot": str(args.run),
+        "Mission/tasks": f"{args.mission_id}: {', '.join(task_ids)}",
+        "Lease": str(worker.get("lease_id")),
+        "Batch base": str(worker.get("batch_base_sha")),
+        "required_skills": (
+            ", ".join(
+                str(item)
+                for item in mission.get("required_skills", []) or []
+                if str(item).strip()
+            )
+            or "none"
+        ),
+        "Provider/driver": f"{binding.get('provider')} / {binding.get('driver')}",
+        "Executor/model/effort": (
+            f"{binding.get('model') or 'provider default'} / "
+            f"{binding.get('reasoning_effort') or 'provider default'}"
+        ),
+        "Worker/workspace/completion": (
+            f"{worker.get('worker_runtime')} / {worker.get('workspace_mode')} / "
+            f"{worker.get('completion_channel')}"
+        ),
+        "Worktree and branch/ref": (
+            f"{worker.get('worktree_path')} / {worker.get('branch_ref')}"
+        ),
+        "Handoff": f"this packet; max_message_bytes {args.max_message_bytes}",
+        "Context source hashes": "; ".join(context_entries),
+        "Host-specific context": "; ".join(
+            Path(raw).as_posix() for raw in getattr(args, "context_path", None) or []
+        ),
+        "Result contract": str(result_contract),
+        "Resource claims": (
+            "; ".join(
+                [
+                    *(
+                        f"{item.get('key')} ({item.get('access')})"
+                        for item in mission.get("runtime_resources", []) or []
+                        if isinstance(item, dict)
+                    ),
+                    *(
+                        f"{item} (serialized)"
+                        for item in mission.get("serialized_resources", []) or []
+                        if isinstance(item, str)
+                    ),
+                ]
+            )
+            or "none"
+        ),
+        "Write": ", ".join(str(item) for item in mission.get("write_scope", []) or []),
+        "Deny": (
+            ", ".join(str(item) for item in mission.get("deny_scope", []) or [])
+            + ", PLAN.md, RUN.md, frozen contracts, and unrelated files"
+        ),
+        "Objective and stop conditions": (
+            f"{mission.get('objective')} — stop when: {stop_conditions}"
+        ),
+        "Verifiers": (
+            f"{'; '.join(verifier_ids) or 'none'}; "
+            f"platform {', '.join(platform_tests) or 'none'}"
+        ),
+        "Security requirements": ", ".join(security_pairs) or "none",
+        "Commit authorization": (
+            f"true ({commit_grant.get('source')})"
+            if commit_grant.get("authorized") is True
+            else "false"
+        ),
+    }
+    values.update(host_values)
+    ui_mission = mission_has_ui_authoring_action(plan, mission)
+    filled: list[str] = []
+    in_block = False
+    dropping_repair = False
+    for line in template_text.splitlines():
+        if line.startswith("# Worker Goal: "):
+            filled.append(
+                f"# Worker Goal: {args.mission_id} — {mission.get('objective')}"
+            )
+            continue
+        if line.startswith("Complete ") and line.endswith(" only."):
+            filled.append(
+                f"Complete {args.mission_id} ({mission.get('objective')}) only."
+            )
+            continue
+        if line.strip() == "```text":
+            in_block = True
+            filled.append(line)
+            continue
+        if in_block and line.strip() == "```":
+            in_block = False
+            filled.append(line)
+            continue
+        if not in_block:
+            filled.append(line)
+            continue
+        if dropping_repair:
+            if line.startswith("- "):
+                continue
+            dropping_repair = False
+        if line.startswith("Repair context (omit for an initial implementation):"):
+            if not any(name in values for name in _WORKER_PACKET_REPAIR_LABELS):
+                dropping_repair = True
+                continue
+            filled.append(line)
+            continue
+        if line.startswith("- ") and ": " in line:
+            label = line[2:].partition(": ")[0]
+            if label == "Visual inputs" and not ui_mission:
+                continue
+            if label in values:
+                filled.append(f"- {label}: {values[label]}")
+                continue
+        filled.append(line)
+    unfilled = []
+    in_block = False
+    for line in filled:
+        if line.strip() == "```text":
+            in_block = True
+            continue
+        if in_block and line.strip() == "```":
+            in_block = False
+            continue
+        if not in_block or "<" not in line:
+            continue
+        index = line.find("<")
+        while index != -1:
+            end = line.find(">", index + 1)
+            if end == -1:
+                break
+            label = line[2:].partition(": ")[0] if line.startswith("- ") else ""
+            unfilled.append(label or line.strip())
+            break
+    if unfilled:
+        raise ManifestError(
+            "lease-worker packet still has unfilled placeholders: "
+            + ", ".join(dict.fromkeys(unfilled))
+        )
+    packet_text = "\n".join(filled)
+    if template_text.endswith("\n"):
+        packet_text += "\n"
+    try:
+        check_message(packet_text, args.max_message_bytes)
+    except MessageBudgetOverflowError as exc:
+        raise ManifestError(
+            f"lease-worker packet exceeds the message budget: {exc}"
+        ) from exc
+    return packet_text
 
 
 def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace) -> None:
@@ -4350,6 +4643,364 @@ def _record_reviewed_merge_chain(
     run["integration"]["reviewed_merge_chain"] = proof
 
 
+_RUN_INTENT_CHOICES = (
+    "plan-only",
+    "plan-then-stop",
+    "plan-then-execute",
+    "execute-ready-plan",
+)
+_EXECUTION_INTENTS = ("plan-then-execute", "execute-ready-plan")
+
+
+def _record_attempt(
+    run: dict[str, Any], prefix: str, kind: str, result: str, evidence: list[str]
+) -> None:
+    log = run.setdefault("attempt_log", [])
+    log.append(
+        {
+            "attempt_id": f"{prefix}-{len(log) + 1}",
+            "mission_id": None,
+            "task_id": None,
+            "lease_id": None,
+            "kind": kind,
+            "result": result,
+            "evidence": list(evidence),
+        }
+    )
+
+
+def _scope_plan_binding(run: dict[str, Any]) -> dict[str, Any]:
+    """Fill run_id and the current plan revision/digest from RUN itself."""
+
+    plan = run.get("plan")
+    revision = plan.get("revision") if isinstance(plan, dict) else None
+    digest = plan.get("digest_sha256") if isinstance(plan, dict) else None
+    if (
+        not isinstance(revision, int)
+        or revision < 1
+        or not isinstance(digest, str)
+        or not digest
+    ):
+        raise ManifestError(
+            "run.plan carries no revision/digest pair; record grants only against a "
+            "generated RUN"
+        )
+    return {
+        "run_id": run.get("run_id"),
+        "plan_revision": revision,
+        "plan_digest_sha256": digest,
+    }
+
+
+def _scope_wave_binding(run: dict[str, Any]) -> dict[str, str]:
+    wave = run.get("active_wave")
+    if not isinstance(wave, dict) or wave.get("status") not in {"proposed", "active"}:
+        raise ManifestError(
+            "a wave_closed grant binds the current wave; propose or accept one first"
+        )
+    wave_id = wave.get("wave_id")
+    batch_base_sha = wave.get("batch_base_sha")
+    if not _nonempty_string(wave_id) or not is_full_sha(batch_base_sha):
+        raise ManifestError(
+            "the current wave carries no immutable wave_id/batch_base_sha pair to bind"
+        )
+    return {"wave_id": wave_id, "batch_base_sha": batch_base_sha}
+
+
+def _execution_scope(
+    run: dict[str, Any], mission_ids: list[str], expires_when: str
+) -> dict[str, Any]:
+    scope = {
+        **_scope_plan_binding(run),
+        "mission_ids": list(mission_ids),
+        "expires_when": expires_when,
+    }
+    if expires_when == "wave_closed":
+        scope.update(_scope_wave_binding(run))
+    return scope
+
+
+def _record_grant(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Record one owner-authorized ledger entry or the execution authorization.
+
+    run_id, the plan revision and digest are filled from RUN, so the recorded
+    scope covers exactly the validated pair; the pair validator rejects any
+    mismatch before the write lands. `push` stays unrecordable.
+    """
+
+    if args.action == "push":
+        raise ManifestError(
+            "record-grant never records push; RUN keeps push false and a post-archive "
+            "instruction is captured in the checkout-external request"
+        )
+    if not args.mission_id:
+        raise ManifestError("record-grant requires at least one --mission-id")
+    if args.action == "execution":
+        if args.target:
+            raise ManifestError(
+                "record-grant --action execution takes no --target; the execution "
+                "authorization carries no target list"
+            )
+        run["execution_authorized"] = True
+        run["execution_authorization_source"] = args.source
+        run["execution_authorization_scope"] = _execution_scope(
+            run, args.mission_id, args.expires_when
+        )
+        recorded = "execution authorization"
+    else:
+        authorizations = run.get("authorizations")
+        if not isinstance(authorizations, dict):
+            raise ManifestError("run has no authorizations ledger to record the grant in")
+        if not args.target:
+            raise ManifestError(
+                "record-grant requires at least one --target for an action grant"
+            )
+        scope = {
+            **_scope_plan_binding(run),
+            "mission_ids": list(args.mission_id),
+            "targets": list(args.target),
+        }
+        if args.expires_when == "wave_closed":
+            scope.update(_scope_wave_binding(run))
+        authorizations[args.action] = {
+            "authorized": True,
+            "source": args.source,
+            "scope": scope,
+            "expires_when": args.expires_when,
+        }
+        recorded = f"{args.action} grant"
+    _record_attempt(
+        run,
+        "GRANT-RECORD",
+        "authorization_record",
+        "recorded",
+        [f"recorded {recorded}", args.source],
+    )
+
+
+def _open_run(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Open a generated RUN for readiness and, when owner-authorized, execution.
+
+    `plan_readiness` and `status` become ready only when the pair validator
+    accepts the whole PLAN/RUN pair afterwards; the command itself writes no
+    readiness evidence. Repeat it after fixing a failed readiness row.
+    """
+
+    status = run.get("status")
+    if status in {"running", "complete"}:
+        raise ManifestError(
+            f"run status is {status!r}; open-run opens a draft, ready, or blocked run"
+        )
+    authorizing = bool(args.mission_id or args.expires_when)
+    if authorizing and (not args.mission_id or not args.expires_when):
+        raise ManifestError(
+            "open-run authorizes execution only with --mission-id and --expires-when "
+            "together"
+        )
+    if authorizing and args.intent not in _EXECUTION_INTENTS:
+        raise ManifestError(
+            f"intent {args.intent!r} cannot authorize execution; use one of "
+            + ", ".join(_EXECUTION_INTENTS)
+        )
+    run["intent"] = args.intent
+    run["plan_readiness"] = "ready"
+    run["status"] = "ready"
+    if authorizing:
+        run["execution_authorized"] = True
+        run["execution_authorization_source"] = args.source
+        run["execution_authorization_scope"] = _execution_scope(
+            run, args.mission_id, args.expires_when
+        )
+    _record_attempt(run, "OPEN-RUN", "run_open", "ready", [args.source])
+
+
+def _route_caps_evidence(items: list[str]) -> list[str]:
+    """Validate recorded route caps and render one evidence string per cap."""
+
+    known_caps = ("wall_clock_seconds", "tool_turns", "max_message_bytes")
+    caps: dict[str, dict[str, int]] = {}
+    for item in items:
+        text = item.strip()
+        if text.startswith("{"):
+            try:
+                document = json.loads(text)
+            except json.JSONDecodeError as exc:
+                raise ManifestError(f"invalid --route-caps JSON: {exc}") from exc
+            if not isinstance(document, dict):
+                raise ManifestError(
+                    "--route-caps JSON must map route names to cap objects"
+                )
+        else:
+            parts = text.split("=")
+            if len(parts) != 3 or not parts[0] or not parts[1]:
+                raise ManifestError(
+                    "--route-caps takes <route>=<cap>=<integer> or a JSON object"
+                )
+            document = {parts[0]: {parts[1]: parts[2]}}
+        for route, route_document in document.items():
+            if route not in RUNTIME_DRIVERS:
+                raise ManifestError(
+                    f"--route-caps names unknown route {route!r}; use one of "
+                    + ", ".join(sorted(RUNTIME_DRIVERS))
+                )
+            if not isinstance(route_document, dict):
+                raise ManifestError(
+                    f"--route-caps entry for route {route!r} must map cap names to integers"
+                )
+            recorded = caps.setdefault(route, {})
+            for cap, value in route_document.items():
+                if cap not in known_caps:
+                    raise ManifestError(
+                        f"--route-caps names unknown cap {cap!r} for route {route!r}; "
+                        f"use one of {', '.join(known_caps)}"
+                    )
+                if isinstance(value, bool) or not isinstance(value, (int, str)):
+                    raise ManifestError(
+                        f"--route-caps {route}.{cap} must be a positive integer"
+                    )
+                if isinstance(value, str) and not value.isdigit():
+                    raise ManifestError(
+                        f"--route-caps {route}.{cap} must be a positive integer"
+                    )
+                number = int(value)
+                if number < 1:
+                    raise ManifestError(
+                        f"--route-caps {route}.{cap} must be a positive integer"
+                    )
+                recorded[cap] = number
+    return [
+        f"{route}.{cap}={value}"
+        for route, route_caps in sorted(caps.items())
+        for cap, value in sorted(route_caps.items())
+    ]
+
+
+def _record_runtime(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Record the observed runtime adapter surface and its version gate.
+
+    The gate stays unobserved: record-runtime never reads installed bytes, so
+    the installed digest new_run recorded is kept as it was and the loaded
+    digest stays null unless the caller passes --loaded-digest.
+    """
+
+    if not args.driver:
+        raise ManifestError("record-runtime requires at least one --driver")
+    if not args.route_caps:
+        raise ManifestError("record-runtime requires at least one --route-caps")
+    if not is_valid_provider_id(args.provider):
+        raise ManifestError(
+            f"record-runtime needs a valid provider id, got {args.provider!r}"
+        )
+    if args.loaded_digest is not None and SHA256_RE.fullmatch(args.loaded_digest) is None:
+        raise ManifestError("--loaded-digest must be a lowercase SHA-256 digest")
+    runtime = run.get("runtime_capabilities")
+    if not isinstance(runtime, dict):
+        raise ManifestError(
+            "run has no runtime_capabilities block to record the adapter in"
+        )
+    adapter = runtime.get("runtime_adapter")
+    observed_adapter = dict(adapter) if isinstance(adapter, dict) else {}
+    # The run-scoped version pin stays: record-runtime observes one session's
+    # adapter surface, never a new release identity for the run.
+    prior_gate = adapter.get("version_gate") if isinstance(adapter, dict) else None
+    if not isinstance(prior_gate, dict):
+        prior_gate = {}
+    installed_digest = prior_gate.get("installed_contract_digest")
+    # Two observed digests that differ mean the session runs other bytes than
+    # the installed bundle; the validator admits only restart_required there.
+    status = (
+        "restart_required"
+        if args.loaded_digest is not None
+        and installed_digest is not None
+        and args.loaded_digest != installed_digest
+        else "unobserved"
+    )
+    gate = {
+        "host_version": prior_gate.get("host_version"),
+        "minimum_host_version": prior_gate.get("minimum_host_version"),
+        "harness_version": prior_gate.get("harness_version"),
+        "required_harness_version": prior_gate.get("required_harness_version"),
+        "session_id": args.session_id,
+        "loaded_contract_digest": args.loaded_digest,
+        "installed_contract_digest": installed_digest,
+        "status": status,
+        "evidence": (
+            f"record-runtime observed provider {args.provider} with drivers "
+            + ", ".join(args.driver)
+        ),
+    }
+    observed_adapter.update(
+        {
+            "provider": args.provider,
+            "available_drivers": list(args.driver),
+            "detection_source": "observed",
+            "version_gate": gate,
+        }
+    )
+    runtime["runtime_adapter"] = observed_adapter
+    evidence = [gate["evidence"], *_route_caps_evidence(args.route_caps)]
+    _record_attempt(run, "RUNTIME-RECORD", "runtime_record", "observed", evidence)
+
+
+def _run_repository_root(run_path: Path) -> Path:
+    result = run_git(run_path.parent, "rev-parse", "--show-toplevel")
+    if result.returncode != 0:
+        raise ManifestError(
+            "close-run requires --repo-root; the RUN file is not inside a Git checkout"
+        )
+    return Path(result.stdout.strip())
+
+
+def _close_run(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Close an integrated run and preserve its branch at the integration head.
+
+    Completing the status makes the pair validator re-run every closeout
+    condition against the live pair and live Git; any miss refuses the write
+    with the RUN bytes unchanged.
+    """
+
+    if run.get("status") == "complete":
+        raise ManifestError(
+            "run status is already complete; close-run closes a live run"
+        )
+    integration = run.get("integration")
+    head = (
+        integration.get("integration_head_sha")
+        if isinstance(integration, dict)
+        else None
+    )
+    if not is_full_sha(head):
+        raise ManifestError(
+            "close-run closes an integrated run; record an integration head first"
+        )
+    landing = run.get("landing")
+    continuity = landing.get("continuity") if isinstance(landing, dict) else None
+    if (
+        not isinstance(continuity, dict)
+        or continuity.get("status") not in {"planned", "preserved"}
+    ):
+        raise ManifestError(
+            "close-run preserves the recorded run branch; landing.continuity is "
+            "missing or blocked, so continuity cannot be preserved"
+        )
+    if args.repo_root is None:
+        # The closeout conditions bind live Git, so close-run defaults
+        # --repo-root to the repository the RUN file lives in.
+        args.repo_root = _run_repository_root(args.run)
+    continuity["status"] = "preserved"
+    continuity["head_sha"] = head
+    run["status"] = "complete"
+    _record_attempt(run, "CLOSE-RUN", "run_closed", "complete", [args.source])
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", type=Path, required=True)
@@ -4441,6 +5092,18 @@ def build_parser() -> argparse.ArgumentParser:
     lease.add_argument("--workspace-mode")
     lease.add_argument("--completion-channel")
     lease.add_argument("--report-path")
+    lease.add_argument(
+        "--packet-out",
+        type=Path,
+        help="also render the worker goal packet from the in-memory leased run",
+    )
+    lease.add_argument("--max-message-bytes", type=int)
+    lease.add_argument(
+        "--context-path",
+        action="append",
+        help="repeatable ordered context source path; the packet records its hash",
+    )
+    lease.add_argument("--host-file", type=Path)
     reserve_node = subparsers.add_parser("reserve-node-attempt")
     reserve_node.add_argument("--node-id", required=True)
     reserve_node.add_argument("--attempt-id", required=True)
@@ -4498,6 +5161,31 @@ def build_parser() -> argparse.ArgumentParser:
     watchdog = subparsers.add_parser("watchdog")
     watchdog.add_argument("--stale-after-minutes", type=float, default=DEFAULT_LOCK_STALE_MINUTES)
     watchdog.add_argument("--reclaim", action="store_true")
+    grant = subparsers.add_parser("record-grant")
+    grant.add_argument(
+        "--action", required=True, choices=(*AUTHORIZATION_KEYS, "execution")
+    )
+    grant.add_argument("--target", action="append", default=[])
+    grant.add_argument("--mission-id", action="append", default=[])
+    grant.add_argument("--expires-when", required=True, choices=tuple(EXPIRY_BOUNDARIES))
+    grant.add_argument("--source", required=True)
+    open_command = subparsers.add_parser("open-run")
+    open_command.add_argument("--intent", required=True, choices=_RUN_INTENT_CHOICES)
+    open_command.add_argument("--mission-id", action="append", default=[])
+    open_command.add_argument("--expires-when", choices=tuple(EXPIRY_BOUNDARIES))
+    open_command.add_argument("--source", required=True)
+    close_command = subparsers.add_parser("close-run")
+    close_command.add_argument("--source", required=True)
+    runtime_parser = subparsers.add_parser("record-runtime")
+    runtime_parser.add_argument("--provider", required=True)
+    runtime_parser.add_argument("--driver", action="append", default=[])
+    runtime_parser.add_argument(
+        "--route-caps",
+        action="append",
+        default=[],
+        help="repeatable <route>=<cap>=<integer> or a JSON object",
+    )
+    runtime_parser.add_argument("--loaded-digest")
     parser.add_argument("--session-id")
     return parser
 
@@ -4520,9 +5208,10 @@ def _transition_under_lock(
                 "--max-diff-bytes and --max-message-bytes require --packet-out; "
                 "the budgets must validate the complete packet before durable writes"
             )
-        if args.command != "reserve-review-dispatch":
+        if args.command not in {"reserve-review-dispatch", "lease-worker"}:
             raise ManifestError(
-                "packet byte budgets are valid only with reserve-review-dispatch"
+                "packet byte budgets are valid only with reserve-review-dispatch "
+                "or lease-worker"
             )
     if getattr(args, "max_message_bytes", None) is not None:
         try:
@@ -4531,6 +5220,21 @@ def _transition_under_lock(
             raise ManifestError(f"invalid packet message budget: {exc}") from exc
     if diff_budget is not None and diff_budget < 1:
         raise ManifestError("invalid packet diff budget: --max-diff-bytes must be positive")
+    if args.command == "lease-worker":
+        lease_packet_out = getattr(args, "packet_out", None)
+        if lease_packet_out is None and (
+            getattr(args, "context_path", None)
+            or getattr(args, "host_file", None) is not None
+        ):
+            raise ManifestError(
+                "--context-path and --host-file require --packet-out; "
+                "the context and host facts belong in the rendered packet"
+            )
+        if lease_packet_out is not None and message_budget is None:
+            raise ManifestError(
+                "--packet-out requires --max-message-bytes; the packet is "
+                "size-checked before the durable RUN write"
+            )
     original_text = args.run.read_text(encoding="utf-8")
     original = extract_json_manifest_text(
         original_text,
@@ -4608,6 +5312,14 @@ def _transition_under_lock(
         _release_run_lock(run, args)
     elif args.command == "heartbeat-run-lock":
         _heartbeat_run_lock(run, args)
+    elif args.command == "record-grant":
+        _record_grant(plan, run, args)
+    elif args.command == "open-run":
+        _open_run(plan, run, args)
+    elif args.command == "close-run":
+        _close_run(plan, run, args)
+    elif args.command == "record-runtime":
+        _record_runtime(plan, run, args)
     elif args.command != "watchdog":
         receipt = _record_review_attempt(plan, run, args)
     # A session holding the durable lock keeps it fresh through its own
@@ -4630,6 +5342,11 @@ def _transition_under_lock(
     diff_artifacts = []
     if getattr(args, "diff_artifact_out", None) and not getattr(args, "packet_out", None):
         raise ManifestError("--diff-artifact-out requires --packet-out")
+    lease_packet = None
+    if args.command == "lease-worker" and getattr(args, "packet_out", None):
+        if args.packet_out.exists():
+            raise ManifestError(f"refusing to overwrite {args.packet_out}")
+        lease_packet = _render_worker_packet(plan, run, args)
     if receipt is not None and getattr(args, "packet_out", None):
         from render_review_packet import render_packet
 
@@ -4691,6 +5408,14 @@ def _transition_under_lock(
         before_commit = recheck_integration
     _ensure_plan_unchanged(args.plan, expected_plan_text)
     _replace_run_document(args.run, run, expected_text=original_text, before_commit=before_commit)
+    if lease_packet is not None:
+        try:
+            _write_text_exclusive(args.packet_out, lease_packet)
+        except (ManifestError, OSError) as exc:
+            raise ManifestError(
+                f"{exc}; the RUN lease is durable. Re-render the packet for the "
+                "same lease to a new output path before launch"
+            ) from exc
     if packet is not None:
         from render_review_packet import write_diff_artifact
 

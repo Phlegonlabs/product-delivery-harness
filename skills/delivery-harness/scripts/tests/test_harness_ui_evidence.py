@@ -371,15 +371,22 @@ class TargetComparisonSchemaTests(unittest.TestCase):
 
 class StrictPlatformEvidenceSchemaTests(unittest.TestCase):
     @staticmethod
-    def plan(*, capture_mode: str = "hosted-browser", with_pair: bool = False) -> dict[str, object]:
-        sources: list[dict[str, object]] = [
-            {
-                "id": "SRC-HIFI",
-                "kind": "approved ui target",
-                "location": "docs/design/ui-references/run-1/index.html",
-                "content_sha256": "c" * 64,
-            }
-        ]
+    def plan(
+        *,
+        capture_mode: str = "hosted-browser",
+        with_pair: bool = False,
+        with_target: bool = True,
+    ) -> dict[str, object]:
+        sources: list[dict[str, object]] = []
+        if with_target:
+            sources.append(
+                {
+                    "id": "SRC-HIFI",
+                    "kind": "approved ui target",
+                    "location": "docs/design/ui-references/run-1/index.html",
+                    "content_sha256": "c" * 64,
+                }
+            )
         if with_pair:
             sources.extend(
                 [
@@ -452,6 +459,7 @@ class StrictPlatformEvidenceSchemaTests(unittest.TestCase):
         self,
         plan: dict[str, object],
         item: dict[str, object],
+        version: str = "0.38.0",
     ) -> list[str]:
         run: dict[str, object] = {
             "schema_version": 11,
@@ -459,7 +467,7 @@ class StrictPlatformEvidenceSchemaTests(unittest.TestCase):
             "integration": {"integration_head_sha": "f" * 40},
             "runtime_capabilities": {
                 "runtime_adapter": {
-                    "version_gate": {"required_harness_version": "0.38.0"}
+                    "version_gate": {"required_harness_version": version}
                 }
             },
         }
@@ -565,6 +573,64 @@ class StrictPlatformEvidenceSchemaTests(unittest.TestCase):
                     except (TypeError, AttributeError, KeyError) as exc:
                         self.fail(f"malformed authority {field} raised {exc!r}")
                     self.assertTrue(errors, (field, value, errors))
+
+
+    def design_system_row(self) -> dict[str, object]:
+        return self.row(
+            baseline="design_system",
+            authority_sources=[
+                {"path": "docs/design/design-system.md", "sha256": "d" * 64},
+                {"path": "docs/design/design-system.json", "sha256": "e" * 64},
+            ],
+        )
+
+    def test_design_system_authority_stays_pair_only_before_0_79(self) -> None:
+        errors = self.validate(
+            self.plan(with_pair=True), self.design_system_row(), version="0.78.0"
+        )
+        self.assertEqual([], errors)
+
+    def test_design_system_authority_requires_the_frozen_hifi_from_0_79(self) -> None:
+        errors = self.validate(
+            self.plan(with_pair=True), self.design_system_row(), version="0.79.0"
+        )
+        self.assertTrue(any("authority_sources" in error for error in errors), errors)
+
+    def test_design_system_authority_binds_pair_then_hifi_from_0_79(self) -> None:
+        row = self.design_system_row()
+        comparison = row["target_comparison"]
+        assert isinstance(comparison, dict)
+        comparison["authority_sources"] = [
+            {"path": "docs/design/design-system.md", "sha256": "d" * 64},
+            {"path": "docs/design/design-system.json", "sha256": "e" * 64},
+            {"path": "docs/design/ui-references/run-1/index.html", "sha256": "c" * 64},
+        ]
+        self.assertEqual(
+            [], self.validate(self.plan(with_pair=True), row, version="0.79.0")
+        )
+
+    def test_design_system_authority_order_is_pinned_from_0_79(self) -> None:
+        row = self.design_system_row()
+        comparison = row["target_comparison"]
+        assert isinstance(comparison, dict)
+        comparison["authority_sources"] = [
+            {"path": "docs/design/ui-references/run-1/index.html", "sha256": "c" * 64},
+            {"path": "docs/design/design-system.md", "sha256": "d" * 64},
+            {"path": "docs/design/design-system.json", "sha256": "e" * 64},
+        ]
+        errors = self.validate(self.plan(with_pair=True), row, version="0.79.0")
+        self.assertTrue(any("authority_sources" in error for error in errors), errors)
+
+    def test_design_system_authority_without_a_frozen_hifi_keeps_the_pair(self) -> None:
+        errors = self.validate(
+            self.plan(with_pair=True, with_target=False),
+            self.design_system_row(),
+            version="0.79.0",
+        )
+        self.assertEqual([], errors)
+
+    def test_html_target_authority_is_unchanged_from_0_79(self) -> None:
+        self.assertEqual([], self.validate(self.plan(), self.row(), version="0.79.0"))
 
 
 class LayoutCheckSchemaTests(unittest.TestCase):

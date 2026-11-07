@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
-"""Capture a HiFi surface x state x target matrix in one offline browser session.
+"""Capture a HiFi surface x state x target matrix and its product interactions in one offline browser session.
 
 Each page loads once. Targets and states change through the real reviewer shell
-controls, never by reloading. Output: one PNG per case, ``ui-output.json``
-(``ui-output/3``, matrix portion) and ``matrix-capture.json`` (per-case
-fingerprints, geometry, carried rows and axis runs).
+controls, never by reloading. The matrix pass clicks no product control; the
+interaction pass then clicks and keyboard-activates every manifest interaction
+at every source target. Output: one PNG per case, ``ui-output.json``
+(``ui-output/3``: matrix, ``interactions`` rows, ``navigation`` events and the
+``reviewer`` object) and ``matrix-capture.json`` (per-case fingerprints,
+geometry, carried rows, axis runs, interaction records and reviewer
+measurements).
 
 The browser is Node Playwright, the repo's pinned test dependency
 (``PLAYWRIGHT_MODULE`` or ``node_modules/playwright`` under ``--repo-root``).
@@ -33,20 +37,26 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
-from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths
+from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
+from ui_design_v3 import intermediate_width_findings
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
 OUTPUT_NAME = "ui-output.json"
 SIDECAR_NAME = "matrix-capture.json"
+INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
-AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200")
+AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
+TRIGGERS = ("click", "keyboard")
+INTERACT_KINDS = ("navigate", "state")
+DRIVER_BASE = "https://hifi.invalid/pkg/"
 SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
 CASE_TIMEOUT_S = 30
 MAX_RESTARTS = 3
 OVERFLOW_TOLERANCE_PX = 1
 WIDTH_TOLERANCE_PX = 1
+REFLOW_WIDTH_PX = 320
 SANDBOX = {"network": "disabled", "topNavigation": "allowlisted-local-pages",
            "popups": "blocked", "forms": "blocked"}
 TRANSCRIPT_KINDS = ("console", "network", "navigation", "popups", "forms")
@@ -68,8 +78,9 @@ class DriverTimeout(DriverError):
 
 # --- Node Playwright driver -------------------------------------------------
 # One JSON request per stdin line, one JSON reply per stdout line. Every reply
-# carries the console/network/navigation/popup/form events seen since the last
-# reply. CDP Log and Runtime are enabled before the first load and never cleared.
+# carries the console/network/navigation/popup/form and product-focus events
+# seen since the last reply. CDP Log and Runtime are enabled before the first
+# load and never cleared.
 DRIVER_JS = r"""
 'use strict';
 const fs = require('fs');
@@ -87,9 +98,11 @@ const STYLE_PROPS = ['display', 'position', 'color', 'background-color', 'backgr
   'margin-right', 'margin-bottom', 'margin-left', 'gap', 'grid-template-columns', 'flex-direction',
   'visibility', 'cursor', 'mask-image', 'border-image', 'fill', 'stroke', 'stroke-width'];
 const sha = text => crypto.createHash('sha256').update(text).digest('hex');
-const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [], forms: [] });
+const emptyEvents = () => ({ console: [], network: [], navigation: [], popups: [], forms: [], focus: [] });
 let events = emptyEvents();
 let browser, context, page, pages = {};
+let currentPage = null;
+let baseColorScheme = 'light';   // the run's context theme; an axis reset returns to it, not to plain light
 let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
@@ -99,6 +112,11 @@ const packageVersion = () => {
     try { return require(path.join(dir, 'package.json')).version; } catch (_) {}
   }
   return 'unknown';
+};
+
+const SET_CANVAS_WIDTH = px => {
+  const canvas = document.querySelector('[data-hifi-canvas]');
+  if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
 };
 
 const SETTLE = async ({ cap, margin }) => {
@@ -203,10 +221,11 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
 
 async function start(request) {
   for (const [name, file] of Object.entries(request.files)) pages[name] = fs.readFileSync(file);
+  baseColorScheme = request.colorScheme === 'dark' ? 'dark' : 'light';
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({
     viewport: request.viewport, serviceWorkers: 'block', acceptDownloads: false,
-    colorScheme: 'light', reducedMotion: 'no-preference', forcedColors: 'none', deviceScaleFactor: 1,
+    colorScheme: baseColorScheme, reducedMotion: 'no-preference', forcedColors: 'none', deviceScaleFactor: 1,
   });
   await context.route('**/*', route => {
     const req = route.request();
@@ -227,9 +246,15 @@ async function start(request) {
     const record = form => window.__pdhForm && window.__pdhForm({ action: String(form.action), method: String(form.method) });
     addEventListener('submit', event => { event.preventDefault(); record(event.target); }, true);
     HTMLFormElement.prototype.submit = function () { record(this); };
+    addEventListener('focusin', event => {
+      const el = event.target;
+      const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
+      if (id) window.__pdhFocus({ control: id });
+    }, true);
   });
   page = await context.newPage();
   await page.exposeFunction('__pdhForm', info => { events.forms.push(info); });
+  await page.exposeFunction('__pdhFocus', info => { events.focus.push(info); });
   context.on('page', popup => { if (popup !== page) { events.popups.push({ url: popup.url() }); popup.close().catch(() => {}); } });
   page.on('dialog', dialog => {
     events.console.push({ source: 'dialog', level: 'error', message: 'dialog ' + dialog.type() + ': ' + dialog.message() });
@@ -250,19 +275,97 @@ async function start(request) {
   return { environment: { playwright: packageVersion(), chromium: browser.version(), node: process.version } };
 }
 
-async function open(request) {
-  page.setDefaultTimeout(request.timeoutMs);
-  opening = request.page;
+async function openPage(name, timeoutMs) {
+  page.setDefaultTimeout(timeoutMs);
+  opening = name;
   let response;
-  try { response = await page.goto(BASE + encodeURI(request.page), { waitUntil: 'load' }); } finally { opening = null; }
-  if (!response || response.status() !== 200) throw new Error('page did not load: ' + request.page);
+  try { response = await page.goto(BASE + encodeURI(name), { waitUntil: 'load' }); } finally { opening = null; }
+  if (!response || response.status() !== 200) throw new Error('page did not load: ' + name);
   await page.locator('[data-hifi-reviewer-shell]').first().waitFor({ state: 'attached' });
   await page.locator('[data-hifi-canvas]').first().waitFor({ state: 'attached' });
   await page.evaluate(() => document.fonts.ready.then(() => true));
+  currentPage = name;
+}
+
+async function open(request) {
+  await openPage(request.page, request.timeoutMs);
   return {
     targets: await page.locator('[data-hifi-target-control]').evaluateAll(list => list.map(n => n.dataset.hifiTargetControl)),
     states: await page.locator('[data-hifi-state-control]').evaluateAll(list => list.map(n => n.dataset.hifiStateSurface + ' ' + n.dataset.hifiStateControl)),
   };
+}
+
+// One interaction attempt: reset page/target/source state through the reviewer
+// shell, then activate the declared product control by click or keyboard. The
+// destination surface/state must apply; the control, and only the control, must
+// take product focus during the attempt.
+async function interact(request) {
+  const problems = [];
+  const timeout = request.timeoutMs;
+  if (currentPage !== request.page) {
+    try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
+  }
+  if (!problems.length) {
+    const target = page.locator('[data-hifi-target-control=' + quote(request.target) + ']');
+    if (await target.count() !== 1) problems.push('target control missing: ' + request.target);
+    else {
+      if (await target.getAttribute('aria-pressed') !== 'true') await target.click({ timeout });
+      const current = await page.evaluate(() => document.querySelector('[data-hifi-canvas]').dataset.hifiTarget);
+      if (current !== request.target) problems.push('target did not apply: ' + current);
+    }
+    const control = page.locator('[data-hifi-state-control=' + quote(request.state) + '][data-hifi-state-surface=' + quote(request.surface) + ']');
+    if (await control.count() !== 1) {
+      problems.push('state control missing: ' + request.surface + ' ' + request.state);
+    } else {
+      // Always click the visible shell control: it also re-syncs a shell the product DOM has drifted from.
+      if (await control.isVisible()) await control.click({ timeout });
+      else await page.evaluate(hash => { location.hash = hash; },
+        '#hifi-state=' + encodeURIComponent(request.surface) + '/' + encodeURIComponent(request.state));
+      try {
+        await page.waitForFunction(([surface, state]) => {
+          const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
+          return Boolean(el) && !el.hidden && el.dataset.hifiState === state;
+        }, [request.surface, request.state], { timeout });
+      } catch (_) {
+        problems.push('state did not apply: ' + request.surface + ' ' + request.state);
+      }
+    }
+  }
+  let visible = null, focusCorrect = null, arrivedTo = null;
+  if (!problems.length) {
+    const surface = '[data-ui-surface=' + quote(request.surface) + ']';
+    const product = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + ']:visible,'
+      + surface + ' [data-control-id=' + quote(request.control) + ']:visible');
+    if (await product.count() !== 1) problems.push('product control is missing or not unique: ' + request.control);
+    else {
+      const handle = product.first();
+      visible = await handle.isVisible();
+      let pressedFocused = null;
+      if (request.trigger === 'keyboard') {
+        await handle.focus({ timeout });
+        pressedFocused = await handle.evaluate(el => el === document.activeElement);
+        const tag = await handle.evaluate(el => el.tagName.toLowerCase());
+        await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
+      } else {
+        await handle.click({ timeout });
+      }
+      try {
+        await page.waitForFunction(([surface, state]) => {
+          const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
+          return Boolean(el) && !el.hidden && el.dataset.hifiState === state;
+        }, [request.destination.surface, request.destination.state], { timeout });
+      } catch (_) {
+        problems.push('destination surface/state did not apply: ' + request.destination.surface + ' ' + request.destination.state);
+      }
+      const url = page.url();
+      arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
+      if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
+      // Both triggers must land product focus on the control alone; keyboard also had to press from it.
+      focusCorrect = events.focus.length === 1 && events.focus[0].control === request.control
+        && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
+    }
+  }
+  return { problems, visible, focusCorrect, arrivedTo };
 }
 
 async function runCase(request) {
@@ -297,6 +400,10 @@ async function runCase(request) {
     }
   }
   if (problems.length) return { problems, settle: null, probe: null };
+  await page.evaluate(px => {
+    const canvas = document.querySelector('[data-hifi-canvas]');
+    if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
+  }, request.widthPx || null);
   const settle = await page.evaluate(SETTLE, { cap: request.settleCapMs, margin: request.marginMs });
   const probe = await page.evaluate(PROBE, {
     surfaceId: request.surface, state: request.state, limit: 400, reportLimit: 10, props: STYLE_PROPS,
@@ -320,7 +427,7 @@ async function shot(request) {
 async function axis(request) {
   const name = request.name;
   await page.emulateMedia({
-    colorScheme: name === 'dark' ? 'dark' : 'light',
+    colorScheme: (name === 'dark' || baseColorScheme === 'dark') ? 'dark' : 'light',
     reducedMotion: name === 'reduced-motion' ? 'reduce' : 'no-preference',
     forcedColors: name === 'forced-colors' ? 'active' : 'none',
   });
@@ -328,8 +435,199 @@ async function axis(request) {
     for (const surface of document.querySelectorAll('[data-ui-surface]')) {
       if (zoom) surface.style.setProperty('zoom', '2'); else surface.style.removeProperty('zoom');
     }
+    // a reflow case leaves its inline width behind; the next pass must meet the declared widths again
+    const canvas = document.querySelector('[data-hifi-canvas]');
+    if (canvas) canvas.style.removeProperty('width');
   }, name === 'zoom-200');
   return {};
+}
+
+// The reviewer pass, once per page after the interaction pass: one fresh open
+// (the reviewer's stored selections are cleared first), the entry observations,
+// the page-bound specimen source reads at the default target, the contract's
+// viewport rows, and the entry-side specimen display reads. Only reviewer shell
+// controls are clicked; no product control is touched.
+async function reviewer(request) {
+  const timeout = request.timeoutMs;
+  const press = async (attribute, value) => {
+    const control = page.locator('[' + attribute + '=' + quote(value) + ']');
+    if (await control.count() !== 1) throw new Error('reviewer control missing: ' + value);
+    if (await control.getAttribute('aria-pressed') !== 'true') await control.click({ timeout });
+  };
+  const selectSurface = async (surface, state) => {
+    const control = page.locator('[data-hifi-state-control=' + quote(state) + '][data-hifi-state-surface=' + quote(surface) + ']');
+    if (await control.count() !== 1) return;
+    if (await control.isVisible()) await press('data-hifi-state-control', state);
+    else {
+      await page.evaluate(hash => { location.hash = hash; },
+        '#hifi-state=' + encodeURIComponent(surface) + '/' + encodeURIComponent(state));
+      await page.waitForFunction(surface => {
+        const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
+        return Boolean(el) && !el.hidden;
+      }, surface, { timeout }).catch(() => {});
+    }
+  };
+  const settle = () => page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.evaluate(() => {
+    for (const key of Object.keys(sessionStorage)) if (key.startsWith('hifi-reviewer:')) sessionStorage.removeItem(key);
+  });
+  await openPage(request.page, timeout);
+  const result = {};
+  if (request.entry) {
+    result.entry = await page.evaluate(() => {
+      const collect = selector => {
+        const found = [];
+        const walk = root => {
+          if (!root) return;
+          let all;
+          try { found.push(...root.querySelectorAll(selector)); all = root.querySelectorAll('*'); } catch (_) { return; }
+          for (const el of all) if (el.shadowRoot) walk(el.shadowRoot);
+        };
+        walk(document);
+        return found;
+      };
+      const visible = Array.from(document.querySelectorAll('[data-ui-surface]'))
+        .filter(el => !el.hidden && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0)
+        .map(el => el.dataset.uiSurface);
+      const defaultSurface = (document.body.dataset || {}).hifiDefaultSurface || null;
+      return { defaultSurface, defaultVisible: visible.includes(defaultSurface),
+        overviewInitiallyHidden: collect('[data-hifi-panel]').every(panel => panel.hidden) };
+    });
+  }
+  if (request.sources && request.sources.length) {
+    result.sources = await page.evaluate(specs => {
+      const host = document.querySelector('[data-hifi-canvas]') || document.body;
+      const identity = spec => ({ kind: spec.kind, name: spec.name, sourcePage: spec.sourcePage, source: spec.source,
+        property: spec.property, variant: spec.variant, state: spec.state, element: spec.element,
+        sharedGroup: spec.sharedGroup || null });
+      return specs.map(spec => {
+        const row = { ...identity(spec), sourceValue: null, sourceComputedValue: null };
+        try {
+          if (spec.kind === 'token') {
+            row.sourceValue = getComputedStyle(document.documentElement).getPropertyValue(spec.property).trim() || null;
+            if (spec.previewProperty && row.sourceValue) {
+              const probe = document.createElement(spec.element || 'span');
+              probe.style.setProperty(spec.previewProperty, 'var(' + spec.property + ')');
+              host.appendChild(probe);
+              row.sourceComputedValue = getComputedStyle(probe).getPropertyValue(spec.previewProperty).trim() || null;
+              probe.remove();
+            }
+          } else {
+            const attr = (el, name, fallback) => el.getAttribute(name) || el.getAttribute(fallback) || 'default';
+            const candidates = Array.from(host.querySelectorAll(spec.source)).filter(el =>
+              attr(el, 'data-specimen-variant', 'data-variant') === spec.variant
+              && attr(el, 'data-specimen-state', 'data-state') === spec.state);
+            const el = candidates.find(item => { const view = item.closest('[data-hifi-state-view]'); return !view || !view.hidden; })
+              || candidates[0];
+            if (el) row.sourceValue = getComputedStyle(el).getPropertyValue(spec.property).trim() || null;
+          }
+        } catch (_) {}
+        return row;
+      });
+    }, request.sources);
+  }
+  if (request.viewport && request.viewport.length) {
+    result.viewport = [];
+    for (const row of request.viewport) {
+      if (row.state) await selectSurface(row.surface, row.state);
+      await press('data-hifi-target-control', row.target);
+      await page.waitForFunction(t => {
+        const el = document.querySelector('[data-hifi-canvas]');
+        return Boolean(el) && el.dataset.hifiTarget === t;
+      }, row.target, { timeout });
+      await settle();
+      result.viewport.push(await page.evaluate(surface => {
+        const el = document.querySelector('[data-hifi-canvas]');
+        const mediaApplied = () => {
+          let applied = false;
+          const scan = sheet => {
+            try {
+              for (const rule of sheet.cssRules || []) {
+                if (rule.media && /\b(?:width|height|inline-size|block-size)\b|device-(?:width|height)|orientation|aspect-ratio|resolution/i.test(rule.media.mediaText || '')
+                    && matchMedia(rule.media.mediaText).matches) applied = true;
+                if (rule.styleSheet) scan(rule.styleSheet);
+              }
+            } catch (_) {}
+          };
+          for (const sheet of document.styleSheets) scan(sheet);
+          return applied;
+        };
+        return { surface, target: el.dataset.hifiTarget,
+          measuredProductWidth: Math.round(el.getBoundingClientRect().width * 100) / 100,
+          containerQueryApplied: getComputedStyle(el).containerType === 'inline-size',
+          hostMediaQueryApplied: mediaApplied(),
+          visibleSurfaces: Array.from(document.querySelectorAll('[data-ui-surface]'))
+            .filter(item => !item.hidden && item.getBoundingClientRect().width > 0 && item.getBoundingClientRect().height > 0)
+            .map(item => item.dataset.uiSurface) };
+      }, row.surface));
+    }
+  }
+  if (request.reads && request.reads.length) {
+    const defaults = request.defaults || {};
+    if (defaults.state && defaults.surface) await selectSurface(defaults.surface, defaults.state);
+    if (defaults.target) await press('data-hifi-target-control', defaults.target);
+    const tokens = page.locator('[data-hifi-review-view="design-tokens"]');
+    if (await tokens.count() === 1) {
+      await tokens.click({ timeout });
+      await page.waitForFunction(() => {
+        const open = root => {
+          if (!root) return false;
+          for (const el of root.querySelectorAll('[data-hifi-panel]')) if (el.dataset.hifiPanel === 'design-tokens' && !el.hidden) return true;
+          for (const el of root.querySelectorAll('*')) if (el.shadowRoot && open(el.shadowRoot)) return true;
+          return false;
+        };
+        return open(document);
+      }, { timeout });
+      result.reads = await page.evaluate(specs => {
+        const identity = spec => ({ kind: spec.kind, name: spec.name, sourcePage: spec.sourcePage, source: spec.source,
+          property: spec.property, variant: spec.variant, state: spec.state, element: spec.element,
+          sharedGroup: spec.sharedGroup || null });
+        const identityOf = el => ({ kind: el.getAttribute('data-hifi-spec'), name: el.getAttribute('data-name') || '',
+          sourcePage: el.getAttribute('data-source-page') || '', source: el.getAttribute('data-source') || '',
+          property: el.getAttribute('data-property') || '', variant: el.getAttribute('data-variant') || '',
+          state: el.getAttribute('data-state') || '', element: el.getAttribute('data-specimen-element') || '',
+          sharedGroup: el.getAttribute('data-shared-group') || null });
+        const collect = selector => {
+          const found = [];
+          const walk = root => {
+            if (!root) return;
+            let all;
+            try { found.push(...root.querySelectorAll(selector)); all = root.querySelectorAll('*'); } catch (_) { return; }
+            for (const el of all) if (el.shadowRoot) walk(el.shadowRoot);
+          };
+          walk(document);
+          return found;
+        };
+        const groups = new Map();
+        for (const spec of collect('[data-hifi-spec]')) {
+          const key = JSON.stringify(identityOf(spec));
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(spec);
+        }
+        return specs.map(spec => {
+          const queue = groups.get(JSON.stringify(identity(spec))) || [];
+          const el = queue.length ? queue.shift() : null;
+          const read = { ...identity(spec), specimenValue: null, displayValue: null, specimenComputedValue: null };
+          if (!el) return read;
+          const sample = el.querySelector('[data-hifi-specimen-content]');
+          const output = el.querySelector('output');
+          if (sample) {
+            const computed = getComputedStyle(sample);
+            read.specimenValue = computed.getPropertyValue(spec.property).trim() || null;
+            if (spec.kind === 'token' && spec.previewProperty) {
+              read.specimenComputedValue = computed.getPropertyValue(spec.previewProperty).trim() || null;
+            }
+          }
+          const shown = output && output.textContent ? output.textContent.trim() : '';
+          read.displayValue = shown || read.specimenValue || null;
+          return read;
+        });
+      }, request.reads);
+      await page.evaluate(() => { location.hash = ''; });
+      await settle();
+    }
+  }
+  return result;
 }
 
 async function close() {
@@ -337,7 +635,7 @@ async function close() {
   return {};
 }
 
-const handlers = { start, open, case: runCase, shot, axis, close };
+const handlers = { start, open, case: runCase, interact, reviewer, shot, axis, close };
 let chain = Promise.resolve();
 const lines = readline.createInterface({ input: process.stdin });
 lines.on('line', line => {
@@ -362,8 +660,9 @@ lines.on('close', () => { chain.then(() => (browser ? browser.close().catch(() =
 class NodeDriver:
     """Speaks the JSON-lines protocol to one Node Playwright process."""
 
-    def __init__(self, node, module, files, scratch):
+    def __init__(self, node, module, files, scratch, color_scheme="light"):
         self.node, self.module, self.files, self.scratch = node, module, files, Path(scratch)
+        self.color_scheme = color_scheme
         self.proc = None
         self.environment = {}
         self._lines = queue.Queue()
@@ -381,7 +680,7 @@ class NodeDriver:
         threading.Thread(target=self._pump, args=(self.proc.stdout, self._lines), daemon=True).start()
         threading.Thread(target=self._pump, args=(self.proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
-                          viewport={"width": 1920, "height": 1080})
+                          viewport={"width": 1920, "height": 1080}, colorScheme=self.color_scheme)
         self.environment = reply["result"]["environment"]
 
     def _pump(self, stream, sink):
@@ -397,7 +696,8 @@ class NodeDriver:
     def call(self, op, timeout=CASE_TIMEOUT_S + 10, **fields):
         self._seq += 1
         try:
-            self.proc.stdin.write(json.dumps({"id": self._seq, "op": op, **fields}) + "\n")
+            # id and op go last so a payload field of the same name cannot clobber the reply correlation.
+            self.proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
             self.proc.stdin.flush()
         except OSError as error:
             raise DriverError("driver is not running: " + self._tail()) from error
@@ -633,11 +933,98 @@ def sample_axis_cases(rows, page, widths, counts, derived=None):
     return cases
 
 
+def reflow_axis_cases(rows, sampled, widths):
+    """The reflow-320 slice of the sampled cases: every sampled state once, at its surface's smallest target."""
+    smallest = {row["id"]: smallest_target([str(t) for t in row["responsive"]["targets"]], widths) for row in rows}
+    return [case for case in sampled if case.target == smallest[case.surface]]
+
+
 def group_by_page(cases):
     grouped = {}
     for case in cases:
         grouped.setdefault(case.page, []).append(case)
     return grouped
+
+
+def interaction_plan(package, only=None):
+    """Selected manifest interactions to observe, in manifest order; a malformed manifest refuses before any browser work."""
+    actions = package.manifest.get("interactions")
+    if not isinstance(actions, list):
+        raise UsageError("the manifest must declare an interactions list")
+    surfaces = {row["id"]: row for row in package.manifest["surfaces"]}
+    plan, seen = [], set()
+    for action in actions:
+        if not isinstance(action, dict) or not isinstance(action.get("source"), dict) or not isinstance(action.get("destination"), dict):
+            raise UsageError("every interaction needs id, source, control, kind and destination")
+        ident, kind, control = action.get("id"), action.get("kind"), action.get("control")
+        if any(not isinstance(value, str) or not value.strip() for value in (ident, kind, control)):
+            raise UsageError("every interaction needs id, source, control, kind and destination")
+        if ident in seen:
+            raise UsageError(f"duplicate interaction id: {ident}")
+        seen.add(ident)
+        if kind not in INTERACT_KINDS:
+            raise UsageError(f"interaction {ident} has an unknown kind: {kind}")
+        for field in ("source", "destination"):
+            surface, state = action[field].get("surface"), action[field].get("state")
+            row = surfaces.get(surface) if isinstance(surface, str) else None
+            if row is None or not isinstance(state, str) or state not in [str(s) for s in row["states"]]:
+                raise UsageError(f"interaction {ident} names an unknown {field} surface state: {surface} {state}")
+        source_row = surfaces[action["source"]["surface"]]
+        plan.append({"id": ident, "kind": kind, "control": control, "source": action["source"],
+                     "destination": action["destination"], "page": source_row["page"],
+                     "destinationPage": surfaces[action["destination"]["surface"]]["page"],
+                     "targets": [str(t) for t in source_row["responsive"]["targets"]]})
+    return [a for a in plan if only is None or a["source"]["surface"] in only]
+
+
+def intermediate_widths(row):
+    """Sorted numeric viewport targets of a surface, or None when it has no web interval to sweep."""
+    responsive = row.get("responsive") or {}
+    if responsive.get("kind") != "viewports":
+        return None
+    try:
+        widths = sorted({float(target) for target in responsive.get("targets", [])})
+    except (TypeError, ValueError):
+        return None
+    return widths if len(widths) > 1 else None
+
+
+def midpoint_width(low, high):
+    value = (low + high) / 2
+    return str(int(value)) if value.is_integer() else str(value)
+
+
+def intermediate_plan(package, only=None):
+    """One case per non-n/a state, at the midpoint of each adjacent pair of numeric viewport targets."""
+    cases = []
+    for row in package.manifest["surfaces"]:
+        if only and row["id"] not in only:
+            continue
+        widths = intermediate_widths(row)
+        states = [str(state) for state in row["states"] if not _is_na_state(state)]
+        if not widths or not states:
+            continue
+        for state in states:
+            for low, high in zip(widths, widths[1:]):
+                cases.append(Case(row["id"], row["page"], state, midpoint_width(low, high)))
+    return cases
+
+
+def intermediate_scope(package, plan):
+    """The checker-scope shape `ui_design_v3.intermediate_width_findings` reads: exactly what the plan covers."""
+    rows = {row["id"]: row for row in package.manifest["surfaces"]}
+    surfaces = []
+    for surface in dict.fromkeys(case.surface for case in plan):
+        states = sorted({case.state for case in plan if case.surface == surface})
+        surfaces.append({"id": surface, "states": states,
+                         "responsive": {"kind": "viewports", "targets": intermediate_widths(rows[surface])}})
+    return {"surfaces": surfaces}
+
+
+def intermediate_findings(package, plan, results):
+    """The checker's own intermediate-width coverage rule over a written intermediate output."""
+    observed = [{key: row[key] for key in ("surface", "state", "target")} for row in results]
+    return intermediate_width_findings(observed, intermediate_scope(package, plan))
 
 
 def tuple_hash(case):
@@ -714,19 +1101,55 @@ def related(left, right):
     return left == right or left in right.parents or right in left.parents
 
 
+# --- Reviewer object ----------------------------------------------------------
+def reviewer_plan(package):
+    """The reviewer rows ``hifi_reviewer.reviewer_contract`` derives, grouped per page in contract order.
+
+    The rows describe what a correct package shows; the run measures every row in
+    the browser and writes the rows as measured, whatever they show."""
+    try:
+        documents = {name: path.read_text(encoding="utf-8") for name, path in package.files.items()}
+    except (OSError, UnicodeError):
+        return None
+    errors, contract = reviewer_contract(documents, package.manifest)
+    if contract is None:
+        return None
+    first_states = {row["id"]: next((str(state) for state in row["states"] if not _is_na_state(state)), None)
+                    for row in package.manifest["surfaces"]}
+    pages = {}
+    for row in contract["viewport"]:
+        page = pages.setdefault(row["page"], {"entry": False, "viewport": [], "sources": [], "reads": [], "defaults": None})
+        page["viewport"].append({"surface": row["surface"], "target": row["target"], "state": first_states.get(row["surface"]),
+                                 "expectedWidth": row["measuredProductWidth"]})
+    entry = pages.setdefault("index.html", {"entry": False, "viewport": [], "sources": [], "reads": [], "defaults": None})
+    entry["entry"] = True
+    entry["sources"] = [spec for spec in contract["specimens"] if spec["sourcePage"] == "index.html"]
+    entry["reads"] = list(contract["specimens"])
+    entry["defaults"] = {"surface": contract["defaultSurface"], "state": first_states.get(contract["defaultSurface"]),
+                         "target": contract["viewport"][0]["target"] if contract["viewport"] else None}
+    for page in pages:
+        if page != "index.html":
+            pages[page]["sources"] = [spec for spec in contract["specimens"] if spec["sourcePage"] == page]
+    return {"contract": contract, "pages": pages}
+
+
 # --- The run --------------------------------------------------------------------
 class Runner:
     def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None, derived=None,
-                 recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S):
+                 interactions=(), recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S,
+                 intermediate=False):
         self.driver, self.package, self.root, self.out_dir = driver, package, root, out_dir
         self.axes, self.carry, self.carry_source, self.derived = tuple(axes), carry or {}, carry_source, derived
+        self.interactions = list(interactions)
         self.recapture, self.diff_against = recapture, diff_against
         self.settle_cap_ms, self.case_timeout_s = settle_cap_ms, case_timeout_s
+        self.intermediate = intermediate
         self.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
-        self.records, self.axis_records = {}, []
+        self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
+        self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
 
     # events: base-case events join the transcript; axis-case events only decide that case
     def absorb(self, events, page, keep=True):
@@ -752,6 +1175,9 @@ class Runner:
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
             self.run_page(page, page_cases)
+        # The intermediate sweep is a width check; the reviewer object belongs to the base output only.
+        if not self.intermediate:
+            self.run_reviewer()
 
     def run_page(self, page, cases):
         if not self.aborted:
@@ -765,18 +1191,88 @@ class Runner:
                     self.recover(page)
         for case in cases:
             self.records[case.key] = self.observe(case)
-        if not self.axes:
+        if self.axes:
+            rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
+                    and any(c.surface == row["id"] for c in cases)]
+            counts = {}
+            for case in cases:
+                geometry = self.records[case.key].get("geometry")
+                if geometry:
+                    counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
+            sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
+            for axis in self.axes:
+                picked = reflow_axis_cases(rows, sampled, self.package.widths[page]) if axis == "reflow-320" else sampled
+                self.run_axis(page, axis, picked)
+        self.run_interactions(page)
+
+    def run_interactions(self, page):
+        """Click and keyboard-activate every selected manifest interaction at every source target."""
+        actions = [a for a in self.interactions if a["page"] == page]
+        if not actions:
             return
-        rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
-                and any(c.surface == row["id"] for c in cases)]
-        counts = {}
-        for case in cases:
-            geometry = self.records[case.key].get("geometry")
-            if geometry:
-                counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
-        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
-        for axis in self.axes:
-            self.run_axis(page, axis, sampled)
+        blocked = ("page did not open, so its interactions were not observed" if page in self.unopened
+                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        for action in actions:
+            for target in action["targets"]:
+                for trigger in TRIGGERS:
+                    self.interaction_records.append(self.observe_interaction(action, target, trigger, blocked))
+
+    def observe_interaction(self, action, target, trigger, blocked=None):
+        record = {"id": action["id"], "surface": action["source"]["surface"], "state": action["source"]["state"],
+                  "target": target, "trigger": trigger, "page": action["page"], "kind": action["kind"],
+                  "control": action["control"], "destination": action["destination"], "result": None,
+                  "reasons": [], "visible": None, "focusCorrect": None, "arrived": None,
+                  "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
+        began = time.perf_counter()
+        reasons = record["reasons"]
+        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        if blocked:
+            record["result"] = "BLOCKED"
+            reasons.append(blocked)
+        else:
+            self.run_interaction(action, target, trigger, record)
+            record["result"] = "FAIL" if reasons else "PASS"
+        record["finishedAt"] = now_iso()
+        record["durationMs"] = round((time.perf_counter() - began) * 1000)
+        return record
+
+    def run_interaction(self, action, target, trigger, record):
+        reasons = record["reasons"]
+        try:
+            reply = self.driver.call("interact", timeout=self.case_timeout_s + 10, page=action["page"], interaction=action["id"],
+                                     surface=action["source"]["surface"], state=action["source"]["state"],
+                                     target=target, control=action["control"], kind=action["kind"],
+                                     destination=action["destination"], destinationPage=action["destinationPage"],
+                                     trigger=trigger, timeoutMs=self.case_timeout_s * 1000)
+        except DriverTimeout as error:
+            reasons.append(f"interaction timed out after {self.case_timeout_s}s")
+            events, result = error.events, {}
+            self.recover(action["page"])
+        except DriverError as error:
+            reasons.append(f"driver error: {error}")
+            events, result = error.events, {}
+        else:
+            events, result = reply["events"], reply["result"]
+        # A navigate attempt's one arrival row becomes the documented navigation event; every other
+        # navigation row stays in the transcript and fails the attempt.
+        stray = list(events.get("navigation", []))
+        if action["kind"] == "navigate":
+            arrived = [row for row in stray if row.get("url") == DRIVER_BASE + action["destinationPage"]]
+            if len(arrived) == 1:
+                record["arrived"] = action["destinationPage"]
+                stray.remove(arrived[0])
+        for row in stray:
+            reasons.append(f"navigation attempt: {row.get('url')}")
+        for kind in ("console", "network", "popups", "forms"):
+            self.transcript[kind].extend(dict(row, page=action["page"]) for row in events.get(kind, []))
+        self.transcript["navigation"].extend(dict(row, page=action["page"]) for row in stray)
+        reasons.extend(result.get("problems") or [])
+        record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
+        if action["kind"] == "navigate":
+            if record["arrived"] is None:
+                reasons.append("the destination page did not load")
+            elif result.get("arrivedTo") != action["destinationPage"]:
+                reasons.append(f"the browser did not land on {action['destinationPage']}")
 
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
@@ -818,11 +1314,25 @@ class Runner:
         record["durationMs"] = round((time.perf_counter() - began) * 1000)
         return record
 
+    def shell_target(self, case):
+        """The shell control an intermediate case drives: its surface's smallest target, widened from there."""
+        if not self.intermediate:
+            return case.target
+        row = next(row for row in self.package.manifest["surfaces"] if row["id"] == case.surface)
+        return smallest_target([str(t) for t in row["responsive"]["targets"]], self.package.widths[case.page])
+
+    def case_width(self, case):
+        """The inline canvas width a case is driven at: 320 px for a reflow case, the midpoint for an intermediate one."""
+        if case.axis == "reflow-320":
+            return float(REFLOW_WIDTH_PX)
+        return float(case.target) if self.intermediate else None
+
     def run_case(self, case, record):
         reasons, keep = record["reasons"], case.axis is None
         try:
             reply = self.driver.call("case", timeout=self.case_timeout_s + 10, surface=case.surface, state=case.state,
-                                     target=case.target, settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
+                                     target=self.shell_target(case), widthPx=self.case_width(case),
+                                     settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
                                      timeoutMs=self.case_timeout_s * 1000)
         except DriverTimeout as error:
             reasons.append(f"case timed out after {self.case_timeout_s}s")
@@ -842,7 +1352,13 @@ class Runner:
         geometry = probe["geometry"]
         record.update(geometry=geometry, settle=result["settle"], renderFingerprint=render_fingerprint(probe),
                       fingerprintIncomplete=bool(probe.get("incomplete")))
-        if self.kinds[case.surface] == "viewports":
+        if self.intermediate:
+            if abs(geometry["canvasWidth"] - float(case.target)) > WIDTH_TOLERANCE_PX:
+                reasons.append(f"product canvas is {geometry['canvasWidth']}px wide, the intermediate width needs {case.target}px")
+        elif case.axis == "reflow-320":
+            if abs(geometry["canvasWidth"] - REFLOW_WIDTH_PX) > WIDTH_TOLERANCE_PX:
+                reasons.append(f"product canvas is {geometry['canvasWidth']}px wide, the reflow-320 axis needs {REFLOW_WIDTH_PX}px")
+        elif self.kinds[case.surface] == "viewports":
             declared = self.package.widths[case.page][case.target]
             if abs(geometry["canvasWidth"] - declared) > WIDTH_TOLERANCE_PX:
                 reasons.append(f"product canvas is {geometry['canvasWidth']}px wide at target {case.target}, declared {declared}px")
@@ -888,6 +1404,48 @@ class Runner:
             record["pixelDiff"] = pixel_diff(self.diff_against / path.name, path)
 
 
+    def run_reviewer(self):
+        """Measure the reviewer viewport and specimen rows in the contract's order, after the interactions."""
+        plan = self.reviewer_plan
+        if not plan:
+            return
+        for page, page_plan in plan["pages"].items():
+            self.reviewer_records.append(self.observe_reviewer(page, page_plan))
+
+    def observe_reviewer(self, page, page_plan):
+        record = {"page": page, "result": None, "reasons": [], "entry": None, "viewport": [], "sources": [],
+                  "reads": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
+        began = time.perf_counter()
+        reasons = record["reasons"]
+        blocked = ("page did not open, so its reviewer rows were not measured" if page in self.unopened
+                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        if blocked:
+            record["result"] = "BLOCKED"
+            reasons.append(blocked)
+        else:
+            try:
+                reply = self.driver.call("reviewer", timeout=self.case_timeout_s * 3 + 20, page=page,
+                                         timeoutMs=self.case_timeout_s * 1000, **page_plan)
+            except DriverTimeout as error:
+                reasons.append(f"reviewer pass timed out after {self.case_timeout_s * 3 + 20}s")
+                reasons.extend(self.absorb(error.events, page))
+                self.recover(page)
+            except DriverError as error:
+                reasons.append(f"driver error: {error}")
+                reasons.extend(self.absorb(error.events, page))
+            else:
+                reasons.extend(self.absorb(reply["events"], page))
+                result = reply["result"]
+                record["entry"] = result.get("entry")
+                record["viewport"] = result.get("viewport") or []
+                record["sources"] = result.get("sources") or []
+                record["reads"] = result.get("reads") or []
+            record["result"] = "FAIL" if reasons else "PASS"
+        record["finishedAt"] = now_iso()
+        record["durationMs"] = round((time.perf_counter() - began) * 1000)
+        return record
+
+
 def pixel_diff(before, after):
     """Compare two PNGs with Pillow: a pixel is changed when any RGBA channel differs. The geometry fingerprint stays the primary signal."""
     from PIL import Image, ImageChops
@@ -904,6 +1462,86 @@ def pixel_diff(before, after):
 
 
 # --- Output -----------------------------------------------------------------------
+def interaction_rows(runner):
+    """The closed ui-output/3 rows: one result per attempt, one navigation event per observed navigate arrival."""
+    results, navigation = [], []
+    for record in runner.interaction_records:
+        results.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
+                        "source": {"surface": record["surface"], "state": record["state"]},
+                        "destination": record["destination"], "control": record["control"],
+                        "visible": record["visible"], "focusCorrect": record["focusCorrect"], "result": record["result"]})
+        if record["kind"] == "navigate" and record["arrived"]:
+            navigation.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
+                               "from": record["page"], "to": record["arrived"]})
+    return results, navigation
+
+
+def reviewer_identity(row):
+    return (row["kind"], row["name"], row["sourcePage"], row["source"], row["property"], row["variant"],
+            row["state"], row["element"], row["sharedGroup"])
+
+
+def reviewer_object(runner):
+    """The closed reviewer receipt object: contract identity carrying this run's browser measurements.
+
+    Rows are written as measured; ``validate_output`` fails the output with the
+    checker's own reviewer rule when a measured row disagrees with the contract."""
+    plan = runner.reviewer_plan
+    if plan is None:
+        return None
+    viewport_rows, source_rows, read_rows, entry = {}, {}, {}, None
+    for record in runner.reviewer_records:
+        for row in record["viewport"]:
+            viewport_rows[(row["surface"], row["target"])] = row
+        for row in record["sources"]:
+            source_rows[reviewer_identity(row)] = row
+        for row in record["reads"]:
+            read_rows[reviewer_identity(row)] = row
+        if record["page"] == "index.html" and record["entry"] is not None:
+            entry = record["entry"]
+    contract = plan["contract"]
+    viewport = []
+    for row in contract["viewport"]:
+        got = viewport_rows.get((row["surface"], row["target"]))
+        if got is None:
+            viewport.append(dict(row, measuredProductWidth=None, containerQueryApplied=None,
+                                 hostMediaQueryApplied=None, visibleSurfaces=None, result="BLOCKED"))
+            continue
+        passed = (got.get("measuredProductWidth") == row["measuredProductWidth"] and got.get("containerQueryApplied")
+                  and not got.get("hostMediaQueryApplied") and got.get("visibleSurfaces") == [row["surface"]])
+        viewport.append(dict(row, **{key: got.get(key) for key in ("measuredProductWidth", "containerQueryApplied",
+                                                                   "hostMediaQueryApplied", "visibleSurfaces")},
+                             result="PASS" if passed else "FAIL"))
+    specimens = []
+    for spec in contract["specimens"]:
+        source, read = source_rows.get(reviewer_identity(spec)), read_rows.get(reviewer_identity(spec))
+        row = dict(spec, sourceValue=(source or {}).get("sourceValue"), specimenValue=(read or {}).get("specimenValue"),
+                   displayValue=(read or {}).get("displayValue"))
+        if spec["kind"] == "token":
+            row["sourceComputedValue"] = (source or {}).get("sourceComputedValue")
+            row["specimenComputedValue"] = (read or {}).get("specimenComputedValue")
+        specimens.append(row)
+    return {"defaultSurface": (entry or {}).get("defaultSurface", contract["defaultSurface"]),
+            "defaultVisible": (entry or {}).get("defaultVisible"),
+            "overviewInitiallyHidden": (entry or {}).get("overviewInitiallyHidden"),
+            "overview": contract["overview"], "viewport": viewport, "specimens": specimens}
+
+
+def reviewer_findings(root, output):
+    """The checker's own reviewer rule over the output this run wrote."""
+    subject = output.get("subject") if isinstance(output, dict) else None
+    path = subject.get("path") if isinstance(subject, dict) else None
+    if not isinstance(path, str) or not path.endswith("index.html"):
+        return []
+    try:
+        plan = reviewer_plan(read_package((root / path).parent))
+    except (OSError, ValueError, TypeError, KeyError, UsageError):
+        return []
+    if plan is None:
+        return []
+    return reviewer_evidence_findings(output.get("reviewer"), plan["contract"])
+
+
 def build_outputs(runner, package, cases, root, out_dir, subject, started, finished, environment, options):
     records = [runner.records.get(case.key) for case in cases]
     summary = {
@@ -911,10 +1549,14 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
         "carried": sum(1 for r in records if r and r["carriedFrom"]),
         "axisCases": len(runner.axis_records),
         "axisFail": sum(1 for r in runner.axis_records if r["result"] != "PASS"),
+        "interactions": len(runner.interaction_records),
+        "interactionsFail": sum(1 for r in runner.interaction_records if r["result"] != "PASS"),
+        "reviewerFail": sum(1 for r in runner.reviewer_records if r["result"] != "PASS"),
     }
     sidecar = {"schema": SIDECAR_SCHEMA, "subject": subject,
                "run": dict(options, startedAt=started, finishedAt=finished, **summary),
-               "cases": [r for r in records if r], "axes": runner.axis_records}
+               "cases": [r for r in records if r], "axes": runner.axis_records,
+               "interactions": runner.interaction_records, "reviewer": runner.reviewer_records}
     sidecar_bytes = (json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sidecar_path = out_dir / SIDECAR_NAME
     sidecar_path.write_bytes(sidecar_bytes)
@@ -928,11 +1570,14 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
                 seen.add(capture["path"].casefold())
                 artifacts.append(dict(capture))
     matrix = [{"surface": c.surface, "state": c.state, "target": c.target} for c in cases]
+    interactions, declared_navigation = interaction_rows(runner)
     output = {
         "schema": "ui-output/3", "check": CHECK, "subject": subject, "matrix": {"cases": matrix},
         "results": [dict(case, result=(r["result"] if r else "MISSING")) for case, r in zip(matrix, records)],
+        "interactions": interactions,
+        "reviewer": reviewer_object(runner),
         "sandbox": SANDBOX, "console": runner.transcript["console"], "network": runner.transcript["network"],
-        "navigation": runner.transcript["navigation"], "popups": runner.transcript["popups"],
+        "navigation": declared_navigation + runner.transcript["navigation"], "popups": runner.transcript["popups"],
         "forms": runner.transcript["forms"], "popupAttempts": len(runner.transcript["popups"]),
         "formAttempts": len(runner.transcript["forms"]),
         "execution": {"startedAt": started, "finishedAt": finished, "tool": "playwright",
@@ -953,6 +1598,7 @@ def validate_output(root, output_path, output):
     baseline = dict(output, navigation=[], sandbox={"network": "disabled", "topNavigation": "blocked",
                                                     "popups": "blocked", "forms": "blocked"})
     problems.extend(_offline_transcript_findings(baseline))
+    problems.extend(reviewer_findings(root, output))
     return problems
 
 
@@ -968,6 +1614,10 @@ def parse_args(argv=None):
     parser.add_argument("--derived-once", action="store_true", help="observe derived states once, at the smallest target")
     parser.add_argument("--ui-design", type=Path, help="ui-design.md whose Approved target scope names the derived states")
     parser.add_argument("--derived", type=Path, help='JSON map {"UI-001": ["state", ...]} that replaces the --ui-design set')
+    parser.add_argument("--color-scheme", choices=("light", "dark"), default="light",
+                        help="browser context theme for the whole run; dark writes its own base matrix output")
+    parser.add_argument("--intermediate", action="store_true",
+                        help="also capture every state at the midpoints between adjacent viewport targets into OUT/intermediate")
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
@@ -998,16 +1648,17 @@ def derived_from_ui_design(path):
             if isinstance(item.get("derivedStates"), dict) and item["derivedStates"]}
 
 
-def node_driver(package, root, scratch):
+def node_driver(package, root, scratch, color_scheme="light"):
     node = shutil.which("node")
     if node is None:
         raise UsageError("Node.js is required")
-    return NodeDriver(node, find_playwright(root, node), package.files, scratch)
+    return NodeDriver(node, find_playwright(root, node), package.files, scratch, color_scheme)
 
 
 def execute(args, make_driver=node_driver):
     root = args.repo_root.resolve()
     package_dir, out_dir = inside(root, args.package, "--package"), inside(root, args.out, "--out")
+    color_scheme = args.color_scheme
     axes = [a for a in args.axes.split(",") if a]
     unknown = [a for a in axes if a not in AXES]
     if unknown:
@@ -1034,6 +1685,10 @@ def execute(args, make_driver=node_driver):
     cases = expand_matrix(package, only, derived)
     if not cases:
         raise UsageError("the selection has no applicable cases")
+    interactions = interaction_plan(package, only)
+    intermediate_cases = intermediate_plan(package, only) if args.intermediate else []
+    if args.intermediate and not intermediate_cases:
+        raise UsageError("--intermediate found no surface with two or more numeric viewport widths")
     carry_path = inside(root, args.carry_from, "--carry-from") if args.carry_from else None
     carry, carry_source = load_carry(root, carry_path) if carry_path else (None, None)
     if carry and args.overwrite and any(related(out_dir, folder) for folder in carry_folders(root, carry_path, carry)):
@@ -1044,15 +1699,23 @@ def execute(args, make_driver=node_driver):
     subject = {"path": (subject_dir + "/" if subject_dir != "." else "") + "index.html", "sha256": package.sha["index.html"]}
     started = now_iso()
     with tempfile.TemporaryDirectory(prefix="pdh-matrix-") as scratch:
-        driver = make_driver(package, root, scratch)
+        driver = make_driver(package, root, scratch, color_scheme=color_scheme)
+        intermediate_runner = None
         try:
             try:
                 driver.start()
             except DriverError as error:
                 raise UsageError(f"browser could not start: {error}") from error
             runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
-                            derived=derived, recapture=args.recapture_carried, diff_against=diff_against)
+                            derived=derived, interactions=interactions, recapture=args.recapture_carried,
+                            diff_against=diff_against)
             runner.run(cases)
+            if intermediate_cases:
+                intermediate_dir = out_dir / INTERMEDIATE_DIR
+                intermediate_dir.mkdir(parents=True, exist_ok=True)
+                intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
+                                             interactions=interactions, intermediate=True)
+                intermediate_runner.run(intermediate_cases)
             environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
         finally:
             driver.stop()
@@ -1060,16 +1723,29 @@ def execute(args, make_driver=node_driver):
     for name, path in package.files.items():
         if sha256_bytes(path.read_bytes()) != package.sha[name]:
             raise UsageError(f"{name} changed while it was being captured")
+    intermediate = None
+    if intermediate_runner is not None:
+        inter_output, inter_path, inter_summary = build_outputs(
+            intermediate_runner, package, intermediate_cases, root, out_dir / INTERMEDIATE_DIR, subject, started,
+            finished, environment, {"only": sorted(only) if only else None, "intermediate": True})
+        findings = intermediate_findings(package, intermediate_cases, inter_output["results"])
+        intermediate = {"output": inter_path.relative_to(root).as_posix(), "cases": inter_summary["cases"],
+                        "fail": inter_summary["cases"] - inter_summary["pass"],
+                        "interactionsFail": inter_summary["interactionsFail"], "findings": findings}
     options = {"only": sorted(only) if only else None, "axes": axes, "derivedOnce": bool(args.derived_once),
                "derived": derived, "derivedFrom": "--derived" if args.derived else ("--ui-design" if ui_design else None),
-               "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried)}
+               "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried),
+               "colorScheme": None if color_scheme == "light" else color_scheme, "intermediate": intermediate}
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)
-    failed = any(row["result"] != "PASS" for row in output["results"]) or summary["axisFail"]
+    failed = (any(row["result"] != "PASS" for row in output["results"]) or summary["axisFail"]
+              or summary["interactionsFail"]
+              or bool(intermediate and (intermediate["fail"] or intermediate["interactionsFail"]
+                                        or intermediate["findings"])))
     print(json.dumps({"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
                       "output": output_path.relative_to(root).as_posix(), **summary,
-                      "restarts": runner.restarts, "problems": problems[:5]}))
+                      "restarts": runner.restarts, "problems": problems[:5], "intermediate": intermediate}))
     return 3 if problems and not failed else (1 if failed else 0)
 
 

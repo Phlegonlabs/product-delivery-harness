@@ -209,7 +209,7 @@ def _strict_source_inventory(plan: dict[str, Any]) -> tuple[dict[str, list[dict[
     errors: list[str] = []
     for key in _STRICT_SOURCE_SPECS:
         if key in {"eval-contract", "delivery-acceptance"}:
-            continue  # Eval adoption owns these joins; legacy pins keep their source contract.
+            continue  # eval_plan_contract owns these joins; current pins require the acceptance source even without adoption.
         rows, row_errors = _strict_source_rows(plan, key)
         inventory[key] = rows
         errors.extend(row_errors)

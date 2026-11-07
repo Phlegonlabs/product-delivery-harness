@@ -33,13 +33,23 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 | `--only UI-003,UI-004` | Only these surfaces. |
 | `--carry-from <ui-output.json>` | Carry unchanged cases from an earlier output of this tool. |
 | `--recapture-carried` | Screenshot carried cases too. |
-| `--axes dark,reduced-motion,forced-colors,zoom-200` | Run a sample under each axis. |
+| `--axes dark,reduced-motion,forced-colors,zoom-200,reflow-320` | Run a sample under each axis. |
 | `--derived-once --ui-design <ui-design.md>` | Observe each derived state once, at its surface's smallest target. The derived states are the `derivedStates` keys in the Approved target scope of `<ui-design.md>`, read with the checker's own parser. |
 | `--derived <json>` | With `--derived-once`: use this set instead of the `--ui-design` one. `<json>` maps surface ID to states: `{"UI-001": ["toast"]}`. |
 | `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio; a pixel is changed when any RGBA channel differs. |
+| `--color-scheme dark` | Run the whole base matrix with the browser context at `colorScheme: dark`, from the first page load to the interaction pass. The dark run goes to its own `--out` as a separate `ui-output/3`. |
+| `--intermediate` | Also capture every state at the midpoint width between each adjacent pair of numeric viewport targets, into a second `ui-output/3` under `OUT/intermediate` (own sidecar and captures, no reviewer object). A failing sweep case, interaction or coverage finding fails the run. |
 | `--overwrite` | Write into a non-empty `--out`. Refused (exit 2) with `--carry-from` when `--out` is, holds or sits inside the folder of the carry source or of a capture it carries. |
 
-`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. What the output still lacks is the `interactions` and `reviewer` objects (see below).
+`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. After the matrix, the run clicks and Enter/Space-activates every manifest interaction at every source target and writes the `interactions` rows and `navigation` events; a failed attempt fails the run. It then measures the `reviewer` object (see below).
+
+## Reviewer object
+
+`hifi_reviewer.reviewer_contract` derives the expected viewport and specimen rows from the package bytes, and the run measures every row in that order. Each page is opened again from scratch (the reviewer's stored selections are cleared first), so the entry observations and the specimen source reads happen at the default target, surface and state. Only reviewer shell controls are clicked; the pass never touches a product control, and its fresh opens are not navigation attempts.
+
+The `viewport` rows record the measured canvas width per surface and target, whether the container query is applied, whether a host viewport media query is applied, and the visible surfaces. The `specimens` rows take each specimen's identity from the contract and its values from the browser: the source value from the bound source page (plus the browser-normalized probe value for tokens), and the specimen and display values from the in-page specimen the HIFI_REVIEWER template renders, including its `output` text.
+
+Rows are written as measured. `validate_output` applies the checker's own reviewer rule (`reviewer_evidence_findings`) to the written output, so a measured row that disagrees with the derived one fails the run (exit 3) with the checker's finding; the sidecar's `reviewer` records keep the per-page measurements and reasons. A `--only` run still measures the full reviewer pass.
 
 ## Carrying
 
@@ -47,13 +57,12 @@ The fingerprint also covers the canvas's own paint and every visible element ins
 
 ## Axes
 
-The sample, once per page, is `ready` (or the first state) and the non-derived state with the most product DOM nodes, at the smallest and largest target. A derived state takes no axis. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page.
+The sample, once per page, is `ready` (or the first state) and the non-derived state with the most product DOM nodes, at the smallest and largest target. A derived state takes no axis. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. `reflow-320` re-runs the same sampled states once each, driven from the surface's smallest target with the canvas overridden inline to 320 CSS px; a row fails on horizontal overflow or a canvas width more than 1 px from 320. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page. Long and localized copy is judged from the authored copy of each surface ([ui-grading-rubric.md](ui-grading-rubric.md#reading-and-cross-screen-cases)), not from a flag.
 
 Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
 
 ## What it does not prove
 
-- Product interaction. No product control is clicked or keyboard-activated, so the output has no `interactions` rows and no `reviewer` object, both of which the checker's `ui-output/3` for a HiFi surface check requires.
 - Appearance. A fingerprint or pixel diff shows change, not correctness. A screenshot is evidence for a reviewer and grades nothing.
 - Motion quality. Use the `motion-preview` check.
 - Native, real-login or service behavior.
