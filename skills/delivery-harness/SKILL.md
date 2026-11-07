@@ -11,7 +11,7 @@ Required checks and dependencies stay within the requested outcome; a new top-le
 
 Commands: `references/installed-commands.md`; stage cards: `references/stages/stage-cards.md`; launch brief: `assets/templates/HARNESS_GOAL.template.md`.
 
-At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). It loads document sync, bounded enhancement, delegation, gen-verify-correct and PRD refinement on their triggers. Acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
+At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). For new delivery work, direct or managed, acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
 
 ## Design And Maintenance Routing
 
