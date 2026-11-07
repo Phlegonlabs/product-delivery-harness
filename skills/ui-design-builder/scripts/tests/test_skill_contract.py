@@ -9,6 +9,7 @@ from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 UI_STAGE = "references/stages/ui-design.md"
+UI_TEMPLATE = "assets/templates/UI_DESIGN.template.md"
 sys.path.insert(0, str(SKILL_ROOT / "scripts"))
 import check_ui_design_contract as checker  # noqa: E402
 import ui_design_v3  # noqa: E402
@@ -277,10 +278,14 @@ console.log("hybrid fallback and stale QA assertions completed");
             stage.index("run a cheap machine completeness check"),
             stage.index("Present the complete current HiFi entry"),
         )
-        for marker in ("UI contract: ui-design/2", "ui-hifi-copy/1", "### Frontend Design Usage"):
+        template = self.read(UI_TEMPLATE)
+        for marker in ("UI contract: ui-design/2", "ui-hifi-copy/1", UI_TEMPLATE.rsplit("/", 1)[1]):
             self.assertIn(marker, contract)
-        self.assertNotIn("Copy Freeze:", contract)
-        self.assertNotIn("## Wireframe Approval", contract)
+        for marker in ("UI contract: ui-design/3", "### Frontend Design Usage"):
+            self.assertIn(marker, template)
+        for document in (contract, template):
+            self.assertNotIn("Copy Freeze:", document)
+            self.assertNotIn("## Wireframe Approval", document)
         self.assertIn("Schema 5 has no human Copy Freeze or Wireframe Approval", guide)
         self.assertIn("--require-copy-approved", guide)
 
@@ -315,29 +320,31 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         stage = self.read(UI_STAGE)
         contract = self.read("references/output-contract.md")
+        template = self.read(UI_TEMPLATE)
         self.assertLess(stage.index("Request one **Visual Approval**"), stage.index("Apply the **Design System Need Gate** after Visual Approval"))
-        self.assertIn("Design author: frontend-design", contract)
-        self.assertIn("Direction decision owner:", contract)
-        self.assertIn("Impeccable critique:", contract)
-        self.assertIn("Impeccable audit:", contract)
-        self.assertNotIn("Wireframe score:", contract)
-        self.assertIn("HiFi score:", contract)
-        self.assertIn("H2 score:", contract)
-        self.assertIn("H4 score:", contract)
-        self.assertIn("H5 score:", contract)
-        self.assertIn("H7 score:", contract)
-        self.assertIn("H8 score:", contract)
-        self.assertIn("H9 score:", contract)
+        self.assertIn("Design author: frontend-design", template)
+        self.assertIn("Direction decision owner:", template)
+        self.assertIn("Impeccable critique:", template)
+        self.assertIn("Impeccable audit:", template)
+        self.assertNotIn("Wireframe score:", contract + template)
+        self.assertIn("HiFi score:", template)
+        self.assertIn("H2 score:", template)
+        self.assertIn("H4 score:", template)
+        self.assertIn("H5 score:", template)
+        self.assertIn("H7 score:", template)
+        self.assertIn("H8 score:", template)
+        self.assertIn("H9 score:", template)
         self.assertIn("docs/design/design-system.md", contract)
 
     def test_output_contract_and_prompt_match_the_mvp_profile_and_checker(self):
         contract = self.read("references/output-contract.md").casefold()
+        template = self.read(UI_TEMPLATE).casefold()
         values = (checker.VALID_DIRECTION_MODES | checker.VALID_DIRECTION_DECISIONS
                   | ui_design_v3.V3_DIRECTION_DECISIONS | {checker.MVP_DEFERRED_DIRECTION_DECISION})
         for value in sorted(values):
             with self.subTest(value=value):
-                self.assertIn(value.casefold(), contract)
-        self.assertIn("covers direction: [yes", contract)
+                self.assertIn(value.casefold(), template)
+        self.assertIn("covers direction: [yes", template)
         self.assertNotIn("always `required`", contract)
         self.assertNotIn("always `decision: required`", contract)
         prompt = self.read("agents/openai.yaml")
@@ -439,7 +446,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("(output-contract.md#hifi-review)", rubric)
         contract = self.read("references/output-contract.md")
         self.assertIn("hifi-review", self.stage_headings(contract))
-        self.assertIn("UI grading: PASS — evidence=", contract)
+        self.assertIn("UI grading: PASS — evidence=", self.read(UI_TEMPLATE))
 
     def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
         rubric = self.read("references/ui-grading-rubric.md")
