@@ -39,7 +39,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 | `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio; a pixel is changed when any RGBA channel differs. |
 | `--overwrite` | Write into a non-empty `--out`. Refused (exit 2) with `--carry-from` when `--out` is, holds or sits inside the folder of the carry source or of a capture it carries. |
 
-`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. What the output still lacks is the `interactions` and `reviewer` objects (see below).
+`--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. After the matrix, the run clicks and Enter/Space-activates every manifest interaction at every source target and writes the `interactions` rows and `navigation` events; a failed attempt fails the run. What the output still lacks is the `reviewer` object (see below).
 
 ## Carrying
 
@@ -53,7 +53,7 @@ Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix
 
 ## What it does not prove
 
-- Product interaction. No product control is clicked or keyboard-activated, so the output has no `interactions` rows and no `reviewer` object, both of which the checker's `ui-output/3` for a HiFi surface check requires.
+- Reviewer measurement. The `reviewer` viewport and specimen rows are not measured, and the checker's `ui-output/3` for a HiFi surface check requires that object.
 - Appearance. A fingerprint or pixel diff shows change, not correctness. A screenshot is evidence for a reviewer and grades nothing.
 - Motion quality. Use the `motion-preview` check.
 - Native, real-login or service behavior.
