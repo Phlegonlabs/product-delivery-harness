@@ -247,6 +247,43 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             with self.subTest(step=index + 1):
                 self.assertIn(needle, steps[index])
 
+    def template_fields(self, name: str) -> dict[str, list[str]]:
+        """Each `## ` section of a template mapped to its bullet labels."""
+        fields: dict[str, list[str]] = {}
+        heading = None
+        for line in read(f"assets/templates/{name}").splitlines():
+            if line.startswith("## "):
+                heading = line[3:]
+                fields[heading] = []
+            elif heading and line.startswith("- "):
+                fields[heading].append(line[2:].split(":", 1)[0])
+        return fields
+
+    def test_direct_review_brief_carries_the_reviewer_fields(self) -> None:
+        self.assertEqual(
+            {
+                "Candidate": ["Repository", "Base SHA", "Head SHA", "Review input"],
+                "Identity Proof": [],
+                "Scope": ["<path group name>"],
+                "Lenses": ["Code", "Security", "Visual"],
+                "Acceptance And Instructions": ["Acceptance rows", "Read first and verify"],
+                "Re-check": ["Prior reviewed head", "Prior blocking findings",
+                             "Prior notes (no verdict needed)", "Repair range"],
+                "Route Caps": ["Wall-clock seconds", "Tool turns", "max_message_bytes"],
+                "Result": [],
+            },
+            self.template_fields("DIRECT_REVIEW_BRIEF.template.md"),
+        )
+        brief = read("assets/templates/DIRECT_REVIEW_BRIEF.template.md")
+        self.assertIn('record it as "observed via manifest"', brief)
+        self.assertIn("`security: not_applicable (<reason>; <paths>)`", brief)
+        for owner in ("references/security-review.md", "references/architecture-method.md",
+                      "references/verification-gates.md"):
+            self.assertIn(f"delivery-harness/{owner}", brief)
+            self.assertTrue((SKILL_ROOT / owner).is_file(), owner)
+        for absent in ("model", "effort"):
+            self.assertNotRegex(brief, rf"\b{absent}\b")
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.
