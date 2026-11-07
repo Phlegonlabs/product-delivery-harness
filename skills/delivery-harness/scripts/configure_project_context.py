@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Safely add host-specific project context files without overwriting local rules."""
+"""Safely add host-specific project context files without overwriting local rules.
+
+`--check` also reports, read-only, whether Git stores docs/product, docs/design,
+docs/verification and docs/goal byte for byte, with the `.gitattributes` lines
+to add; `--require-resolved` makes a finding fail.
+"""
 
 from __future__ import annotations
 
@@ -9,6 +14,7 @@ import json
 import os
 import re
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -437,6 +443,102 @@ def unresolved_placeholders(root: Path, *, stage: str = "all") -> list[str]:
     return findings
 
 
+# Product, design, verification and run files are hashed long before the
+# acceptance gate, so Git must store them byte for byte.
+BYTE_EXACT_ROOTS = ("docs/product", "docs/design", "docs/verification", "docs/goal")
+BYTE_ATTRIBUTES = ("text", "filter", "ident", "working-tree-encoding")
+ATTRIBUTE_PROBE = "pdh-attribute-probe"
+FINDINGS_PER_ROOT = 20
+
+
+def _git(root: Path, *arguments: str, stdin: bytes | None = None) -> bytes | None:
+    try:
+        completed = subprocess.run(
+            ["git", "--no-optional-locks", "-C", str(root), *arguments],
+            input=stdin, capture_output=True, timeout=120, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return completed.stdout if completed.returncode == 0 else None
+
+
+def _attribute_problems(found: dict[str, str]) -> list[str]:
+    problems = [] if found.get("text") == "unset" else ["text"]
+    problems += [
+        name for name in ("filter", "ident")
+        if found.get(name) not in {"unset", "unspecified"}
+    ]
+    if found.get("working-tree-encoding") != "unspecified":
+        problems.append("working-tree-encoding")
+    return problems
+
+
+def byte_attribute_findings(root: Path) -> dict[str, object]:
+    """Read-only `git check-attr` of the hashed docs roots; writes nothing."""
+
+    warnings: list[str] = []
+    report: dict[str, object] = {
+        "checked": False, "findings": [], "gitattributes_lines": [], "warnings": warnings,
+    }
+    toplevel = _git(root, "rev-parse", "--show-toplevel")
+    if toplevel is None or Path(toplevel.decode("utf-8").strip()).resolve() != root.resolve():
+        warnings.append("not the root of a Git checkout; attributes were not checked")
+        return report
+    listed = _git(root, "ls-files", "-z", "--", *BYTE_EXACT_ROOTS)
+    # One probe per root stands for files that do not exist yet.
+    probes = {f"{name}/{ATTRIBUTE_PROBE}": name for name in BYTE_EXACT_ROOTS}
+    paths = [item for item in (listed or b"").decode("utf-8", "surrogateescape").split("\0") if item]
+    query = "".join(f"{path}\0" for path in [*paths, *probes]).encode("utf-8", "surrogateescape")
+    output = None if listed is None else _git(
+        root, "check-attr", "-z", "--stdin", *BYTE_ATTRIBUTES, stdin=query
+    )
+    if output is None:
+        warnings.append("git ls-files or git check-attr failed; attributes were not checked")
+        return report
+    report["checked"] = True
+    fields = output.decode("utf-8", "surrogateescape").split("\0")
+    values: dict[str, dict[str, str]] = {}
+    for index in range(0, len(fields) - 2, 3):
+        path, attribute, value = fields[index : index + 3]
+        values.setdefault(path, {})[attribute] = value
+    failed: dict[str, list[str]] = {name: [] for name in BYTE_EXACT_ROOTS}
+    unsafe: dict[str, set[str]] = {name: set() for name in BYTE_EXACT_ROOTS}
+    for path, found in values.items():
+        problems = _attribute_problems(found)
+        name = probes.get(path) or next(
+            (item for item in BYTE_EXACT_ROOTS if path.startswith(item + "/")), None
+        )
+        if not problems or name is None:
+            continue
+        unsafe[name].update(problems)
+        label = f"new files under {name}/" if path in probes else path
+        if len(failed[name]) < FINDINGS_PER_ROOT:
+            failed[name].append(label + ": " + ", ".join(f"{item} {found.get(item)}" for item in problems))
+        elif len(failed[name]) == FINDINGS_PER_ROOT:
+            failed[name].append(f"more paths under {name}/ fail the same check")
+    flags = (("text", "-text"), ("filter", "-filter"), ("ident", "-ident"),
+             ("working-tree-encoding", "!working-tree-encoding"))
+    for name in BYTE_EXACT_ROOTS:
+        if failed[name]:
+            report["findings"].extend(failed[name])
+            # -text always: a later broad rule must not turn conversion back on.
+            needed = [flag for item, flag in flags if item == "text" or item in unsafe[name]]
+            report["gitattributes_lines"].append(f"{name}/** {' '.join(needed)}")
+    common = _git(root, "rev-parse", "--git-common-dir")
+    if common is not None:
+        info = root / common.decode("utf-8").strip() / "info" / "attributes"
+        try:
+            text = info.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        if any(line.strip() and not line.lstrip().startswith("#") for line in text.splitlines()):
+            warnings.append(
+                f"{info.as_posix()} holds attribute rules that clones and CI do not get; "
+                "keep byte-exact rules in .gitattributes"
+            )
+    return report
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", required=True, type=Path, help="Target repository root")
@@ -481,7 +583,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "with --check: also fail while a seeded AGENTS.md still carries "
-            "unresolved template placeholders (bindings, deployment record)"
+            "unresolved template placeholders (bindings, deployment record) "
+            "or a hashed docs path lacks byte-exact Git attributes"
         ),
     )
     return parser
@@ -509,8 +612,12 @@ def main() -> int:
     if args.require_resolved:
         unresolved = unresolved_placeholders(root, stage=args.stage)
         result["unresolved_placeholders"] = unresolved
+    unsafe_attributes = False
+    if args.check:
+        result["byte_attributes"] = byte_attribute_findings(root)
+        unsafe_attributes = args.require_resolved and bool(result["byte_attributes"]["findings"])
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    if args.check and (result["missing"] or unresolved):
+    if args.check and (result["missing"] or unresolved or unsafe_attributes):
         return 1
     if not args.check and args.merge_agents and not args.merge_plan:
         merge = result["agents_merge"]

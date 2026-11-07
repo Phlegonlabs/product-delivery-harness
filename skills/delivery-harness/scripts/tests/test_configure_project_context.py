@@ -570,5 +570,108 @@ class ConfigureProjectContextTests(unittest.TestCase):
             self.assertFalse((root / "CLAUDE.md").exists())
 
 
+class ByteAttributeCheckTests(unittest.TestCase):
+    """`--check` reads Git attributes of the hashed docs roots and writes nothing."""
+
+    def repo(self, attributes: str | None) -> Path:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name).resolve()
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        for name, data in (
+            ("docs/product/PRD.md", b"# PRD\n"),
+            ("docs/design/logo.png", b"\x89PNG fixture"),
+            ("docs/verification/delivery-results.json", b"{}\n"),
+            ("docs/goal/PLAN.md", b"# PLAN\n"),
+        ):
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_bytes(data)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+        # check-attr reads the working-tree rules; staging under them would run the filters.
+        if attributes is not None:
+            (root / ".gitattributes").write_bytes(attributes.encode("utf-8"))
+        configure_context(root)
+        agents = root / "AGENTS.md"
+        import re
+        agents.write_text(
+            re.sub(r"<fill>|<databases[^>]*>", "fixture", agents.read_text(encoding="utf-8")),
+            encoding="utf-8",
+        )
+        return root
+
+    def check(self, root: Path, *, require_resolved: bool = True) -> tuple[int, dict]:
+        def snapshot() -> dict[str, bytes]:
+            return {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in sorted(root.rglob("*")) if path.is_file()
+            }
+
+        before = snapshot()
+        command = [sys.executable, str(SCRIPT), "--root", str(root), "--check",
+                   "--stage", "product-definition"]
+        if require_resolved:
+            command.append("--require-resolved")
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(before, snapshot(), "the check must not write, index included")
+        return result.returncode, json.loads(result.stdout)["byte_attributes"]
+
+    def test_missing_rules_fail_and_print_the_lines_that_fix_them(self) -> None:
+        root = self.repo(None)
+        code, report = self.check(root)
+        self.assertEqual(1, code, report)
+        self.assertTrue(report["checked"])
+        self.assertIn("docs/product/PRD.md: text unspecified", report["findings"])
+        self.assertIn("new files under docs/goal/: text unspecified", report["findings"])
+        self.assertEqual(
+            ["docs/product/** -text", "docs/design/** -text",
+             "docs/verification/** -text", "docs/goal/** -text"],
+            report["gitattributes_lines"],
+        )
+        self.assertEqual(0, self.check(root, require_resolved=False)[0])
+        (root / ".gitattributes").write_text("\n".join(report["gitattributes_lines"]) + "\n", encoding="utf-8")
+        code, report = self.check(root)
+        self.assertEqual(0, code, report)
+        self.assertEqual([], report["findings"])
+
+    def test_unset_text_passes_without_unsetting_filter(self) -> None:
+        for attributes in ("docs/** -text\n", "docs/** binary\n", "docs/** -text -filter -ident\n"):
+            with self.subTest(attributes=attributes):
+                code, report = self.check(self.repo(attributes))
+                self.assertEqual(0, code, report)
+                self.assertEqual(([], [], []), (report["findings"], report["gitattributes_lines"], report["warnings"]))
+
+    def test_rewriting_filter_ident_and_encoding_are_named(self) -> None:
+        code, report = self.check(self.repo(
+            "docs/** -text\n*.png filter=lfs\ndocs/goal/** ident working-tree-encoding=UTF-16\n"
+        ))
+        self.assertEqual(1, code, report)
+        self.assertIn("docs/design/logo.png: filter lfs", report["findings"])
+        self.assertIn(
+            "docs/goal/PLAN.md: ident set, working-tree-encoding UTF-16", report["findings"]
+        )
+        self.assertEqual(
+            ["docs/design/** -text -filter", "docs/goal/** -text -ident !working-tree-encoding"],
+            report["gitattributes_lines"],
+        )
+
+    def test_local_info_attributes_rules_warn(self) -> None:
+        root = self.repo(None)
+        info = root / ".git" / "info" / "attributes"
+        info.parent.mkdir(exist_ok=True)
+        info.write_text("# local only\ndocs/** -text\n", encoding="utf-8")
+        code, report = self.check(root)
+        self.assertEqual(0, code, report)
+        self.assertEqual([], report["findings"])
+        self.assertEqual(1, len(report["warnings"]))
+        self.assertIn("info/attributes holds attribute rules that clones and CI do not get", report["warnings"][0])
+
+    def test_outside_a_git_checkout_nothing_is_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            report = configure_project_context.byte_attribute_findings(Path(temp).resolve())
+        self.assertFalse(report["checked"])
+        self.assertEqual([], report["findings"])
+        self.assertIn("not the root of a Git checkout", report["warnings"][0])
+
+
 if __name__ == "__main__":
     unittest.main()
