@@ -212,14 +212,20 @@ class Cli:
         self.root = Path(self.tmp.name)
         self.package = build_package(self.root)
         self.runs = 0
+        self.driver_schemes = []
+
+    def make_driver(self, package, root, scratch, color_scheme="light"):
+        self.driver_schemes.append(color_scheme)
+        return self.test_driver
 
     def run(self, driver, *extra, out=None, package=None):
         self.runs += 1
+        self.test_driver = driver
         out = out or f"docs/evidence/run{self.runs}"
         argv = ["--repo-root", str(self.root), "--package", str(package or self.package), "--out", out, *extra]
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            code = m.main(argv, make_driver=lambda package, root, scratch: driver)
+            code = m.main(argv, make_driver=self.make_driver)
         text = buffer.getvalue().strip().splitlines()
         return code, json.loads(text[-1]) if text else {}, self.root / out
 
@@ -427,6 +433,31 @@ class RunOutputTests(unittest.TestCase):
         _, _, out = cli.run(driver, "--axes", "dark", "--derived-once", "--ui-design", str(design))
         axis_states = {r["state"] for r in cli.load(out)[1]["axes"] if r["surface"] == "UI-001"}
         self.assertEqual({"ready", "loading"}, axis_states)
+
+    def test_dark_runs_the_whole_matrix_in_the_dark_context_and_records_it(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, summary, out = cli.run(driver, "--color-scheme", "dark")
+        output, sidecar = cli.load(out)
+        self.assertEqual(0, code, summary)
+        self.assertEqual(["dark"], cli.driver_schemes)
+        self.assertEqual("dark", sidecar["run"]["colorScheme"])
+        self.assertEqual(12, len(output["results"]))
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.OUTPUT_NAME}")["result"])
+
+    def test_light_is_the_default_scheme_and_stays_unrecorded(self):
+        cli, driver = Cli(self), FakeDriver()
+        code, _, out = cli.run(driver)
+        _, sidecar = cli.load(out)
+        self.assertEqual((0, ["light"], None), (code, cli.driver_schemes, sidecar["run"]["colorScheme"]))
+
+    def test_an_unknown_color_scheme_is_refused_before_any_browser_work(self):
+        cli, driver = Cli(self), FakeDriver()
+        with self.assertRaises(SystemExit) as raised:
+            cli.run(driver, "--color-scheme", "nocturnal")
+        self.assertEqual(2, raised.exception.code)
+        self.assertEqual([], driver.calls)
+        self.assertEqual([], cli.driver_schemes)
 
 
 class CarryTests(unittest.TestCase):
@@ -1196,6 +1227,32 @@ class RealBrowserTests(unittest.TestCase):
             wide = [r for k, r in cases.items() if k[2] == "1200"]
             self.assertEqual({"FAIL"}, {r["result"] for r in wide})
             self.assertTrue(all(1000 == r["geometry"]["canvasWidth"] and "1000" in r["reasons"][0] for r in wide))
+
+    def test_color_scheme_dark_in_real_chromium(self):
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root)
+
+            def run(*extra):
+                return self.run_main(module, root, package, *extra)
+
+            code, text = run("--out", "docs/evidence/light", "--only", "UI-001")
+            self.assertEqual(0, code, text)
+            code, text = run("--out", "docs/evidence/dark", "--color-scheme", "dark", "--only", "UI-001")
+            self.assertEqual(0, code, text)
+            light = json.loads((root / "docs/evidence/light" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            output = json.loads((root / "docs/evidence/dark" / m.OUTPUT_NAME).read_text(encoding="utf-8"))
+            sidecar = json.loads((root / "docs/evidence/dark" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual("dark", sidecar["run"]["colorScheme"])
+            self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+            self.assertEqual("PASS", build_receipt(root, "docs/evidence/dark/" + m.OUTPUT_NAME)["result"])
+            self.assertEqual([], output["network"] + output["navigation"] + output["popups"] + output["forms"])
+            # the fixture styles its dark theme with prefers-color-scheme, so every case renders differently
+            light_rows = {(r["surface"], r["state"], r["target"]): r for r in light["cases"]}
+            for row in sidecar["cases"]:
+                self.assertNotEqual(light_rows[(row["surface"], row["state"], row["target"])]["renderFingerprint"],
+                                    row["renderFingerprint"])
 
     def test_the_drivers_own_open_is_not_a_navigation_but_a_later_allowlisted_one_is(self):
         module = self.playwright()
