@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.75.2. Current releases are in [README.md](README.md#version-history).
+English release history through 0.75.3. Current releases are in [README.md](README.md#version-history).
+
+- **0.75.3** — Template fixes found during the 0.75.2 consumer adoption. `PROJECT_AGENTS.template.md` now points managed-run rules at `project-operating-rules.md` instead of a section the template never had; the `DEPLOYMENT.template.md` presence example no longer trips `check_deployment.py` as an unfilled placeholder; the GA4 guide says an `MS-*` row stays `available` until Realtime or DebugView shows the event.
 
 - **0.75.2** — Thinner reading. `docs_reading_budget.py` measures the words an agent must read before acting at each entry point (mandatory vs conditional links, `--budget N` for CI). Seven references were compressed without removing a rule: the PRD output contract, verification gates, the execution state model, design input updates, the UI output contract, the architecture playbook and the interview guide (about 8,600 words cut); `design-input-updates.md` is now read only for UI work, which takes 3.7k words off every direct and managed run. The counted total is below v0.74.1 despite this week's additions.
 
