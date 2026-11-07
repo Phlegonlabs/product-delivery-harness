@@ -6,7 +6,7 @@ Use this contract when a task adds a hash-bound file class or root. The suite ha
 
 Before Product Definition publish commits the first hash-bound file, the root `.gitattributes` carries `<root>/** -text -filter` for `docs/product`, `docs/design`, `docs/verification`, `docs/goal` and any other hash-bound root that `docs/DOCUMENTS.md` records. `text eol=lf` and `text=auto` do not qualify: they rewrite CRLF bytes on `git add`, so a hash taken before the commit no longer matches HEAD. A content filter such as LFS replaces the bytes in HEAD.
 
-Start from `assets/templates/PROJECT_GITATTRIBUTES.template`. Keep its block, and add a line only for a hash-bound path outside those roots.
+Start from `assets/templates/PROJECT_GITATTRIBUTES.template`. Keep its block, and add a line only for a hash-bound path outside those roots. Only the committed file counts: confirm it with `git show HEAD:.gitattributes`. `git check-attr` also reads `.git/info/attributes` and `core.attributesFile`, which never reach clones, CI or the `review_input.py` clone.
 
 ## Check
 

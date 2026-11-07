@@ -166,6 +166,7 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("`text eol=lf` and `text=auto` do not qualify", contract)
         self.assertIn("--check --require-resolved", contract)
         self.assertIn("so it needs owner approval", contract)
+        self.assertIn("Only the committed file counts: confirm it with `git show HEAD:.gitattributes`.", contract)
         self.assertIn(
             "| A task adds a hash-bound file class or root | `delivery-harness/references/gitattributes-contract.md` |",
             read("assets/templates/PROJECT_AGENTS.template.md"),
