@@ -138,6 +138,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> reserve-node-attempt --node-id <id> --attempt-id <id> --request-out <file>
 python "<delivery-harness-skill-root>/scripts/verifier_runtime.py" --request <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-node-result --node-id <id> --attempt-id <id> --outcome pass --evidence <text> --verifier-result <file>
+python "<delivery-harness-skill-root>/scripts/build_verifier_request.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --mission-id <id> --verifier-id <id> --layer mission_integration --integrated-sha <sha> --out <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-integration --mission-id <id> --integrated-sha <sha>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> close-wave --source <text>
 ```

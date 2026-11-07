@@ -23,6 +23,8 @@ import verifier_runtime  # noqa: E402
 from build_verifier_request import main as build_main  # noqa: E402
 from harness_core import plan_digest  # noqa: E402
 from harness_schema import PLAN_HEADING, RUN_HEADING  # noqa: E402
+from harness_transition import _candidate_changed_paths  # noqa: E402
+from verifier_request_context import verifier_context  # noqa: E402
 
 
 BRANCH = "codex/worker-m1"
@@ -39,7 +41,8 @@ class BuildVerifierRequestTests(unittest.TestCase):
         self.task_commit = self.commit("src/m1/feature.py")
         self.plan = fx.make_plan()
         mission = self.plan["missions"][0]
-        for declaration in (mission["tasks"][0]["verifiers"][0], mission["worker_verifiers"][0]):
+        for declaration in (mission["tasks"][0]["verifiers"][0], mission["worker_verifiers"][0],
+                            mission["integration_verifiers"][0]):
             declaration.update(argv=[sys.executable, "-c", "print('ok')"], read_only=True)
         self.run_state = fx.make_run(self.plan)
         self.out = self.temp / "requests" / "request.json"
@@ -105,6 +108,61 @@ class BuildVerifierRequestTests(unittest.TestCase):
         self.assertEqual(["src/m1/feature.py", "src/m1/other.py"], context["changed_files"])
         self.assertEqual(mf.git(self.repo, "rev-parse", "HEAD"), context["head_sha"])
 
+    def on_integration_branch(self) -> str:
+        self.run_state["integration"]["batch_base_sha"] = self.base
+        self.run_state["integration"]["integration_head_sha"] = self.base
+        self.write_state()
+        self.commit("src/m1/integrated.py")
+        integrated = mf.git(self.repo, "rev-parse", "HEAD")
+        mf.git(self.repo, "checkout", "-qb", "codex/integration")
+        return integrated
+
+    def test_mission_integration_request_matches_the_retained_context(self) -> None:
+        integrated = self.on_integration_branch()
+        code, output = self.build("--layer", "mission_integration", "--integrated-sha", integrated,
+                                  "--verifier-id", "mission-integration")
+        self.assertEqual(0, code, output)
+        expected = verifier_context(
+            layer="mission_integration", run=self.run_state,
+            plan_revision=self.plan["revision"], plan_digest_sha256=plan_digest(self.plan),
+            batch_base_sha=self.base, head_sha=integrated,
+            changed_files=_candidate_changed_paths(self.repo, self.base, integrated),
+            checkout_role="integration", checkout_dirty=False, cache_safe=False,
+            mission_id="M1", task_id=None, attempt_id=None, lease_id=None,
+        )
+        self.assertEqual(expected, self.request()["context"])
+        self.assertEqual({"expected_branch": "refs/heads/codex/integration",
+                          "expected_head_sha": integrated, "ignored_paths": []},
+                         self.request()["git_guard"])
+        with contextlib.redirect_stdout(io.StringIO()) as result:
+            self.assertEqual(0, verifier_runtime.main(["--request", str(self.out)]))
+        self.assertEqual("PASS", json.loads(result.getvalue())["status"])
+
+    def test_mission_integration_refusals_exit_1_and_write_nothing(self) -> None:
+        integrated = self.on_integration_branch()
+        mf.git(self.repo, "checkout", "-q", "codex/worker-m1")
+        self.assertIn("not the integration branch",
+                      self.build("--verifier-id", "mission-integration", "--layer", "mission_integration",
+                                 "--integrated-sha", integrated)[1])
+        mf.git(self.repo, "checkout", "-q", "codex/integration")
+        self.commit("src/m1/after_request.py")
+        later = mf.git(self.repo, "rev-parse", "HEAD")
+        self.assertIn("integration branch HEAD is",
+                      self.build("--verifier-id", "mission-integration", "--layer", "mission_integration",
+                                 "--integrated-sha", integrated)[1])
+        self.assertIn("not a mission_integration verifier",
+                      self.build("--verifier-id", "mission-focused", "--layer", "mission_integration",
+                                 "--integrated-sha", later)[1])
+        mf.git(self.repo, "reset", "-q", "--hard", integrated)
+        (self.repo / "scratch.txt").write_text("dirty\n", encoding="utf-8")
+        self.assertIn("must be clean",
+                      self.build("--verifier-id", "mission-integration", "--layer", "mission_integration",
+                                 "--integrated-sha", integrated)[1])
+        (self.repo / "scratch.txt").unlink()
+        self.assertIn("is a mission integration verifier",
+                      self.build("--verifier-id", "mission-integration")[1])
+        self.assertFalse(self.out.exists())
+
     def test_refusals_exit_1_and_write_nothing(self) -> None:
         task = ("--verifier-id", "task-focused", "--task-id", "M1/T01", "--commit", self.task_commit)
         later = self.commit("src/m1/later.py")
@@ -136,6 +194,12 @@ class BuildVerifierRequestTests(unittest.TestCase):
             (("--verifier-id", "task-focused", "--commit", self.task_commit), None),
             (("--verifier-id", "task-focused", "--task-id", "M1/T01", "--commit", "abc123"), None),
             (("--verifier-id", "mission-focused"), self.repo / "request.json"),
+            (("--verifier-id", "mission-integration", "--integrated-sha", self.task_commit), None),
+            (("--verifier-id", "mission-integration", "--layer", "mission_integration"), None),
+            (("--verifier-id", "mission-integration", "--layer", "mission_integration",
+              "--integrated-sha", self.task_commit, "--task-id", "M1/T01"), None),
+            (("--verifier-id", "mission-integration", "--layer", "mission_integration",
+              "--integrated-sha", "abc123"), None),
         ]
         for extra, out in cases:
             with self.subTest(arguments=extra):
