@@ -41,6 +41,7 @@ Author PLAN by hand from `assets/templates/HARNESS_PLAN.template.md`. When the p
 
 ```text
 python "<delivery-harness-skill-root>/scripts/render_delivery_acceptance.py" --prd <PRD.md> --features <features-dir> --profile <acceptance-profile.json> --out <delivery-acceptance.json>
+python "<delivery-harness-skill-root>/scripts/render_delivery_acceptance.py" --prd <PRD.md> --features <features-dir> --profile <acceptance-profile.json> --out <delivery-acceptance.json> --check
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --repo-root <root> --prd <PRD.md>
 python "<delivery-harness-skill-root>/scripts/new_run.py" --plan <PLAN.md> --run-id <id> --branch <branch-ref> --out <RUN.md> --repo-root <root>
 ```
@@ -68,6 +69,7 @@ Pass the Mission Cohesion Gate for every mission. Require one verifier per missi
 **Commands in order**
 
 ```text
+python "<delivery-harness-skill-root>/scripts/configure_project_context.py" --root <root> --check --require-resolved
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> record-observation
 python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>
 ```

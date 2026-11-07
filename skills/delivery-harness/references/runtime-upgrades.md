@@ -39,7 +39,7 @@ Never hot-upgrade a live worker or transfer its lease to a replacement process.
 3. Confirm actual worker/reviewer termination and owned process cleanup; canonical phases do not prove liveness.
 4. Close the active wave before an independently authorized runtime or skill installation.
 5. Use the owning installer and [Update Local Skills](governance/source-maintenance.md#update-local-skills); preserve prior copies and backups.
-6. Verify installation, recompute the installed digest, and start a fresh host when loaded bytes differ.
+6. Verify installation, read the installed digest from the installer's `installed five-skill contract <new> (previous <old>)` line, and start a fresh host when loaded bytes differ.
 7. Re-observe capabilities and version identity before selecting unfinished work.
 
 The 12 RUN ledger actions grant no software installation or settings change.

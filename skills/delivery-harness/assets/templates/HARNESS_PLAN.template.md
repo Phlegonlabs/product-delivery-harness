@@ -67,6 +67,17 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
         "source_revision": "0000000000000000000000000000000000000000",
         "staged_revision": null,
         "notes": "frozen delivery-acceptance scenario contract"
+      },
+      {
+        "id": "SRC-005",
+        "kind": "feature",
+        "location": "docs/product/features/<scope>.feature",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "0000000000000000000000000000000000000000",
+        "staged_revision": null,
+        "notes": "owner-approved scenarios the register is rendered from; one row per feature file"
       }
     ],
     "traces": [
@@ -444,7 +455,7 @@ Use the parent's frozen contract hash, never a value derived from result writers
 4. Run `record-integration --integrated-sha H2` for that mission, so H2 is the recorded integration head.
 5. Run every unified review and final gate, including `N-ACCEPTANCE-GATE`, at H2.
 
-For this, the last mission's `write_scope` lists `docs/verification/delivery-results.json` and `docs/verification/evidence/**`, as M1 shows, and so does the security review's `scope` (the validator requires it to cover every mission scope). Readiness review checks that the base already has byte-preserving `-text -filter` attributes for these paths; if not, put `.gitattributes` in an authorized pre-H1 task's `write_scope` and the security review scope, and commit it before H1. `record-integration` checks only that mission scope, so `N-ACCEPTANCE-GATE` is what refuses a product file committed with the register. Only the parent writes these paths, and every evidence file the register lists comes from its own run at H1. When the PLAN declares the acceptance gate, worker-result validation refuses a worker change to the register the gate names with `--results` or anything under its `evidence/` directory, whatever the task `write_scope` says. It also refuses any change no task `write_scope` covers, even when the register path cannot be read from the gate argv. Both checks run in every workspace mode, shared checkout included. They are not coordination paths, so a register commit after the recorded head leaves RUN stale. Any candidate repair after H2 changes files outside the register, so `N-ACCEPTANCE-GATE` fails at the repaired head. `reconcile-candidate-head` accepts only paths in the repair task's `write_scope`, which never lists the register, so rerunning acceptance after H2 needs a formal PLAN revision with fresh owner authorization: the new digest stops the old execution grants from covering anything. The revision adds a repair task whose `write_scope` lists only the register and evidence paths; that is safe then because the mission is already integrated. The parent commits that repair and records it with `reconcile-candidate-head`; a worker result cannot carry it. The template's neutral command placeholders must be replaced before execution.
+For this, the last mission's `write_scope` lists `docs/verification/delivery-results.json` and `docs/verification/evidence/**`, as M1 shows, and so does the security review's `scope` (the validator requires it to cover every mission scope). Readiness cites `configure_project_context.py --check --require-resolved` exit 0 on the base for these paths.gitattributes` in an authorized pre-H1 task's `write_scope` and the security review scope, and commit it before H1. `record-integration` checks only that mission scope, so `N-ACCEPTANCE-GATE` is what refuses a product file committed with the register. Only the parent writes these paths, and every evidence file the register lists comes from its own run at H1. When the PLAN declares the acceptance gate, worker-result validation refuses a worker change to the register the gate names with `--results` or anything under its `evidence/` directory, whatever the task `write_scope` says. It also refuses any change no task `write_scope` covers, even when the register path cannot be read from the gate argv. Both checks run in every workspace mode, shared checkout included. They are not coordination paths, so a register commit after the recorded head leaves RUN stale. Any candidate repair after H2 changes files outside the register, so `N-ACCEPTANCE-GATE` fails at the repaired head. `reconcile-candidate-head` accepts only paths in the repair task's `write_scope`, which never lists the register, so rerunning acceptance after H2 needs a formal PLAN revision with fresh owner authorization: the new digest stops the old execution grants from covering anything. The revision adds a repair task whose `write_scope` lists only the register and evidence paths; that is safe then because the mission is already integrated. The parent commits that repair and records it with `reconcile-candidate-head`; a worker result cannot carry it. The template's neutral command placeholders must be replaced before execution.
 
 Applicable eval policies require these entries through the common source join.
 For older plans without an eval marker, the parent's readiness review still
