@@ -1,6 +1,6 @@
 # EPIC-suite-review-round-2: the heavy items from the suite review
 
-Status: in_progress on `feat/suite-review-r2` (base `main` `e4d05197`); all ten items merged at `ecd5dbf2`, 0.79.0 surfaces and the candidate matrix next
+Status: complete locally; candidate `29614b6c` (0.79.0) on `feat/suite-review-r2` passed the full matrix; merge to local `main`, install and the consumer rollout follow at the owner's instruction of 2026-11-07; push and tag stay owner actions
 
 ## Problem And Baseline
 
@@ -341,21 +341,30 @@ Existing coverage, not to duplicate:
 | M1b reviewer rows | driver op `reviewer` measures the viewport and specimen rows in `hifi_reviewer.reviewer_contract` order after the interaction pass; `validate_output` applies the checker's `reviewer_evidence_findings`; matrix-capture gains a Reviewer object section and ui-design-pass 157 is cut to the command | `b801069f`, `4f0469e3`, merged `0baa9ab1` | 90 tests with real Chromium, review-matrix docs, ui-hifi reviewer modules exit 0 |
 | M7 `--intermediate` | every non-n/a state at the midpoint of each adjacent pair of numeric viewport widths into `OUT/intermediate`, self-checked with `ui_design_v3.intermediate_width_findings`; parent fixed the fake driver's case key and kept the reviewer pass out of the sweep after the merge | `6f635532`, `843bfd93`, merged `82d17b16`; `7c552bf4` | 99 tests with real Chromium exit 0 |
 | M7 `reflow-320` axis and docs | sampled states once at a 320 px canvas from the smallest target, sidecar rows like the other axes, inline width cleared after the axis; matrix-capture flags and axes text, long and localized copy judged from authored copy | `71dcdb8f`, `2182ec22`, merged `ecd5dbf2` | 103 tests with real Chromium exit 0 |
+| 0.79.0 surfaces | `prepare_release.py --version 0.79.0 --entries <four entries>`: VERSION, package.json, both lock fields, four badges and entries, CHANGELOG rotation | `001e925d` | `prepare_release.py --check` and the skill contract tests exit 0 |
+| Fixtures at the 0.79.0 pin (parent) | with VERSION at 0.79.0 the template-rendered PLAN and the golden-path package fall under M23's rule: the new_run and tasks-view fixtures seed a contract bound to the PRD hash and `bind_acceptance_gate` fills the strict argv; the golden-path package freezes the acceptance source and gate chain; the topology check binds a gate to its local-command node only, since a review node may cite a gate as its ref | `ec6aa2c6`, `7a0ccbbb`, `29614b6c` | new_run 12, tasks view 13, transition 11, eval plan 28, golden path and lifecycle modules exit 0 |
+| Matrix at `29614b6c` | full Required Verification run at the candidate with browsers required (absolute `PLAYWRIGHT_MODULE`) | `task/release-0790/matrix-29614b6c/summary.txt` | result: pass (skill spec, pyflakes, docs weight, harness 122 modules, golden path, product-definition 446 tests, ui-design-builder 491 tests with real Chromium, design-system-compiler 222 tests, diff check, all exit 0) |
 
 ## Results And Remaining Work
 
-All ten items landed on `feat/suite-review-r2` at `ecd5dbf2`: S1, M1 (interactions, reviewer rows, intermediate widths), M2+M4, M3 (narrowed to the shared context and the integration layer; its task and worker halves were round 1's `build_verifier_request.py`), M7, M14, M15, M16, M23. Next: 0.79.0 surfaces with `prepare_release.py`, the full matrix at the candidate with browsers required, this Epic's close, then the consumer rollout the owner asked for (pause running RUNs, install, one GLM writer per consumer, resume).
+All ten items landed on `feat/suite-review-r2`; candidate `29614b6c` is version 0.79.0 and passed the full matrix (result: pass (skill spec, pyflakes, docs weight, harness 122 modules, golden path, product-definition 446 tests, ui-design-builder 491 tests with real Chromium, design-system-compiler 222 tests, diff check, all exit 0)). The first matrix at `001e925d` failed four harness modules because the release pin itself switched on M23's rule for the fixtures; the three parent commits above repaired the fixtures and narrowed the gate binding, and the matrix was rerun at the final candidate.
+
+Review at the candidate by the parent (Claude Fable 5.1, owner direction; the hook refuses Fable children). Code lens: PASS, with these parent repairs along the way: the WORKER_GOAL launch sentence at the word cap (S1), the installed digest kept and `restart_required` derived on a mismatch (`record-runtime`), the reviewer pass kept out of the intermediate sweep and the fake driver's case key (M7), the fixture and topology repairs above. Security lens over the new and changed scripts (`harness_transition.py` record-grant/open-run/close-run/record-runtime and the lease-worker packet, `promotion_readback.py`, `build_verifier_request.py`, `verifier_request_context.py`, `parity_capture.py`, `harness_ui_evidence.py`, `eval_plan_contract.py`, `hifi_matrix_capture.py`): repository files, RUN/PLAN pairs and CLI arguments are the only untrusted input; every write is a named output file created exclusively or the locked RUN write after in-memory validation; `record-grant` refuses `push`; `promotion_readback.py` never fetches, pushes, merges or tags; the matrix driver stays in its offline browser context with product controls driven only by the declared manifest; refusals are tested. PASS for that scope. Visual lens: not applicable, no UI change in the suite itself.
+
+Writers: GLM-5.3 Flash via `glm` / `glm-5.3-flash` at thought_level max, 17 launches for 10 items (S1, M2M4 ×3, M3 ×3, M1a ×2, M1b, M7 ×4, M14, M15, M16, M23); two provider `Internal error` relaunches with empty worktrees; nine 100-turn stops whose clean partial work the parent committed on the worker branch and the next writer cherry-picked.
+
+Not done here: push, PR and tag `v0.79.0` are owner actions. Merge to local `main`, `./install.sh` and the consumer rollout follow in this session under the owner's instruction of 2026-11-07.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r2 / 8a4110fa plus this record / task/ untracked
-Stage and skill: source maintenance, round 2 integration
+Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r2 / 29614b6c plus this record / task/ untracked
+Stage and skill: source maintenance, round 2 closed locally
 Inputs consumed (path + hash or revision): docs/epics/EPIC-suite-review-2026-11.md backlog; workflow result wf_19618f07-bb2
 Approvals in force (gate, owner, date, candidate): owner 2026-11-07: merge round 1 into local main, run round 2 with GLM 5.3 Flash writers, then update every consumer; no push, tag or install granted
-Done and verified (command, exit code): per Change Log row; focused modules exit 0 at each merge
-Remaining: M1b, M7, M16 integration and review; 0.79.0 surfaces; candidate matrix; Epic close; consumer rollout
-Blocked / waiting (gate name or owner decision): three live writers
-Next action (one command or one owner decision): merge M1b, M7 and M16 when they report, then prepare_release.py --version 0.79.0
+Done and verified (command, exit code): full matrix at 29614b6c (task/release-0790/matrix-29614b6c): result: pass (skill spec, pyflakes, docs weight, harness 122 modules, golden path, product-definition 446 tests, ui-design-builder 491 tests with real Chromium, design-system-compiler 222 tests, diff check, all exit 0)
+Remaining: merge to local main, install, consumer rollout (this session); push, PR, tag v0.79.0 (owner)
+Blocked / waiting (gate name or owner decision): none for the local steps; publication waits for the owner
+Next action (one command or one owner decision): git merge --no-ff feat/suite-review-r2 into main, then ./install.sh
 Next owner (skill or human): harness parent
 ```
