@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
-"""Validate the structured result of one code-security review."""
+"""Validate the structured result of one code-security review.
+
+As a command it checks one saved result without writing anything, for
+direct work that has no RUN transition:
+
+    python security_review_result.py --result review.json --reviewed-sha <sha>
+
+Exit 0 when the result is valid, 1 with one error per line, 2 on bad
+arguments.
+"""
 
 from __future__ import annotations
 
+import argparse
 import json
 import re
+import sys
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -372,3 +383,69 @@ def security_result_finding_summaries(value: dict[str, Any]) -> list[str]:
         return [item for item in gaps if _is_nonempty_string(item)]
     evidence = value.get("evidence")
     return [item for item in evidence if _is_nonempty_string(item)][:1]
+
+
+def _full_sha(text: str) -> str:
+    if SHA_RE.fullmatch(text) is None:
+        raise argparse.ArgumentTypeError("must be a full lowercase 40-character SHA")
+    return text
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(
+        description="Check one saved security review result. Writes nothing."
+    )
+    parser.add_argument("--result", required=True, type=Path, help="result JSON file")
+    parser.add_argument(
+        "--reviewed-sha", required=True, type=_full_sha,
+        help="the candidate SHA the review was dispatched for",
+    )
+    parser.add_argument(
+        "--base-sha", type=_full_sha, help="the dispatched base SHA, when one was given"
+    )
+    parser.add_argument(
+        "--scope", action="append",
+        help="one dispatched scope entry, in packet order; repeat for each",
+    )
+    parser.add_argument(
+        "--required-tool", action="append", default=[],
+        help="a tool that must have run; repeat for each",
+    )
+    parser.add_argument(
+        "--required-check", action="append", default=[],
+        help="a required check id the result must carry; repeat for each",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if not args.result.is_file():
+        parser.error(f"--result: {args.result} is not a file")
+    try:
+        value = load_security_review_result(args.result)
+    except SecurityReviewResultError as exc:
+        print(exc)
+        return 1
+    errors = validate_security_review_result(
+        value,
+        expected_reviewed_sha=args.reviewed_sha,
+        expected_base_sha=args.base_sha,
+        expected_scope=args.scope,
+        required_tools=args.required_tool,
+        required_checks=args.required_check,
+    )
+    if errors:
+        for message in errors:
+            print(message)
+        return 1
+    print(f"valid security review result: {value['decision']} at {value['reviewed_sha']}")
+    return 0
+
+
+if __name__ == "__main__":
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    raise SystemExit(main())

@@ -27,7 +27,7 @@ Record a failed start as `blocked` with the actual host error.
 
 ## Verifier Execution Context
 
-`trust_domain` is always `parent_local`; `checkout_role` is always `worker`.
+`trust_domain` is always `parent_local`; `checkout_role` is always `worker`. `scripts/build_verifier_request.py` writes this context from PLAN, RUN and the observed worktree.
 
 ```json
 {

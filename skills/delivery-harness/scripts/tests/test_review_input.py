@@ -157,6 +157,24 @@ class ReviewInputTests(unittest.TestCase):
         self.assertNotIn("notes.txt", manifest)
         self.assertEqual(summary["head"], self.head)
 
+    def test_local_info_attributes_are_named_in_parent_status(self) -> None:
+        info = self.repo / ".git" / "info" / "attributes"
+        info.parent.mkdir(exist_ok=True)
+        info.write_bytes(b"")
+        clone, _ = self.build()
+        status = (clone / "review-input" / "parent-status.txt").read_text(encoding="utf-8")
+        self.assertNotIn("warning:", status)
+        shutil.rmtree(self.out)
+        info.write_bytes(b"docs/** -text\n")
+        clone, _ = self.build()
+        status = (clone / "review-input" / "parent-status.txt").read_text(encoding="utf-8")
+        self.assertIn(
+            f"warning: {info.as_posix()} holds attribute rules that do not reach clones; they must be in "
+            "the committed .gitattributes (delivery-harness/references/gitattributes-contract.md)\n",
+            status,
+        )
+        self.assertFalse((clone / ".git" / "info" / "attributes").exists())
+
     def test_repo_head_must_match_head(self) -> None:
         code, _, stderr = self.run_main(head=self.base)
         self.assertEqual(2, code)

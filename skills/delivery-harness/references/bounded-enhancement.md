@@ -4,7 +4,7 @@ Apply this policy after the owner accepts one enhancement scope. It applies to d
 
 ## One Scope Decision
 
-Use one Epic under `docs/epics/` per complete enhancement outcome, started from `assets/templates/EPIC.template.md` and indexed with its status in `docs/DOCUMENTS.md`. A small fix appends to the matching Epic and may link its direct-task evidence; never open an Epic, PLAN or RUN per edit. The Epic records why the round exists, its current-PRD baseline, requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not copy the PRD, authorization ledger, task scheduler or evidence register. Unresolved Epic work stays visible in the next session; a closed conversation is not completion.
+Use one Epic under `docs/epics/` per complete enhancement outcome, started from `assets/templates/EPIC.template.md`. Its status lives only on its own `Status:` line; `docs/DOCUMENTS.md` carries the one `docs/epics/` directory row and the `Current Epic:` line. A small fix appends to the matching Epic and may link its direct-task evidence; never open an Epic, PLAN or RUN per edit. The Epic records why the round exists, its current-PRD baseline, requirement/TEST references, accepted scope, dependencies, affected documents and actual result. It does not copy the PRD, authorization ledger, task scheduler or evidence register. Unresolved Epic work stays visible in the next session; a closed conversation is not completion.
 
 A change to scenario text in a feature file is a product decision and goes through a PRD delta. A change only to step definitions or implementation is a small fix on the existing Epic.
 
@@ -12,7 +12,7 @@ Derive a short execution summary from accepted sources: goal, PRD/TEST reference
 
 Record once the owner's instruction, affected requirement IDs, acceptance conditions, write boundaries, test environments, permitted actions, repair budget and stopping condition. Reuse it for covered implementation, document sync, synthetic fixture preparation, repair, module replacement and retesting. Do not ask the owner to approve the same decision again after a failed test or a technical hash refresh.
 
-The default is one consolidated repair per root-cause family and one targeted re-check; that is the whole review budget. Remaining defects continue as isolated repairs under `verification-gates.md`'s Isolated Repair Protocol, and a stricter graph or reviewer attempt limit wins. Environment-blocked review attempts do not count against this budget, and a note never opens a round. Record attempts across sessions and revisions. Never reset the counter by renaming the issue, changing workers, or opening another graph revision. A new task is not launched automatically.
+The review budget and its isolated repairs follow `verification-gates.md#review-topology`; a stricter graph or reviewer attempt limit wins. Record attempts across sessions and revisions. Never reset the counter by renaming the issue, changing workers, or opening another graph revision. A new task is not launched automatically.
 
 Selecting a skill alone grants no writes. Preserve every action-specific authorization, exact target, runtime boundary, and host confirmation requirement. Spending, production data, external writes, publication, installation, branch/worktree deletion, or a new product requirement are not implied by local delivery authority. Check existing grants before asking; never request a still-valid one again.
 
@@ -22,7 +22,7 @@ Reuse of a semantic template audit follows [Handoff Documentation Audit](governa
 
 Classify the record before implementation, after the owner accepts the outcome:
 
-- Create one Epic for a new feature or complete enhancement with its own goal and acceptance conditions. Index it in `docs/DOCUMENTS.md`; do not create a competing PRD.
+- Create one Epic for a new feature or complete enhancement with its own goal and acceptance conditions. Do not create a competing PRD.
 - Extend the existing Epic when a small fix, test, copy correction or implementation repair serves the same accepted outcome. A new commit, session, worker or release number is not a new Epic.
 - For an isolated small fix with no suitable Epic, create a concise bounded Epic; it may link detailed direct-task evidence rather than duplicate it.
 - A follow-up to a closed Epic may append a dated fix record without rewriting its earlier result. A new outcome or changed acceptance criteria needs a linked new Epic; do not quietly broaden the closed one.
@@ -59,7 +59,7 @@ Hash refresh is evidence bookkeeping, not a new human decision. It also is not p
 
 Keep two outcomes separate: the work session ended, and the entire accepted scope passed. Only the latter permits a delivery PASS. A required failure, missing native runner, unavailable sandbox, stale proof, or unresolved security issue stays failed/blocked/unvalidated even after it is placed in the backlog. Do not remove a required test, loosen a threshold, shrink the platform matrix, or lower a requirement's priority to obtain green results.
 
-When the review budget is exhausted, remaining defects continue as isolated repairs; stop only on a contract gap, a missing capability, or an unsafe repair. Retain each family's diff, commands, evidence, candidate identity, and failure count. Finish independent verifiable work. Return a compact report with verified scope, incomplete scope, and next-round handoffs; do not keep the session open waiting for unavailable infrastructure or repeat approval prompts.
+When the review budget is exhausted, remaining defects enter the [Isolated Repair Protocol](verification-gates.md#isolated-repair-protocol); stop only on a contract gap, a missing capability, or an unsafe repair. Retain each family's diff, commands, evidence, candidate identity, and failure count. Finish independent verifiable work. Return a compact report with verified scope, incomplete scope, and next-round handoffs; do not keep the session open waiting for unavailable infrastructure or repeat approval prompts.
 
 For managed work, use the existing pause/reconciliation path for unfinished state; a handoff is not successful closeout, supersession, archive eligibility, or permission to publish. Never invent a new RUN lifecycle phase. A later task resumes preserved state or starts a new properly authorized initiative through the existing recovery rules.
 

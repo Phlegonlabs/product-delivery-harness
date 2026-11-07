@@ -14,7 +14,7 @@ Include only:
 - selected-direction status, owner, representative surface mode, concept thesis, named visual world, summary, and implementation consequences;
 - selected `VD-*` direction provenance with applicable `MR-*`, inspected `REF-*`, confirmed `RP-*`, retrieval dates, and owner confirmation;
 - short rationale for non-obvious token and component choices;
-- computed contrast and type-scale evidence;
+- the generated contrast and type-scale evidence block;
 - concise responsive, interaction, accessibility, and reduced-motion rules; and
 - product-specific do and don't guardrails plus the generated machine-contract block.
 
@@ -31,6 +31,7 @@ Keep it the sole structured authority for:
 - signature visual rules with stable `DS-*` IDs, registered in `signatureRules` — every complete `DS-*` token the Markdown names (rule, primitive `dsId`, or `DS-COMP-*`) must resolve to this file, malformed lookalikes fail, and IDs are globally unique across all three registries;
 - recurring product components with `DS-COMP-*`, required content order, composition, and states;
 - registered motion variants;
+- optional `contrastPairs` (`group`, `fg`, `bg`, `use`: `normal|large|ui`, optional `note`) and `typeSteps` (`role`, `fontSize`, `lineHeight`, `kind`: `text|heading`, optional `usage`) naming tokens; a token that does not resolve fails;
 - the UI state matrix; and
 - for `design-system/4` only, the `showcase` source map below.
 
@@ -57,13 +58,7 @@ Keep it the sole structured authority for:
 - `ds-showcase/2` keeps every `/1` rule and adds a closed `source-runtime` trigger for approved script- or state-driven motion: `{"kind": "source-runtime", "mechanism": "waapi" | "css-animation", "intent": "MM-*", "surface": "UI-*", "state", "target", "scriptSha256", "activation": {"kind": "viewport" | "state-entry"}}`. The intent must be an approved motion row in the current `ui-design.md` with current normal and reduced-motion PASS evidence files. One intent binds one row. `scriptSha256` is the raw UTF-8 body hash of exactly one executable inline product script outside reviewer segments. The specimen must resolve to exactly one copy inside that manifest surface, state view and target. A missing or ambiguous copy, reviewer script, unknown key or non-literal value fails. These checks prove association, not playback.
 - In `/2` only, a pseudo state may also use one unconditional rule `<simple ancestor selector> :<state>` whose ancestor is on the specimen's source path, such as `[data-ui-surface] :focus-visible`. Other selector forms stay unresolved. A `rendered` `open` state cannot come from a closed native `<details>`.
 - The checker reads the HiFi entry from `sourceBindings.hifi` and each sibling by its manifest hash through safe non-link paths. A stale, missing or unresolved source fails the pair before any HTML is emitted.
-
-## Approved Input Quality Check
-
-The stage Validation list owns the checklist. Two input rules also apply:
-
-- The UI contract records an approved immutable target, source hash, routes and states, the exact PRD/HiFi responsive set, passing browser-matrix evidence with no unintended overlap, clipping, occlusion, or horizontal overflow, tolerance, and allowed deviations.
-- Copy stays fixed across visual directions. A proposed wording change returns to `product-definition-builder` as a PRD and HiFi copy delta and requires the full HiFi copy review.
+- A JSON token whose name the bound HiFi CSS also declares must equal one of those declarations after whitespace and case normalization. Declarations that use `var()` are skipped.
 
 ## Final Quality Check
 
@@ -94,10 +89,3 @@ python "<design-system-compiler-skill-root>/scripts/render_design_system_preview
 The first command emits UTF-8 HTML on stdout only after filled-pair and current-source validation. Capture those exact bytes at an authorized new destination; do not redirect over an existing artifact before validation succeeds. The second command is read-only and rejects changed pair bytes, stale sources, hand-edited or missing previews. It grants no approval and does not validate visual quality. When the pair registers a motion variant or a `pseudo` state row, or the preview has Surface plates that run product scripts, inspect those plates in a browser; static checks cannot show their live treatment. For each `source-runtime` row, press Replay, Stop and the Reduced motion control once at its default target, and record the observed phases in the handoff. Return an `invalid` plate to the author. Link the view with the pair in the handoff.
 
 The Markdown/JSON pair remains the authority. The HTML is reproducible and is not a product route, a HiFi manifest page or a third hand-maintained contract. The legacy view contains no scripts, remote resources or imported product CSS; the `design-system/4` view contains only hash-pinned local scripts and copies of approved HiFi CSS inside sandboxed plates. It is retained as a review artifact, so do not hide it with a broad generated-HTML ignore rule. Existing pairs are not rewritten merely to add a preview. A historical wireframe has no Tokens view. Do not mutate historical artifacts when adding the separate formal preview.
-
-### Pair Checks
-
-The stage Validation list owns the checklist. Two rules also apply:
-
-- Every token, primitive, component, motion variant, state, and responsive entry is required by a real PRD surface; the responsive set has at least three ascending web viewports or at least two native/desktop size classes and matches the approved PRD and HiFi exactly.
-- Every required PRD element maps to the final registry, and no unresolved page-local exception remains.

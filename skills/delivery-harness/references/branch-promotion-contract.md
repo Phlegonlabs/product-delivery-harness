@@ -77,6 +77,7 @@ Promotion to main requires all these conditions:
 2. Before deployable push/CI connection or main promotion, observe actual protection for the exact repository and ref.
    The non-secret readback names the host capability, ruleset/review policy, required checks, checked time, and evidence. The word `protected` in a source document is not setup proof.
    Do not push, force, or delete a protected branch to test protection, and never claim that this source edit configured it.
+   If the host refuses the protection or ruleset read, for example HTTP 403 on a private plan, record `unavailable` with the HTTP status and message. Condition 2 then stays unmet: landing waits for a recorded owner decision that names its scope, and every other condition still applies.
 3. Preview evidence records the PR or branch, immutable deployment identity, observed URL, deployed SHA and acceptance result.
 4. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base.
 5. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
@@ -94,6 +95,7 @@ Never relabel inherited candidate, security or CI results as fresh executions at
 A different tree is a new candidate and needs fresh applicable checks and exact-SHA security review.
 Repair a failed landing through a new candidate and reviewed PR; never force-push or rewrite protected history.
 Hosted-browser production verifies deployed SHA and smoke; parity capture there is optional. Native, extension and desktop targets use their platform evidence.
+For a store-reviewed production target, the promotion pass ends after the main-SHA artifact and submission read-back, with its Release Target Status row `pending`. Report availability as pending the store decision; do not wait for review. A later read-only check of the same artifact moves the row to PASS without a new promotion; a changed artifact is a new candidate.
 External setup read-back, the growth review and the outcome review keep their separate post-production gates and authorization.
 Separately authorized fixed-build external setup cannot claim release readiness.
 

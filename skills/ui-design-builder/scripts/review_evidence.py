@@ -25,6 +25,27 @@ HIFI_MANIFEST_RE = re.compile(
 )
 
 
+def line_ending_hint(path: str) -> str:
+    """Repair hint for bytes that differ from a pinned hash only by CRLF/LF conversion."""
+    return (
+        f"`{path}` differs only by line-ending conversion; check "
+        f"`git check-attr text eol filter -- {path}` against "
+        "delivery-harness/references/gitattributes-contract.md#converted-files; "
+        "do not regenerate or re-pin"
+    )
+
+
+def line_ending_note(data: bytes, expected_sha256: object, path: str) -> str:
+    """`; <hint>` when the bytes match the hash only after CRLF/LF conversion, else ''."""
+    if not isinstance(expected_sha256, str):
+        return ""
+    lf = data.replace(b"\r\n", b"\n")
+    for form in (lf, lf.replace(b"\n", b"\r\n")):
+        if form != data and hashlib.sha256(form).hexdigest() == expected_sha256:
+            return "; " + line_ending_hint(path)
+    return ""
+
+
 def safe_path(root, relative):
     if not isinstance(relative, str) or not relative or "\\" in relative or ":" in relative:
         raise ValueError("artifact path must be repository-relative")
@@ -49,7 +70,8 @@ def read_identity(root, binding):
         raise ValueError("artifact is missing or exceeds read limit")
     data = path.read_bytes()
     if hashlib.sha256(data).hexdigest() != binding["sha256"]:
-        raise ValueError("artifact identity is stale: " + binding["path"])
+        raise ValueError("artifact identity is stale: " + binding["path"]
+                         + line_ending_note(data, binding["sha256"], binding["path"]))
     return data
 
 

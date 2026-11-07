@@ -11,7 +11,7 @@ Required checks and dependencies stay within the requested outcome; a new top-le
 
 Commands: `references/installed-commands.md`; stage cards: `references/stages/stage-cards.md`; launch brief: `assets/templates/HARNESS_GOAL.template.md`.
 
-At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). It loads document sync, bounded enhancement, delegation, gen-verify-correct and PRD refinement on their triggers. Acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
+At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). For new delivery work, direct or managed, acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
 
 ## Design And Maintenance Routing
 
@@ -89,8 +89,8 @@ These rules apply to both routes:
 
 - Selecting this skill grants no mutation permission. Bind each state-changing action to the user's exact instruction and target.
 - Preserve all 12 managed action keys in the [Authorization Action Ledger](references/execution-state-model.md#authorization-action-ledger).
-- Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false. Archive, publication and promotion follow `references/branch-promotion-contract.md#managed-run-archive-before-promotion`.
-- Use PLAN `branch_policy` to freeze the remote `main` base for ordinary work and hotfixes under `main-preview/1`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md`; never force-push. Ask before branch creation unless a signed launch brief names it; never add a fixed prefix.
+- Execution intent covers only applicable local setup, branch, commit, and integration actions; it does not authorize `push`. Harness 0.38+ RUNs stay `local_only` with `push` false; after close, archive, publication and promotion follow stage Card 8.
+- Freeze the remote `main` base in PLAN `branch_policy`; retain historical RUN pins. Never edit/commit on a protected branch or recreate one as a run branch. Follow `references/branch-promotion-contract.md#delivery-kind-and-base` and `references/branch-promotion-contract.md#protected-branches`; never force-push. Ask before branch creation unless a signed launch brief names it; never add a fixed prefix.
 - Archival, worktree removal, and branch deletion are separate actions, never implied by completion.
 - The parent owns routing, authorization, PLAN/RUN, dispatch, leases, integration, and lifecycle actions. Workers and reviewers receive only their assigned actions. Pinned managed protocols retain parent-owned PLAN/RUN, integration and lifecycle transitions.
 - A managed runtime review launches only from a persisted `reserve-review-dispatch` receipt for the selector's current directive. A raw runtime spawn is unplanned work; do not accept its result or reconstruct a receipt afterward.
@@ -113,7 +113,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 5. Create an authorized local commit when requested.
 6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set of blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
-8. Perform only remaining authorized Git actions.
+8. Perform only remaining authorized Git actions; for promotion, read `references/branch-promotion-contract.md#candidate-gate` and `references/branch-promotion-contract.md#promote-to-main`.
 
 A text-only markup/style review cannot claim a visual PASS or close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
 
@@ -133,9 +133,9 @@ Use this routing only when the size gate classifies work as `large`. For direct 
 Discover the effective instruction chain from repository root to the selected checkout.
 
 - Existing `AGENTS.md`/`AGENTS.override.md`/`CLAUDE.md` are user-owned; never overwrite, normalize, silently copy.
-- Entry runs `scripts/configure_project_context.py --root <target-root> --merge-agents`; missing files use `PROJECT_AGENTS.template.md` and distinct `PROJECT_CLAUDE.template.md`; generated files differ. Existing AGENTS stays proposal-only until a reviewed plan binds original/template hashes, selected headings and acknowledged conflicts. Same-heading differences are unresolved semantic divergences. Resolve new Skill Bindings from observed skills with owner confirmation.
-- Follow the current host's effective instruction precedence; do not guess it from a provider name or inject another host's instructions.
-- Keep automatic context discovery enabled. A nested instruction may narrow a mission but never widen write scope or authorization.
+- Entry runs `scripts/configure_project_context.py --root <target-root> --check --merge-agents`; without `--check`, only an authorized bootstrap creates missing files from `PROJECT_AGENTS.template.md` and `PROJECT_CLAUDE.template.md`; generated files differ. Existing AGENTS stays proposal-only until a reviewed plan binds original/template hashes, selected headings and acknowledged conflicts. Same-heading differences are unresolved semantic divergences. Resolve new Skill Bindings from observed skills with owner confirmation.
+- Follow the current host's effective instruction precedence; never guess it from a provider name or inject another host's instructions.
+- Keep automatic context discovery enabled. A nested instruction may narrow a mission, never widen write scope or authorization.
 
 ## UI Implementation Contract
 

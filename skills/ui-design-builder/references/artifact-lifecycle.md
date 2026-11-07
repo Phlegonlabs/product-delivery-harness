@@ -25,7 +25,8 @@ Use `docs/design/.ui-staging/<run-id>/` only for unapproved drafts. Before colle
 
 - `docs/design/ui-design.md`;
 - referenced direction-study captures under `docs/design/directions/<round>/`;
-- `docs/design/ui-references/<run-id>/index.html` when retention is approved; and
+- `docs/design/ui-references/<run-id>/index.html` when retention is approved;
+- the consolidated defect ledger at `docs/design/evidence/<run-id>/defect-ledger.json`, shaped by [UI_DEFECT_LEDGER.template.json](../assets/templates/UI_DEFECT_LEDGER.template.json); and
 - `docs/design/design-system.md` plus `docs/design/design-system.json` and their derived `docs/design/design-system-preview.html` when required.
 
 The approved Product Definition remains under `docs/product/`; preserve its exact bytes and all non-design source files so `Selected` stack source evidence resolves.

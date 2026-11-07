@@ -13,7 +13,7 @@ Make the project understandable and memorable from its README. Lead with its bra
 
 ## Ground The Work
 
-Read the target repository's effective instructions, existing README variants, public product facts, manifests, license and available brand/demo assets. Preserve its language, audience, approved design and working commands. Inspect file names before content; never read credentials to write public copy. Reuse the target's document/change record when one exists; a Harness installation is not required.
+Read the target repository's effective instructions, existing README variants, public product facts, manifests, license and available brand/demo assets. Preserve its language, audience, approved design and working commands. Inspect file names before content; never read credentials to write public copy. Reuse the target's document/change record when one exists; a Harness installation is not required. When `docs/gtm/MESSAGING.md` exists, take the README first line from its Per-Surface One-Liners and public claims only from Approved Public Claims. A needed wording change goes to go-to-market, and the record is never edited here.
 
 Distinguish a product showcase, CLI, library/SDK and monorepo entry point. Identify the primary reader and the action they should take. Ask only for a consequential brand/audience choice that the project cannot answer. Keep unrelated documentation and approved product decisions intact.
 

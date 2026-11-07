@@ -16,7 +16,7 @@ The two files publish together. Edit structured fields in JSON, then run `script
 
 ## Source Inputs
 
-Calculate the UI approval digest with `python "<ui-design-builder-skill-root>/scripts/ui_approval_digest.py" <ui-design.md>`. This excludes derived pair/replacement linkage and, for `ui-design/3`, the Package action and pair disposition lines; other source hashes cover raw file bytes. Homogeneous products keep one responsive set; hybrids use per-surface `surfaceContracts` and omit global platform, styling mechanism, viewports, and size classes.
+`check_design_system_pair.py --write-bindings` fills the JSON source bindings. Homogeneous products keep one responsive set; hybrids use per-surface `surfaceContracts` and omit global platform, styling mechanism, viewports, and size classes.
 
 | Source | Path / URL | Role |
 |---|---|---|
@@ -62,17 +62,14 @@ Define only tokens the product uses. Raw values live only in the files declared 
 
 Palette basis: <brand or selected-direction reason>
 
-| Pairing | Tokens | Computed contrast | Non-color cue or notes |
-|---|---|---|---|
-| <text on background / UI boundary / semantic state> | <token names> | <ratio from check_color_contrast.py> | <notes> |
-
 ### Typography
 
 Family and scale rationale: <reason>
 
-| Role | Token names | Weight | Computed line-height ratio | Usage |
-|---|---|---|---|---|
-| <display / heading / body / caption> | <font-size and line-height tokens> | <weight> | <ratio from check_type_scale.py> | <usage> |
+`--write` renders the JSON `contrastPairs` and `typeSteps` ratios here:
+
+<!-- BEGIN GENERATED CONTRAST AND TYPE EVIDENCE -->
+<!-- END GENERATED CONTRAST AND TYPE EVIDENCE -->
 
 ### Space, Shape, Elevation, And Motion
 

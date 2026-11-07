@@ -2,9 +2,9 @@
 
 Use the smallest set of sources that can answer the question. A source name or an available UI does not prove access to the intended property, listing, package or account. Record the exact non-secret scope, date range, retrieval time, route and relevant limitations for every source used.
 
-A source is verified evidence only when `docs/DEPLOYMENT.md` Measurement Sources marks the matching `MS-*` row `verified` for the same release target and identity. Roles stay separate; do not let one property, listing or account imply the others.
+Stage [Workflow](stages/growth-review.md#workflow) steps 3-4 own the provider order, the documentation fetch and the verified-row rule. Roles stay separate; do not let one property, listing or account imply the others.
 
-Resolve the provider behind each role from the project's own records: the `MS-*` row, then `docs/product/stack-decisions.md`, then the platform default for the surface class. Before using a provider field, report, quota, API or console path, fetch its current official documentation. Access routes, in order: an existing connector or MCP tool, the official API, the read-only console UI, or a user-provided export. Setup and configuration changes are outside this review.
+Access routes, in order: an existing connector or MCP tool, the official API, the read-only console UI, or a user-provided export. Setup and configuration changes are outside this review.
 
 ## Source Roles
 

@@ -28,6 +28,7 @@ from review_evidence import (
     author_artifact_findings,
     author_usage_findings,
     execution_findings,
+    line_ending_note,
     score_findings,
 )
 from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, product_control_findings, reviewer_contract, reviewer_evidence_findings
@@ -1137,8 +1138,10 @@ def _resolve_source(
     if not candidate.is_file():
         _add(problems, f"{label} path does not exist: {relative}")
         return
-    if hashlib.sha256(candidate.read_bytes()).hexdigest() != match.group("sha256"):
-        _add(problems, f"{label} sha256 does not match current bytes: {relative}")
+    data = candidate.read_bytes()
+    if hashlib.sha256(data).hexdigest() != match.group("sha256"):
+        _add(problems, f"{label} sha256 does not match current bytes: {relative}"
+             + line_ending_note(data, match.group("sha256"), relative))
 
 
 def _resolve_ui_design_digest(
@@ -1293,7 +1296,7 @@ def _hifi_bundle_documents(path: Path, html: str, manifest: dict[str, Any]) -> d
                 raise ValueError("HiFi page paths must not cross symlinks or reparse points")
         contents = page.read_bytes()
         if hashlib.sha256(contents).hexdigest() != digest:
-            raise ValueError(f"HiFi page is stale: {name}")
+            raise ValueError(f"HiFi page is stale: {name}" + line_ending_note(contents, digest, page.as_posix()))
         text = contents.decode("utf-8")
         if HIFI_MANIFEST_RE.search(text):
             raise ValueError("Only index.html may contain the HiFi bundle manifest")
@@ -1989,8 +1992,10 @@ def _resolve_evidence(
     if not evidence_path.is_file():
         _add(problems, f"{label} evidence path does not exist: {parsed['path']}")
         return
-    if hashlib.sha256(evidence_path.read_bytes()).hexdigest() != parsed["sha256"]:
-        _add(problems, f"{label} evidence sha256 does not match current bytes")
+    evidence_bytes = evidence_path.read_bytes()
+    if hashlib.sha256(evidence_bytes).hexdigest() != parsed["sha256"]:
+        _add(problems, f"{label} evidence sha256 does not match current bytes"
+             + line_ending_note(evidence_bytes, parsed["sha256"], parsed["path"]))
         return
     try:
         evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
@@ -2036,7 +2041,8 @@ def _resolve_evidence(
                 if not reviewed.is_file():
                     _add(problems, f"{label} evidence reviewedArtifact does not exist: {artifact_path}")
                 elif hashlib.sha256(reviewed.read_bytes()).hexdigest() != artifact_sha:
-                    _add(problems, f"{label} evidence reviewedArtifact sha256 does not match current bytes")
+                    _add(problems, f"{label} evidence reviewedArtifact sha256 does not match current bytes"
+                         + line_ending_note(reviewed.read_bytes(), artifact_sha, artifact_path))
                 if expected_artifact is not None and artifact_path.casefold() != expected_artifact.casefold():
                     _add(problems, f"{label} evidence reviewedArtifact must be {expected_artifact}")
     if not machine and evidence.get("attestation") != "human-attested":

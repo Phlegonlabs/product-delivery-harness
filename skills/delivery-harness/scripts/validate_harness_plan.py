@@ -24,6 +24,7 @@ from harness_manifest import (
 )
 from harness_contract_join import (
     DESIGN_SYSTEM_MARKDOWN_SOURCE_KINDS,
+    FROZEN_SOURCE_STATUSES,
     frozen_sources as shared_frozen_sources,
     full_wireframe_checker_errors,
     parse_wireframe_data,
@@ -44,6 +45,30 @@ DESIGN_SYSTEM_SOURCE_KINDS = {
     "design system json",
     "design system machine",
 }
+DELIVERY_ACCEPTANCE_SOURCE_KINDS = {"delivery acceptance"}
+FEATURES_DIRECTORY = "docs/product/features"
+
+
+def unfrozen_feature_files(plan: dict, repo_root: str | Path) -> list[str]:
+    """A frozen register needs a frozen, hashed source row for every feature file."""
+
+    if not _frozen_sources(plan, kinds=DELIVERY_ACCEPTANCE_SOURCE_KINDS, filenames=set()):
+        return []
+    frozen = {
+        source["location"].strip()
+        for source in plan.get("sources") or []
+        if isinstance(source, dict)
+        and source.get("status") in FROZEN_SOURCE_STATUSES
+        and isinstance(source.get("location"), str)
+        and isinstance(source.get("content_sha256"), str)
+        and re.fullmatch(r"[0-9a-f]{64}", source["content_sha256"]) is not None
+    }
+    features = sorted((Path(repo_root) / FEATURES_DIRECTORY).glob("*.feature"))
+    return [
+        f"plan.sources: feature file {relative} has no frozen source row with content_sha256"
+        for relative in (f"{FEATURES_DIRECTORY}/{path.name}" for path in features)
+        if relative not in frozen
+    ]
 
 
 def _requires_repo_root(plan: dict, *, include_paths: bool = False) -> bool:
@@ -196,7 +221,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--run", help="Optional path to plan-backed RUN.md")
     parser.add_argument(
         "--repo-root",
-        help="Optional repository root used to bind PLAN-v6 sources, verify approved Product Definition packages, and join UI artifacts",
+        help="Optional repository root used to bind PLAN-v6 sources, verify approved Product Definition packages, and join UI artifacts. "
+        "With a frozen delivery acceptance source, every docs/product/features/*.feature file needs its own frozen, hashed source row.",
     )
     parser.add_argument(
         "--prd",
@@ -253,6 +279,8 @@ def main(argv: list[str] | None = None) -> int:
         else:
             errors.extend(validate_plan(plan, repo_root=args.repo_root))
         errors.extend(required_design_system_source_errors(plan))
+        if args.repo_root:
+            errors.extend(unfrozen_feature_files(plan, args.repo_root))
         if args.repo_root and run is None:
             errors.extend(validate_frozen_contract_joins(plan, args.repo_root))
         prd_sources = _frozen_sources(

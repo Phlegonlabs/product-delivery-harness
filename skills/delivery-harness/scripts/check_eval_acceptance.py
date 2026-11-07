@@ -19,6 +19,7 @@ except (ImportError, OSError, SyntaxError):
         sys.exit(1)
     raise
 from harness_git import GitMetadataError, run_git, reject_object_substitution
+from harness_contract_join import line_ending_note
 
 
 def verify(root, *, prd, prd_sha256, contract, contract_sha256, delivery_contract,
@@ -54,9 +55,12 @@ def verify(root, *, prd, prd_sha256, contract, contract_sha256, delivery_contrac
     eval_bytes = read(contract, "eval contract", at_candidate=True)
     delivery_bytes = read(delivery_contract, "delivery contract", at_candidate=True)
     result_bytes = read(results, "results")
-    for raw, expected in ((prd_bytes, prd_sha256), (eval_bytes, contract_sha256), (delivery_bytes, delivery_contract_sha256)):
+    for raw, expected, path in ((prd_bytes, prd_sha256, prd), (eval_bytes, contract_sha256, contract),
+                                (delivery_bytes, delivery_contract_sha256, delivery_contract)):
         if _sha256(raw) != expected:
-            raise AcceptanceError("input differs from independently frozen hash")
+            relative = _safe_file(root, str(path)).relative_to(root).as_posix()
+            raise AcceptanceError("input differs from independently frozen hash"
+                                  + line_ending_note(raw, expected, relative))
     try:
         prd_text = prd_bytes.decode("utf-8")
     except UnicodeError as exc:

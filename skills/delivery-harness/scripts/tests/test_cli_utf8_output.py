@@ -18,16 +18,17 @@ RECONFIGURE_CALL = 'stream.reconfigure(encoding="utf-8", errors="backslashreplac
 # entry point, including new commands that need an inventory update.
 EXPECTED_CLI_ENTRYPOINTS = {
     "delivery-harness": {
-        "archive_run.py", "check_delivery_acceptance.py", "check_deployment.py",
+        "archive_run.py", "build_delivery_results.py", "build_verifier_request.py",
+        "check_delivery_acceptance.py", "check_deployment.py",
         "check_document_sync.py", "check_eval_acceptance.py",
         "check_external_skill_dependencies.py", "check_launch_packet.py", "check_prd_delta_scope.py",
         "check_skill_bindings.py", "check_skill_spec.py", "check_ui_contract.py",
         "ci_test_shards.py", "configure_project_context.py", "docs_duplicates.py",
         "docs_reading_budget.py", "docs_weight.py",
-        "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
-        "new_run.py", "parity_capture.py", "push_archived_candidate.py",
+        "harness_contract.py", "harness_step.py", "harness_transition.py", "inspect_harness_run.py",
+        "new_run.py", "parity_capture.py", "prepare_release.py", "push_archived_candidate.py",
         "render_delivery_acceptance.py", "render_review_packet.py", "render_tasks_view.py", "review_input.py", "select_ready_nodes.py",
-        "select_verifiers.py", "validate_harness_plan.py", "validate_node_result.py",
+        "security_review_result.py", "select_verifiers.py", "validate_harness_plan.py", "validate_node_result.py",
         "validate_result.py", "validate_worker_result.py", "verifier_runtime.py",
     },
     "design-system-compiler": {

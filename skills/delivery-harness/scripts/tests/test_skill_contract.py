@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 import unittest
 from pathlib import Path
 
@@ -115,6 +116,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         version = self.read("VERSION").strip()
         self.assertRegex(version, r"^\d+\.\d+\.\d+$")
         self.assertIn(f'"version": "{version}"', package)
+        lock = json.loads((REPO_ROOT / "package-lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(version, lock["version"])
+        self.assertEqual(version, lock["packages"][""]["version"])
         for readme in ("README.md", "README.zh-TW.md", "README.zh-CN.md", "README.es.md"):
             with self.subTest(readme=readme):
                 text = (REPO_ROOT / readme).read_text(encoding="utf-8")
@@ -331,10 +335,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "Keep the integration commit atomic per `commit-convention.md`'s Run-Wide Atomicity rule",
             orchestration,
         )
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
-        self.assertIn(
-            "the closeout itself never lands a mixed catch-all commit", runbook
-        )
+        self.assertIn("closeout — lands a catch-all or mixed commit", convention)
         self.assertIn("only then begin the next task", worker)
         self.assertIn("commit_order_mismatch", result_validator)
 
@@ -354,24 +355,23 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("docs/goal/DECISIONS.md", graph)
         self.assertIn("stable mission + review surface + root-cause lineage", graph)
         self.assertIn("A mission-level replan does not replenish a review budget", decomposition)
+        self.assertIn("never author a successor review node", decomposition)
+        self.assertNotIn("successor review node's `max_attempts`", decomposition)
         self.assertIn("Do not authorize another example-specific patch", verification)
         self.assertIn("A replan does not grant a fresh review budget", plan)
         self.assertIn("Repair context (omit for an initial implementation)", worker)
         self.assertIn("fix the named root-cause family", worker)
-        gen_verify = self.read("references/gen-verify-correct.md")
         self.assertIn("wait until every required review of that candidate has returned", graph)
         self.assertIn("never make `fix_required`", graph)
         self.assertIn("Collect every required review result for the same candidate", skill)
         self.assertIn("it is not a fresh full review", skill)
-        self.assertIn("A failed re-check hands remaining defects to the Isolated Repair", gen_verify)
+        self.assertIn("every remaining or newly found defect enters the Isolated Repair Protocol", verification)
 
     def test_review_convergence_rules_are_documented(self) -> None:
         skill = self.read("SKILL.md")
         gates = self.read("references/verification-gates.md")
-        gen_verify = self.read("references/gen-verify-correct.md")
         state = self.read("references/execution-state-model.md")
         delegation = self.read("references/delegation-contract.md")
-        bounded = self.read("references/bounded-enhancement.md")
         stage = self.read(MANAGED_STAGE)
 
         # Reviewers triage blocking findings from non-blocking notes; only
@@ -383,11 +383,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "Security findings of severity critical/high are always blocking", gates
         )
-        self.assertIn("separates blocking findings from non-blocking notes", delegation)
+        self.assertIn("separates blocking findings from non-blocking notes", gates)
+        self.assertIn("verification-gates.md#review-topology", delegation)
+        self.assertIn(
+            "the findings with capture references, the spot-check sample and the commands run",
+            gates,
+        )
+        self.assertIn("stays out of the packet", gates)
         # The re-check is scoped to prior findings plus the repair range.
         self.assertIn("Re-check scope", gates)
         self.assertIn("resolved / unresolved / superseded", gates)
-        self.assertIn("repair range `<prior>..<head>`", state)
+        self.assertIn("repair range `<prior>..<head>`", gates)
+        self.assertIn("owns the re-check packet and scope", state)
         # The author proves the repair before it reaches a reviewer.
         self.assertIn("Pre-review repair gate", gates)
         self.assertIn("focused verifier PASS at the new head", gates)
@@ -398,9 +405,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("at most two per review lineage per RUN", gates)
         self.assertIn("not a review verdict and never a PASS", gates)
         self.assertIn("--blocker-class environment|review", state)
-        self.assertIn("environment-blocked review attempt is", gen_verify)
-        self.assertIn("Environment-blocked review attempts do not count", bounded)
-        self.assertIn("a note never opens a round", bounded)
+        self.assertIn("consumes neither the node's attempt nor the repair budget", gates)
+        self.assertIn("Only blocking findings produce `fix_required`", gates)
         # The security lens follows the diff, not a fixed rule.
         self.assertIn("Security lens applicability", gates)
         self.assertIn("security: not_applicable (<reason>)", gates)
@@ -420,7 +426,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         gates = self.read("references/verification-gates.md")
         gen_verify = self.read("references/gen-verify-correct.md")
         state = self.read("references/execution-state-model.md")
-        delegation = self.read("references/delegation-contract.md")
         bounded = self.read("references/bounded-enhancement.md")
 
         # Each candidate stage gets at most two independent review passes.
@@ -454,14 +459,11 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("record-review-attempt --scoped", state)
         self.assertIn("reconcile-candidate-head --repair-path", state)
         # The scoped reviewer brief is bounded to the repair.
-        self.assertIn("An isolated-repair brief carries only the finding", delegation)
-        # The loop docs route remaining defects into the protocol.
-        self.assertIn("remaining defects then continue as isolated", gen_verify)
-        self.assertIn("A failed re-check hands remaining defects to the Isolated Repair", gen_verify)
-        self.assertIn(
-            "Remaining defects continue as isolated repairs under `verification-gates.md`'s Isolated Repair Protocol",
-            bounded,
-        )
+        self.assertIn("The reviewer receives only the finding, the repair diff, and its direct consumers", gates)
+        # The loop docs route remaining defects into the protocol, which
+        # verification-gates.md owns.
+        self.assertIn("verification-gates.md#isolated-repair-protocol", gen_verify)
+        self.assertIn("every remaining or newly found defect enters the Isolated Repair Protocol", gates)
         self.assertIn(
             "stop only on a contract gap, a missing capability, or an unsafe repair",
             bounded,
@@ -554,11 +556,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         graph = self.read("references/graph-orchestration.md")
         state = self.read("references/execution-state-model.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         transition = self.read("scripts/harness_transition.py")
         adapters = self.read("references/runtime-adapters.md")
 
-        for content in (skill, graph, state, runbook, adapters):
+        for content in (skill, graph, state, adapters):
             self.assertIn("reserve-review-dispatch", content)
         self.assertIn("independent_reviewer_unavailable", graph)
         self.assertIn("cannot satisfy a fresh independent review node", adapters)
@@ -566,7 +567,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
     def test_runtime_performance_contract_is_machine_measured_and_safety_preserving(self) -> None:
         performance = self.read("references/runtime-performance.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        run = self.generated_run()
         verifier = self.read("scripts/verifier_runtime.py")
 
         # No percentage target: the old 75/85 figures were never measured
@@ -588,8 +589,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never weakens authorization", performance)
         self.assertNotIn("## Machine Telemetry", performance)
         self.assertNotIn("record-runtime-observation", performance)
-        self.assertNotIn('"runtime_metrics"', runbook)
-        self.assertNotIn("target_reduction_percent", runbook)
+        self.assertNotIn('"runtime_metrics"', run)
+        self.assertNotIn("target_reduction_percent", run)
         self.assertIn("BATCH_PROTOCOL", verifier)
 
     def test_project_entry_links_conditional_rules_and_epic_baseline(self) -> None:
@@ -628,6 +629,16 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def read(self, relative_path: str) -> str:
         return (SKILL_ROOT / relative_path).read_text(encoding="utf-8")
 
+    def generated_run(self) -> str:
+        """The RUN JSON that new_run.py builds from the PLAN template."""
+        import json
+
+        import new_run
+        from harness_manifest import load_plan
+
+        plan = load_plan(SKILL_ROOT / "assets/templates/HARNESS_PLAN.template.md")
+        return json.dumps(new_run.build_run(plan, run_id="RUN-template", branch="refs/heads/codex/run"), indent=2)
+
 
     def owner_section(self, text: str, heading: str) -> str:
         self.assertIn(heading, text)
@@ -638,7 +649,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         research = self.read("references/orchestration-research-notes.md")
         selector = self.read("references/parallel-mission-selection.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         agent = self.read("agents/openai.yaml")
 
         self.assertIn("## Project Size Gate", skill)
@@ -649,7 +659,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Use this routing only when the size gate classifies work as `large`", skill)
         self.assertIn("two-way project-size gate", research)
         self.assertIn("Small work never reaches this selector", selector)
-        self.assertIn("Small direct work does not instantiate this file", runbook)
         self.assertIn("lightest safe direct or PLAN-v6/RUN-v11 delivery path", agent)
         self.assertIn("A high file count", skill)
         self.assertIn("does not make work `large` by itself", skill)
@@ -700,20 +709,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         state = self.read("references/execution-state-model.md")
         graph = self.read("references/graph-orchestration.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
 
         # Named everywhere it matters; described once, in execution-state-model.md.
-        for content in (skill, state, graph, runbook):
+        for content in (skill, state, graph):
             self.assertIn("System Review And Route", content)
-        for content in (skill, state, runbook):
+        for content in (skill, state):
             self.assertIn("parent-only", content)
             self.assertIn("read-only", content)
         self.assertIn("before loading any task-specific skill", skill)
         self.assertIn("Do not create or edit `PLAN.md`, `RUN.md`", skill)
         self.assertIn("does not load a task skill", state)
         self.assertIn("is not a PLAN node", graph)
-        self.assertIn("The System Review And Route stage completes before this file exists", runbook)
         self.assertIn("before this delegated handoff exists", worker)
         self.assertLess(
             skill.index("### System Review And Route"),
@@ -726,17 +733,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_new_managed_work_requires_plan_run_and_legacy_compact_is_read_only(self) -> None:
         skill = self.read(MANAGED_STAGE)
         state = self.read("references/execution-state-model.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        for content in (skill, state, runbook):
+        for content in (skill, state):
             self.assertIn("PLAN schema v6", content)
             self.assertIn("RUN schema v11", content)
             self.assertIn("compact run-only", content.lower())
             self.assertIn("read", content.lower())
         self.assertIn("New managed work never authors a compact RUN-only artifact", skill)
         self.assertIn("cannot authorize new managed execution", state)
-        self.assertIn("not a new authoring route", runbook)
-        self.assertNotIn("compact large sequential work", runbook.lower())
         self.assertNotIn("Planning depth: direct | compact RUN", skill)
         self.assertNotIn("New managed work uses PLAN schema v6", self.read("SKILL.md"))
 
@@ -746,9 +750,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         selector = self.read("references/parallel-mission-selection.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        for content in (stage, state, selector, orchestration, runbook):
+        for content in (stage, state, selector, orchestration):
             self.assertIn("sequential_parent", content)
         # The full binding rules live once in execution-state-model.md's
         # anchored section; every other file points at that heading.
@@ -757,7 +760,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("no `spawn_subagents`", state)
         self.assertIn("parent-managed worktree", state)
         self.assertIn("one mission at a time", skill)
-        for content in (skill, selector, orchestration, runbook):
+        for content in (skill, selector, orchestration):
             self.assertIn("Sequential Parent Route", content)
 
     def test_sequential_parent_records_parent_executor_binding_without_shared_fallback(self) -> None:
@@ -765,7 +768,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         graph = self.read("references/graph-orchestration.md")
         selector = self.read("references/parallel-mission-selection.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
         # The binding is defined once, under an anchored heading in
         # execution-state-model.md. Every other file points at that heading;
@@ -776,7 +778,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("parent_managed_worktree", state)
         self.assertIn("agent_result", state)
         self.assertIn("route blocks rather than writing in `shared_checkout`", state)
-        for content in (skill, selector, runbook):
+        for content in (skill, selector):
             self.assertIn("Sequential Parent Route", content)
             # The backticked binding spelling belongs to the definition only;
             # GOAL's plain option menu (worker_runtime: parent | ...) is not a
@@ -788,21 +790,20 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             )
         self.assertNotIn("no worker identity", state.lower())
         self.assertNotIn("no worker record", selector.lower())
-        self.assertNotIn("shared-checkout fallback", runbook.lower())
         self.assertNotIn("harness_parent", graph[graph.index("If the large route"):graph.index("For current PLAN")])
 
     def test_v10_forbids_nested_delegation_and_keeps_legacy_readable(self) -> None:
         state = self.read("references/execution-state-model.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        results = self.read("references/worker-result-contract.md")
         selector = self.read("references/parallel-mission-selection.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
 
-        for content in (state, runbook, orchestration):
+        for content in (state, results, orchestration):
             self.assertIn("RUN-v11", content)
             self.assertIn("parent", content.lower())
         self.assertIn("Workers and reviewers never delegate", state)
         self.assertIn("exact pinned bundle", state)
-        self.assertIn("RUN-v11 workers never delegate", runbook)
+        self.assertIn("RUN-v11 workers never delegate", results)
         self.assertIn("Workers and reviewers never spawn or delegate further", orchestration)
         self.assertNotIn("app-task fan-out includes `spawn_subagents`", selector.lower())
         self.assertNotIn("enabled v10 policy", state.lower())
@@ -810,14 +811,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_execution_intent_covers_route_subset_not_all_nine_actions(self) -> None:
         skill = self.read("SKILL.md")
         state = self.read("references/execution-state-model.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
         self.assertIn("only the applicable local entries", state)
         self.assertIn("App-task dispatch is historical and unsupported", state)
         self.assertIn("Parent-dispatched sibling workers and reviewers", state)
         self.assertIn("does not authorize `push`", skill)
-        self.assertIn("separate exact SHA/branch instruction", runbook)
-        for content in (skill, state, runbook):
+        for content in (skill, state):
             self.assertNotIn("covers all nine together", content)
             self.assertNotIn("one execution-intent instruction covers all nine", content)
 
@@ -901,7 +900,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
     def test_recently_added_tooling_is_documented(self) -> None:
         gates = self.read("references/verification-gates.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         state = self.read("references/execution-state-model.md")
         packet_guide = self.read("references/graph-orchestration.md")
         documents = self.read("assets/templates/DOCUMENTS.template.md")
@@ -923,7 +921,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "--packet-out",
             "--security-result",
         ):
-            self.assertIn(command, runbook)
+            self.assertIn(command, state + gates)
         self.assertIn(
             "Hand-editing the RUN JSON for these steps is forbidden",
             self.read("references/worktree-thread-orchestration.md"),
@@ -932,7 +930,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "manifest_already_validated",
             self.read("references/runtime-performance.md"),
         )
-        self.assertNotIn('"runtime_metrics"', runbook)
         self.assertIn("inspect_harness_run.py", state)
         self.assertIn("check_skill_bindings.py", state)
         self.assertIn("--max-diff-bytes", packet_guide)
@@ -979,6 +976,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         gates = self.read("references/verification-gates.md")
         skill = self.read("SKILL.md")
         updates = self.read("references/design-input-updates.md")
+        refinement = self.read("references/open-ended-refinement.md")
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
 
@@ -991,12 +989,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
         )
-        self.assertIn("The RUN `deviation_ledger` is complete", gates)
+        self.assertIn("Every `deviation` difference has one ledger row", gates)
         self.assertIn("classify the completed change", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
         self.assertIn("rule-8 UI-impact classification", skill)
-        self.assertIn("never a silent local restyle", updates)
+        self.assertIn("never a silent local restyle", refinement)
         self.assertIn(
             "return to `ui-design-builder`",
             updates,
@@ -1015,7 +1013,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("`integration_notes`", worker_goal)
         self.assertIn("is a recorded attestation, not a validator-proven fact", gates)
-        self.assertIn("strongest task impact the mission's workers reported", gates)
+        self.assertIn("The parent records the strongest task impact in `ui_impact_summary`", contract)
 
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")
@@ -1104,8 +1102,40 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
                 self.assertIn(anchor, stage_headings(stage))
         self.assertIn("references/review-method.md#surface-lenses", entry)
         self.assertIn("surface-lenses", stage_headings(method))
-        for surface_class in ("hosted_web", "ios, android", "mcp_server", "messaging_bot", "social, video_channel"):
-            self.assertIn(f"| {surface_class}", method)
+        def table_rows(text: str, heading: str) -> list[list[str]]:
+            section = text.split(f"{heading}\n", 1)[1].split("\n## ", 1)[0]
+            return [[cell.strip() for cell in line.strip().strip("|").split("|")]
+                    for line in section.splitlines() if line.startswith("| ") and not line.startswith("| ---")]
+
+        def classes(cell: str) -> set[str]:
+            return {re.sub(r"\s*\(.*?\)", "", item).strip() for item in cell.split(",")}
+
+        # Every catalog class or presence kind with a growth lens has a Surface Lenses row.
+        header, *build_rows = table_rows(self.read("references/surface-catalog.md"), "## Build Surfaces")
+        lens = header.index("Growth lens")
+        required = {name for row in build_rows if row[lens] != "none" for name in classes(row[0])}
+        required |= {"social", "video_channel", "newsletter", "community", "docs_site"}
+        lensed = {name for row in table_rows(method, "## Surface Lenses")[1:] if row[1] != "none"
+                  for name in classes(row[0])}
+        self.assertIn("macos", required)
+        self.assertEqual(set(), required - lensed)
+
+        # One output contract: the stage returns the Default Output, which holds the Handoff block.
+        self.assertIn("[Default Output](../review-method.md#default-output), including its Handoff block",
+                      stage.split("## Output\n", 1)[1])
+        default_output = method.split("## Default Output\n", 1)[1].split("\n## Review Completion", 1)[0]
+        self.assertIn("## Handoff\n", default_output)
+        self.assertIn("Rows routed `product_definition` are the next-round PRD delta candidates", default_output)
+
+        # The readers the messaging record names actually read it.
+        required_inputs = stage.split("## Required Inputs\n", 1)[1].split("\n## ", 1)[0]
+        self.assertIn("`docs/gtm/MESSAGING.md`, when present", required_inputs)
+        if REPO_ROOT is not None:
+            standalone = REPO_ROOT / "standalone-skills"
+            boundary = (standalone / "go-to-market/references/messaging-house.md").read_text(encoding="utf-8")
+            self.assertIn("`growth-review` listing checks, `readme-studio`", boundary)
+            self.assertIn("When `docs/gtm/MESSAGING.md` exists",
+                          (standalone / "readme-studio/SKILL.md").read_text(encoding="utf-8"))
 
         workflow = stage.split("## Workflow\n", 1)[1].split("\n## ", 1)[0]
         self.assertNotIn("## Workflow", entry)
@@ -1374,7 +1404,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         state = self.read("references/execution-state-model.md")
         orchestration = self.read("references/worktree-thread-orchestration.md")
         selector = self.read("references/parallel-mission-selection.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         agent = self.read("agents/openai.yaml")
 
         self.assertIn("## Default Runtime And Wave Policy", skill)
@@ -1386,20 +1415,19 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("default immediately after Plan Readiness", state)
         self.assertIn("Observe actual required capabilities before dispatch", state)
         self.assertIn("Observe every advertised current driver", selector)
-        self.assertIn("Observe each advertised driver", orchestration)
-        self.assertIn("no launch grant is implied", orchestration)
-        self.assertIn("Observe the actual driver", runbook)
-        self.assertNotIn("capability_probe", runbook)
+        # The observation rules live once in runtime-adapters.md; the
+        # orchestration file links there.
+        self.assertIn("runtime-adapters.md#observe-the-current-session", orchestration)
+        self.assertIn("Capability does not grant an action", self.read("references/runtime-adapters.md"))
         self.assertIn("## Default Plan-Backed Wave", orchestration)
         self.assertIn("selection is the default post-readiness action", selector)
-        self.assertIn("Never run parallel writers in `shared_checkout`", runbook)
+        self.assertIn("Never run parallel writers in `shared_checkout`", skill)
         self.assertIn("lightest safe direct or PLAN-v6/RUN-v11 delivery path", agent)
         self.assertIn("Host adapter: none | general (observed host identity or generic)", entry)
 
     def test_runtime_upgrade_gate_blocks_old_or_stale_sessions(self) -> None:
         skill = self.read("SKILL.md")
         upgrades = self.read("references/runtime-upgrades.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         selector = self.read("scripts/select_ready_nodes.py")
 
         self.assertIn("references/runtime-upgrades.md", skill)
@@ -1414,8 +1442,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A 0.66+ RUN cannot use that status", upgrades)
         self.assertNotIn("adopt-runtime-contract", upgrades)
         self.assertIn("re-orchestrates every remaining task onto the new runtime", skill)
-        version = self.read("VERSION").strip()
-        self.assertIn(f'"required_harness_version": "{version}"', runbook)
         for reason in (
             "runtime_version_unobserved",
             "runtime_upgrade_pending",
@@ -1426,13 +1452,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
     def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        results = self.read("references/worker-result-contract.md")
 
         self.assertIn("## No Nested Delegation", worker_goal)
         self.assertIn("Do not spawn, create, or delegate to another agent", worker_goal)
         self.assertIn("All explorers, writers, and reviewers are parent-dispatched siblings", worker_goal)
-        self.assertIn("RUN-v11 workers never delegate", runbook)
-        self.assertIn("all reviews are parent-dispatched graph nodes", runbook)
+        self.assertIn("RUN-v11 workers never delegate", results)
 
     def test_harness_owns_compilation_and_conformance_contracts(self) -> None:
         skill = self.read("SKILL.md")
@@ -1471,7 +1496,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_native_workflow_templates_are_removed(self) -> None:
         for name in ("CLAUDE_DYNAMIC_WORKFLOW.template.js", "CLAUDE_GRAPH_WORKFLOW.template.js"):
             self.assertFalse((SKILL_ROOT / "assets/templates" / name).exists())
-        self.assertNotIn('"workflow_runs"', self.read("assets/templates/MISSION_RUNBOOK.template.md"))
+        self.assertNotIn('"workflow_runs"', self.generated_run())
 
     @unittest.skipIf(REPO_ROOT is None, "host-neutral documentation check requires a source checkout")
     def test_human_facing_docs_use_host_neutral_agent_graph_language(self) -> None:
@@ -1481,7 +1506,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "README.zh-CN.md",
             "README.es.md",
             "CLAUDE.md",
-            "skills/delivery-harness/assets/templates/MISSION_RUNBOOK.template.md",
             "skills/delivery-harness/assets/templates/PROJECT_CLAUDE.template.md",
             "skills/delivery-harness/references/execution-state-model.md",
             "skills/delivery-harness/references/graph-orchestration.md",
@@ -1517,16 +1541,17 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             ).read_text(encoding="utf-8"),
         )
 
-    def test_run_template_matches_the_local_only_default(self) -> None:
-        """The template must keep remote publication behind explicit intent."""
+    def test_generated_run_matches_the_local_only_default(self) -> None:
+        """A generated RUN keeps remote publication behind explicit intent."""
         skill = self.read(MANAGED_STAGE)
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        state = self.read("references/execution-state-model.md")
+        promotion = self.read("references/branch-promotion-contract.md")
 
         self.assertIn("RUNs close `local_only`", skill)
-        self.assertIn("`integration_push` remains legacy recovery state only", runbook)
-        self.assertIn("`pushed_head_sha` stays null", runbook)
-        self.assertIn("an explicit no-force push, and remote readback", runbook)
-        self.assertIn("Harness 0.38+ RUNs start and finish `local_only`", runbook)
+        self.assertIn("never use `integration_push`", promotion)
+        self.assertIn("`pushed_head_sha` stays null", state)
+        self.assertIn("starts and ends `local_only`", state)
+        self.assertIn('"mode": "local_only"', self.generated_run())
 
 
 
@@ -1600,17 +1625,15 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         `dispatchable_nodes` empties, so the operator saw a full frontier and
         concluded the snapshot was already filled in."""
         core = self.read(MANAGED_STAGE)
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
 
-        for content in (core, runbook):
-            self.assertIn("`dispatchable_nodes`", content)
-            self.assertIn("`deferred_nodes`", content)
-            self.assertIn("parent_state_unreconciled", content)
-            self.assertIn("batch_base_missing", content)
-            self.assertIn("observed.captured_at", content)
-            self.assertIn("dispatch-time reasons", content)
-            self.assertNotIn("an empty frontier with every node deferred", content)
-            self.assertNotIn("returns an empty frontier", content)
+        self.assertIn("`dispatchable_nodes`", core)
+        self.assertIn("`deferred_nodes`", core)
+        self.assertIn("parent_state_unreconciled", core)
+        self.assertIn("batch_base_missing", core)
+        self.assertIn("observed.captured_at", core)
+        self.assertIn("dispatch-time reasons", core)
+        self.assertNotIn("an empty frontier with every node deferred", core)
+        self.assertNotIn("returns an empty frontier", core)
 
 
 
@@ -1659,7 +1682,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         updates = self.read("references/design-input-updates.md")
         verification = self.read("references/verification-gates.md")
         plan_template = self.read("assets/templates/HARNESS_PLAN.template.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         e2e_template = self.read("assets/templates/E2E_VERIFICATION.template.md")
 
         for content in (skill, verification, plan_template, e2e_template):
@@ -1669,7 +1691,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("Every must-have `UX-*` trace", skill)
         self.assertIn("## UX Direction And Usability Evidence", verification)
         self.assertIn("owner approval proves only direction conformance", verification)
-        self.assertIn("## UX Evidence", runbook)
 
     def test_stop_and_ask_separates_validator_and_judgment_stops(self) -> None:
         contract = self.read("references/contract-and-traceability.md")
@@ -1730,7 +1751,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
     def test_schema_v5_graph_is_first_class(self) -> None:
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
-        run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        run = self.generated_run()
+        self.assertFalse((SKILL_ROOT / "assets/templates/MISSION_RUNBOOK.template.md").exists())
         self.assertIn('"schema_version": 6', plan)
         self.assertIn('"schema_version": 11', run)
         self.assertIn('"graph_state"', run)
@@ -1752,13 +1774,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read(MANAGED_STAGE)
         verification = self.read("references/verification-gates.md")
         plan = self.read("assets/templates/HARNESS_PLAN.template.md")
-        run = self.read("assets/templates/MISSION_RUNBOOK.template.md")
         worker = self.read("assets/templates/WORKER_GOAL.template.md")
 
         for content in (verification, plan, worker):
             self.assertIn('selection.mode: "changed_files"', content)
             self.assertIn("parent-observed changed files", content)
-        for content in (skill, verification, run):
+        for content in (skill, verification):
             self.assertNotIn("session_exact", content)
             self.assertIn("run fresh", content)
             self.assertIn("outside", content)
@@ -1772,18 +1793,17 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read(MANAGED_STAGE)
         state = self.read("references/execution-state-model.md")
         verification = self.read("references/verification-gates.md")
-        runbook = self.read("assets/templates/MISSION_RUNBOOK.template.md")
+        run = self.generated_run()
 
-        self.assertIn('"schema_version": 11', runbook)
-        self.assertIn('"batch_gate_results"', runbook)
-        self.assertIn('"final_gate_results"', runbook)
-        self.assertIn('"ui_evidence"', runbook)
+        self.assertIn('"schema_version": 11', run)
+        self.assertIn('"batch_gate_results"', run)
+        self.assertIn('"final_gate_results"', run)
+        self.assertIn('"ui_evidence"', run)
         self.assertIn("New managed work uses PLAN schema v6 and RUN schema v11", skill)
         self.assertIn("complete` is an execution closeout state", state)
-        for content in (verification, runbook):
-            self.assertIn("breakpoint-by-state", content)
-            self.assertIn("SHA-256", content)
-            self.assertIn("docs/goal/evidence/", content)
+        self.assertIn("breakpoint-by-state", verification)
+        self.assertIn("SHA-256", verification)
+        self.assertIn("docs/goal/evidence/", verification)
 
     def test_verifier_docs_bind_explicit_host_and_container_preflight(self) -> None:
         graph = self.read("references/graph-orchestration.md")
@@ -1980,7 +2000,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             "references/execution-state-model.md",
             "references/verification-gates.md",
             "references/worktree-thread-orchestration.md",
-            "assets/templates/MISSION_RUNBOOK.template.md",
             "assets/templates/PROJECT_AGENTS.template.md",
         )
         for path in policy_paths:

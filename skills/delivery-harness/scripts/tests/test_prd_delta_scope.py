@@ -356,6 +356,22 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.assertEqual(1, code, output)
         self.assertIn("content_sha256", output)
 
+    def test_crlf_copy_names_the_attribute_check_but_a_real_change_does_not(self) -> None:
+        self.write_plan(self.bound_plan())
+        hint = (f"`{DELTA_LOCATION}` differs only by line-ending conversion; check "
+                f"`git check-attr text eol filter -- {DELTA_LOCATION}` against "
+                "delivery-harness/references/gitattributes-contract.md#converted-files; "
+                "do not regenerate or re-pin")
+        self.delta_path.write_bytes(self.delta_bytes.replace(b"\n", b"\r\n"))
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn(f"bytes do not match content_sha256 {self.delta_sha}; {hint}", output)
+        self.delta_path.write_bytes(self.delta_bytes.replace(b"\n", b"\r\n") + b"Changed.\r\n")
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("bytes do not match content_sha256", output)
+        self.assertNotIn("line-ending conversion", output)
+
     def test_template_delta_required_yes_resolved_from_prd_fails(self) -> None:
         sha = self.write_template_delta()
         self.write_plan(

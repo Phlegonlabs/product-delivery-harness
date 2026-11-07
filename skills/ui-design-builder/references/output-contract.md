@@ -6,7 +6,7 @@ A wireframe-free package starts `ui-design.md` with exactly one top-level marker
 
 The value is closed. A missing marker keeps the file's legacy checks and historical wireframe meaning. More than one marker, an unknown value, or a mixed current/legacy claim fails. Never add the marker to an old package afterward.
 
-`ui-design/3` keeps the ui-design/2 rules, including the default `Direction mode: three comparable directions` and the explicit owner single-direction option, and adds a `### Direction studies` table, an `Intermediate width check`, and a Need Gate that is always `required` with a closed `Package action`. Existing `ui-design/2` packages, their `not_required` decisions and `design-system/3` pairs keep their meaning. Headless products have no UI package; accepted `none`/`style` maintenance keeps its retained design sources.
+`ui-design/3` keeps the ui-design/2 rules, including the default `Direction mode: three comparable directions` and the explicit owner single-direction option, and adds a `### Direction studies` table, an `Intermediate width check`, and a Need Gate that is `required` with a closed `Package action`, except under `Delivery profile: mvp`, where it may be `not_required`. Existing `ui-design/2` packages, their `not_required` decisions and `design-system/3` pairs keep their meaning. Headless products have no UI package; accepted `none`/`style` maintenance keeps its retained design sources.
 
 `ui-hifi/2` remains the current closed HiFi package: entry, hashed sibling pages, and every non-HTML asset inline. It has no external asset-folder registry. `ui-design/3` compiles `design-system/4`; `ui-design/2` compiles `design-system/3`; legacy `design-system/2` remains readable under its original checks.
 
@@ -75,111 +75,19 @@ Each HiFi token specimen adds `data-token-preview` naming the CSS property that 
 
 ## `ui-design.md`
 
-Use these exact headings and this marker for a current `ui-design.md`:
+Start a new `ui-design.md` from [UI_DESIGN.template.md](../assets/templates/UI_DESIGN.template.md): it holds the exact marker, headings, field lines and tables. A retained `ui-design/2` package keeps its own marker and has no Direction studies, Intermediate width check or Package action. The rules below cover what the template cannot show.
 
-```markdown
-# UI Design Contract
+`three comparable directions` is the default Direction mode for `ui-design/3` and `ui-design/2`. `one recommended direction` requires a separate explicit owner instruction, recorded by this intake's human `Decision owner` and `Decided on`; continuing intake uncertainty or silence does not supply it. Enhancement scope with an existing accepted direction keeps the package's contract and records that retained direction (for `ui-design/3`, the approved round's studies and selection) instead of restarting selection.
 
-UI contract: ui-design/2
+The Design Brief extends the Visual Preference Brief for new or changed design scope; existing historical artifacts stay valid, with no backfill or separate approval. Populate it as decisions mature. It does not require a final palette before direction studies, turn a proposal into approval, or make an unavailable source visual evidence.
 
-## Source Product Definition
+Historical packages may retain a `wireframe` Frontend Design Usage row and `## Wireframe Validation` under their legacy headings. A `ui-design/2` package does not add either.
 
-Product: [name]
+The active Direction comparison table contains exactly one or three direction IDs as selected in `Direction mode`; each covers both `primary` and `stress` scenarios, compared like for like. Every tuple belongs to the approved surface scope; a stress scenario may use bounded dense content in an existing state. Cover every platform with its own cases. `Selected direction` starts with one of these exact `VD-R<round>-<number>` IDs. Screenshots are repository-relative PNG, JPEG, or WebP paths under `docs/design/directions/` with lowercase SHA-256 values; record only inspected captures and retain the authorized files. Visual distinction, Design Brief conformance and content fidelity remain human judgments. These records may stay draft before Visual Approval, but no missing or stale comparison passes final validation. Never backfill an old approval: missing evidence requires renewed affected direction and Visual Approval.
 
-PRD source: [repo-relative path @ sha256:<lowercase sha256>]
+In `ui-design/3`, each compared direction has one Direction studies row and one distinct self-contained rendered HTML study with the HiFi CSP rules, all in one existing `docs/design/directions/<round>/` folder; the study rows match the compared directions exactly (three by default, one under the explicit owner choice). One frontend author produces and self-checks every study; a different checker, a failed self-check or a stale hash blocks. The owner may select, mix or modify (`Direction decision: mixed-and-approved` or `modified-and-approved`). A mix or modification adds one revised study of the selected direction to the same round folder under a new `VD-R<round>-<number>` ID. It replaces the selected direction's rows in both tables, and its rationale names the base direction and the requested changes. Assemble it alone with a one-direction profile; the other studies keep their bytes and rows, and the earlier study file stays retained. A rejection starts a new round with a complete set.
 
-Architecture source: [repo-relative path @ sha256:<lowercase sha256>]
-
-Stack source: [repo-relative path @ sha256:<lowercase sha256>]
-
-Product Definition Approval: approved
-
-Stack Decision Checkpoint: approved
-
-## UI Design Intake
-
-Decision owner: [human owner]
-
-Decided on: [YYYY-MM-DD]
-
-Visual Preference Brief: [experience priority, guidance/control, density, layout, desired character, avoids, color/theme, typography/language, imagery/icons, references]
-
-Direction mode: [one recommended direction / three comparable directions]
-
-`three comparable directions` is the default for `ui-design/3` and `ui-design/2`. `one recommended direction` requires a separate explicit owner instruction, recorded by this intake's human `Decision owner` and `Decided on`; continuing intake uncertainty or silence does not supply it. Enhancement scope with an existing accepted direction keeps the package's contract and records that retained direction (for `ui-design/3`, the approved round's studies and selection) instead of restarting selection.
-
-### Design Brief
-
-Extend the Visual Preference Brief here for new or changed design scope. Existing historical artifacts stay valid, with no backfill or separate approval.
-
-- Purpose and scope: [link the approved PRD page, audience, primary job and non-goals; do not duplicate product requirements]
-- Page-purpose mapping: [affected UI IDs by page purpose/profile, with the constraints that bind them, typography/headline, density, motion intent, justified exceptions, and the choices left to the design author; existing accepted decisions may be linked. Point to the PRD UI Surface Contract instead of repeating its per-page requirements.]
-- Reference response: [owner answer and source/date; supplied / explicitly none / not supplied; name any unavailable material separately]
-- Reference lessons: [source URL/file/product and relevant page/region; useful composition/typography/motion role, what to learn, what to avoid and affected UI IDs; an avoid example needs a concrete reason; link inspected REF-* and proposed/confirmed RP-* records]
-- Visual constraints and avoid rules: [concrete layout/spacing, typography/language (chosen font pairing, avoided default faces and why), color/theme, imagery/icon and motion constraints; distinguish owner decisions, agent proposals and unresolved items]
-- Detailed decisions: [link Style Integration/selected VD-* and applicable MM-* records as they become available; identify concrete visual features from the selected study and their capture/region, plus the existing font/asset sources; link the confirmed journey set and `journeys.html` @ sha256; do not create another token table or motion specification]
-
-Populate this brief as decisions mature. It does not require a final palette before direction studies, turn a proposal into approval, or make an unavailable source visual evidence.
-
-## Motion And Media Intent
-
-Motion direction: [not_required / functional_only / expressive] — [owner or accepted recommendation]
-
-| Intent ID | UI scope / region | Treatment | Purpose | Trigger | Draft prompt | Source | Static / reduced-motion fallback | Generation route | Status | Generation status |
-| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | [UI-* / region] | [none / image / motion / image + motion] | [purpose] | [trigger] | [draft prompt] | [owner decision or source] | [fallback] | [none / existing asset / CSS-WAAPI / Motion / GSAP / Three.js / native-framework / authorized provider] | [approved / deferred] | deferred |
-
-### Frontend Design Usage
-
-Frontend Design source: docs/design/<folder>/SKILL.md @ sha256:[observed source digest]
-
-| Stage | Skill | Artifact | Application |
-| --- | --- | --- | --- |
-| direction | frontend-design @ sha256:[observed source digest] | docs/design/directions/round/primary.png @ sha256:[capture digest] | [alternatives and concrete design choices] |
-| hifi | frontend-design @ sha256:[observed source digest] | docs/design/ui-references/round/index.html @ sha256:[candidate digest] | [typography, palette, layout and self-review applied] |
-
-Historical packages may retain a `wireframe` row and `## Wireframe Validation` under their legacy headings. A `ui-design/2` package does not add either.
-
-## Style Integration
-
-Design author: frontend-design
-
-Selected direction: [VD-* ID, intent, confirmed REF-* / RP-* IDs]
-
-Direction decision: [approved / selected / mixed-and-approved]
-
-Direction decision owner: [human owner]
-
-Direction decided on: [YYYY-MM-DD]
-
-Candidate theme: [color, typography, spacing, shape, iconography, imagery, and motion rules used in the HiFi reference; not yet a frozen design-system pair]
-
-Review medium: HTML projection only
-
-Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
-
-### Direction comparison
-
-| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| VD-R1-01 | UI-001 | ready | 390 | primary | [frozen copy and representative data] | docs/design/directions/round-1/primary.png @ sha256:[hash] | [specific hierarchy and type decisions] |
-| VD-R1-01 | UI-001 | ready | 1200 | stress | [bounded dense data from the same copy contract] | docs/design/directions/round-1/dense.png @ sha256:[hash] | [how density and alignment hold up] |
-
-The active table contains exactly one or three direction IDs as selected in `Direction mode`; each covers both `primary` and `stress` scenarios, compared like for like. Every tuple belongs to the approved surface scope; a stress scenario may use bounded dense content in an existing state. Cover every platform with its own cases. `Selected direction` starts with one of these exact `VD-R<round>-<number>` IDs. Screenshots are repository-relative PNG, JPEG, or WebP paths under `docs/design/directions/` with lowercase SHA-256 values; record only inspected captures and retain the authorized files. Visual distinction, Design Brief conformance and content fidelity remain human judgments. These records may stay draft before Visual Approval, but no missing or stale comparison passes final validation. Never backfill an old approval: missing evidence requires renewed affected direction and Visual Approval.
-
-For `ui-design/3`, Style Integration adds:
-
-```markdown
-### Direction studies
-
-| Direction | Study | Author | Self-check by | Self-check |
-| --- | --- | --- | --- | --- |
-| VD-R1-01 | docs/design/directions/round-1/vd-01.html @ sha256:[hash] | [frontend author identity] | [same identity] | pass |
-```
-
-Each compared direction has one distinct self-contained rendered HTML study with the HiFi CSP rules, all in one existing `docs/design/directions/<round>/` folder; the study rows match the compared directions exactly (three by default, one under the explicit owner choice). One frontend author produces and self-checks every study; a different checker, a failed self-check or a stale hash blocks. The owner may select, mix or modify (`Direction decision: mixed-and-approved` or `modified-and-approved`). A mix or modification adds one revised study of the selected direction to the same round folder under a new `VD-R<round>-<number>` ID. It replaces the selected direction's rows in both tables, and its rationale names the base direction and the requested changes. Assemble it alone with a one-direction profile; the other studies keep their bytes and rows, and the earlier study file stays retained. A rejection starts a new round with a complete set.
-
-#### Direction Review Assembly
+### Direction Review Assembly
 
 New studies use the shared reviewer through `scripts/assemble_ui_review.py --mode direction`; the default `--mode hifi` and its `ui-hifi/2` contract do not change. The frontend author writes one product page per direction.
 
@@ -214,12 +122,9 @@ A pre-selection study may include a bounded local motion demonstration, as [Inte
 
 ### Platform rules
 
-| Platform | Navigation and input | Typography | Icons | Density and layout | Feedback and motion | Native proof | Sources |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| web | [navigation, keyboard, focus, hover] | [roles, loading, CJK fallback] | [selected family and fallback] | [task density and responsive layout] | [approved functional feedback] | not_applicable | [official URLs and inspection dates] |
-| ios | [native navigation, back, sheets, keyboard] | [system text styles and Dynamic Type reasoning] | [SF Symbols or reasoned alternative] | [safe areas and touch density] | [system feedback and reduced motion] | required before expansion | [official URLs, inspection dates, OS range] |
-
 Include exactly the platforms present in Approved target `stackSemantics.platform`; omit inapplicable example rows. Every column holds a concrete rule or scoped reason. The iOS typography and icon columns address system text styles, Dynamic Type and SF Symbols without forcing custom brands to abandon their fonts or symbols. Web libraries are not default native foundations. Other native/desktop rows also use `required before expansion`. `Review medium` stays the exact HTML projection value; platform proof belongs to the first approved implementation slice and final Harness evidence.
+
+### Connected HiFi Package
 
 Each connected HiFi page must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. Each schema-2 page contains exactly one CSP meta, first in its head, with this exact policy:
 
@@ -235,16 +140,6 @@ Product DOM that carries inventoried copy declares both `data-copy-id` and `data
 
 Every typed `copy` has `kind: static | dynamic`, a nonempty `role` and `source`, and `status: draft | approved`. Static copy supplies exact `text`. Dynamic copy supplies a representative `example` plus a `contract` with nonempty `source`, `order`, `format`, `count`, `length` and `fallback`. Optional `locale`, `direction: ltr | rtl | auto`, and one to three `parallel` copies preserve bilingual display; each names a distinct locale and the same role/kind, with no nested parallel list. Approved surface copy requires approved items. PRD responsibility and source truth still require semantic review.
 
-Inside `## Style Integration`, every `motion` or `image + motion` intent also has exactly one row in:
-
-### Required motion evidence
-
-| Intent ID | UI scope / region | Trigger observed | End state observed | Normal-motion evidence | Reduced-motion evidence | Verdict |
-| --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | UI-001 / hero | Entry transition visible and interruptible | Data-flow overlay ends in the approved resting state | PASS — evidence=docs/evidence/motion-normal.json @ sha256:[hash] | PASS — evidence=docs/evidence/motion-reduced.json @ sha256:[hash] | PASS |
-
-The rows exactly cover motion intents, including a deferred intent that remains in scope. Both evidence cells use `ui-evidence/3` observation receipts for the current HiFi projection. Old contracts remain inspectable without approval flags; every new Visual Approval requires these records. The MM record's intent-time `deferred` generation status is not edited to claim completion; completed assets and their authorization, output and review are recorded here. A missing required generated asset blocks approval.
-
 Each surface has exactly `id`, `page`, `route`, `states`, `responsive`, `navigation`, and `controls`. `page` names the entry or a listed child; the other fields keep the schema-1 surface/DOM contract. Every page renders exactly its assigned product surfaces, with one container per surface across the package, and the complete surface set equals the approved scope. Navigation/control IDs bind actual interactive elements inside that surface via `data-navigation-id` or `data-control-id`.
 
 Each interaction has exactly `id`, `source`, `control`, `kind`, and `destination`. Both endpoints are `{ "surface": "UI-001", "state": "ready" }` and exist in the approved scope. IDs are unique. `kind: "navigate"` binds a real anchor whose `href` exactly equals the destination surface's page filename; `kind: "state"` changes to a different declared state on the same page, including feedback and overlays. Every page is reachable from index.html through product navigation, and every declared and rendered product control has an interaction. Derive transitions from the approved PRD UI Surface Contract and its operations; discrepancies return upstream rather than inventing a journey.
@@ -255,35 +150,13 @@ Current schema-2 HiFi surface checks require `ui-output/3`; historical checks ke
 
 A console row may keep native channel metadata. The only exempt row has `source: security` (or `params.entry.source`), `level: error` and the exact message `Unrecognized Content-Security-Policy directive 'navigate-to'.`; any other console error fails. The browser setup and real click/key procedure are in `ui-design-pass.md`.
 
+### Required motion evidence
+
+Every `motion` or `image + motion` intent has exactly one row in this Style Integration table. The rows exactly cover motion intents, including a deferred intent that remains in scope. Both evidence cells use `ui-evidence/3` observation receipts for the current HiFi projection. Old contracts remain inspectable without approval flags; every new Visual Approval requires these records. The MM record's intent-time `deferred` generation status is not edited to claim completion; completed assets and their authorization, output and review are recorded here. A missing required generated asset blocks approval.
+
 ## HiFi Review
 
-Impeccable critique: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
-
-Impeccable audit: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
-
-UI grading: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
-
-HiFi surface check: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
-
-HiFi score: [0-100]
-
-H2 score: [0-100]
-
-H4 score: [0-100]
-
-H5 score: [80-100 for Visual Approval]
-
-H7 score: [80-100 for Visual Approval]
-
-H8 score: [0-100]
-
-H9 score: [80-100 for Visual Approval]
-
-HiFi lowest dimension: [0-100]
-
-HiFi blocks or disputes: [none / named blocks or disputes]
-
-`ui-design/3` also records `Intermediate width check: PASS — evidence=[path] @ sha256:[hash]`. The evidence is an ordinary `ui-evidence/3` receipt built by `scripts/review_evidence.py` from an actual `ui-output/3` observation of the Approved target, with the same check, tool/method, sandbox transcript, execution identities and current inputs as the `HiFi surface check`. Only its case matrix differs: each case names an approved web surface and state at a `target` width strictly between two adjacent approved viewports, and every adjacent pair of each web surface is covered. All results must be PASS; a hand-written summary or boolean record is not evidence. These observations add to, and never replace, the checks at every approved width.
+`ui-design/3` also records `Intermediate width check`. Its PASS evidence is an ordinary `ui-evidence/3` receipt built by `scripts/review_evidence.py` from an actual `ui-output/3` observation of the Approved target, with the same check, tool/method, sandbox transcript, execution identities and current inputs as the `HiFi surface check`. Only its case matrix differs: each case names an approved web surface and state at a `target` width strictly between two adjacent approved viewports, and every adjacent pair of each web surface is covered. All results must be PASS; a hand-written summary or boolean record is not evidence. These observations add to, and never replace, the checks at every approved width.
 
 When the validated Approved target has no adjacent web viewport widths, record exactly `Intermediate width check: not_applicable — no adjacent approved web viewport widths`. Native and desktop size classes have no web interval; in a mixed package inspect every per-surface target, since any web interval still requires the observed PASS receipt. Missing or invalid scope cannot claim this exception. Ordinary HiFi evidence and all approved size-class checks remain required.
 
@@ -292,6 +165,8 @@ For retained historical approvals only, each PASS evidence file is a `ui-evidenc
 For new work, agents may assemble `ui-evidence/3` from actual observations but never invent a human owner, attestation or Visual Approval. Historical `ui-evidence/2` attestation remains the owner's record and cannot be relabeled.
 
 Current grading, critique and audit assessments bind each matrix case to its own hashed screenshot, DOM or native capture, separate from the reviewed subject and execution input source files; a source hash or synthetic case label alone is not capture evidence. See `review-evidence.md` for allowed capture formats and the limits of hash proof.
+
+Impeccable's heuristic scores and audit scores are diagnostic. A current `ui-design/2` package uses only the `H1`–`H9` thresholds in `ui-grading-rubric.md` to decide readiness. `W1`–`W5` and the wireframe evidence rows apply only to legacy inspection and validation.
 
 ### Typed motion transcript
 
@@ -303,36 +178,10 @@ Use `asset: null` only for code-only motion; every `image + motion` treatment re
 
 ## Visual Approval
 
-Decision: [approved / revision_requested / blocked]
-
-Decision owner: [human owner]
-
-Decided on: [YYYY-MM-DD]
-
-Approved target: [repo-relative path @ sha256:<lowercase sha256>; scope=surfaces=[{"id":"UI-001","route":"/path","states":["ready"]}]|routes=["/path"]|states=["ready"]|responsive={"kind":"viewports","targets":[390,768,1200]}|tolerance="exact"|allowedDeviations=[]|captureMode=hosted-browser]
-
 For a hybrid target, each surface object additionally records `releaseSurface`, `surfaceClass`, `captureMode`, and its own `responsive` object. Use `captureMode=mixed` only with complete per-surface fields; a global mode or responsive set never substitutes for a surface's platform contract. A surface whose PRD entry declares `derivedStates` records the identical object as `derivedStates` in its surface object; the checker rejects a mismatch. The matrix of the HiFi Review receipts (Impeccable critique and audit, UI grading, HiFi surface check) then holds each derived state once, at that surface's smallest responsive target.
 
 ## Design System Need Gate
 
-Decision: [required / not_required / blocked]
+A `ui-design/3` gate is `Decision: required` and adds `Package action: compile|update|reuse`, except under `Delivery profile: mvp`, where `not_required` is allowed with its Reason, the Replacement visual contract and the disposition, and no Package action. `compile` creates a new package (disposition `none` or `retire`); `update` revises the existing `design-system/4` package (disposition `retain`); `reuse` keeps an existing complete Markdown/JSON/HTML package byte-for-byte (disposition `retain`) and publication rejects any change or missing file. The action and disposition lines are workflow linkage outside the `ui-design/3` approval digest, so switching an unchanged package to `reuse` keeps its `uiDesign` binding current; any other approval edit makes the reused package stale and needs `update`. A `design-system/3` pair lacks the full HTML package and cannot be reused.
 
-Decision owner: [human owner]
-
-Decided on: [YYYY-MM-DD]
-
-Reason: [product-specific reason]
-
-Existing design-system pair disposition: [none|retain|retire — reason; owner=<human>; decided=<YYYY-MM-DD>]
-
-Replacement visual contract when not_required: target=[path @ sha256:hash]; ui-design=[path @ sha256:canonical-ui-approval-digest]; prd=[path @ sha256:hash]
-
-Compiled design system pair: [markdown path @ sha256:<lowercase sha256> and json path @ sha256:<lowercase sha256>]
-
-
-A `ui-design/3` gate is always `Decision: required` and adds `Package action: compile|update|reuse`. `compile` creates a new package (disposition `none` or `retire`); `update` revises the existing `design-system/4` package (disposition `retain`); `reuse` keeps an existing complete Markdown/JSON/HTML package byte-for-byte (disposition `retain`) and publication rejects any change or missing file. The action and disposition lines are workflow linkage outside the `ui-design/3` approval digest, so switching an unchanged package to `reuse` keeps its `uiDesign` binding current; any other approval edit makes the reused package stale and needs `update`. A `design-system/3` pair lacks the full HTML package and cannot be reused.
-
-Use `Compiled design system pair` only for `required` and the replacement field only for retained `not_required` decisions. The compiled package consumes the approved UI contract and complete `ui-hifi/2` identities; the exact value `pending — design-system-compiler` is allowed only during the compiler preflight, and normal publication rejects it. Legacy `design-system/2` does not acquire the marker. For `not_required`, the disposition is machine-bound: `none` forbids canonical pair files, `retain` requires both pair files, and `retire` requires the pair to be archived before publication. `blocked` cannot pass publication.
-```
-
-Impeccable's heuristic scores and audit scores are diagnostic. A current `ui-design/2` package uses only the `H1`–`H9` thresholds in `ui-grading-rubric.md` to decide readiness. `W1`–`W5` and the wireframe evidence rows apply only to legacy inspection and validation.
+Use `Compiled design system pair` only for `required` and the replacement field only for `not_required` decisions, retained or under the mvp exception. The compiled package consumes the approved UI contract and complete `ui-hifi/2` identities; the exact value `pending — design-system-compiler` is allowed only during the compiler preflight, and normal publication rejects it. Legacy `design-system/2` does not acquire the marker. For `not_required`, the disposition is machine-bound: `none` forbids canonical pair files, `retain` requires both pair files, and `retire` requires the pair to be archived before publication. `blocked` cannot pass publication.

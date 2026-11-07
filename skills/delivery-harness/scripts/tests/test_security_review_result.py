@@ -265,6 +265,90 @@ class SecurityReviewResultTests(unittest.TestCase):
         )
 
 
+class SecurityReviewResultCliTests(unittest.TestCase):
+    """The direct route checks a saved result with the same validator."""
+
+    def run_cli(self, result: object, *extra: str) -> subprocess.CompletedProcess:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        path = Path(temp.name) / "result.json"
+        path.write_text(
+            result if isinstance(result, str) else json.dumps(result),
+            encoding="utf-8",
+        )
+        before = path.read_bytes()
+        completed = subprocess.run(
+            [
+                sys.executable, str(SCRIPTS_DIR / "security_review_result.py"),
+                "--result", str(path), *extra,
+            ],
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+        self.assertEqual(before, path.read_bytes())
+        self.assertEqual(["result.json"], [item.name for item in Path(temp.name).iterdir()])
+        return completed
+
+    def test_valid_pass_exits_zero(self) -> None:
+        completed = self.run_cli(
+            valid_result(), "--reviewed-sha", HEAD, "--base-sha", BASE,
+            "--scope", SCOPE[0], "--required-tool", "manual source review",
+        )
+
+        self.assertEqual(0, completed.returncode, completed.stdout)
+        self.assertEqual(f"valid security review result: pass at {HEAD}\n", completed.stdout)
+
+    def test_invalid_result_prints_one_error_per_line(self) -> None:
+        result = valid_result()
+        result["exclusions"] = ["vendor/**"]
+        result["coverage"]["status"] = "partial"
+        result["coverage"]["gaps"] = ["vendor code not read"]
+
+        completed = self.run_cli(
+            result, "--reviewed-sha", "c" * 40, "--scope", "other/**",
+            "--required-check", "secrets",
+        )
+
+        self.assertEqual(1, completed.returncode)
+        lines = completed.stdout.splitlines()
+        self.assertEqual(
+            validate_security_review_result(
+                result,
+                expected_reviewed_sha="c" * 40,
+                expected_scope=["other/**"],
+                required_checks=["secrets"],
+            ),
+            lines,
+        )
+        for expected in (
+            "reserved reviewed SHA", "PLAN review scope", "PASS cannot retain exclusions",
+            "PASS requires complete", "missing required checks: secrets",
+        ):
+            self.assertTrue(any(expected in line for line in lines), (expected, lines))
+
+    def test_unreadable_result_exits_one(self) -> None:
+        completed = self.run_cli('{"decision":"pass","decision":"blocked"}', "--reviewed-sha", HEAD)
+
+        self.assertEqual(1, completed.returncode)
+        self.assertIn("duplicate JSON key", completed.stdout)
+
+    def test_bad_arguments_exit_two(self) -> None:
+        for extra in (
+            ("--reviewed-sha", "abc123"),
+            ("--reviewed-sha", HEAD, "--base-sha", "B" * 40),
+            (),
+        ):
+            with self.subTest(extra=extra):
+                self.assertEqual(2, self.run_cli(valid_result(), *extra).returncode)
+        missing = subprocess.run(
+            [
+                sys.executable, str(SCRIPTS_DIR / "security_review_result.py"),
+                "--result", str(SCRIPTS_DIR / "no-such-result.json"), "--reviewed-sha", HEAD,
+            ],
+            capture_output=True, text=True, encoding="utf-8", check=False,
+        )
+        self.assertEqual(2, missing.returncode)
+
+
 class SecurityReviewTransitionTests(unittest.TestCase):
     def state(self) -> tuple[dict[str, object], dict[str, object]]:
         repo_temp = tempfile.TemporaryDirectory()

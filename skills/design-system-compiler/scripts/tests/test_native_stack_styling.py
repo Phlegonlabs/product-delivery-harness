@@ -36,7 +36,7 @@ def template_layers() -> list[str]:
     section = re.search(rf"^## {re.escape(SECTION)}\s*$([\s\S]*?)(?=^## )", text, re.MULTILINE)
     assert section is not None
     rows = re.findall(r"^\| ([^|]+?) \| \[", section.group(1), re.MULTILINE)
-    return [row for row in rows if row != "Layer"]
+    return [row for row in rows if row not in ("Layer", "BDD runner")]
 
 
 def native_stack(layers: list[str]) -> str:

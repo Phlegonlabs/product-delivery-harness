@@ -1,10 +1,21 @@
 #!/usr/bin/env python3
 """Render the delivery-acceptance register from the PRD feature files.
 
-Every scenario in `--features <dir>/*.feature` joins one run profile
+Every scenario in `--features <dir>/*.feature` joins the run profile
 (`acceptance-profile/1`) to become one `delivery-acceptance/1` scenario that
-check_delivery_acceptance.py accepts. Writes only `--out`. Exits 0 on
-success, 1 with one line per finding, 2 on bad arguments.
+check_delivery_acceptance.py accepts. The profile's optional `assign` map
+picks one of its named `variants` for a scenario id or a TEST ID (the
+scenario id wins); other scenarios use the top-level profile, and
+`@platform`, `@auth` and `@env` tags override either. When the PRD's
+eval-policy is required, the Then steps of its quality and handoff scenarios
+take the fixed eval assertion keys in order instead of ASSERT-NNN.
+
+Writes only `--out`. Exits 0 on success, 1 with one line per finding, 2 on
+bad arguments.
+
+`--check` renders in memory and writes nothing. It exits 0 when `--out`
+holds exactly the rendered bytes, and 1 naming the first drifted scenario
+with its feature `path:line`.
 """
 
 from __future__ import annotations
@@ -26,6 +37,8 @@ from delivery_acceptance_io import AcceptanceError, _load_json, _parse_required_
 
 PROFILE_SCHEMA = "acceptance-profile/1"
 PROFILE_KEYS = {"schema", "platform", "auth_mode", "environment", "build", "execution", "fixtures"}
+PROFILE_BODY_KEYS = PROFILE_KEYS - {"schema"}
+PROFILE_OPTIONAL_KEYS = {"variants", "assign"}
 PROFILE_EXECUTION_KEYS = {
     "target", "device", "os", "persona", "initial_data", "expected_side_effects", "dependency_mode",
 }
@@ -77,36 +90,90 @@ def read_feature_dir(directory: Path, reader: Any) -> tuple[list[Any], list[str]
     return features, errors
 
 
-def profile_errors(profile: dict[str, Any]) -> list[str]:
+def body_errors(body: dict[str, Any], label: str) -> list[str]:
+    """Check one profile body: the top-level profile or one variant."""
+
     errors: list[str] = []
-    if set(profile) != PROFILE_KEYS:
-        return [f"profile keys must be exactly {sorted(PROFILE_KEYS)}"]
-    if profile["schema"] != PROFILE_SCHEMA:
-        errors.append(f"profile.schema must be {PROFILE_SCHEMA!r}")
     for field, allowed in (("platform", PLATFORMS), ("auth_mode", AUTH_MODES),
                            ("environment", ENVIRONMENTS)):
-        if not isinstance(profile[field], str) or profile[field] not in allowed:
-            errors.append(f"profile.{field} must be one of {sorted(allowed)}")
-    _build(profile["build"], "profile.build", profile["platform"], profile["environment"], errors)
-    _fixtures(profile["fixtures"], profile["environment"], "profile.fixtures", errors)
-    execution = profile["execution"]
+        if not isinstance(body[field], str) or body[field] not in allowed:
+            errors.append(f"{label}.{field} must be one of {sorted(allowed)}")
+    _build(body["build"], f"{label}.build", body["platform"], body["environment"], errors)
+    _fixtures(body["fixtures"], body["environment"], f"{label}.fixtures", errors)
+    execution = body["execution"]
     if not isinstance(execution, dict) or set(execution) != PROFILE_EXECUTION_KEYS:
-        errors.append(f"profile.execution keys must be exactly {sorted(PROFILE_EXECUTION_KEYS)}")
+        errors.append(f"{label}.execution keys must be exactly {sorted(PROFILE_EXECUTION_KEYS)}")
         return errors
     for key in sorted(PROFILE_EXECUTION_KEYS - {"persona"}):
         if not concrete_text(execution[key]):
-            errors.append(f"profile.execution.{key} must be concrete non-placeholder text")
+            errors.append(f"{label}.execution.{key} must be concrete non-placeholder text")
     persona = execution["persona"]
     if not isinstance(persona, dict) or set(persona) != PROFILE_PERSONA_KEYS:
-        errors.append(f"profile.execution.persona keys must be exactly {sorted(PROFILE_PERSONA_KEYS)}")
+        errors.append(f"{label}.execution.persona keys must be exactly {sorted(PROFILE_PERSONA_KEYS)}")
     else:
         for key in sorted(PROFILE_PERSONA_KEYS):
             if not concrete_text(persona[key]):
-                errors.append(f"profile.execution.persona.{key} must be concrete non-placeholder text")
+                errors.append(f"{label}.execution.persona.{key} must be concrete non-placeholder text")
     return errors
 
 
-def scenario_entry(feature: Any, scenario: Any, profile: dict[str, Any], errors: list[str]) -> dict[str, Any]:
+def profile_errors(profile: dict[str, Any]) -> list[str]:
+    if not PROFILE_KEYS <= set(profile) <= PROFILE_KEYS | PROFILE_OPTIONAL_KEYS:
+        return [f"profile keys must be exactly {sorted(PROFILE_KEYS)}, optionally with variants and assign"]
+    errors: list[str] = []
+    if profile["schema"] != PROFILE_SCHEMA:
+        errors.append(f"profile.schema must be {PROFILE_SCHEMA!r}")
+    errors.extend(body_errors(profile, "profile"))
+    variants = profile.get("variants", {})
+    if not isinstance(variants, dict):
+        errors.append("profile.variants must map a variant name to a profile body")
+        variants = {}
+    for name, body in sorted(variants.items()):
+        label = f"profile.variants.{name}"
+        if not concrete_text(name):
+            errors.append(f"{label}: the variant name must be concrete text")
+        if not isinstance(body, dict) or set(body) != PROFILE_BODY_KEYS:
+            errors.append(f"{label} keys must be exactly {sorted(PROFILE_BODY_KEYS)}")
+        else:
+            errors.extend(body_errors(body, label))
+    assign = profile.get("assign", {})
+    if not isinstance(assign, dict):
+        errors.append("profile.assign must map a scenario id or TEST ID to a variant name")
+    else:
+        for key, name in sorted(assign.items()):
+            if not isinstance(name, str) or name not in variants:
+                errors.append(f"profile.assign.{key} names unknown variant {name!r}")
+    return errors
+
+
+def eval_scenario_keys(prd_bytes: bytes) -> dict[tuple[str, str], tuple[str, tuple[str, ...]]]:
+    """Map a required eval policy's quality and handoff scenarios to their fixed keys."""
+
+    try:
+        import eval_verification
+    except ImportError as exc:
+        raise AcceptanceError(f"cannot load the eval policy parser: {exc}") from exc
+    ep = eval_verification.ep
+    try:
+        policy = ep.parse_eval_policy(prd_bytes.decode("utf-8"))
+        if policy is None:
+            return {}
+        ep.validate_policy_shape(policy)
+    except ep.PolicyError as exc:
+        raise AcceptanceError(f"eval-policy: {exc}") from exc
+    if policy["applicability"] != "required":
+        return {}
+    return {
+        (policy[purpose]["test_id"], policy[purpose]["scenario_id"]): (purpose, keys)
+        for purpose, keys in (("quality", eval_verification.QUALITY_KEYS),
+                              ("handoff", eval_verification.HANDOFF_KEYS))
+    }
+
+
+def scenario_entry(
+    feature: Any, scenario: Any, profile: dict[str, Any], errors: list[str],
+    eval_keys: tuple[str, tuple[str, ...]] | None = None,
+) -> dict[str, Any]:
     """Map one scenario onto one register scenario; findings name `path:line`."""
 
     where = f"{feature.path}:{scenario.line}"
@@ -124,6 +191,13 @@ def scenario_entry(feature: Any, scenario: Any, profile: dict[str, Any], errors:
     if not givens:
         errors.append(f"{where}: scenario {scenario.name!r} needs a Given step naming the persona")
         givens = [""]
+    thens = scenario.steps_for("Then")
+    keys = [f"ASSERT-{number:03d}" for number in range(1, len(thens) + 1)]
+    if eval_keys is not None:
+        purpose, keys = eval_keys
+        if len(thens) != len(keys):
+            errors.append(f"{where}: eval {purpose} scenario needs exactly {len(keys)} Then steps, "
+                          f"one per {', '.join(keys)} in that order")
     run = profile["execution"]
     return {
         "id": scenario.scenario_id,
@@ -136,10 +210,7 @@ def scenario_entry(feature: Any, scenario: Any, profile: dict[str, Any], errors:
             "persona": {"role": givens[0], **run["persona"]},
             "initial_data": "; ".join(givens[1:]) or run["initial_data"],
             "actions": [step.text for step in scenario.steps_for("When")],
-            "assertions": {
-                f"ASSERT-{number:03d}": step.text
-                for number, step in enumerate(scenario.steps_for("Then"), start=1)
-            },
+            "assertions": {key: step.text for key, step in zip(keys, thens)},
             "expected_side_effects": run["expected_side_effects"],
             "dependency_mode": run["dependency_mode"],
         },
@@ -154,11 +225,16 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
     except AcceptanceError as exc:
         return {}, errors + [f"PRD: {exc}"]
     errors.extend(f"PRD: {error}" for error in prd_errors)
+    try:
+        eval_keys = eval_scenario_keys(prd_bytes)
+    except AcceptanceError as exc:
+        errors.append(f"PRD: {exc}")
     if errors:
         return {}, errors
 
     grouped: dict[str, list[dict[str, Any]]] = {}
     first_seen: dict[str, str] = {}
+    assign = profile.get("assign", {})
     for feature in features:
         for scenario in feature.scenarios:
             where = f"{feature.path}:{scenario.line}"
@@ -168,9 +244,17 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
                 errors.append(f"{where}: duplicate scenario id {scenario.scenario_id} (first at {first_seen[scenario.scenario_id]})")
                 continue
             first_seen[scenario.scenario_id] = where
-            grouped.setdefault(scenario.test_id, []).append(scenario_entry(feature, scenario, profile, errors))
+            variant = assign.get(scenario.scenario_id, assign.get(scenario.test_id))
+            body = profile if variant is None else profile["variants"][variant]
+            grouped.setdefault(scenario.test_id, []).append(scenario_entry(
+                feature, scenario, body, errors, eval_keys.get((scenario.test_id, scenario.scenario_id))))
     for test_id in sorted(required_tests - set(grouped)):
         errors.append(f"required {test_id} has no scenario in the feature files")
+    for (test_id, scenario_id), (purpose, _) in sorted(eval_keys.items()):
+        if scenario_id not in first_seen:
+            errors.append(f"PRD: eval-policy {purpose} scenario {scenario_id} ({test_id}) is not a scenario in the feature files")
+    for key in sorted(set(assign) - set(first_seen) - set(grouped)):
+        errors.append(f"profile.assign.{key} matches no scenario id or TEST ID in the feature files")
     if errors:
         return {}, errors
 
@@ -183,12 +267,58 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
     return register, contract_errors
 
 
+def register_bytes(register: dict[str, Any]) -> bytes:
+    return (json.dumps(register, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8")
+
+
+def _scenarios_by_id(register: Any) -> dict[str, tuple[Any, Any]]:
+    """Map scenario id to (TEST ID, scenario); a malformed register maps to nothing."""
+
+    found: dict[str, tuple[Any, Any]] = {}
+    tests = register.get("tests") if isinstance(register, dict) else None
+    for test in tests if isinstance(tests, list) else []:
+        scenarios = test.get("scenarios") if isinstance(test, dict) else None
+        for scenario in scenarios if isinstance(scenarios, list) else []:
+            if isinstance(scenario, dict) and isinstance(scenario.get("id"), str):
+                found.setdefault(scenario["id"], (test.get("test_id"), scenario))
+    return found
+
+
+def drift(expected: dict[str, Any], existing: bytes, where: dict[str, str], label: str) -> str | None:
+    """Name the first difference between the rendered register and the file."""
+
+    rendered = register_bytes(expected)
+    if existing == rendered:
+        return None
+    if existing.replace(b"\r\n", b"\n") == rendered:
+        return f"{label}: differs only in line endings; check it out byte for byte (-text) and re-render"
+    try:
+        current = json.loads(existing.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return f"{label}: is not valid UTF-8 JSON; re-render it"
+    have = _scenarios_by_id(current)
+    for scenario_id, entry in _scenarios_by_id(expected).items():
+        if scenario_id not in have:
+            return f"{label}: scenario {scenario_id} ({where[scenario_id]}) is missing; re-render it"
+        if have[scenario_id] != entry:
+            return f"{label}: scenario {scenario_id} ({where[scenario_id]}) differs from its feature file; re-render it"
+    extra = sorted(set(have) - set(where))
+    if extra:
+        return f"{label}: scenario {extra[0]} is in no feature file; re-render it"
+    for key in sorted(expected):
+        if not isinstance(current, dict) or current.get(key) != expected[key]:
+            return f"{label}: {key} differs from the rendered register; re-render it"
+    return f"{label}: differs from the rendered bytes; re-render it"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--prd", required=True, type=Path, help="Path to PRD.md")
     parser.add_argument("--features", required=True, type=Path, help="Directory of *.feature files")
     parser.add_argument("--profile", required=True, type=Path, help="Run profile JSON (acceptance-profile/1)")
     parser.add_argument("--out", required=True, type=Path, help="Register to write")
+    parser.add_argument("--check", action="store_true",
+                        help="Compare a fresh render with --out without writing; exit 1 on drift")
     args = parser.parse_args(argv)
     for flag, path, is_dir in (("--prd", args.prd, False), ("--features", args.features, True),
                                ("--profile", args.profile, False)):
@@ -211,9 +341,27 @@ def main(argv: list[str] | None = None) -> int:
         print("\n".join(errors))
         return 1
 
-    args.out.parent.mkdir(parents=True, exist_ok=True)
-    args.out.write_bytes((json.dumps(register, indent=2, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
     count = sum(len(test["scenarios"]) for test in register["tests"])
+    if args.check:
+        label = args.out.as_posix()
+        try:
+            existing = args.out.read_bytes()
+        except OSError as exc:
+            print(f"{label}: cannot read ({exc})")
+            return 1
+        where = {
+            scenario.scenario_id: f"{feature.path}:{scenario.line}"
+            for feature in features for scenario in feature.scenarios
+        }
+        finding = drift(register, existing, where, label)
+        if finding:
+            print(finding)
+            return 1
+        print(f"{label} matches the {count} scenarios rendered from the feature files")
+        return 0
+
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    args.out.write_bytes(register_bytes(register))
     print(f"rendered {count} scenarios under {len(register['tests'])} TEST IDs to {args.out.as_posix()}")
     return 0
 

@@ -25,6 +25,7 @@ from contract_utils import (
     _without_machine_block,
     canonical_product_bytes,
     canonical_stack_bytes,
+    feature_files_digest,
     parse_digest,
     product_identity,
     release_area_requirements,
@@ -2224,9 +2225,11 @@ def _validate_stack_tables(
     required_areas: set[str],
     repo_root: Path | None,
     problems: list[str],
+    require_bdd_runner: bool = False,
 ) -> set[str]:
     approved_areas: set[str] = set()
     present_areas: set[str] = set()
+    bdd_runner_seen = False
     active_stack = active_text(stack_text)
     for section_name, required_layers in STACK_SECTION_LAYERS.items():
         heading = f"## {section_name}"
@@ -2288,6 +2291,7 @@ def _validate_stack_tables(
                     f"{section_name} has duplicate layer {cells[0]!r}",
                 )
             seen_layers.add(layer)
+            bdd_runner_seen |= layer == "bdd runner"
             status = cells[2].casefold()
             if status == "approved":
                 approved_areas.add(area)
@@ -2322,6 +2326,12 @@ def _validate_stack_tables(
             problems,
             "stack-decisions",
             f"missing required {area} technology decision section",
+        )
+    if require_bdd_runner and not bdd_runner_seen:
+        _add(
+            problems,
+            "stack-decisions",
+            "feature files need a 'BDD runner' layer row in a technology decision table",
         )
     return approved_areas
 
@@ -2630,6 +2640,38 @@ def _architecture_ids(architecture_text: str) -> set[str]:
     return ids
 
 
+def _bound_feature_files(features_dir: Path, program: program_package.ProgramContext | None) -> list[Path]:
+    """The feature files one approval block binds: every file of a standard or mvp
+    package, `program.feature` for a program, `<scope>.feature` for a module."""
+
+    if program is None:
+        return sorted(path for path in features_dir.glob("*.feature") if path.is_file())
+    path = features_dir / (f"{program.scope.lower()}.feature" if program.module_id else "program.feature")
+    return [path] if path.is_file() else []
+
+
+def _validate_feature_files_field(
+    product_fields: dict[str, str],
+    features_dir: Path,
+    program: program_package.ProgramContext | None,
+    problems: list[str],
+) -> None:
+    if "feature files" not in product_fields:
+        _add(problems, "prd approval", "missing required field 'Feature files'")
+        return
+    supplied = parse_digest(product_fields["feature files"])
+    if supplied is None:
+        _add(problems, "prd approval", "Feature files must use sha256:<64 lowercase hex>")
+        return
+    try:
+        expected = feature_files_digest(_bound_feature_files(features_dir, program))
+    except (OSError, UnicodeError) as exc:
+        _add(problems, "prd approval", f"Feature files cannot be read: {exc}")
+        return
+    if supplied != expected:
+        _add(problems, "prd approval", "Feature files digest does not match the approved feature files")
+
+
 def _delivery_profile(prd_text: str) -> str:
     """The At a Glance `Delivery profile` value, lowercased; empty when absent."""
 
@@ -2679,8 +2721,12 @@ def validate_texts(
     problems: list[str] = [] if module else validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
     )
-    if features_dir is not None:
+    if features_dir is not None and program is None:
+        # A program checks coverage once across all modules in _validate_program.
         for problem in check_feature_coverage.feature_coverage_problems(prd_text, features_dir):
+            _add(problems, "prd", problem)
+    if features_dir is not None and eval_policy is not None and not module:
+        for problem in check_feature_coverage.eval_scenario_problems(prd_text, features_dir):
             _add(problems, "prd", problem)
     reported_depends: set[str] = set()
 
@@ -4103,6 +4149,8 @@ def validate_texts(
                 "Approved artifacts must be exactly, once and in order: "
                 "PRD.md, architecture.md, stack-decisions.md",
             )
+        if require_approved and features_dir is not None:
+            _validate_feature_files_field(product_fields, features_dir, program, problems)
         checkpoint = product_fields.get("stack decision checkpoint", "").casefold()
         if require_approved and checkpoint != "approved":
             _add(problems, "prd approval", "Stack Decision Checkpoint must be approved")
@@ -4250,6 +4298,7 @@ def validate_texts(
         required_areas=required_stack_areas,
         repo_root=repo_root,
         problems=problems,
+        require_bdd_runner=features_dir is not None,
     )
     if "toolchain" in required_stack_areas:
         toolchain_section = _section(stack_text, "## CLI and Toolchain Decision")
@@ -4428,6 +4477,7 @@ def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
         ui_contract=args.ui_contract,
         eval_policy=args.eval_policy,
         platform_delivery=args.platform_delivery,
+        features_dir=args.features,
         notes=notes,
         program=own,
     )
@@ -4446,10 +4496,21 @@ def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
                 repo_root=args.repo_root,
                 ui_contract=args.ui_contract,
                 platform_delivery=args.platform_delivery,
+                features_dir=args.features,
                 program=program_package.module_context(program, module_id),
             )
             problems += [f"{module_id}: {item}" for item in found]
     return problems
+
+
+FEATURES_POINTER_RE = re.compile(r"(?m)^\s*Scenarios for these rows live in ")
+
+
+def declared_features_dir(prd_text: str, prd_path: Path) -> Path | None:
+    """`features/` beside the PRD when its Test Obligations name their feature files."""
+
+    section = _section(prd_text, "## Test Obligations") or ""
+    return prd_path.parent / "features" if FEATURES_POINTER_RE.search(section) else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -4457,6 +4518,10 @@ def main(argv: list[str] | None = None) -> int:
     notes: list[str] = []
     prd_text, _ = safe_read_text(args.prd)
     program = _delivery_profile(prd_text or "") == "program"
+    if args.features is None:
+        args.features = declared_features_dir(prd_text or "", args.prd)
+        if args.features is not None:
+            notes.append(f"Test Obligations name feature files; checking {args.features}")
     if program:
         problems = _validate_program(args, notes)
     else:

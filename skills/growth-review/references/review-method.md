@@ -10,13 +10,13 @@ One lens per surface class or presence kind. The Surface Catalog in delivery-har
 | --- | --- | --- | --- | --- |
 | hosted_web (public) | seo, geo | Status codes, redirects, robots and index directives, canonicals, sitemap, rendered metadata, structured data validity, internal-link crawlability, mobile rendering, Core Web Vitals; `llms.txt` and citeable page structure for answer engines | search_console queries and pages, ga4 landing-page outcomes, google_trends and keyword_planner estimates, public_serp observation, answer-engine citation checks | Production `noindex`, blocking robots rule, canonical to another host, persistent errors, mismatched analytics property |
 | ios, android | aso | Listing completeness per locale, keyword and title fit, screenshot set per device class, rating and review state, category, pre-registration state, review-reply ownership, policy flags, deep-link and app-link verification | app_store_connect and play_console impressions, product-page views, installs and conversion, crash rate, revenuecat trials and conversions when recorded, first_party onboarding events | Rejected or stuck review, missing privacy answers, broken deep links, listing in the wrong category, crash spike after release |
-| browser_extension, marketplace_app, assistant_listing | store-listing | Store or marketplace listing completeness, permissions justification, single-purpose clarity, review state, ratings, pricing clarity, install and uninstall smoke | Store or marketplace stats (registry role), first_party activation events | Policy rejection, excessive permissions, missing test instructions, listing hidden from search |
+| browser_extension, marketplace_app, assistant_listing, macos, windows, linux (store-listed) | store-listing | Store or marketplace listing completeness, permissions justification, single-purpose clarity, review state, ratings, pricing clarity, install and uninstall smoke | Store or marketplace stats (registry role), first_party activation events | Policy rejection, excessive permissions, missing test instructions, listing hidden from search |
 | mcp_server, library_or_sdk, skill_or_plugin, container_or_self_hosted, cli | directory | Registry entry completeness, README quickstart that runs, version and changelog, license, install smoke from a clean machine, directory or registry listing state | registry downloads or pulls and version adoption, first_party usage signal, GitHub stars and issues as public observation | Broken install, stale version on the registry, missing README, directory entry pointing at the wrong package |
 | agent | directory | Directory metadata, `llms.txt` and public docs reachability, tool permission boundary stated publicly, console health when operations exist | registry listing read-back, first_party usage events | Directory entry unverified, docs page unreachable, side effects undisclosed |
 | messaging_bot | directory | Platform app-directory entry, command list, onboarding message, opt-in and privacy text, delivery health | bot_platform stats (active chats, commands), first_party events | Bot offline, directory entry missing, commands undocumented, rate limits hit |
 | social, video_channel, newsletter, community (presence) | presence | Account ownership and recovery, profile completeness, link destinations with UTM policy, cadence kept against the planned one, reply and moderation workload | platform_insights (followers, views, opens, members, clicks), ga4 or first_party for the destination side | Account not owned by the team, cadence abandoned, links to a stale destination, destination without measurement |
 | docs_site | seo | Same checks as hosted_web plus task-page coverage of the product's first-run and integration questions | search_console, production_page | Docs unreachable from the listing or README, duplicate docs hosts |
-| hosted_api, worker, job, webhook, realtime, internal_service, other_nonpublic | none | No public discovery path; record the reason | first_party or service_health only when a metric in the north star depends on it | — |
+| hosted_api, worker, job, webhook, realtime, internal_service, other_nonpublic, macos, windows, linux (no store) | none | No public discovery path; record the reason | first_party or service_health only when a metric in the north star depends on it | — |
 
 A surface earns a lens only when the PRD or architecture says it exists; the review never adds a surface. A hybrid product gets one row per surface and one cross-surface reconciliation at the end.
 
@@ -144,6 +144,7 @@ Return the result inline unless the user asks to save it.
 | --- | --- | --- | --- | --- | --- |
 
 ## Opportunities By Surface
+[Rows routed `product_definition` are the next-round PRD delta candidates.]
 | Surface | Priority | Query, topic or listing | Type | Evidence | Current page or listing | Action / route | Follow-up metric |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
@@ -155,9 +156,12 @@ Return the result inline unless the user asks to save it.
 
 ## Limits And Next Window
 [What is not observable yet, what data would settle it, and the next complete comparison window.]
+
+## Handoff
+[The current Epic's `## Handoff` block with the `EPIC.template.md` fields, filled inline and not written.]
 ```
 
-Keep the executive result short. Put supporting rows below the decision, not before it. If the user asks for a saved report, use a dated path under `docs/growth/reviews/`, preserve prior reports, follow repository document-governance rules, and show the exact write path before creating it.
+Keep the executive result short. Put supporting rows below the decision, not before it.
 
 ## Review Completion
 

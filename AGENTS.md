@@ -17,7 +17,7 @@ Existing data protection and action authorization still apply.
 - For explicitly requested managed execution, use [General Runtime Adapter](skills/delivery-harness/references/runtime-adapters.md) for observed native capabilities, authorization, isolation and result contracts. Capability does not grant an action.
 - Within an explicitly requested `delivery-harness` workflow, direct work uses one writer and one coherent verification sequence. Managed rules apply only after work routes into PLAN/RUN.
 - Preserve unrelated local work. Important local data needs explicit owner approval before deletion, overwrite, or move.
-- This source repository intentionally omits the template's Skill Bindings (it has no consumer stage slots), Behavior Specs (it has no feature files), Deployment and Post-Delivery Activation (it deploys and activates no product), and the delivery-acceptance bullet (it has no product accounts or data). Its Git Flow replaces the template's Git Safety, and its Required Reading replaces the template's. Treat these as local choices, not drift, in the handoff audit.
+- This source repository intentionally omits the template's Skill Bindings (it has no consumer stage slots), Behavior Specs (it has no feature files), Harness Version (it is the source, not an installed consumer), Deployment section and its Deployment and External Setup routes (it deploys and sets up no product), and the delivery-acceptance bullet (it has no product accounts or data). Its Git Flow replaces the template's Git Safety, and its Required Reading replaces the template's. Treat these as local choices, not drift, in the handoff audit.
 
 ## Worker Policy
 

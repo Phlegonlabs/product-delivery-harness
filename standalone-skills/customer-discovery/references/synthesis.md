@@ -28,10 +28,10 @@ Use the research assessment columns of `product-definition-builder` (`RA ID`, `F
 | RA ID | Finding | Confidence | Sources | Decision it informs |
 | --- | --- | --- | --- | --- |
 
-- `RA ID`: a stable `RA-*` identifier. Mint it once, preserve it across revisions, and never reuse a retired ID.
+- `RA ID`: the next `RA-*` after the highest in `docs/product/research-assessment.md` when it exists. Mint it once, preserve it across revisions, and never reuse a retired ID.
 - `Finding`: one sentence, stated as a result, with the count of independent participants.
-- `Confidence`: `observed` or `hypothesis`, matching the evidence table.
-- `Sources`: interview codes and dates, in the form `P03 2026-03-02; P05 2026-03-04`. Never a name.
+- `Confidence`: `sourced` for an `observed` finding, `UNVALIDATED` for a `hypothesis` finding. An `UNVALIDATED` row names the next interview round as what would settle it.
+- `Sources`: the study's source ID, then interview codes and dates, as in `S-05; P03 2026-03-02; P05 2026-03-04`. Never a name. Propose one research-assessment `## Sources` row for the study: the next `S-NN` | customer-discovery | study name | saved study path or `notes not saved` | session date range | primary.
 - `Decision it informs`: the open question or decision named in the study brief.
 
 A finding that could change no decision stays in the evidence table and gets no `RA-*` ID.

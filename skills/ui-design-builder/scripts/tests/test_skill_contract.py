@@ -2,12 +2,17 @@
 
 import shutil
 import subprocess
+import sys
 import unittest
 import re
 from pathlib import Path
 
 SKILL_ROOT = Path(__file__).resolve().parents[2]
 UI_STAGE = "references/stages/ui-design.md"
+UI_TEMPLATE = "assets/templates/UI_DESIGN.template.md"
+sys.path.insert(0, str(SKILL_ROOT / "scripts"))
+import check_ui_design_contract as checker  # noqa: E402
+import ui_design_v3  # noqa: E402
 
 
 class UiDesignBuilderSkillContractTests(unittest.TestCase):
@@ -110,6 +115,11 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("store-listing", stage)
         self.assertIn("onboarding", stage)
         self.assertIn("console: operations", stage)
+        self.assertIn("Review and the completeness preflight join coverage against those surfaces.", stage)
+        self.assertIn("the record proves traceability, not quality", stage)
+        workflow = self.read("references/review-workflow.md")
+        self.assertNotIn("`Shape` row fixes the required surfaces", workflow)
+        self.assertIn("stages/ui-design.md#author-self-review-before-handoff", workflow)
 
     def test_skill_owns_ui_after_product_approval(self):
         skill = self.read("SKILL.md")
@@ -205,6 +215,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         stage = self.read(UI_STAGE)
         wireframe = self.read("references/legacy/wireframe-guide.md")
         hifi = self.read("references/ui-design-pass.md")
+        workflow = self.read("references/review-workflow.md")
         binding = (
             'python "<delivery-harness-skill-root>/scripts/check_skill_bindings.py" '
             "--agents-md <target-AGENTS.md> --stage ui-design"
@@ -215,7 +226,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("Before each authoring stage", prompt)
         self.assertIn(binding, stage)
         self.assertLess(stage.index(binding), stage.index("produce direction studies"))
-        for document in (wireframe, hifi):
+        for document in (wireframe, hifi, workflow):
             with self.subTest(document=document[:30]):
                 self.assertNotIn(binding, document)
                 self.assertIn("stages/ui-design.md#required-skills-and-inputs", document)
@@ -267,10 +278,14 @@ console.log("hybrid fallback and stale QA assertions completed");
             stage.index("run a cheap machine completeness check"),
             stage.index("Present the complete current HiFi entry"),
         )
-        for marker in ("UI contract: ui-design/2", "ui-hifi-copy/1", "### Frontend Design Usage"):
+        template = self.read(UI_TEMPLATE)
+        for marker in ("UI contract: ui-design/2", "ui-hifi-copy/1", UI_TEMPLATE.rsplit("/", 1)[1]):
             self.assertIn(marker, contract)
-        self.assertNotIn("Copy Freeze:", contract)
-        self.assertNotIn("## Wireframe Approval", contract)
+        for marker in ("UI contract: ui-design/3", "### Frontend Design Usage"):
+            self.assertIn(marker, template)
+        for document in (contract, template):
+            self.assertNotIn("Copy Freeze:", document)
+            self.assertNotIn("## Wireframe Approval", document)
         self.assertIn("Schema 5 has no human Copy Freeze or Wireframe Approval", guide)
         self.assertIn("--require-copy-approved", guide)
 
@@ -305,20 +320,36 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         stage = self.read(UI_STAGE)
         contract = self.read("references/output-contract.md")
+        template = self.read(UI_TEMPLATE)
         self.assertLess(stage.index("Request one **Visual Approval**"), stage.index("Apply the **Design System Need Gate** after Visual Approval"))
-        self.assertIn("Design author: frontend-design", contract)
-        self.assertIn("Direction decision owner:", contract)
-        self.assertIn("Impeccable critique:", contract)
-        self.assertIn("Impeccable audit:", contract)
-        self.assertNotIn("Wireframe score:", contract)
-        self.assertIn("HiFi score:", contract)
-        self.assertIn("H2 score:", contract)
-        self.assertIn("H4 score:", contract)
-        self.assertIn("H5 score:", contract)
-        self.assertIn("H7 score:", contract)
-        self.assertIn("H8 score:", contract)
-        self.assertIn("H9 score:", contract)
+        self.assertIn("Design author: frontend-design", template)
+        self.assertIn("Direction decision owner:", template)
+        self.assertIn("Impeccable critique:", template)
+        self.assertIn("Impeccable audit:", template)
+        self.assertNotIn("Wireframe score:", contract + template)
+        self.assertIn("HiFi score:", template)
+        self.assertIn("H2 score:", template)
+        self.assertIn("H4 score:", template)
+        self.assertIn("H5 score:", template)
+        self.assertIn("H7 score:", template)
+        self.assertIn("H8 score:", template)
+        self.assertIn("H9 score:", template)
         self.assertIn("docs/design/design-system.md", contract)
+
+    def test_output_contract_and_prompt_match_the_mvp_profile_and_checker(self):
+        contract = self.read("references/output-contract.md").casefold()
+        template = self.read(UI_TEMPLATE).casefold()
+        values = (checker.VALID_DIRECTION_MODES | checker.VALID_DIRECTION_DECISIONS
+                  | ui_design_v3.V3_DIRECTION_DECISIONS | {checker.MVP_DEFERRED_DIRECTION_DECISION})
+        for value in sorted(values):
+            with self.subTest(value=value):
+                self.assertIn(value.casefold(), template)
+        self.assertIn("covers direction: [yes", template)
+        self.assertNotIn("always `required`", contract)
+        self.assertNotIn("always `decision: required`", contract)
+        prompt = self.read("agents/openai.yaml")
+        self.assertIn("three rendered directions by default (one under mvp)", prompt)
+        self.assertNotIn("a required design-system package", prompt)
 
     def test_repair_review_preserves_mandatory_checks_and_current_evidence(self):
         rubric = self.read("references/ui-grading-rubric.md")
@@ -328,8 +359,8 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
         self.assertIn("it never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
-        self.assertIn("The review budget is one diagnostic wave and one re-review of the consolidated repair", rubric)
-        self.assertIn("No third wave, whole-HiFi re-grade, or owner-granted extra round exists", rubric)
+        self.assertIn("the review budget is one diagnostic wave and one re-review of the consolidated repair", scope)
+        self.assertIn("No third wave, whole-HiFi re-grade, or owner-granted extra round exists", scope)
         self.assertNotIn("and the full rubric once", rubric)
         self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
@@ -341,13 +372,15 @@ console.log("hybrid fallback and stale QA assertions completed");
         skill = self.read("SKILL.md")
         stage = self.read(UI_STAGE)
         pass_guide = self.read("references/ui-design-pass.md")
-        self.assertIn(
-            "one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9 "
-            "and one re-review of the consolidated repair", skill)
+        scope = self.read("references/ui-grading-rubric.md").split("## Repair Re-review Scope", 1)[1]
+        self.assertIn("one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9", skill)
         self.assertNotIn("another failure stops at", skill)
         self.assertNotIn("second failed review stops at", pass_guide)
-        self.assertIn("isolated repair and one scoped re-review of the affected pages", pass_guide)
-        self.assertIn("isolated scoped repairs after that re-review", stage)
+        self.assertIn("isolated repair and one scoped re-review of the affected pages", scope)
+        for content in (skill, stage, pass_guide):
+            self.assertIn("ui-grading-rubric.md#scores", content)
+            self.assertIn("ui-grading-rubric.md#repair-re-review-scope", content)
+            self.assertNotIn("at least 85", content)
         for content in (skill, stage):
             self.assertIn("Delivery profile: standard | mvp", content)
         self.assertIn("one direction study", stage)
@@ -360,14 +393,18 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("at most four owner gates", stage)
         self.assertIn("execution authorization, and release", stage)
         self.assertIn("do not change under `mvp`", stage)
-        for content in (stage, pass_guide):
-            self.assertIn("Direction mode: one recommended direction (mvp)", content)
-            self.assertIn("no separate direction approval turn", content)
+        self.assertIn("Direction mode: one recommended direction (mvp)", stage)
+        self.assertIn("no separate direction approval turn", stage)
         self.assertIn("approves that direction and the HiFi together in the one Visual Approval", stage)
+        self.assertIn("which also reviews the journey map and font pairings", stage)
         self.assertIn("the standard profile keeps its explicit direction approval turn before HiFi", stage)
-        self.assertIn("that approval is the one Visual Approval", stage)
-        self.assertIn("approves that direction and the connected HiFi together in the one Visual Approval", pass_guide)
-        self.assertIn("fold its approval into the one Visual Approval", pass_guide)
+        self.assertIn("under `Delivery profile: mvp`, the mvp paragraph above applies", stage)
+        self.assertIn("except under `Delivery profile: mvp` ([Workflow](stages/ui-design.md#workflow))", pass_guide)
+        self.assertIn("under mvp, present the one study with the HiFi", pass_guide)
+        workflow = self.read("references/review-workflow.md")
+        self.assertIn("the mvp paragraph in [Workflow](stages/ui-design.md#workflow)", workflow)
+        self.assertEqual(1, sum(text.count("deferred to Visual Approval (mvp)")
+                                for text in (skill, stage, pass_guide, workflow)))
 
     def test_first_wave_axes_and_scoped_re_review(self):
         rubric = self.read("references/ui-grading-rubric.md")
@@ -397,9 +434,20 @@ console.log("hybrid fallback and stale QA assertions completed");
                       "and one Impeccable operator who runs critique and audit", rubric)
         self.assertIn("Neither reviews its own work", rubric)
         self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
-        self.assertIn("A grader packet carries this rubric", rubric)
+        self.assertIn("gets a filled [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md)", rubric)
+        self.assertIn("references/ui-grading-rubric.md", self.read("assets/templates/UI_REVIEW_PACKET.template.md"))
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
+
+    def test_ui_grading_field_holds_only_the_receipt_pointer(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        self.assertIn("so `UI grading:` holds only the receipt pointer", rubric)
+        self.assertIn("the grader count and lenses, medians and disputed dimensions, the defect ledger path", rubric)
+        self.assertNotIn("records one `UI grading:` line", rubric)
+        self.assertIn("(output-contract.md#hifi-review)", rubric)
+        contract = self.read("references/output-contract.md")
+        self.assertIn("hifi-review", self.stage_headings(contract))
+        self.assertIn("UI grading: PASS — evidence=", self.read(UI_TEMPLATE))
 
     def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
         rubric = self.read("references/ui-grading-rubric.md")

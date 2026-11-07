@@ -79,14 +79,14 @@ Outside judge: a blank consumer project whose `check_product_package.py --featur
 ## Results And Remaining Work
 
 - W1 integrated at `9d348b4c`; parent read of the diff found no blocking finding.
-- The approval package digest still covers only PRD, architecture and stack decisions. This round lists each feature file with its SHA-256 in the approval request, as eval inputs are listed; folding feature files into `canonical_product_bytes` and the approval check is a later round.
+- The approval package digest still covers only PRD, architecture and stack decisions. This round lists each feature file with its SHA-256 in the approval request, as eval inputs are listed; folding feature files into `canonical_product_bytes` and the approval check is a later round. Closed by the suite review (M24): the approval block now carries a separate `Feature files` digest field that `check_product_package.py --features --require-approved` verifies.
 - `TEST-PRG-*` scenarios live in `program.feature`; W1 also split lifecycle steps 3 and 4 and corrected the interview turn count in `openai.yaml` from three to four.
 - W2 integrated at `73d4a802`. The parent read of its diff found one blocking mismatch with W1's rule, repaired in `20b9e624`.
 - Open, cosmetic: `check_delivery_acceptance.py` prints a matched scenario as `<test_id>/<scenario id>`, which now doubles the TEST ID because scenario ids start with it.
 - The delta scenario rule compares `--features` with `--features-base`, a directory holding the baseline's feature files; a checkout of the baseline supplies it.
 - Candidate `d36c7216`, version 0.77.0, branch `feat/bdd-scenarios` from `origin/main` `12eecf90`. Full matrix: every step exit 0: skill spec, pyflakes, docs weight, harness suite 112 of 112 modules (788 s, 8 workers), golden path, pdb, udb and dsc suites, git diff --check.
 - Review at `d36c7216` by the parent (Claude Fable 5.1, owner direction 2026-11-07; the hook refuses Fable children, so the parent read the whole diff itself). Code lens: PASS after one repair (`20b9e624`) and two matrix-driven fixes. Security lens, scope `check_feature_coverage.py`, `check_product_package.py --features`, `render_delivery_acceptance.py`, `check_prd_delta_scope.py`, `harness_contract.py`, `feature_file.py`: repository files and CLI arguments are the only untrusted input; no network, secret or privileged operation; denial behavior is tested (malformed feature file and unknown TEST are `path:line` findings, placeholder profile is a finding, missing directory or unpaired flags exit 2, duplicate scenario ids are findings); PASS for that scope. Visual lens: not applicable, no UI change.
-- Open for a later round: fold feature files into the approval package digest; the doubled TEST ID in the acceptance checker's output; a reading-budget ratchet per entry point.
+- Open for a later round: the doubled TEST ID in the acceptance checker's output; a reading-budget ratchet per entry point.
 - Not done here, owner actions: push the branch and open the PR to `main`, tag `v0.77.0` after the merge, install at a quiescent boundary with `./install.sh`, then consumer adoption. The three record-fix commits and the two harness fixes on `fix/compact-tracked-files-retention` are a separate PR.
 
 ## Handoff

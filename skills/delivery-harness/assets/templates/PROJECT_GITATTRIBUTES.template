@@ -1,0 +1,6 @@
+# Hash-bound files stay byte-exact: delivery-harness/references/gitattributes-contract.md
+docs/product/** -text -filter
+docs/design/** -text -filter
+docs/goal/** -text -filter
+docs/verification/** -text -filter
+docs/verification/evidence/** -text -filter -whitespace

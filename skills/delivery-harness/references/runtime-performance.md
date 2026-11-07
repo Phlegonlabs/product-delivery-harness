@@ -95,8 +95,6 @@ Declare resources for shared caches, generated clients, databases, ports, browse
 
 ## Host Mapping
 
-- Use a fresh bounded native task or child, then subscribe to terminal events or cursor waits when observed. Use bounded polling only when events are unavailable and record that fallback. Preserve installed role and model settings and the configured role bridge.
-
 Process each terminal result immediately. Under `per_mission`, streaming review may overlap remaining workers; serial integration may overlap them under either policy. RUN remains parent-owned. A failed integration follows the existing integration-failure route.
 
 Record the product container's actual computed CSS width with each screenshot. A verifier's exit code 0 proves that the process ended; acceptance still requires the gate's current evidence.

@@ -196,11 +196,7 @@ Select the current host only when it is allowed; otherwise defer with `runtime_u
 
 The parent uses `runtime-adapters.md` to map observed native tools to the selected generic driver. Read-only and write scopes remain separate. A tool-profile label or prompt is not permission-level tool removal; enforce the required boundary and validate actual scope and Git results. Native launch, result, retry and resume APIs belong to the host, not a bundled script. They never change graph readiness, authorization, result validation or integration rules.
 
-Host policy maps logical writer/reviewer responsibilities to actual native or bridge executors.
-The parent records the actual session, model, effort and result origin in attempt evidence.
-A result is accepted only from its launched session; a failed start records `blocked` and the actual host error.
-
-Models and roles configured by the user remain authoritative. Preserve their declared fallback policy and record the actual resolved role, model and effort; never change installed definitions or manually redispatch to another provider.
+Executors, models, fallback and attempt evidence follow [Models, Roles And Context](runtime-adapters.md#models-roles-and-context).
 
 ## Retry And Replay
 

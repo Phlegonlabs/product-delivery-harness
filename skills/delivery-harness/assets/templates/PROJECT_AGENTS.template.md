@@ -20,6 +20,11 @@ Existing data protection and action authorization still apply.
 - The managed-run rules (`delivery-harness/references/project-operating-rules.md#managed-product-delivery-harness-runs`) apply only after the Harness routes work into PLAN/RUN. Explicitly requested Harness direct work follows the shared principles, Git safety, and verification rules without creating Harness state, missions, workers, or worktrees unless the repository or user requires them.
 - Preserve unrelated local work. Important local data needs explicit owner approval before deletion, overwrite, or move.
 
+## Harness Version
+
+- Shared installation: Harness `<version>` from tag `v<version>` (`<tag commit SHA>`), installed `<YYYY-MM-DD>` under `<skills root>`.
+- Five-skill contract SHA-256: `<harness_contract.py digest>`.
+
 ## Required Reading
 
 These reading requirements apply only within an explicitly requested skill workflow.
@@ -31,7 +36,7 @@ These reading requirements apply only within an explicitly requested skill workf
 ## Behavior Specs
 
 - Feature files live in `docs/product/features/` and belong to the PRD package. The owner approves scenario text; the writer owns step definitions and the code under them.
-- Each scenario has one `@TEST-...` tag. `delivery-harness/scripts/render_delivery_acceptance.py` renders the delivery-acceptance register from them; never edit the register by hand.
+- Each scenario has one `@TEST-...` tag. When `docs/product/features/` exists, `delivery-harness/scripts/render_delivery_acceptance.py` renders the delivery-acceptance register from it; never edit that register by hand. A package without feature files keeps its hand-written register.
 - Changing scenario text is a product decision and goes through a PRD delta. Changing only step definitions or implementation is a small fix on the existing Epic.
 
 ## Skill Bindings
@@ -64,6 +69,7 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 | Implementation or repair | `delivery-harness/references/governance/development-rules.md#keep-changes-simple` and `delivery-harness/references/governance/development-rules.md#consumer-core-development-principles` |
 | New or changed documentation | `delivery-harness/references/governance/development-rules.md#document-writing` |
 | A task introduces or retires a local-only file class | `delivery-harness/references/gitignore-contract.md` |
+| A task adds a hash-bound file class or root | `delivery-harness/references/gitattributes-contract.md` |
 | Product requirements, architecture, UI impact, redesign, pricing, or partner channel | `delivery-harness/references/governance/product-contracts.md#consumer-keep-product-contracts-current` |
 | Pricing, paid access, purchase-gated features, or outside sellers | `delivery-harness/references/project-operating-rules.md#monetization-and-partner-channels` |
 | Branch, commit, integration, archive, publication, cleanup, or protected-branch landing | `delivery-harness/references/governance/managed-delivery.md#git-safety` and `delivery-harness/references/commit-convention.md` |

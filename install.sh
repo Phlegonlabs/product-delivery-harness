@@ -3,7 +3,8 @@
 # Test suites (scripts/tests) are not installed; run them in the source checkout.
 # The source is staged and verified before mutation. Existing managed copies are
 # moved to one timestamped backup, and any failure restores that backup. The
-# source commit and uncommitted skills/ state are printed and saved beside it.
+# source commit and uncommitted skills/ state are printed and saved beside it,
+# with the installed five-skill contract digest and the one it replaced.
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -502,11 +503,44 @@ stage_root=""
 release_lock
 trap - EXIT HUP INT TERM
 
-# Keep the source line next to the backup this install replaced. Create it
-# exclusively: never follow a link or overwrite an existing file.
+# Name the five-skill contract now installed and the one it replaced, each
+# computed by its own copy of harness_contract.py. The install is already
+# verified, so a failed digest only warns.
+contract_digest_of() {
+  local script="$1" python value
+  [ -f "$script" ] || return 1
+  for python in python3 python; do
+    command -v "$python" >/dev/null 2>&1 || continue
+    value="$("$python" -B "$script" 2>/dev/null)" || continue
+    value="${value%$'\r'}"
+    if [[ "$value" =~ ^[0-9a-f]{64}$ ]]; then
+      printf '%s\n' "$value"
+      return 0
+    fi
+  done
+  return 1
+}
+contract_line=""
+contract_script="$skills_dest/delivery-harness/scripts/harness_contract.py"
+if new_digest="$(contract_digest_of "$contract_script")"; then
+  previous_digest=unknown
+  previous_script="$backup_dir/delivery-harness/scripts/harness_contract.py"
+  if [ -n "$backup_dir" ] && [ -f "$previous_script" ] &&
+    ! previous_digest="$(contract_digest_of "$previous_script")"; then
+    previous_digest=unknown
+    echo "warning: could not compute the previous contract digest; run: python -B \"$previous_script\"" >&2
+  fi
+  contract_line="installed five-skill contract $new_digest (previous $previous_digest)"
+  echo "$contract_line"
+else
+  echo "warning: could not compute the installed contract digest; run: python -B \"$contract_script\"" >&2
+fi
+
+# Keep the source and contract lines next to the backup this install replaced.
+# Create it exclusively: never follow a link or overwrite an existing file.
 if [ -n "$backup_dir" ]; then
   if [ -e "$backup_dir.source" ] || [ -L "$backup_dir.source" ] ||
-    ! (set -o noclobber; printf '%s\n' "$source_line" >"$backup_dir.source") 2>/dev/null; then
+    ! (set -o noclobber; printf '%s\n' "$source_line" ${contract_line:+"$contract_line"} >"$backup_dir.source") 2>/dev/null; then
     echo "warning: could not write $backup_dir.source" >&2
   fi
 fi

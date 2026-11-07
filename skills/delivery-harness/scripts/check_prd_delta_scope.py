@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Any
 
 from check_document_sync import safe_path
+from harness_contract_join import line_ending_note
 from harness_core import ManifestError, load_plan
 from render_delivery_acceptance import load_feature_reader, read_feature_dir
 
@@ -243,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         if actual_sha != expected_sha:
             violations.append(
                 f"prd-delta {location}: bytes do not match content_sha256 {expected_sha}"
+                + line_ending_note(delta_bytes, expected_sha, location)
             )
             proceed = False
     if proceed:
