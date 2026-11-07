@@ -176,6 +176,51 @@ class RenderDeliveryAcceptanceTests(unittest.TestCase):
         self.assertEqual(("web", "mock", "test"),
                          (untagged["platform"], untagged["auth_mode"], untagged["environment"]))
 
+    def variant_profile(self, assign: dict) -> dict:
+        ios = {key: copy.deepcopy(PROFILE[key]) for key in ("auth_mode", "environment", "execution")}
+        ios.update(platform="ios", fixtures=[], build={"build_id": "fixture-ios-7", "config_digest": "c" * 64})
+        ios["execution"].update(device="iPhone 16 simulator", os="iOS 18.2")
+        api = copy.deepcopy(ios)
+        api.update(platform="api", environment="local",
+                   build={"not_applicable_reason": "in-process API tests build nothing"})
+        api["execution"].update(device="none, in-process", os="Windows 11")
+        return {**copy.deepcopy(PROFILE), "variants": {"ios-sim": ios, "api-local": api}, "assign": assign}
+
+    def test_assigned_variants_replace_the_profile_and_tags_still_override(self) -> None:
+        self.write_profile(self.variant_profile({"TEST-002": "ios-sim"}))
+        self.assertEqual(0, self.render()[0])
+        register = json.loads(self.out.read_text(encoding="utf-8"))
+        web, ios = (test["scenarios"][0] for test in register["tests"])
+        self.assertEqual(("web", "fixture-web-1", "Chromium 131 desktop"),
+                         (web["platform"], web["build"]["build_id"], web["execution"]["device"]))
+        self.assertEqual(("ios", "real", "staging", "fixture-ios-7", "iPhone 16 simulator", "iOS 18.2", []),
+                         (ios["platform"], ios["auth_mode"], ios["environment"], ios["build"]["build_id"],
+                          ios["execution"]["device"], ios["execution"]["os"], ios["fixtures"]))
+        self.assertEqual(0, self.check_register()[0])
+
+        self.write_profile(self.variant_profile(
+            {"TEST-001": "ios-sim", "TEST-001/receive-the-full-quantity": "api-local"}))
+        self.assertEqual(0, self.render()[0])
+        scenario = json.loads(self.out.read_text(encoding="utf-8"))["tests"][0]["scenarios"][0]
+        self.assertEqual(("api", "local"), (scenario["platform"], scenario["environment"]))
+
+    def test_unknown_variants_unmatched_assignments_and_bad_variant_bodies_are_findings(self) -> None:
+        broken = self.variant_profile({"TEST-001": "android", "TEST-009": "ios-sim", "TEST-002/nothing": "ios-sim"})
+        broken["variants"]["ios-sim"]["platform"] = "watch"
+        del broken["variants"]["api-local"]["fixtures"]
+        self.write_profile(broken)
+        code, output = self.render()
+        self.assertEqual(1, code, output)
+        self.assertIn("profile.assign.TEST-001 names unknown variant 'android'", output)
+        self.assertIn("profile.variants.ios-sim.platform must be one of", output)
+        self.assertIn("profile.variants.api-local keys must be exactly", output)
+        self.write_profile(self.variant_profile({"TEST-009": "ios-sim", "TEST-002/nothing": "ios-sim"}))
+        code, output = self.render()
+        self.assertEqual(1, code, output)
+        self.assertIn("profile.assign.TEST-009 matches no scenario id or TEST ID", output)
+        self.assertIn("profile.assign.TEST-002/nothing matches no scenario id or TEST ID", output)
+        self.assertFalse(self.out.exists())
+
     def test_no_seed_given_uses_the_profile_initial_data(self) -> None:
         (self.features / "product.feature").write_text(
             FEATURE.replace("    And an open purchase order PO-7 with 10 units\n", ""), encoding="utf-8")
@@ -203,6 +248,8 @@ class RenderDeliveryAcceptanceTests(unittest.TestCase):
         self.assertIn("profile.build.build_id must be concrete", output)
         self.assertIn("profile.execution.device must be concrete", output)
         self.assertIn("profile.execution.persona.tenant must be concrete", output)
+        self.assertIn("profile.variants.<variant name>: the variant name must be concrete", output)
+        self.assertIn("profile.variants.<variant name> keys must be exactly", output)
         self.assertFalse(self.out.exists())
 
     def test_findings_name_the_feature_line(self) -> None:

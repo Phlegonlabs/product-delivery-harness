@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """Render the delivery-acceptance register from the PRD feature files.
 
-Every scenario in `--features <dir>/*.feature` joins one run profile
+Every scenario in `--features <dir>/*.feature` joins the run profile
 (`acceptance-profile/1`) to become one `delivery-acceptance/1` scenario that
-check_delivery_acceptance.py accepts. Writes only `--out`. Exits 0 on
+check_delivery_acceptance.py accepts. The profile's optional `assign` map
+picks one of its named `variants` for a scenario id or a TEST ID (the
+scenario id wins); other scenarios use the top-level profile, and
+`@platform`, `@auth` and `@env` tags override either. Writes only `--out`. Exits 0 on
 success, 1 with one line per finding, 2 on bad arguments.
 
 `--check` renders in memory and writes nothing. It exits 0 when `--out`
@@ -30,6 +33,8 @@ from delivery_acceptance_io import AcceptanceError, _load_json, _parse_required_
 
 PROFILE_SCHEMA = "acceptance-profile/1"
 PROFILE_KEYS = {"schema", "platform", "auth_mode", "environment", "build", "execution", "fixtures"}
+PROFILE_BODY_KEYS = PROFILE_KEYS - {"schema"}
+PROFILE_OPTIONAL_KEYS = {"variants", "assign"}
 PROFILE_EXECUTION_KEYS = {
     "target", "device", "os", "persona", "initial_data", "expected_side_effects", "dependency_mode",
 }
@@ -81,32 +86,59 @@ def read_feature_dir(directory: Path, reader: Any) -> tuple[list[Any], list[str]
     return features, errors
 
 
-def profile_errors(profile: dict[str, Any]) -> list[str]:
+def body_errors(body: dict[str, Any], label: str) -> list[str]:
+    """Check one profile body: the top-level profile or one variant."""
+
     errors: list[str] = []
-    if set(profile) != PROFILE_KEYS:
-        return [f"profile keys must be exactly {sorted(PROFILE_KEYS)}"]
-    if profile["schema"] != PROFILE_SCHEMA:
-        errors.append(f"profile.schema must be {PROFILE_SCHEMA!r}")
     for field, allowed in (("platform", PLATFORMS), ("auth_mode", AUTH_MODES),
                            ("environment", ENVIRONMENTS)):
-        if not isinstance(profile[field], str) or profile[field] not in allowed:
-            errors.append(f"profile.{field} must be one of {sorted(allowed)}")
-    _build(profile["build"], "profile.build", profile["platform"], profile["environment"], errors)
-    _fixtures(profile["fixtures"], profile["environment"], "profile.fixtures", errors)
-    execution = profile["execution"]
+        if not isinstance(body[field], str) or body[field] not in allowed:
+            errors.append(f"{label}.{field} must be one of {sorted(allowed)}")
+    _build(body["build"], f"{label}.build", body["platform"], body["environment"], errors)
+    _fixtures(body["fixtures"], body["environment"], f"{label}.fixtures", errors)
+    execution = body["execution"]
     if not isinstance(execution, dict) or set(execution) != PROFILE_EXECUTION_KEYS:
-        errors.append(f"profile.execution keys must be exactly {sorted(PROFILE_EXECUTION_KEYS)}")
+        errors.append(f"{label}.execution keys must be exactly {sorted(PROFILE_EXECUTION_KEYS)}")
         return errors
     for key in sorted(PROFILE_EXECUTION_KEYS - {"persona"}):
         if not concrete_text(execution[key]):
-            errors.append(f"profile.execution.{key} must be concrete non-placeholder text")
+            errors.append(f"{label}.execution.{key} must be concrete non-placeholder text")
     persona = execution["persona"]
     if not isinstance(persona, dict) or set(persona) != PROFILE_PERSONA_KEYS:
-        errors.append(f"profile.execution.persona keys must be exactly {sorted(PROFILE_PERSONA_KEYS)}")
+        errors.append(f"{label}.execution.persona keys must be exactly {sorted(PROFILE_PERSONA_KEYS)}")
     else:
         for key in sorted(PROFILE_PERSONA_KEYS):
             if not concrete_text(persona[key]):
-                errors.append(f"profile.execution.persona.{key} must be concrete non-placeholder text")
+                errors.append(f"{label}.execution.persona.{key} must be concrete non-placeholder text")
+    return errors
+
+
+def profile_errors(profile: dict[str, Any]) -> list[str]:
+    if not PROFILE_KEYS <= set(profile) <= PROFILE_KEYS | PROFILE_OPTIONAL_KEYS:
+        return [f"profile keys must be exactly {sorted(PROFILE_KEYS)}, optionally with variants and assign"]
+    errors: list[str] = []
+    if profile["schema"] != PROFILE_SCHEMA:
+        errors.append(f"profile.schema must be {PROFILE_SCHEMA!r}")
+    errors.extend(body_errors(profile, "profile"))
+    variants = profile.get("variants", {})
+    if not isinstance(variants, dict):
+        errors.append("profile.variants must map a variant name to a profile body")
+        variants = {}
+    for name, body in sorted(variants.items()):
+        label = f"profile.variants.{name}"
+        if not concrete_text(name):
+            errors.append(f"{label}: the variant name must be concrete text")
+        if not isinstance(body, dict) or set(body) != PROFILE_BODY_KEYS:
+            errors.append(f"{label} keys must be exactly {sorted(PROFILE_BODY_KEYS)}")
+        else:
+            errors.extend(body_errors(body, label))
+    assign = profile.get("assign", {})
+    if not isinstance(assign, dict):
+        errors.append("profile.assign must map a scenario id or TEST ID to a variant name")
+    else:
+        for key, name in sorted(assign.items()):
+            if not isinstance(name, str) or name not in variants:
+                errors.append(f"profile.assign.{key} names unknown variant {name!r}")
     return errors
 
 
@@ -163,6 +195,7 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
 
     grouped: dict[str, list[dict[str, Any]]] = {}
     first_seen: dict[str, str] = {}
+    assign = profile.get("assign", {})
     for feature in features:
         for scenario in feature.scenarios:
             where = f"{feature.path}:{scenario.line}"
@@ -172,9 +205,13 @@ def render(prd_bytes: bytes, features: list[Any], profile: dict[str, Any]) -> tu
                 errors.append(f"{where}: duplicate scenario id {scenario.scenario_id} (first at {first_seen[scenario.scenario_id]})")
                 continue
             first_seen[scenario.scenario_id] = where
-            grouped.setdefault(scenario.test_id, []).append(scenario_entry(feature, scenario, profile, errors))
+            variant = assign.get(scenario.scenario_id, assign.get(scenario.test_id))
+            body = profile if variant is None else profile["variants"][variant]
+            grouped.setdefault(scenario.test_id, []).append(scenario_entry(feature, scenario, body, errors))
     for test_id in sorted(required_tests - set(grouped)):
         errors.append(f"required {test_id} has no scenario in the feature files")
+    for key in sorted(set(assign) - set(first_seen) - set(grouped)):
+        errors.append(f"profile.assign.{key} matches no scenario id or TEST ID in the feature files")
     if errors:
         return {}, errors
 
