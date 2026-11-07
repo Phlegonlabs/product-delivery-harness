@@ -413,6 +413,16 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
                       self.read("references/review-evidence.md"))
 
+    def test_ui_grading_field_holds_only_the_receipt_pointer(self):
+        rubric = self.read("references/ui-grading-rubric.md")
+        self.assertIn("so `UI grading:` holds only the receipt pointer", rubric)
+        self.assertIn("the grader count and lenses, medians and disputed dimensions, the defect ledger path", rubric)
+        self.assertNotIn("records one `UI grading:` line", rubric)
+        self.assertIn("(output-contract.md#hifi-review)", rubric)
+        contract = self.read("references/output-contract.md")
+        self.assertIn("hifi-review", self.stage_headings(contract))
+        self.assertIn("UI grading: PASS — evidence=", contract)
+
     def test_legacy_wireframe_grading_lives_in_the_wireframe_guide(self):
         rubric = self.read("references/ui-grading-rubric.md")
         guide = self.read("references/legacy/wireframe-guide.md")
