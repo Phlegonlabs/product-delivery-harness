@@ -17,6 +17,8 @@ from prd_operations import operation_graph_findings, required_operations
 from prd_ui_contract import parse_prd_ui_contract
 from release_targets import parse_release_targets
 import program_package
+# Module-attribute access only: it imports this module too.
+import check_feature_coverage
 from git_evidence import GitEvidenceError, verify_revision_path
 from eval_policy import validate_eval_policy
 from contract_utils import (
@@ -2649,6 +2651,7 @@ def validate_texts(
     ui_contract: str | None = None,
     eval_policy: str | None = None,
     platform_delivery: str | None = None,
+    features_dir: Path | None = None,
     deltas_dir: Path | None = None,
     notes: list[str] | None = None,
     program: program_package.ProgramContext | None = None,
@@ -2676,6 +2679,9 @@ def validate_texts(
     problems: list[str] = [] if module else validate_eval_policy(
         prd_text, required=eval_policy is not None, repo_root=repo_root,
     )
+    if features_dir is not None:
+        for problem in check_feature_coverage.feature_coverage_problems(prd_text, features_dir):
+            _add(problems, "prd", problem)
     reported_depends: set[str] = set()
 
     def resolve_foreign(identifiers: set[str], family: str) -> set[str]:
@@ -4340,6 +4346,7 @@ def validate(
     ui_contract: str | None = None,
     eval_policy: str | None = None,
     platform_delivery: str | None = None,
+    features_dir: Path | None = None,
     notes: list[str] | None = None,
     program: program_package.ProgramContext | None = None,
 ) -> list[str]:
@@ -4365,6 +4372,7 @@ def validate(
         ui_contract=ui_contract,
         eval_policy=eval_policy,
         platform_delivery=platform_delivery,
+        features_dir=features_dir,
         deltas_dir=prd_path.parent / "deltas",
         notes=notes,
         program=program,
@@ -4389,6 +4397,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--platform-delivery",
         choices=(PROTOCOL,),
         help="require the opt-in platform-delivery/1 architecture contract",
+    )
+    parser.add_argument(
+        "--features",
+        type=Path,
+        help="require the feature files in this directory to cover the Test Obligations",
     )
     parser.add_argument(
         "--module",
@@ -4419,6 +4432,9 @@ def _validate_program(args: argparse.Namespace, notes: list[str]) -> list[str]:
         program=own,
     )
     problems += program_package.validate_program(root, module=args.module, notes=notes, **options)
+    if args.features is not None:
+        for problem in check_feature_coverage.program_coverage_problems(program, args.features, module=args.module):
+            _add(problems, "prd", problem)
     stack, _ = safe_read_text(args.stack_decisions)
     for module_id, (prd, architecture) in program.texts.items():
         if args.module in (None, module_id):
@@ -4454,6 +4470,7 @@ def main(argv: list[str] | None = None) -> int:
             ui_contract=args.ui_contract,
             eval_policy=args.eval_policy,
             platform_delivery=args.platform_delivery,
+            features_dir=args.features,
             notes=notes,
         )
         if args.module is not None:

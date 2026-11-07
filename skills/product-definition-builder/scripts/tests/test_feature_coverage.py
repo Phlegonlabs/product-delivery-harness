@@ -50,12 +50,12 @@ class TemplateTests(unittest.TestCase):
 
 
 class CoverageTests(unittest.TestCase):
-    def check(self, files: dict[str, str], prd: str = PRD, **options) -> list[str]:
+    def check(self, files: dict[str, str], prd: str = PRD) -> list[str]:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             for name, text in files.items():
                 (root / name).write_text(text, encoding="utf-8")
-            problems = cfc.feature_coverage_problems(prd, root, **options)
+            problems = cfc.feature_coverage_problems(prd, root)
         return [problem.replace(root.as_posix() + "/", "") for problem in problems]
 
     def test_required_e2e_integration_and_contract_rows_are_covered(self):
@@ -99,21 +99,9 @@ class CoverageTests(unittest.TestCase):
             problems,
         )
 
-    def test_missing_directory_and_module_rows(self):
+    def test_missing_directory(self):
         missing = Path(tempfile.gettempdir()) / "pdh-no-such-features-dir"
         self.assertEqual([f"features directory not found: {missing}"], cfc.feature_coverage_problems(PRD, missing))
-        module = PRD.replace("TEST-0", "TEST-INV-0")
-        problems = self.check(
-            {"product.feature": feature("TEST-001", "TEST-002", "TEST-005"), "inv.feature": feature("TEST-INV-001")},
-            module_prds=(module,),
-        )
-        self.assertEqual(
-            [
-                "TEST-INV-002 is a required Integration / security obligation with no scenario",
-                "TEST-INV-005 is a required performance, Contract obligation with no scenario",
-            ],
-            problems,
-        )
 
 
 class CliTests(unittest.TestCase):

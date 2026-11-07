@@ -36,8 +36,13 @@ def needs_scenario(row: tuple[str, ...]) -> bool:
     return row[3].strip().casefold() == "yes" and SCENARIO_TYPES.search(row[2]) is not None
 
 
-def coverage_problems(rows: dict[str, tuple[str, ...]], features_dir: Path) -> list[str]:
-    """Findings for every feature file in `features_dir` against these Test Obligations rows."""
+def coverage_problems(
+    rows: dict[str, tuple[str, ...]], features_dir: Path, *, checked: set[str] | None = None
+) -> list[str]:
+    """Findings for every feature file in `features_dir` against these Test Obligations rows.
+
+    `checked` limits which rows need a scenario; any row may be named by one.
+    """
 
     if not features_dir.is_dir():
         return [f"features directory not found: {features_dir}"]
@@ -72,20 +77,31 @@ def coverage_problems(rows: dict[str, tuple[str, ...]], features_dir: Path) -> l
             else:
                 first_seen[scenario.scenario_id] = where
     for test_id, row in sorted(rows.items()):
-        if needs_scenario(row) and test_id not in covered:
+        if (checked is None or test_id in checked) and needs_scenario(row) and test_id not in covered:
             problems.append(f"{test_id} is a required {row[2].strip()} obligation with no scenario")
     return problems
 
 
-def feature_coverage_problems(
-    prd_text: str, features_dir: Path, *, module_prds: tuple[str, ...] = ()
-) -> list[str]:
-    """Coverage findings for one package; a program passes its module PRDs too."""
+def feature_coverage_problems(prd_text: str, features_dir: Path) -> list[str]:
+    """Coverage findings for a standard or mvp package."""
 
-    rows = obligation_rows(prd_text)
-    for module_prd in module_prds:
-        rows.update(obligation_rows(module_prd))
-    return coverage_problems(rows, features_dir)
+    return coverage_problems(obligation_rows(prd_text), features_dir)
+
+
+def program_coverage_problems(
+    program: program_package.Program, features_dir: Path, *, module: str | None = None
+) -> list[str]:
+    """Coverage findings for a program: a scenario may name any module's TEST;
+    `module` limits the required rows to the program's and that module's."""
+
+    rows = obligation_rows(program.prd)
+    checked = set(rows)
+    for module_id, (prd, _) in program.texts.items():
+        module_rows = obligation_rows(prd)
+        rows.update(module_rows)
+        if module in (None, module_id):
+            checked.update(module_rows)
+    return coverage_problems(rows, features_dir, checked=checked)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -100,11 +116,10 @@ def main(argv: list[str] | None = None) -> int:
     if not args.features.is_dir():
         print(f"FAIL features directory not found: {args.features}", file=sys.stderr)
         return 2
-    module_prds: tuple[str, ...] = ()
     if cpp._delivery_profile(prd_text) == "program":
-        program = program_package.load_program(args.prd.parent)
-        module_prds = tuple(prd for prd, _ in program.texts.values())
-    problems = feature_coverage_problems(prd_text, args.features, module_prds=module_prds)
+        problems = program_coverage_problems(program_package.load_program(args.prd.parent), args.features)
+    else:
+        problems = feature_coverage_problems(prd_text, args.features)
     if not obligation_rows(prd_text):
         problems.insert(0, f"{args.prd}: no Test Obligations rows")
     for problem in problems:

@@ -3911,5 +3911,50 @@ class GrowthContractTests(unittest.TestCase):
         )
 
 
+class FeaturesFlagTests(unittest.TestCase):
+    FEATURE = (
+        "Feature: Fixture\n  @TEST-001\n  Scenario: Complete the fixture\n"
+        "    When the owner runs the fixture\n    Then completion is observed\n"
+    )
+
+    def test_features_flag_adds_coverage_under_the_prd_scope(self) -> None:
+        texts = strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())
+        options = {"require_filled": True, "require_approved": True}
+        self.assertEqual([], check_product_package.validate_texts(*texts, **options))
+        with tempfile.TemporaryDirectory() as directory:
+            features = Path(directory)
+            self.assertEqual(
+                ["prd: TEST-001 is a required integration obligation with no scenario"],
+                check_product_package.validate_texts(*texts, features_dir=features, **options),
+            )
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            self.assertEqual([], check_product_package.validate_texts(*texts, features_dir=features, **options))
+
+    def test_cli_features_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, text in zip(
+                ("PRD.md", "architecture.md", "stack-decisions.md"),
+                strictize_approved_package(valid_prd(), valid_architecture(), valid_stack()),
+            ):
+                (root / name).write_text(text, encoding="utf-8")
+            features = root / "features"
+            features.mkdir()
+            base = ["--prd", str(root / "PRD.md"), "--architecture", str(root / "architecture.md"),
+                    "--stack-decisions", str(root / "stack-decisions.md"), "--require-filled",
+                    "--require-approved", "--features", str(features)]
+
+            def run() -> tuple[int, str]:
+                errors = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    return check_product_package.main(base), errors.getvalue()
+
+            code, errors = run()
+            self.assertEqual(1, code)
+            self.assertIn("FAIL prd: TEST-001 is a required integration obligation with no scenario", errors)
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            self.assertEqual((0, ""), run())
+
+
 if __name__ == "__main__":
     unittest.main()

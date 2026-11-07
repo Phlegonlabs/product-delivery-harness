@@ -14,6 +14,7 @@ sys.path.insert(0, str(TESTS_DIR.parent))
 
 import check_product_package  # noqa: E402
 import program_fixtures as fx  # noqa: E402
+from test_feature_coverage import feature  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
     finalize_approval_digests,
     release_target,
@@ -52,7 +53,7 @@ class ProgramCheckerWiringTests(unittest.TestCase):
                 "--prd", str(root / "PRD.md"),
                 "--architecture", str(root / "architecture.md"),
                 "--stack-decisions", str(root / "stack-decisions.md"),
-                *flags,
+                *(flag.replace("{root}", str(root)) for flag in flags),
             ]
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -238,6 +239,25 @@ class ProgramCheckerWiringTests(unittest.TestCase):
             "prd: At a Glance row 'Delivery profile' must be one of: mvp, standard, program",
             self.failures(result),
         )
+
+
+    def test_features_cover_the_program_and_the_selected_modules(self) -> None:
+        self.files["features/program.feature"] = feature("TEST-PRG-001", "TEST-PRG-009", "TEST-E2E-001")
+        self.files["features/krn.feature"] = feature("TEST-KRN-001", "TEST-KRN-004")
+        result = self.check("--features", "{root}/features")
+        self.assertEqual(1, result.code)
+        self.assertEqual(
+            [
+                "prd: TEST-INV-001 is a required integration obligation with no scenario",
+                "prd: TEST-INV-004 is a required integration obligation with no scenario",
+            ],
+            self.failures(result),
+        )
+        result = self.check("--features", "{root}/features", "--module", "kernel")
+        self.assertEqual((0, ""), (result.code, result.err))
+        self.files["features/inv.feature"] = feature("TEST-INV-001", "TEST-INV-004")
+        result = self.check("--features", "{root}/features")
+        self.assertEqual((0, ""), (result.code, result.err))
 
 
 if __name__ == "__main__":
