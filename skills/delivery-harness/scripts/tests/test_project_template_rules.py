@@ -154,6 +154,26 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertIn("| `docs/release/` | `docs/release/` | release (when required) |",
                       read("assets/templates/DOCUMENTS.template.md"))
 
+    def test_gitattributes_contract_owns_byte_storage(self) -> None:
+        # Every stage hashes raw bytes, so one contract owns how Git stores them.
+        contract = read("references/gitattributes-contract.md")
+        self.assertIn("`<root>/** -text -filter`", contract)
+        for root in ("docs/product", "docs/design", "docs/verification", "docs/goal"):
+            self.assertIn(f"`{root}`", contract)
+        self.assertIn("`text eol=lf` and `text=auto` do not qualify", contract)
+        self.assertIn("--check --require-resolved", contract)
+        self.assertIn("so it needs owner approval", contract)
+        self.assertIn(
+            "| A task adds a hash-bound file class or root | `delivery-harness/references/gitattributes-contract.md` |",
+            read("assets/templates/PROJECT_AGENTS.template.md"),
+        )
+        for owner in ("references/delivery-acceptance-contract.md", "references/eval-acceptance-contract.md"):
+            text = read(owner)
+            self.assertIn("(gitattributes-contract.md)", text)
+            self.assertNotIn("docs/verification/evidence/** -text -filter", text)
+        plan = read("assets/templates/HARNESS_PLAN.template.md")
+        self.assertIn("if it fails, follow `references/gitattributes-contract.md`, put `.gitattributes`", plan)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.

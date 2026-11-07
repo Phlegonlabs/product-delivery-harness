@@ -64,6 +64,7 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 | Implementation or repair | `delivery-harness/references/governance/development-rules.md#keep-changes-simple` and `delivery-harness/references/governance/development-rules.md#consumer-core-development-principles` |
 | New or changed documentation | `delivery-harness/references/governance/development-rules.md#document-writing` |
 | A task introduces or retires a local-only file class | `delivery-harness/references/gitignore-contract.md` |
+| A task adds a hash-bound file class or root | `delivery-harness/references/gitattributes-contract.md` |
 | Product requirements, architecture, UI impact, redesign, pricing, or partner channel | `delivery-harness/references/governance/product-contracts.md#consumer-keep-product-contracts-current` |
 | Pricing, paid access, purchase-gated features, or outside sellers | `delivery-harness/references/project-operating-rules.md#monetization-and-partner-channels` |
 | Branch, commit, integration, archive, publication, cleanup, or protected-branch landing | `delivery-harness/references/governance/managed-delivery.md#git-safety` and `delivery-harness/references/commit-convention.md` |
