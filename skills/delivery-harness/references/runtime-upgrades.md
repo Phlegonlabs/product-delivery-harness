@@ -30,14 +30,6 @@ A new bundle applies to the next RUN; do not migrate an active RUN by editing re
 Collect blocking source fixes into one reviewed release rather than installing each fix separately.
 Owner-directed model changes apply to new assignments only. Preserve existing reservations and record the decision once.
 
-A UI design round pins the five-skill digest recorded at intake. It finishes on that entry pin, through Visual Approval.
-A later change to the shared install is observed drift. Record the drifted digest and the date.
-Drift does not set `restart_required` for the round or block an in-flight review's exit identity check.
-That check compares against the entry pin, not the current install bytes.
-Never make a task-local copy of the bundle to hold the pin. A new round re-pins at its own intake.
-Only a blocking defect justifies a deliberate mid-round update. Collect the fixes into one update at a quiescent boundary with explicit installation authority.
-Record the new digest as the pin and restart before loading changed rules. Preserve prior decisions and evidence with their original identities.
-
 ## Safe Upgrade Sequence
 
 Never hot-upgrade a live worker or transfer its lease to a replacement process.
@@ -73,22 +65,3 @@ A provider outside `allowed_providers` needs an explicitly authorized PLAN revis
 - A missing optional feature does not force an upgrade when the route does not use it.
 - A version above the minimum can still fail its capability requirements.
 - `compatible_old` applies only while every capability needed by the active wave remains observed.
-
-## Host Update Boundaries
-
-Feature/development pushes do not replace the installed formal release.
-Follow [Update Local Skills](governance/source-maintenance.md#update-local-skills) for release installation and host restart authority.
-
-## Design Before Implementation
-
-After a bundle change, use the document-sync inventory and `pre-delivery-self-review.md` to identify affected design obligations.
-Recheck first, then repair only affected scope under existing authority.
-Preserve valid decisions, historical design bytes and terminal execution evidence.
-An explicit full design rebuild follows the UI translation/rebuild contract.
-
-## Scoped Skill-Bundle Migration
-
-For fresh-session work, map changed sources to affected documents, requirements and required rechecks in the existing Epic or RUN evidence.
-Never regenerate owner AGENTS instructions, the whole PRD or the design package from new templates.
-Unknown loaded identity remains unknown. Preserve document-sync findings until their actual disposition is recorded.
-Keep historical snapshots and approvals; create current evidence for changed inputs rather than relabeling old receipts.
