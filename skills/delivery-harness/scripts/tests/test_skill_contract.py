@@ -1,5 +1,6 @@
 import re
 import sys
+import json
 import unittest
 from pathlib import Path
 
@@ -115,6 +116,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         version = self.read("VERSION").strip()
         self.assertRegex(version, r"^\d+\.\d+\.\d+$")
         self.assertIn(f'"version": "{version}"', package)
+        lock = json.loads((REPO_ROOT / "package-lock.json").read_text(encoding="utf-8"))
+        self.assertEqual(version, lock["version"])
+        self.assertEqual(version, lock["packages"][""]["version"])
         for readme in ("README.md", "README.zh-TW.md", "README.zh-CN.md", "README.es.md"):
             with self.subTest(readme=readme):
                 text = (REPO_ROOT / readme).read_text(encoding="utf-8")
