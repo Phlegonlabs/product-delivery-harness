@@ -242,20 +242,22 @@ class ProgramCheckerWiringTests(unittest.TestCase):
 
 
     def test_features_cover_the_program_and_the_selected_modules(self) -> None:
-        self.files["features/program.feature"] = feature("TEST-PRG-001", "TEST-PRG-009", "TEST-E2E-001")
-        self.files["features/krn.feature"] = feature("TEST-KRN-001", "TEST-KRN-004")
+        self.files["features/program.feature"] = feature("TEST-PRG-001", "TEST-PRG-002", "TEST-PRG-003", "TEST-PRG-004", "TEST-PRG-005", "TEST-PRG-009", "TEST-E2E-001")
+        self.files["features/krn.feature"] = feature("TEST-KRN-001", "TEST-KRN-002", "TEST-KRN-003", "TEST-KRN-004")
         result = self.check("--features", "{root}/features")
         self.assertEqual(1, result.code)
         self.assertEqual(
             [
                 "prd: TEST-INV-001 is a required integration obligation with no scenario",
+                "prd: TEST-INV-002 is a required reliability obligation with no scenario",
+                "prd: TEST-INV-003 is a required security obligation with no scenario",
                 "prd: TEST-INV-004 is a required integration obligation with no scenario",
             ],
             self.failures(result),
         )
         result = self.check("--features", "{root}/features", "--module", "kernel")
         self.assertEqual((0, ""), (result.code, result.err))
-        self.files["features/inv.feature"] = feature("TEST-INV-001", "TEST-INV-004")
+        self.files["features/inv.feature"] = feature("TEST-INV-001", "TEST-INV-002", "TEST-INV-003", "TEST-INV-004")
         result = self.check("--features", "{root}/features")
         self.assertEqual((0, ""), (result.code, result.err))
 

@@ -2,14 +2,14 @@
 """Check that a PRD's feature files and its Test Obligations cover each other.
 
 Every scenario's @TEST tag names a Test Obligations row, and every
-`Required: Yes` row whose Test type is E2E, integration or contract has a
-scenario. Exit 0 on PASS, 1 on findings, 2 on bad arguments.
+`Required: Yes` row has a scenario, because the delivery-acceptance register
+freezes one scenario per Required TEST. Exit 0 on PASS, 1 on findings, 2 on
+bad arguments.
 """
 
 from __future__ import annotations
 
 import argparse
-import re
 import sys
 from pathlib import Path
 
@@ -19,9 +19,6 @@ import check_product_package as cpp
 import program_package
 from contract_utils import safe_read_text
 from feature_file import FeatureError, parse_feature_text
-
-SCENARIO_TYPES = re.compile(r"(?<![\w-])(?:e2e|integration|contract)(?![\w-])", re.IGNORECASE)
-
 
 def obligation_rows(prd_text: str) -> dict[str, tuple[str, ...]]:
     """TEST ID -> full-width row of the PRD's Test Obligations table."""
@@ -33,7 +30,7 @@ def obligation_rows(prd_text: str) -> dict[str, tuple[str, ...]]:
 
 
 def needs_scenario(row: tuple[str, ...]) -> bool:
-    return row[3].strip().casefold() == "yes" and SCENARIO_TYPES.search(row[2]) is not None
+    return row[3].strip().casefold() == "yes"
 
 
 def coverage_problems(
@@ -126,7 +123,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"FAIL {problem}", file=sys.stderr)
     if problems:
         return 1
-    print("PASS feature files cover every required E2E, integration and contract Test Obligation")
+    print("PASS feature files cover every Required Test Obligation")
     return 0
 
 

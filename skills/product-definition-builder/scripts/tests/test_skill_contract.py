@@ -1378,7 +1378,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("| `features/<scope>.feature` |", reading)
         tests = contract.split("## Test Obligations", 1)[1].split("## UI Design Handoff Status", 1)[0]
         for rule in (
-            "whose Test type names E2E, integration or contract needs at least one scenario",
+            "Every `Required: Yes` row needs at least one scenario",
             "`assets/templates/FEATURE.template.feature`",
             "exactly one `@TEST-*` tag",
             "`<TEST-ID>/<slug of the scenario name>`",

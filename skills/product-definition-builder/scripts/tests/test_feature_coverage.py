@@ -84,21 +84,26 @@ class CoverageTests(unittest.TestCase):
             problems = cfc.feature_coverage_problems(prd, root)
         return [problem.replace(root.as_posix() + "/", "") for problem in problems]
 
-    def test_required_e2e_integration_and_contract_rows_are_covered(self):
-        self.assertEqual([], self.check({"product.feature": feature("TEST-001", "TEST-002", "TEST-005")}))
-        # An optional or other-type obligation may have a scenario.
-        self.assertEqual([], self.check({"product.feature": feature("TEST-001", "TEST-002", "TEST-003", "TEST-004", "TEST-005")}))
+    def test_every_required_row_is_covered(self):
+        required = ("TEST-001", "TEST-002", "TEST-003", "TEST-005", "TEST-006")
+        self.assertEqual([], self.check({"product.feature": feature(*required)}))
+        # A Required: No obligation may have a scenario.
+        self.assertEqual([], self.check({"product.feature": feature(*required, "TEST-004")}))
 
     def test_missing_scenario_names_the_row(self):
         self.assertEqual(
-            ["TEST-005 is a required performance, Contract obligation with no scenario"],
+            [
+                "TEST-003 is a required unit obligation with no scenario",
+                "TEST-005 is a required performance, Contract obligation with no scenario",
+                "TEST-006 is a required non-integration obligation with no scenario",
+            ],
             self.check({"product.feature": feature("TEST-001", "TEST-002")}),
         )
-        self.assertEqual(3, len(self.check({})))
+        self.assertEqual(5, len(self.check({})))
 
     def test_scenario_tag_must_name_a_row(self):
-        problems = self.check({"product.feature": feature("TEST-001", "TEST-002", "TEST-005", "TEST-009")})
-        self.assertEqual(["product.feature:15: TEST-009 is not a Test Obligations row"], problems)
+        problems = self.check({"product.feature": feature("TEST-001", "TEST-002", "TEST-003", "TEST-005", "TEST-006", "TEST-009")})
+        self.assertEqual(["product.feature:23: TEST-009 is not a Test Obligations row"], problems)
 
     def test_parse_error_is_the_finding(self):
         bad = "Feature: F\n@TEST-001\nScenario Outline: S\nWhen x\nThen y\n"
@@ -107,14 +112,14 @@ class CoverageTests(unittest.TestCase):
 
     def test_scenario_ids_are_unique_across_files(self):
         problems = self.check({
-            "a.feature": feature("TEST-001", "TEST-002"),
-            "b.feature": feature("TEST-001", "TEST-005"),
+            "a.feature": feature("TEST-001", "TEST-002", "TEST-003"),
+            "b.feature": feature("TEST-001", "TEST-005", "TEST-006"),
         })
         self.assertEqual(["b.feature:3: duplicate scenario id TEST-001/cover-test-001 (first at a.feature:3)"], problems)
 
     def test_file_names_are_lowercase_feature_files(self):
         problems = self.check({
-            "Product.feature": feature("TEST-001", "TEST-002", "TEST-005"),
+            "Product.feature": feature("TEST-001", "TEST-002", "TEST-003", "TEST-005", "TEST-006"),
             "notes.md": "notes\n",
         })
         self.assertEqual(
@@ -147,7 +152,7 @@ class CliTests(unittest.TestCase):
             prd.write_text(PRD, encoding="utf-8")
             features = root / "features"
             features.mkdir()
-            (features / "product.feature").write_text(feature("TEST-001", "TEST-002", "TEST-005"), encoding="utf-8")
+            (features / "product.feature").write_text(feature("TEST-001", "TEST-002", "TEST-003", "TEST-005", "TEST-006"), encoding="utf-8")
             code, out, _ = self.run_cli("--prd", str(prd), "--features", str(features))
             self.assertEqual((0, "PASS"), (code, out[:4]))
             (features / "product.feature").write_text(feature("TEST-001"), encoding="utf-8")
@@ -167,13 +172,13 @@ class CliTests(unittest.TestCase):
             product = fx.write_program(Path(directory), fx.program_files())
             features = product / "features"
             features.mkdir()
-            (features / "program.feature").write_text(feature("TEST-PRG-001", "TEST-PRG-009", "TEST-E2E-001"), encoding="utf-8")
-            (features / "krn.feature").write_text(feature("TEST-KRN-001", "TEST-KRN-004"), encoding="utf-8")
+            (features / "program.feature").write_text(feature("TEST-PRG-001", "TEST-PRG-002", "TEST-PRG-003", "TEST-PRG-004", "TEST-PRG-005", "TEST-PRG-009", "TEST-E2E-001"), encoding="utf-8")
+            (features / "krn.feature").write_text(feature("TEST-KRN-001", "TEST-KRN-002", "TEST-KRN-003", "TEST-KRN-004"), encoding="utf-8")
             argv = ("--prd", str(product / "PRD.md"), "--features", str(features))
             code, _, err = self.run_cli(*argv)
             self.assertEqual(1, code)
             self.assertIn("TEST-INV-001 is a required integration obligation with no scenario", err)
-            (features / "inv.feature").write_text(feature("TEST-INV-001", "TEST-INV-004"), encoding="utf-8")
+            (features / "inv.feature").write_text(feature("TEST-INV-001", "TEST-INV-002", "TEST-INV-003", "TEST-INV-004"), encoding="utf-8")
             self.assertEqual(0, self.run_cli(*argv)[0])
 
 

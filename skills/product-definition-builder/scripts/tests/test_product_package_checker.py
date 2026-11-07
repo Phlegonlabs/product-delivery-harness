@@ -3912,9 +3912,11 @@ class GrowthContractTests(unittest.TestCase):
 
 
 class FeaturesFlagTests(unittest.TestCase):
-    FEATURE = (
-        "Feature: Fixture\n  @TEST-001\n  Scenario: Complete the fixture\n"
+    # One scenario per Required TEST of valid_prd().
+    FEATURE = "Feature: Fixture\n" + "".join(
+        f"  @{test_id}\n  Scenario: Cover {test_id}\n"
         "    When the owner runs the fixture\n    Then completion is observed\n"
+        for test_id in ("TEST-001", "TEST-002", "TEST-003")
     )
 
     def test_features_flag_adds_coverage_under_the_prd_scope(self) -> None:
@@ -3924,7 +3926,11 @@ class FeaturesFlagTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             features = Path(directory)
             self.assertEqual(
-                ["prd: TEST-001 is a required integration obligation with no scenario"],
+                [
+                    "prd: TEST-001 is a required integration obligation with no scenario",
+                    "prd: TEST-002 is a required reliability obligation with no scenario",
+                    "prd: TEST-003 is a required security obligation with no scenario",
+                ],
                 check_product_package.validate_texts(*texts, features_dir=features, **options),
             )
             (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
