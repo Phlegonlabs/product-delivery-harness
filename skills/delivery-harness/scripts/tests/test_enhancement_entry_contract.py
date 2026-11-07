@@ -62,6 +62,8 @@ class EnhancementEntryContractTests(unittest.TestCase):
             "Repository / branch / HEAD / dirty paths:",
             "Stage and skill:",
             "Inputs consumed (path + hash or revision):",
+            "Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, "
+            "loaded identity or unknown; differences, or the reused audit's matching hashes):",
             "Approvals in force (gate, owner, date, candidate):",
             "Done and verified (command, exit code):",
             "Remaining:",
