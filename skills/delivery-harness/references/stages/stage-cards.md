@@ -8,7 +8,7 @@ Use the card for the stage you are in. Cards add no rule; they order what the co
 
 A session starts on a target that may hold a managed RUN, or a `running` RUN resumes in a new session. Record the System Review And Route before any managed artifact.
 
-Read the current Epic's `## Handoff` block first, then run `inspect_harness_run.py` and follow its Next block. The inspector exits 1 when a mission needs reconciliation. Map every dirty path to its covering task; drift inside a task that is not `worker_passed` blocks new work. Confirm the runtime version gate as a separate observation. Verify the skill binding for the actual upcoming stage. Reclaim a stale lock only through `watchdog --reclaim`. Treat a stale snapshot or unexplained drift as an owner decision.
+Read the `## Handoff` block of the Epic the `Current Epic:` line in `docs/DOCUMENTS.md` names first, then run `inspect_harness_run.py` and follow its Next block. The inspector exits 1 when a mission needs reconciliation. Map every dirty path to its covering task; drift inside a task that is not `worker_passed` blocks new work. Confirm the runtime version gate as a separate observation. Verify the skill binding for the actual upcoming stage. Reclaim a stale lock only through `watchdog --reclaim`. Treat a stale snapshot or unexplained drift as an owner decision.
 
 **Commands in order**
 

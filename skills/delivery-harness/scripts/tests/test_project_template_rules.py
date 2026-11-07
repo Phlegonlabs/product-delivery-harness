@@ -71,6 +71,17 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         self.assertNotIn("never assume its name", template)
         self.assertNotIn("real default branch", template)
 
+    def test_documents_template_names_the_current_epic(self) -> None:
+        # Entry reads the Handoff block of one Epic, so the index names it.
+        template = read("assets/templates/DOCUMENTS.template.md")
+        self.assertEqual(1, template.count("\nCurrent Epic: [EPIC-<id>](epics/EPIC-<id>.md)\n"))
+        self.assertNotRegex(template, r"\| `?docs/epics/EPIC-")
+        entry = self.section(self.read_owner("task-and-handoff.md"), "## Project Entry And Current Work")
+        self.assertIn("The current Epic is the one the `Current Epic:` line in `docs/DOCUMENTS.md` names.", entry)
+        self.assertIn("When the task selects or creates a different Epic, rewrite the `Current Epic:` line.", entry)
+        card = read("references/stages/stage-cards.md").split("## Card 1", 1)[1].split("## Card 2", 1)[0]
+        self.assertIn("the Epic the `Current Epic:` line in `docs/DOCUMENTS.md` names", card)
+
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
         # a bad install is replaced by installing the previous release.

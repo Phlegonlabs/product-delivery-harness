@@ -2,6 +2,8 @@
 
 The manifest of the stable documents this delivery flow produces or governs, plus one row per directory of generated records. Keep it at `docs/DOCUMENTS.md` and keep it current: update a row's status when the document is published or approved, and note archival instead of deleting the row. Do not add one row per Epic or per run — those records live in the directories below, and their own records carry the per-item detail. Rows labeled `when required` or `when requested` are conditional; once applicability is known, fill them with the artifact status or `n/a — <reason>`. An unfilled applicable row is missing work.
 
+Current Epic: [EPIC-<id>](epics/EPIC-<id>.md)
+
 | Document | Location | Stage | Owner | Canonical | Status |
 | --- | --- | --- | --- | --- | --- |
 | `AGENTS.md` | root | bootstrap | human + harness | shared governance | |
