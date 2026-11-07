@@ -928,7 +928,8 @@ class IntermediateTests(unittest.TestCase):
     def test_the_intermediate_pass_reopens_each_page_and_overrides_the_canvas_width(self):
         cli, driver = Cli(self), FakeDriver()
         cli.run(driver, "--intermediate")
-        self.assertEqual(["index.html", "details.html", "index.html", "details.html"],
+        # base matrix opens, the reviewer pass reopens, then the intermediate sweep opens again (no reviewer there)
+        self.assertEqual(["index.html", "details.html"] * 3,
                          [f["page"] for op, f in driver.calls if op == "open"])
         base = [f for op, f in driver.calls if op == "case" and not f["widthPx"]]
         inter = [f for op, f in driver.calls if op == "case" and f["widthPx"]]

@@ -1165,7 +1165,9 @@ class Runner:
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
             self.run_page(page, page_cases)
-        self.run_reviewer()
+        # The intermediate sweep is a width check; the reviewer object belongs to the base output only.
+        if not self.intermediate:
+            self.run_reviewer()
 
     def run_page(self, page, cases):
         if not self.aborted:
