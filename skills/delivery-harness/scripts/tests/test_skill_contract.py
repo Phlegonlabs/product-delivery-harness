@@ -990,7 +990,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(
             "accumulated in-tolerance drift never substitutes for a doc update", gates
         )
-        self.assertIn("The RUN `deviation_ledger` is complete", gates)
+        self.assertIn("Every `deviation` difference has one ledger row", gates)
         self.assertIn("classify the completed change", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
@@ -1014,7 +1014,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("`integration_notes`", worker_goal)
         self.assertIn("is a recorded attestation, not a validator-proven fact", gates)
-        self.assertIn("strongest task impact the mission's workers reported", gates)
+        self.assertIn("The parent records the strongest task impact in `ui_impact_summary`", contract)
 
     def test_responsive_targets_and_layout_safety_are_end_to_end_contracts(self) -> None:
         skill = self.read("SKILL.md")

@@ -404,26 +404,13 @@ If verification fails:
 
 ## Closeout Bar
 
-Final PASS requires:
+Final PASS means `python "<delivery-harness-skill-root>/scripts/validate_harness_plan.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root>` passes on the RUN at `status: complete`, so every condition in the [`status: complete` table](execution-state-model.md#three-authorities) holds. Add `--prd <PRD.md>` when PLAN freezes a PRD source, and `--design-system <design-system.json> --design-system-markdown <design-system.md>` when the Design System Need Gate is `required`.
+
+No script proves these rows; check each one:
 
 - Every must-have trace ID is covered.
-- Every required gate is PASS.
-- Every new managed code-delivery PLAN has a completed `security` review from the `code_security_verification` binding, recorded as PASS on the exact current integration head with no exclusions, or on the anchor head with a scoped-review coverage chain whose entries outside trust boundaries record `security: not_applicable` and whose trust-boundary entries carry their own security result. The required security node cannot be skipped or superseded; a missing, skipped, stale, partial, blocked, or superseded security review prevents closeout.
-- Every visual `TEST-*` obligation `PRD.md` marks required maps to a specific verification row above and that row is PASS. A generically named visual gate does not satisfy a specific obligation (see `contract-and-traceability.md`'s Trace IDs).
-- RUN-v11 batch/final-gate IDs exactly match PLAN, and every result is PASS with evidence on the exact integration head.
-- Closeout runs `scripts/validate_harness_plan.py --design-system <path to design-system.json> --design-system-markdown <path to design-system.md>` whenever the Design System Need Gate is `required`. `ui-design/3` joins also prove the frozen `design-system/4` derived HTML. In target-conformance mode, required screenshot coverage comes from the frozen PRD target scope and PLAN UI evidence rows; absence of both design-system arguments is expected only when PLAN does not freeze that pair.
-- Closeout runs `scripts/validate_harness_plan.py --repo-root` to cross-check `integration_head_sha` against the live Git branch head before trusting any recorded head-bound PASS.
-- Closeout passes `--prd <path to PRD.md>` whenever PLAN freezes a PRD source. The given bytes must equal that row's `content_sha256`; a source-revision-only row is not enough. The PRD-to-PLAN `UI-*` surface join and the `ui-design/3` joins under `--repo-root` follow `contract-and-traceability.md`; retained `ui-design/2` and legacy wireframe sources follow `legacy/legacy-pins.md#legacy-ui-contracts-before-059`. Managed maintenance instead freezes its task-record Epic, preserves historical design bytes, and still joins current PRD/PLAN route/state/targets.
-- Every skipped gate is justified, and baseline justifications are recorded when relevant.
-- The RUN `deviation_ledger` is complete (`legacy/legacy-pins.md#pins-before-055` for older pins): every accepted parity deviation carries its allowed-deviation citation, none changes structure, regions, states, actions, routes, or responsive behavior, and a repeated deviation on the same surface cites its frozen design-input delta. Each citation is a recorded attestation (see the UI Evidence Gate).
-- The RUN `ui_impact_summary` is complete: every mission on a UI run carries its `none`/`style`/`structure`/`both` classification, and every `structure` or `both` row names the accepted upstream design-input delta. The row records the strongest task impact the mission's workers reported (ui-implementation-contract.md rule 8) and, like the ledger, is a recorded attestation.
-- Every `UNVALIDATED` surface is named, and naming it does not substitute for passing when that surface is still required: Final PASS is blocked while any required `ui_evidence` row (or other required gate) is `UNVALIDATED`, unless the user has explicitly accepted it as descoped with a recorded reason.
-- Evidence paths exist. Required UI evidence is a real screenshot for every planned breakpoint-by-state combination, bound to the integration head and matching its recorded SHA-256 (RUN-v11: checked in the accepted Git commit/ref, not the working tree). Accepted non-file evidence applies only to gates that do not require screenshots.
-- When `parent_managed_worktree` was used (historical app-managed execution follows its exact pinned bundle): the mission integration verifiers passed on the integrated head. In `shared_checkout` mode the final E2E gate on the working integration head covers this.
-- Every required reached mission is `integrated` or explicitly superseded, with recorded passing tasks and no blockers, active/blocked workers or open wave. An untouched repair-only mission behind the final review's untaken route may remain queued with dormant tasks; never mark it as executed.
-- The final integration head still descends from every recorded required mission integration SHA.
-- Landing is `local_only`: `landing.continuity` is `preserved` at C, `pushed_head_sha` is null, push authorization is false, and no push lifecycle node exists (`legacy/legacy-pins.md#pins-before-055`).
-- Archival is post-closeout. A must pass archived PLAN/RUN validation, receipt verification and exact C-to-A relocation/allowlist checks. It inherits C's review, security and gate evidence when the C-to-A diff touches only the archive allowlist (`branch-promotion-contract.md#managed-run-archive-before-promotion`); it never changes the archived RUN.
-- For current graphs, every reached node is terminal with no retained blocker and every reached edge is terminal. No selector-ready work remains; an activated failed repair cannot use the dormant-subtree exception.
-- When a primary journey exists, its required automated E2E check is PASS on the current head.
-- When a worktree mode was used: manual worktree/branch cleanup is completed under its exact authorization or explicitly deferred, and app-managed platform lifecycle is recorded separately. In `shared_checkout` mode the worktree step is `not_applicable`; the primary checkout is never removed.
+- Every visual `TEST-*` obligation `PRD.md` marks required maps to a specific PASS verification row; a generically named visual gate does not count ([Trace IDs](contract-and-traceability.md#trace-ids)).
+- Every skipped gate is justified, with baseline justifications when relevant.
+- A required `UNVALIDATED` row or gate blocks Final PASS unless the owner descoped it with a recorded reason.
+- Every recorded attestation names a verifiable anchor ([UI Evidence Gate](#ui-evidence-gate)).
+- Worktree and branch cleanup is done under its exact authorization or explicitly deferred; the primary checkout is never removed.

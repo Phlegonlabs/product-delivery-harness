@@ -186,7 +186,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 Every mission is integrated, the review converged, and final gates have run on the exact head.
 
-Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Check every closeout bar item and every `status: complete` condition. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
+Bind every gate PASS to the current integration head; a changed head invalidates every earlier PASS. Run the plan validator against the live root, so recorded heads match live Git. Add `--prd <PRD.md>` when PLAN freezes a PRD, and `--design-system <design-system.json>` and `--design-system-markdown <design-system.md>` when the Design System Need Gate is `required`. Then check the remaining Closeout Bar rows. Render and check the tasks view. Release the lock when the session ends. Closeout rewrites the Epic's `## Handoff` block with the exact head and the next owner. The run lands `local_only`; archive and publication are separate grants.
 
 **Commands in order**
 
