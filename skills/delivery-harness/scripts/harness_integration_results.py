@@ -14,6 +14,7 @@ from typing import Any
 from harness_core import ManifestError, plan_digest
 from harness_manifest import _has_retained_pass_execution, _verifier_owners, _validate_verifier_executions
 from harness_worker_result_transition import _retained_execution
+from verifier_request_context import verifier_context
 from verifier_runtime import VerifierRuntimeError, _git_guard_snapshot
 
 
@@ -109,18 +110,22 @@ def retain_integration_results(plan: dict[str, Any], run: dict[str, Any], args: 
     guard = {"expected_branch": branch, "expected_head_sha": args.integrated_sha,
              "ignored_paths": sorted(_coordination_ignored_paths(root, getattr(args, "run", None), run))}
     snapshot = _snapshot(root, guard)
-    expected_context = {
-        "run_id": run["run_id"], "plan_revision": plan["revision"],
-        "plan_digest_sha256": plan_digest(plan),
-        "graph_revision": run["graph_state"]["graph_revision"],
-        "batch_base_sha": run["integration"]["batch_base_sha"],
-        "head_sha": args.integrated_sha,
-        "changed_files": sorted(_candidate_changed_paths(root, run["integration"]["batch_base_sha"], args.integrated_sha)),
-        "trust_domain": "parent_local", "checkout_role": "integration",
-        "checkout_dirty": False, "cache_safe": False,
-        "layer": "mission_integration", "mission_id": args.mission_id,
-        "task_id": None, "attempt_id": None, "lease_id": None,
-    }
+    expected_context = verifier_context(
+        layer="mission_integration",
+        run=run,
+        plan_revision=plan["revision"],
+        plan_digest_sha256=plan_digest(plan),
+        batch_base_sha=run["integration"]["batch_base_sha"],
+        head_sha=args.integrated_sha,
+        changed_files=_candidate_changed_paths(root, run["integration"]["batch_base_sha"], args.integrated_sha),
+        checkout_role="integration",
+        checkout_dirty=False,
+        cache_safe=False,
+        mission_id=args.mission_id,
+        task_id=None,
+        attempt_id=None,
+        lease_id=None,
+    )
     owners = _verifier_owners(plan)
     seen: set[str] = set()
     sources = []
