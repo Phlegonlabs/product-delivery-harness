@@ -57,6 +57,16 @@ class DocumentedCommandTests(unittest.TestCase):
         self.assertIn("Run the Environment Preflight once in the clean base checkout", readiness)
         self.assertIn("An Environment Preflight row fails or is unobserved", readiness)
 
+    def test_dispatch_card_keeps_parent_commits_off_the_run_branch(self):
+        cards = (SCRIPTS.parent / "references/stages/stage-cards.md").read_text(encoding="utf-8")
+        dispatch = cards.split("## Card 4: Dispatch", 1)[1].split("## Card 5", 1)[0]
+        self.assertIn("the run branch takes only the mission merge", dispatch)
+        record = cards.split("## Card 5: Record Results", 1)[1].split("## Card 6", 1)[0]
+        self.assertIn("a parent commit sits between the recorded integration head", record)
+        state = (SCRIPTS.parent / "references/execution-state-model.md").read_text(encoding="utf-8")
+        self.assertIn("commit nothing to the run branch except mission merges", state)
+        self.assertNotIn("No coordination commit is needed between checkpoints", state)
+
     def test_stack_option_map_retains_authorship_and_checker_without_generator(self):
         source = (SCRIPTS.parents[1] / "product-definition-builder/references/output-contract.md").read_text(encoding="utf-8")
         section = source.split("## `stack-decisions.md`", 1)[1].split("### Coherent Options Presented", 1)[0]
