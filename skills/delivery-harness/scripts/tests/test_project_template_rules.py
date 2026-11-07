@@ -1,6 +1,9 @@
 """Seeded project rules must agree with the canonical Harness contracts."""
 
 import re
+import subprocess
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -173,6 +176,36 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             self.assertNotIn("docs/verification/evidence/** -text -filter", text)
         plan = read("assets/templates/HARNESS_PLAN.template.md")
         self.assertIn("if it fails, follow `references/gitattributes-contract.md`, put `.gitattributes`", plan)
+
+    def test_gitattributes_template_satisfies_the_byte_check(self) -> None:
+        template = read("assets/templates/PROJECT_GITATTRIBUTES.template")
+        header, *rules = template.splitlines()
+        self.assertEqual("# Hash-bound files stay byte-exact: delivery-harness/references/gitattributes-contract.md", header)
+        self.assertEqual(
+            {
+                "docs/product/**": "-text -filter",
+                "docs/design/**": "-text -filter",
+                "docs/goal/**": "-text -filter",
+                "docs/verification/**": "-text -filter",
+                "docs/verification/evidence/**": "-text -filter -whitespace",
+            },
+            dict(rule.split(" ", 1) for rule in rules),
+        )
+        sys.path.insert(0, str(SKILL_ROOT / "scripts"))
+        import configure_project_context as context
+
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+            for name in ("docs/product/PRD.md", "docs/verification/evidence/run.txt"):
+                (root / name).parent.mkdir(parents=True, exist_ok=True)
+                (root / name).write_bytes(b"line\r\n")
+            subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+            (root / ".gitattributes").write_text(template, encoding="utf-8")
+            report = context.byte_attribute_findings(root)
+        self.assertTrue(report["checked"], report)
+        self.assertEqual([], report["findings"])
+        self.assertEqual([], report["gitattributes_lines"])
 
     def test_repo_restore_rule_uses_the_installer(self) -> None:
         # The installers have no restore mode, and manual moves are banned, so
