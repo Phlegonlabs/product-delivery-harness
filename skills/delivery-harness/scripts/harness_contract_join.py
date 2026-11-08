@@ -1793,6 +1793,15 @@ def full_product_package_checker_errors(
         deltas_dir = Path(repo_root) / "docs" / "product" / "deltas"
         if deltas_dir.is_dir():
             kwargs["deltas_dir"] = deltas_dir
+    if repo_root is not None and "features_dir" in inspect.signature(validate_package).parameters:
+        # Test Obligations that name feature files bind them to the approval digest.
+        # Derive the directory as the checker's own CLI does. A declared but missing
+        # directory is passed on so the checker reports it.
+        declared_features_dir = getattr(inspect.getmodule(validate_package), "declared_features_dir", None)
+        if declared_features_dir is not None:
+            features_dir = declared_features_dir(prd_text, Path(repo_root) / "docs" / "product" / "PRD.md")
+            if features_dir is not None:
+                kwargs["features_dir"] = features_dir
     try:
         return validate_package(
             prd_text,
