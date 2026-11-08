@@ -3,8 +3,10 @@
 
 Consumer-run planner check documented in
 references/contract-and-traceability.md; it is not part of the skill's
-Required Verification matrix. Read-only: exits 0 with a short summary,
-1 with one line per violation, 2 on unreadable or malformed input.
+Required Verification matrix. With `--features` and `--features-base` it
+also requires a changed scenario for every Required TEST of a new or revised
+delta ID. Read-only: exits 0 with a short summary, 1 with one line per
+violation, 2 on unreadable or malformed input.
 """
 
 from __future__ import annotations
@@ -17,7 +19,9 @@ from pathlib import Path
 from typing import Any
 
 from check_document_sync import safe_path
+from harness_contract_join import line_ending_note
 from harness_core import ManifestError, load_plan
+from render_delivery_acceptance import load_feature_reader, read_feature_dir
 
 
 DELTA_KIND = re.compile(r"prd[- ]delta\Z", re.IGNORECASE)
@@ -26,6 +30,7 @@ SEPARATOR_CELL = re.compile(r":?-{3,}:?\Z")
 CHANGES = ("new", "revised", "retired")
 REQUIRED_YES = "(Required: Yes)"
 TEST_ID = re.compile(r"TEST-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*")
+MARKED_REQUIRED = re.compile(r"(TEST-[A-Za-z0-9]+(?:-[A-Za-z0-9]+)*)\s*\(Required: Yes\)")
 HEADING = "## Changed Requirements"
 TEST_OBLIGATIONS_HEADING = "## Test Obligations"
 PRD_SOURCE_KINDS = {"prd", "product requirement", "product requirements"}
@@ -55,6 +60,7 @@ def parse_changed_requirements(text: str) -> dict[str, Any]:
     parsed: dict[str, Any] = {change: set() for change in CHANGES}
     parsed["required_yes"] = set()
     parsed["test_ids"] = {}
+    parsed["marked_required"] = {}
     for cells in rows[1:]:
         if cells and all(SEPARATOR_CELL.fullmatch(cell) for cell in cells):
             continue
@@ -66,6 +72,7 @@ def parse_changed_requirements(text: str) -> dict[str, Any]:
         parsed[change].add(requirement)
         if change in {"new", "revised"}:
             parsed["test_ids"][requirement] = sorted(set(TEST_ID.findall(cells[4])))
+            parsed["marked_required"][requirement] = set(MARKED_REQUIRED.findall(cells[4]))
             if REQUIRED_YES in cells[4]:
                 parsed["required_yes"].add(requirement)
     return parsed
@@ -158,11 +165,35 @@ def task_carried_ids(plan: dict[str, Any]) -> set[str]:
     return carried
 
 
+def scenario_texts(directory: Path) -> dict[str, tuple[str, Any]]:
+    """Map each scenario id to its TEST ID and comparable text (name, tags, steps)."""
+    if not directory.is_dir():
+        # A mistyped base would make every scenario look new.
+        raise ValueError(f"{directory.as_posix()} is not a directory")
+    reader = load_feature_reader()
+    features, errors = read_feature_dir(directory, reader)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return {
+        scenario.scenario_id: (
+            scenario.test_id,
+            (scenario.name, tuple(sorted(scenario.tags)),
+             tuple((step.keyword, step.text) for step in scenario.steps)),
+        )
+        for feature in features
+        for scenario in feature.scenarios
+    }
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--plan", required=True, help="Path to PLAN.md")
     parser.add_argument("--repo-root", required=True, help="Repository root of the delta source location")
+    parser.add_argument("--features", help="Current feature-file directory")
+    parser.add_argument("--features-base", help="Feature-file directory at the round's baseline")
     args = parser.parse_args(argv)
+    if (args.features is None) != (args.features_base is None):
+        parser.error("--features and --features-base go together")
     try:
         plan = load_plan(args.plan)
     except (OSError, ManifestError) as exc:
@@ -213,6 +244,7 @@ def main(argv: list[str] | None = None) -> int:
         if actual_sha != expected_sha:
             violations.append(
                 f"prd-delta {location}: bytes do not match content_sha256 {expected_sha}"
+                + line_ending_note(delta_bytes, expected_sha, location)
             )
             proceed = False
     if proceed:
@@ -275,6 +307,25 @@ def main(argv: list[str] | None = None) -> int:
                 violations.append(
                     f"delta requirement {requirement} carries a Required-Yes TEST but has no task"
                 )
+        if args.features is not None:
+            try:
+                current = scenario_texts(Path(args.features))
+                base = scenario_texts(Path(args.features_base))
+            except (OSError, ValueError) as exc:
+                print(f"cannot read feature files: {exc}")
+                return 2
+            changed = {
+                test_id for scenario_id, (test_id, text) in current.items()
+                if base.get(scenario_id) != (test_id, text)
+            }
+            for requirement in sorted(requirements["new"] | requirements["revised"]):
+                for test_id in requirements["test_ids"].get(requirement, []):
+                    required = obligations.get(test_id) or test_id in requirements["marked_required"][requirement]
+                    if required and test_id not in changed:
+                        violations.append(
+                            f"delta requirement {requirement} carries Required TEST {test_id} "
+                            "but no scenario for it changed between --features-base and --features"
+                        )
         if not violations:
             counts = ", ".join(
                 f"{len(requirements[change])} {change}" for change in CHANGES

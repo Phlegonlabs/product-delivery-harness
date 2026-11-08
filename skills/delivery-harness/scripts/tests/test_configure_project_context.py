@@ -345,6 +345,11 @@ class ConfigureProjectContextTests(unittest.TestCase):
                 ["Second Shared Rule"],
                 upgrade_proposal["agents_merge"]["proposed_additions"],
             )
+            self.assertIn(
+                {"heading": "# Project Delivery Harness Shared Guidance",
+                 "diff": ["+## Second Shared Rule"]},
+                upgrade_proposal["agents_merge"]["unresolved_divergences"],
+            )
             self.assertEqual("applied", upgrade["agents_merge"]["status"])
             self.assertEqual(
                 ["Second Shared Rule"], upgrade["agents_merge"]["applied_additions"]
@@ -568,6 +573,288 @@ class ConfigureProjectContextTests(unittest.TestCase):
             self.assertIn('"CLAUDE.md"', result.stdout)
             self.assertFalse((root / "AGENTS.md").exists())
             self.assertFalse((root / "CLAUDE.md").exists())
+
+
+class TemplateAuditTests(unittest.TestCase):
+    """--check --merge-agents and --check --documents report only real drift."""
+
+    def run_check(self, root: Path, *extra: str) -> tuple[int, dict]:
+        before = {path: path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()}
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT), "--root", str(root), "--check", *extra],
+            capture_output=True, text=True, encoding="utf-8", timeout=60,
+        )
+        self.assertEqual(before, {path: path.read_bytes() for path in sorted(root.rglob("*")) if path.is_file()})
+        return result.returncode, json.loads(result.stdout)
+
+    def test_trailing_blank_lines_and_line_endings_are_not_divergence(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            template = root / "agents-template.md"
+            template.write_bytes(b"# Shared\n\n## Owner Rule\n\n- Same wording.\n\n## Last Rule\n\n- Last.\n")
+            (root / "AGENTS.md").write_bytes(
+                b"# Owner\r\n\r\n## Owner Rule\r\n\r\n- Same wording.\r\n\r\n\r\n\r\n## Last Rule\r\n\r\n- Last.\r\n\r\n"
+            )
+            result = configure_context(root, template, template, merge_agents=True, dry_run=True)
+        self.assertEqual("unchanged", result["agents_merge"]["status"])
+        self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+    def test_divergence_is_a_unified_diff_not_a_hash_pair(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            template = root / "agents-template.md"
+            template.write_bytes(b"# Shared\n\n## Owner Rule\n\n- Context line.\n- Template wording.\n")
+            (root / "AGENTS.md").write_bytes(b"# Owner\n\n## Owner Rule\n\n- Context line.\n- Keep owner wording.\n")
+            divergences = configure_context(
+                root, template, template, merge_agents=True, dry_run=True
+            )["agents_merge"]["unresolved_divergences"]
+        self.assertEqual(["heading", "diff"], list(divergences[0]))
+        self.assertEqual("Owner Rule", divergences[0]["heading"])
+        diff = divergences[0]["diff"]
+        self.assertEqual(["--- AGENTS.md ## Owner Rule", "+++ template ## Owner Rule"], diff[:2])
+        self.assertEqual([" - Context line.", "-- Keep owner wording.", "+- Template wording."], diff[3:])
+
+    def test_filled_skill_bindings_match_the_seed_but_other_cells_do_not(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            agents = root / "AGENTS.md"
+            seeded = agents.read_text(encoding="utf-8")
+            filled = seeded.replace(
+                "| ui_design | approved Product Definition → UI intake, directions, HiFi, approval | `pending` | `pending` |",
+                "|ui_design|approved Product Definition → UI intake, directions, HiFi, approval|`ui-design-builder`|`" + "a" * 64 + "`|",
+            )
+            self.assertNotEqual(seeded, filled)
+            agents.write_text(filled + "\n\n", encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+            self.assertEqual(0, code, result["agents_merge"])
+            self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+            agents.write_text(filled.replace("directions, HiFi, approval", "directions only", 1), encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+        self.assertEqual(1, code)
+        [divergence] = result["agents_merge"]["unresolved_divergences"]
+        self.assertEqual("Skill Bindings", divergence["heading"])
+        self.assertIn("-| ui_design | approved Product Definition → UI intake, directions only | <skill> | <pin> |",
+                      divergence["diff"])
+        self.assertNotIn("a" * 64, "\n".join(divergence["diff"]))
+
+    def test_harness_version_values_are_not_divergence_but_labels_are(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            agents = root / "AGENTS.md"
+            seeded = agents.read_text(encoding="utf-8")
+            install = next(line for line in seeded.splitlines() if line.startswith("- Shared installation:"))
+            digest = next(line for line in seeded.splitlines() if line.startswith("- Five-skill contract SHA-256:"))
+            filled = seeded.replace(install, "- Shared installation: Harness `0.78.0` from tag `v0.78.0` "
+                                    "(`" + "b" * 40 + "`), installed `2026-11-07` under `~/.agents/skills`.")
+            filled = filled.replace(digest, "- Five-skill contract SHA-256: `" + "c" * 64 + "`.")
+            self.assertNotEqual(seeded, filled)
+            agents.write_text(filled, encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+            self.assertEqual(0, code, result["agents_merge"])
+            self.assertEqual([], result["agents_merge"]["unresolved_divergences"])
+
+            agents.write_text(filled.replace("- Five-skill contract SHA-256:", "- Contract digest:", 1),
+                              encoding="utf-8")
+            code, result = self.run_check(root, "--merge-agents")
+        self.assertEqual(1, code)
+        [divergence] = result["agents_merge"]["unresolved_divergences"]
+        self.assertEqual("Harness Version", divergence["heading"])
+        self.assertIn("-- Contract digest: <value>", divergence["diff"])
+        self.assertNotIn("c" * 64, "\n".join(divergence["diff"]))
+
+    def test_documents_check_reports_template_drift(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            template = (SCRIPTS_DIR.parent / "assets/templates/DOCUMENTS.template.md").read_text(encoding="utf-8")
+            manifest = root / "docs" / "DOCUMENTS.md"
+            manifest.parent.mkdir()
+            code, result = self.run_check(root, "--documents")
+            self.assertEqual(1, code)
+            self.assertFalse(result["documents"]["present"])
+
+            manifest.write_text(template, encoding="utf-8")
+            code, result = self.run_check(root, "--documents")
+            self.assertEqual(0, code, result["documents"])
+            self.assertEqual(
+                {"path": "docs/DOCUMENTS.md", "present": True, "missing_rows": [],
+                 "single_record_rows": [], "intro_paragraph_missing": False},
+                result["documents"],
+            )
+
+            intro = template.split("\n\n")[1]
+            features_row = next(line for line in template.splitlines() if line.startswith("| `docs/product/features/`"))
+            record_row = "| EPIC-001 | `docs/epics/EPIC-001.md` | enhancement | owner | round record | open |"
+            drifted = (
+                template.replace(intro, "The manifest of every document. Add a row when a document is created.")
+                .replace(features_row, record_row)
+            )
+            manifest.write_text(drifted, encoding="utf-8")
+            code, result = self.run_check(root, "--documents")
+        self.assertEqual(1, code)
+        documents = result["documents"]
+        self.assertEqual(["docs/product/features/"], documents["missing_rows"])
+        line = drifted.splitlines().index(record_row) + 1
+        self.assertEqual(
+            [{"line": line, "path": "docs/epics/EPIC-001.md", "directory": "docs/epics/"}],
+            documents["single_record_rows"],
+        )
+        self.assertTrue(documents["intro_paragraph_missing"])
+
+    def test_bootstrap_seeds_a_missing_gitattributes_and_keeps_an_existing_one(self) -> None:
+        template = SCRIPTS_DIR.parent / "assets/templates/PROJECT_GITATTRIBUTES.template"
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            self.assertFalse(configure_context(root, dry_run=True)["gitattributes_created"])
+            self.assertFalse((root / ".gitattributes").exists())
+            self.assertTrue(configure_context(root)["gitattributes_created"])
+            self.assertEqual(template.read_bytes(), (root / ".gitattributes").read_bytes())
+            owner = b"* text=auto\n"
+            (root / ".gitattributes").write_bytes(owner)
+            self.assertFalse(configure_context(root)["gitattributes_created"])
+            self.assertEqual(owner, (root / ".gitattributes").read_bytes())
+
+    def test_check_lists_template_lines_an_existing_gitattributes_lacks(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            configure_context(root)
+            code, result = self.run_check(root)
+            self.assertEqual(0, code, result)
+            self.assertEqual({"present": True, "missing_template_lines": []}, result["gitattributes"])
+
+            attributes = root / ".gitattributes"
+            attributes.write_bytes(b"* text=auto\r\ndocs/product/**   -text -filter\r\ndocs/** -text\r\n")
+            code, result = self.run_check(root)
+            self.assertEqual(0, code, result)
+            self.assertEqual(
+                ["docs/design/** -text -filter", "docs/goal/** -text -filter",
+                 "docs/verification/** -text -filter",
+                 "docs/verification/evidence/** -text -filter -whitespace"],
+                result["gitattributes"]["missing_template_lines"],
+            )
+
+            attributes.unlink()
+            code, result = self.run_check(root)
+        self.assertEqual({"present": False, "missing_template_lines": []}, result["gitattributes"])
+
+    def test_documents_requires_check(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            result = subprocess.run(
+                [sys.executable, str(SCRIPT), "--root", temp, "--documents"],
+                capture_output=True, text=True, encoding="utf-8", timeout=60,
+            )
+            self.assertEqual(2, result.returncode)
+            self.assertIn("--documents requires --check", result.stderr)
+            self.assertEqual([], list(Path(temp).iterdir()))
+
+
+class ByteAttributeCheckTests(unittest.TestCase):
+    """`--check` reads Git attributes of the hashed docs roots and writes nothing."""
+
+    def repo(self, attributes: str | None) -> Path:
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name).resolve()
+        subprocess.run(["git", "init", "-q"], cwd=root, check=True)
+        for name, data in (
+            ("docs/product/PRD.md", b"# PRD\n"),
+            ("docs/design/logo.png", b"\x89PNG fixture"),
+            ("docs/verification/delivery-results.json", b"{}\n"),
+            ("docs/goal/PLAN.md", b"# PLAN\n"),
+        ):
+            (root / name).parent.mkdir(parents=True, exist_ok=True)
+            (root / name).write_bytes(data)
+        subprocess.run(["git", "add", "-A"], cwd=root, check=True, capture_output=True)
+        # check-attr reads the working-tree rules; staging under them would run the filters.
+        if attributes is not None:
+            (root / ".gitattributes").write_bytes(attributes.encode("utf-8"))
+        configure_context(root)
+        if attributes is None:
+            # The bootstrap seeds the template; these cases need the file absent.
+            (root / ".gitattributes").unlink()
+        agents = root / "AGENTS.md"
+        import re
+        agents.write_text(
+            re.sub(r"<fill>|<databases[^>]*>", "fixture", agents.read_text(encoding="utf-8")),
+            encoding="utf-8",
+        )
+        return root
+
+    def check(self, root: Path, *, require_resolved: bool = True) -> tuple[int, dict]:
+        def snapshot() -> dict[str, bytes]:
+            return {
+                path.relative_to(root).as_posix(): path.read_bytes()
+                for path in sorted(root.rglob("*")) if path.is_file()
+            }
+
+        before = snapshot()
+        command = [sys.executable, str(SCRIPT), "--root", str(root), "--check",
+                   "--stage", "product-definition"]
+        if require_resolved:
+            command.append("--require-resolved")
+        result = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=60)
+        self.assertEqual(before, snapshot(), "the check must not write, index included")
+        return result.returncode, json.loads(result.stdout)["byte_attributes"]
+
+    def test_missing_rules_fail_and_print_the_lines_that_fix_them(self) -> None:
+        root = self.repo(None)
+        code, report = self.check(root)
+        self.assertEqual(1, code, report)
+        self.assertTrue(report["checked"])
+        self.assertIn("docs/product/PRD.md: text unspecified", report["findings"])
+        self.assertIn("new files under docs/goal/: text unspecified", report["findings"])
+        self.assertEqual(
+            ["docs/product/** -text", "docs/design/** -text",
+             "docs/verification/** -text", "docs/goal/** -text"],
+            report["gitattributes_lines"],
+        )
+        self.assertEqual(0, self.check(root, require_resolved=False)[0])
+        (root / ".gitattributes").write_text("\n".join(report["gitattributes_lines"]) + "\n", encoding="utf-8")
+        code, report = self.check(root)
+        self.assertEqual(0, code, report)
+        self.assertEqual([], report["findings"])
+
+    def test_unset_text_passes_without_unsetting_filter(self) -> None:
+        for attributes in ("docs/** -text\n", "docs/** binary\n", "docs/** -text -filter -ident\n"):
+            with self.subTest(attributes=attributes):
+                code, report = self.check(self.repo(attributes))
+                self.assertEqual(0, code, report)
+                self.assertEqual(([], [], []), (report["findings"], report["gitattributes_lines"], report["warnings"]))
+
+    def test_rewriting_filter_ident_and_encoding_are_named(self) -> None:
+        code, report = self.check(self.repo(
+            "docs/** -text\n*.png filter=lfs\ndocs/goal/** ident working-tree-encoding=UTF-16\n"
+        ))
+        self.assertEqual(1, code, report)
+        self.assertIn("docs/design/logo.png: filter lfs", report["findings"])
+        self.assertIn(
+            "docs/goal/PLAN.md: ident set, working-tree-encoding UTF-16", report["findings"]
+        )
+        self.assertEqual(
+            ["docs/design/** -text -filter", "docs/goal/** -text -ident !working-tree-encoding"],
+            report["gitattributes_lines"],
+        )
+
+    def test_local_info_attributes_rules_warn(self) -> None:
+        root = self.repo(None)
+        info = root / ".git" / "info" / "attributes"
+        info.parent.mkdir(exist_ok=True)
+        info.write_text("# local only\ndocs/** -text\n", encoding="utf-8")
+        code, report = self.check(root)
+        self.assertEqual(0, code, report)
+        self.assertEqual([], report["findings"])
+        self.assertEqual(1, len(report["warnings"]))
+        self.assertIn("info/attributes holds attribute rules that clones and CI do not get", report["warnings"][0])
+
+    def test_outside_a_git_checkout_nothing_is_checked(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            report = configure_project_context.byte_attribute_findings(Path(temp).resolve())
+        self.assertFalse(report["checked"])
+        self.assertEqual([], report["findings"])
+        self.assertIn("not the root of a Git checkout", report["warnings"][0])
 
 
 if __name__ == "__main__":

@@ -67,6 +67,17 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
         "source_revision": "0000000000000000000000000000000000000000",
         "staged_revision": null,
         "notes": "frozen delivery-acceptance scenario contract"
+      },
+      {
+        "id": "SRC-005",
+        "kind": "feature",
+        "location": "docs/product/features/product.feature",
+        "owner": "<human or team>",
+        "status": "frozen",
+        "content_sha256": null,
+        "source_revision": "0000000000000000000000000000000000000000",
+        "staged_revision": null,
+        "notes": "owner-approved scenarios the register is rendered from; one row per feature file (a program package lists each module file)"
       }
     ],
     "traces": [
@@ -172,6 +183,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
             "mission_ids": ["M1"],
             "scope": [
               "src/example/**",
+              "tests/example/**",
               "docs/verification/delivery-results.json",
               "docs/verification/evidence/**"
             ],
@@ -251,6 +263,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
         "trace_ids": ["PRD-001"],
         "write_scope": [
           "src/example/**",
+          "tests/example/**",
           "docs/verification/delivery-results.json",
           "docs/verification/evidence/**"
         ],
@@ -272,7 +285,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
               "resources": [],
               "isolation": "host"
             },
-            "selection": {"mode": "changed_files", "scopes": ["src/example/**"]}
+            "selection": {"mode": "changed_files", "scopes": ["src/example/**", "tests/example/**"]}
           }
         ],
         "integration_verifiers": [
@@ -307,7 +320,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
             "replaced_by": [],
             "split_reason": null,
             "refinement_generation": 0,
-            "write_scope": ["src/example/**"],
+            "write_scope": ["src/example/**", "tests/example/**"],
             "verifiers": [
               {
                 "id": "task-focused",
@@ -320,7 +333,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
                   "resources": [],
                   "isolation": "host"
                 },
-                "selection": {"mode": "changed_files", "scopes": ["src/example/**"]}
+                "selection": {"mode": "changed_files", "scopes": ["src/example/**", "tests/example/**"]}
               }
             ]
           }
@@ -372,7 +385,7 @@ New plans set `review_policy: "final_candidate"`, as shown. One integration-stag
 
 For UI work, load `references/ui-implementation-contract.md`. Freeze the approved UI contract, HiFi target, capture mode, and exactly one visual route. `design-system-compiler` owns the required `design-system/4` package and frozen derived HTML for `ui-design/3`; a retained `ui-design/2` package owns its conditional schema-3 pair; otherwise use the exact `not_required` replacement. UI implementation uses the owner-bound frontend-authoring skill under Harness conformance. A missing source is a design-input delta. Run platform-correct evidence after exact-SHA review and repair converge.
 
-Use immutable flat task IDs such as `M1/T01`. Each task has a structured acceptance row exactly `{test_id, trace_ids, criterion}` and a verifier. Task dependencies are same-mission only; cross-mission ordering belongs in typed graph dependency edges. Scope entries are POSIX repository-relative paths or terminal `/**` subtrees. Workers never edit PLAN/RUN or frozen contract sources.
+Use immutable flat task IDs such as `M1/T01`. Each task has a structured acceptance row exactly `{test_id, trace_ids, criterion}` and a verifier. Task dependencies are same-mission only; cross-mission ordering belongs in typed graph dependency edges. Scope entries are POSIX repository-relative paths or terminal `/**` subtrees. Each task `write_scope` lists the tests and fixtures the task adds or edits, every config file it edits (tsconfig, package manifest, lockfile, bundler or test config) and the output files of any generator it runs, because worker-result validation rejects any task commit outside that scope. Workers never edit PLAN/RUN or frozen contract sources.
 
 ## Source Map
 
@@ -444,13 +457,12 @@ Use the parent's frozen contract hash, never a value derived from result writers
 4. Run `record-integration --integrated-sha H2` for that mission, so H2 is the recorded integration head.
 5. Run every unified review and final gate, including `N-ACCEPTANCE-GATE`, at H2.
 
-For this, the last mission's `write_scope` lists `docs/verification/delivery-results.json` and `docs/verification/evidence/**`, as M1 shows, and so does the security review's `scope` (the validator requires it to cover every mission scope). Readiness review checks that the base already has byte-preserving `-text -filter` attributes for these paths; if not, put `.gitattributes` in an authorized pre-H1 task's `write_scope` and the security review scope, and commit it before H1. `record-integration` checks only that mission scope, so `N-ACCEPTANCE-GATE` is what refuses a product file committed with the register. Only the parent writes these paths, and every evidence file the register lists comes from its own run at H1. When the PLAN declares the acceptance gate, worker-result validation refuses a worker change to the register the gate names with `--results` or anything under its `evidence/` directory, whatever the task `write_scope` says. It also refuses any change no task `write_scope` covers, even when the register path cannot be read from the gate argv. Both checks run in every workspace mode, shared checkout included. They are not coordination paths, so a register commit after the recorded head leaves RUN stale. Any candidate repair after H2 changes files outside the register, so `N-ACCEPTANCE-GATE` fails at the repaired head. `reconcile-candidate-head` accepts only paths in the repair task's `write_scope`, which never lists the register, so rerunning acceptance after H2 needs a formal PLAN revision with fresh owner authorization: the new digest stops the old execution grants from covering anything. The revision adds a repair task whose `write_scope` lists only the register and evidence paths; that is safe then because the mission is already integrated. The parent commits that repair and records it with `reconcile-candidate-head`; a worker result cannot carry it. The template's neutral command placeholders must be replaced before execution.
+For this, the last mission's `write_scope` lists `docs/verification/delivery-results.json` and `docs/verification/evidence/**`, as M1 shows, and so does the security review's `scope` (the validator requires it to cover every mission scope). Readiness cites `configure_project_context.py --check --require-resolved` exit 0 on the base for these paths; if it fails, follow `references/gitattributes-contract.md`, put `.gitattributes` in an authorized pre-H1 task's `write_scope` and the security review scope, and commit it before H1. `record-integration` checks only that mission scope, so `N-ACCEPTANCE-GATE` is what refuses a product file committed with the register. Only the parent writes these paths, and every evidence file the register lists comes from its own run at H1. When the PLAN declares the acceptance gate, worker-result validation refuses a worker change to the register the gate names with `--results` or anything under its `evidence/` directory, whatever the task `write_scope` says. It also refuses any change no task `write_scope` covers, even when the register path cannot be read from the gate argv. Both checks run in every workspace mode, shared checkout included. They are not coordination paths, so a register commit after the recorded head leaves RUN stale. Any candidate repair after H2 changes files outside the register, so `N-ACCEPTANCE-GATE` fails at the repaired head. `reconcile-candidate-head` accepts only paths in the repair task's `write_scope`, which never lists the register, so rerunning acceptance after H2 needs a formal PLAN revision with fresh owner authorization: the new digest stops the old execution grants from covering anything. The revision adds a repair task whose `write_scope` lists only the register and evidence paths; that is safe then because the mission is already integrated. The parent commits that repair and records it with `reconcile-candidate-head`; a worker result cannot carry it. The template's neutral command placeholders must be replaced before execution.
 
-Applicable eval policies require these entries through the common source join.
-For older plans without an eval marker, the parent's readiness review still
-confirms them; schema validation alone is insufficient. Do not retrofit or
-silently migrate a running legacy PLAN/RUN. Direct work runs the acceptance CLI
-without these artifacts.
+The common source join requires these entries for RUN pins >=0.79.0, with or
+without an eval marker. Runs pinned before that release keep readiness review
+as their check. Do not retrofit or silently migrate a running legacy PLAN/RUN.
+Direct work runs the acceptance CLI without these artifacts.
 
 Implementation may start only after static validation passes, RUN records `plan_readiness: "ready"`, and required actions have explicit user authorization. Readiness never grants authorization.
 

@@ -4,13 +4,18 @@
 The digest covers runtime-facing skill files while ignoring tests and generated
 Python caches. Text line endings are normalized so a Windows install and its
 packaged copy identify the same contract.
+
+As a command it prints the digest of the five skills next to this script, or
+of `--skills-root PATH`. Unknown arguments exit 2.
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import os
 import stat
+import sys
 from pathlib import Path
 
 
@@ -22,7 +27,7 @@ SKILL_NAMES = (
     "design-system-compiler",
     "growth-review",
 )
-IGNORED_PARTS = {"__pycache__", "tests"}
+IGNORED_PARTS = {"__pycache__", ".pytest_cache", "tests"}
 IGNORED_SUFFIXES = {".pyc", ".pyo"}
 MAX_FILE_BYTES = 16 * 1024 * 1024
 MAX_BUNDLE_BYTES = 128 * 1024 * 1024
@@ -116,5 +121,25 @@ def contract_digest(skills_root: str | Path | None = None) -> str:
     return digest.hexdigest()
 
 
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description="Print the five-skill contract digest.", allow_abbrev=False
+    )
+    parser.add_argument(
+        "--skills-root", type=Path,
+        help="directory holding the five skills; defaults to the tree this script is in",
+    )
+    args = parser.parse_args(argv)
+    try:
+        print(contract_digest(args.skills_root))
+    except (OSError, ValueError) as exc:
+        print(f"cannot compute the contract digest: {exc}", file=sys.stderr)
+        return 1
+    return 0
+
+
 if __name__ == "__main__":
-    print(contract_digest())
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="backslashreplace")
+    raise SystemExit(main())

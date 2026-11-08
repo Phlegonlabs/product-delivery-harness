@@ -1,6 +1,6 @@
 # Admit integration results and adopt at a reviewed mission boundary
 
-Status: in_progress
+Status: complete; fix 97394e63 released in v0.66.0
 
 ## Problem and accepted scope
 

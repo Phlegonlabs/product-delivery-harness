@@ -137,7 +137,12 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
                 preview_context = "historical derived view omitted from current inputs; retained pair and HiFi remain authoritative"
             else:
                 preview = str(Path(pair["registry"]["path"]).parent / "design-system-preview.html").replace("\\", "/")
-                preview_bytes = retain(_identity(root, preview))
+                # The derived preview can exceed MAX_BYTES; it is checked against a fresh render, not a cap.
+                preview_path = safe_path(root, preview)
+                if not preview_path.is_file():
+                    raise ValueError("design-system preview is missing")
+                preview_bytes = preview_path.read_bytes()
+                inputs[preview] = {"path": preview, "sha256": hashlib.sha256(preview_bytes).hexdigest()}
                 saved_paths = list(sys.path)
                 try:
                     scripts = Path(__file__).resolve().parents[2] / "design-system-compiler" / "scripts"

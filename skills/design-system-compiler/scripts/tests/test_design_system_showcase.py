@@ -81,6 +81,22 @@ class ShowcaseCoverageTests(unittest.TestCase):
                 mutate(data)
                 self.assertIn(expected, "\n".join(findings(data)))
 
+    def test_json_token_values_match_a_hifi_declaration(self):
+        self.assertEqual([], checker.token_value_findings(demo_registry(), demo_pages()))
+        data = demo_registry()
+        data["tokens"]["color"]["--sea"] = "#2F6F8F"
+        self.assertEqual([], checker.token_value_findings(data, demo_pages()))
+        data["tokens"]["color"]["--sea"] = "#2f6f8e"
+        self.assertEqual(["design-system.json tokens.color.--sea value '#2f6f8e' matches no --sea declaration "
+                          "in the approved HiFi CSS"], checker.token_value_findings(data, demo_pages()))
+        # Any scope may match; var() declarations, comments and undeclared names are skipped.
+        pages = {"index.html": "<style>:root{--a:#fff;--b:var(--a)}[data-theme=dark]{--a: #000 !important}"
+                               "/* --c:#456 */</style>"}
+        data = {"tokens": {"color": {"--a": "#FFF", "--b": "#123", "--c": "#999"}, "colorDark": {"--a": "#000"}}}
+        self.assertEqual([], checker.token_value_findings(data, pages))
+        data["tokens"]["colorDark"]["--a"] = "#111"
+        self.assertEqual(1, len(checker.token_value_findings(data, pages)))
+
     def test_rendered_specimens_do_not_replace_required_state_rows(self):
         for kind, name, state in (
             ("component", "BerthCard", "empty"),
@@ -399,6 +415,19 @@ class PairIntegrationTests(unittest.TestCase):
             bad["showcase"]["specimens"][1]["source"]["variant"] = "default compact"
             self.assertIn("does not resolve", "\n".join(checker.compare(
                 checker.replace_generated_contract("# Pair\n", bad), bad, require_filled=True, repo_root=root)))
+
+    def test_token_values_are_checked_against_the_bound_hifi(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data, design, hifi = self.build(root)
+            css = showcase.analysis_css(hifi.read_text(encoding="utf-8"))
+            data["tokens"]["color"]["--ink"] = re.search(r"--ink\s*:\s*([^;{}]+)", css).group(1)
+            markdown = checker.replace_generated_contract("# Pair\n", data)
+            self.assertEqual([], checker.compare(markdown, data, require_filled=True, repo_root=root))
+            data["tokens"]["color"]["--ink"] = "#abcdef"
+            markdown = checker.replace_generated_contract("# Pair\n", data)
+            self.assertIn("tokens.color.--ink value '#abcdef' matches no --ink declaration", "\n".join(
+                checker.compare(markdown, data, require_filled=True, repo_root=root)))
 
     def test_reuse_keeps_unchanged_package_valid_but_approval_edits_go_stale(self):
         with tempfile.TemporaryDirectory() as directory:

@@ -30,7 +30,7 @@ from test_product_package_checker import (  # noqa: E402
     valid_prd,
     valid_stack,
 )
-from manifest_fixtures import carry_security_requirement, eval_exempt_prd  # noqa: E402
+from manifest_fixtures import bind_acceptance_gate, carry_security_requirement, eval_exempt_prd  # noqa: E402
 from harness_manifest import (  # noqa: E402
     load_plan,
     load_run,
@@ -91,8 +91,20 @@ class NewRunTests(unittest.TestCase):
             "docs/product/PRD.md": approved_prd.encode("utf-8"),
             "docs/product/architecture.md": approved_architecture.encode("utf-8"),
             "docs/product/stack-decisions.md": approved_stack.encode("utf-8"),
-            "docs/verification/delivery-acceptance.json": b'{"schema": "delivery-acceptance/1"}\n',
+            # 0.79.0 pins require the frozen contract to bind the frozen PRD hash
+            "docs/verification/delivery-acceptance.json": json.dumps({
+                "schema": "delivery-acceptance/1",
+                "prd_sha256": hashlib.sha256(approved_prd.encode("utf-8")).hexdigest(),
+            }).encode("utf-8") + b"\n",
+            "docs/product/features/product.feature": b"Feature: Fixture\n@TEST-001\nScenario: Fixture scenario\nWhen the owner acts\nThen the result shows\n",
+            "docs/product/features/receive.feature": (
+                b"Feature: Receive stock\n\n  @TEST-001\n  Scenario: Receive the full quantity\n"
+                b"    Given a warehouse clerk\n    When the clerk receives 10 units\n    Then stock shows 10 units\n"
+            ),
         }
+        for source in self.plan["sources"]:
+            if source["kind"] == "feature":
+                source["location"] = "docs/product/features/receive.feature"
         for location, value in product_sources.items():
             path = self.dir / location
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -104,6 +116,7 @@ class NewRunTests(unittest.TestCase):
             source["source_revision"] = None
             source["staged_revision"] = None
         carry_security_requirement(self.plan)
+        bind_acceptance_gate(self.plan, SCRIPTS_DIR)
         body = json.dumps({"harness_plan": self.plan}, indent=2, ensure_ascii=False)
         template = PLAN_TEMPLATE.read_text(encoding="utf-8")
         start = template.index("```json\n") + len("```json\n")
@@ -133,6 +146,14 @@ class NewRunTests(unittest.TestCase):
         run = load_run(self.generate())
 
         self.assertEqual([], validate_current_plan_run(self.plan, run, repo_root=self.dir))
+
+    def test_run_title_follows_the_plan_heading(self) -> None:
+        text = self.plan_path.read_text(encoding="utf-8")
+        self.assertTrue(text.startswith("# Plan: <feature or product slice>\n"))
+        self.plan_path.write_text(text.replace("# Plan: <feature or product slice>", "# Plan: Receive stock", 1),
+                                  encoding="utf-8")
+        self.assertTrue(self.generate().read_text(encoding="utf-8").startswith("# Run: Receive stock\n"))
+        self.assertTrue(new_run.render({}).startswith("# Run: <feature or product slice>\n"))
 
     def test_graph_and_mission_state_mirror_the_plan(self) -> None:
         run = load_run(self.generate())

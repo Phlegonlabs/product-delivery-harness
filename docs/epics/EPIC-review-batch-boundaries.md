@@ -1,6 +1,6 @@
 # Review Batch Boundaries
 
-Status: complete
+Status: complete; released in v0.66.0
 Design workflow: enhancement
 UI impact: none (planning and review contracts; no product UI changes).
 

@@ -16,6 +16,8 @@ END = "<!-- eval-policy:end -->"
 MAX_BYTES = 16 * 1024 * 1024
 HASH = re.compile(r"[0-9a-f]{64}\Z")
 ID = re.compile(r"[A-Za-z][A-Za-z0-9_.-]{0,79}\Z")
+# A feature-file scenario id: `<TEST-ID>/<slug of the scenario name>`.
+FEATURE_SCENARIO_ID = re.compile(r"(TEST-\d{3,})/[a-z0-9]+(?:-[a-z0-9]+)*\Z")
 
 
 class PolicyError(ValueError):
@@ -184,7 +186,11 @@ def scenario(value, label):
     keys(value, "test_id scenario_id report", label)
     if not isinstance(value["test_id"], str) or not re.fullmatch(r"TEST-\d{3,}", value["test_id"]):
         fail(f"{label}: TEST ID required")
-    identifier(value["scenario_id"], label)
+    feature = FEATURE_SCENARIO_ID.fullmatch(value["scenario_id"]) if isinstance(value["scenario_id"], str) else None
+    if feature is None:
+        identifier(value["scenario_id"], label)
+    elif feature.group(1) != value["test_id"]:
+        fail(f"{label}: a feature scenario id must start with its test_id")
     safe_relative(value["report"])
 
 

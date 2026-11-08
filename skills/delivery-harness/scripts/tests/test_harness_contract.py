@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import sys
 import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -89,6 +90,9 @@ class ContractDigestTests(unittest.TestCase):
             ignored_cache = skills / "scripts" / "__pycache__" / "mod.pyc"
             ignored_cache.parent.mkdir(parents=True)
             ignored_cache.write_bytes(b"junk")
+            pytest_cache = skills / "scripts" / ".pytest_cache" / "v" / "cache" / "nodeids"
+            pytest_cache.parent.mkdir(parents=True)
+            pytest_cache.write_text("[]\n", encoding="utf-8")
             self.assertEqual(contract_digest(skills_root), before)
             runtime_file = skills / "scripts" / "harness_step.py"
             runtime_file.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +111,37 @@ class ContractDigestTests(unittest.TestCase):
                     f"# {skill_name} changed\n", encoding="utf-8", newline="\n"
                 )
                 self.assertNotEqual(contract_digest(skills_root), before)
+
+    def run_cli(self, *arguments: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            [sys.executable, "-B", str(SCRIPTS_DIR / "harness_contract.py"), *arguments],
+            capture_output=True, text=True, encoding="utf-8", timeout=120, check=False,
+        )
+
+    def test_cli_prints_the_digest_of_its_own_tree_or_skills_root(self) -> None:
+        own = self.run_cli()
+        self.assertEqual(0, own.returncode, own.stderr)
+        self.assertEqual(contract_digest(SCRIPTS_DIR.parents[1]) + "\n", own.stdout)
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            create_required_skills(root)
+            other = self.run_cli("--skills-root", str(root / "skills"))
+            self.assertEqual(0, other.returncode, other.stderr)
+            self.assertEqual(contract_digest(root / "skills") + "\n", other.stdout)
+            self.assertNotEqual(own.stdout, other.stdout)
+            shutil.rmtree(root / "skills" / "growth-review")
+            missing = self.run_cli("--skills-root", str(root / "skills"))
+            self.assertEqual(1, missing.returncode)
+            self.assertEqual("", missing.stdout)
+            self.assertIn("required bundled skill directory is absent", missing.stderr)
+            self.assertNotIn("Traceback", missing.stderr)
+
+    def test_cli_rejects_unknown_arguments(self) -> None:
+        for arguments in (("--skills", "elsewhere"), ("extra",)):
+            with self.subTest(arguments=arguments):
+                result = self.run_cli(*arguments)
+                self.assertEqual(2, result.returncode)
+                self.assertEqual("", result.stdout)
 
     def test_missing_required_skill_fails_explicitly(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

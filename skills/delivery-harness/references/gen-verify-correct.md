@@ -42,31 +42,20 @@ findings to the owning flow above.
    artifact or trace reference, and input identity. Do not hide the concrete
    difference.
 7. Wait for every required verifier and review result on the same candidate.
-   A review returns its verdict, the exact SHA, the findings with capture
-   references, the spot-check sample and the commands run. It does not restate
-   matrices, hash lists or the packet.
-   Triage each review into blocking findings and non-blocking notes; only
-   blocking findings repair. Group the blocking findings by root-cause family
-   and send them to the owning corrector as one repair. Non-blocking
-   suggestions go to the backlog.
+   Group the blocking findings by root-cause family and send them to the
+   owning corrector as one repair. The reviewer result, finding triage and
+   two-pass budget follow `verification-gates.md#review-topology`.
 8. Repair only accepted scope. Rerun the affected verifier and every downstream
-   check invalidated by the new candidate. Present the focused verifier PASS at
-   the new head, plus a failure family's acceptance matrix, before the re-check
-   is dispatched. The re-check packet carries the prior blocking findings, the
-   prior notes and the repair range; it judges those findings and the repair,
-   not the whole scope again. One consolidated repair and one targeted re-check
-   are the whole review budget; remaining defects then continue as isolated
-   repairs under `verification-gates.md`'s Isolated Repair Protocol.
+   check invalidated by the new candidate. The pre-review repair gate and the
+   re-check packet follow the same section; remaining defects then follow
+   `verification-gates.md#isolated-repair-protocol`.
 9. Reuse exact unchanged-input evidence only when the existing contract permits
    that reuse. Preserve its origin and reject stale results.
 10. Stop on PASS, missing required capability, a contract gap, or an unsafe
     repair. Stop when the owner records Visual Approval, including acceptance
     with follow-ups ([Owner Acceptance Closes The
     Round](../../ui-design-builder/references/review-workflow.md#owner-acceptance-closes-the-round)).
-    A failed re-check hands remaining defects to the Isolated Repair
-    Protocol; it never starts another full review round on its own. An
-    environment-blocked review attempt is
-    not a round. Preserve history, candidate identity, and unresolved work.
+    Preserve history, candidate identity, and unresolved work.
 
 Keep the record in the existing task report, Epic, PLAN acceptance row, or RUN
 gate. Direct work does not create PLAN/RUN state to host this loop. Managed work

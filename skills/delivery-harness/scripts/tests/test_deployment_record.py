@@ -565,8 +565,35 @@ class DeploymentRecordTests(unittest.TestCase):
         )
         self.assertEqual([
             "Release Target Status: PASS target linux-prod availability evidence "
-            "must name install/download or artifact/build proof"
+            "must name install/download proof; upload-only evidence stays pending"
         ], findings)
+
+    def test_store_upload_only_evidence_stays_pending(self) -> None:
+        uploaded = multi_surface_deployment().replace(
+            "approved build installed and passed smoke",
+            "signed AAB build artifact uploaded to Play Console", 1,
+        )
+        findings = check_deployment.check_deployment_text(
+            uploaded, architecture_text=multi_surface_architecture(),
+        )
+        self.assertEqual([
+            "Release Target Status: PASS target android-prod availability evidence "
+            "must name install/download proof; upload-only evidence stays pending"
+        ], findings)
+        pending = uploaded.replace(
+            "uploaded to Play Console | 2026-09-03T12:01:00Z | PASS |",
+            "uploaded to Play Console | 2026-09-03T12:01:00Z | pending |", 1,
+        )
+        self.assertEqual([], check_deployment.check_deployment_text(
+            pending, architecture_text=multi_surface_architecture(),
+        ))
+        # A package index has no install gate; its published artifact still passes.
+        published = TYPED_DEPLOYMENT.replace(
+            "wheel installed and passed smoke", "wheel build artifact uploaded to PyPI", 1,
+        )
+        self.assertEqual([], check_deployment.check_deployment_text(
+            published, architecture_text=TYPED_ARCHITECTURE,
+        ))
 
     def test_architecture_backed_records_reject_missing_invented_and_duplicate_targets(self) -> None:
         missing = ARCHITECTURE_BACKED_DEPLOYMENT.replace(
@@ -691,14 +718,14 @@ class DeploymentRecordTests(unittest.TestCase):
                     ),
                 )
 
-    def test_native_pass_requires_install_or_artifact_evidence_not_url_parity(self) -> None:
+    def test_native_pass_requires_install_evidence_not_url_parity(self) -> None:
         findings = "\n".join(
             check_deployment.check_deployment_text(
                 NATIVE_DEPLOYMENT, architecture_text=NATIVE_ARCHITECTURE
             )
         )
         self.assertIn(
-            "install/download or artifact/build proof",
+            "must name install/download proof; upload-only evidence stays pending",
             findings,
         )
 

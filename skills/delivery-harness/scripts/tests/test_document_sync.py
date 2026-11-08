@@ -80,6 +80,71 @@ class DocumentSyncTests(unittest.TestCase):
         result = self.observe(observed["snapshot"], paths)
         self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
 
+    def test_current_epic_line_must_name_an_existing_epic(self):
+        index = self.root / "docs/DOCUMENTS.md"
+        (self.root / "docs/epics").mkdir(parents=True)
+        index.write_text("# Documents\n\nNo Epic yet.\n", encoding="utf-8")
+        paths = ["docs/DOCUMENTS.md"]
+        kinds = {row["kind"] for row in self.observe(paths=paths)["findings"]}
+        self.assertNotIn("current_epic_missing", kinds)
+        (self.root / "docs/epics/EPIC-1.md").write_text("# EPIC-1\n", encoding="utf-8")
+        self.assertIn({"kind": "current_epic_missing", "path": "docs/DOCUMENTS.md"},
+                      self.observe(paths=paths)["findings"])
+        index.write_bytes(b"# Documents\r\n\r\nCurrent Epic: [EPIC-2](epics/EPIC-2.md)\r\n")
+        result = self.observe(paths=paths)
+        self.assertIn({"kind": "current_epic_missing", "path": "docs/DOCUMENTS.md",
+                       "target": "epics/EPIC-2.md"}, result["findings"])
+        index.write_bytes(b"# Documents\r\n\r\nCurrent Epic: [EPIC-1](epics/EPIC-1.md)\r\n")
+        result = self.observe(self.observe(paths=paths)["snapshot"], paths)
+        self.assertEqual("unchanged", result["status"], result["findings"])
+
+    def test_epic_handoff_rewrite_is_not_drift_but_other_sections_are(self):
+        name = "docs/epics/EPIC-1.md"
+        epic = self.root / name
+        epic.parent.mkdir(parents=True)
+        body = ("# EPIC-1\n\n## Change Log\n\n| a | b |\n\n```text\n## Handoff\nfenced\n```\n\n"
+                "## Handoff\n\n```text\n## Not a heading\nNext action: review\n```\n\n"
+                "## Results\n\nPending.\n")
+        epic.write_bytes(body.replace("\n", "\r\n").encode("utf-8"))
+        snapshot = self.observe(paths=[name])["snapshot"]
+        epic.write_bytes(body.replace("Next action: review", "Next action: commit\r\n### Detail\r\nmore")
+                         .replace("\n", "\r\n").encode("utf-8"))
+        result = self.observe(snapshot, [name])
+        self.assertEqual("unchanged", result["status"], result["findings"])
+        self.assertEqual(snapshot, result["snapshot"])
+        for label, edited in (
+            ("Change Log row", body.replace("| a | b |", "| a | c |")),
+            ("fenced text before the Handoff", body.replace("fenced\n", "edited\n")),
+            ("section after the Handoff", body.replace("Pending.", "Done.")),
+        ):
+            with self.subTest(label):
+                epic.write_bytes(edited.replace("\n", "\r\n").encode("utf-8"))
+                result = self.observe(snapshot, [name])
+                self.assertIn({"kind": "document_changed", "path": name}, result["findings"])
+
+    def test_whole_file_epic_baseline_stays_unchanged(self):
+        name = "docs/epics/EPIC-1.md"
+        epic = self.root / name
+        epic.parent.mkdir(parents=True)
+        epic.write_text("# EPIC-1\n\n## Handoff\n\nNext action: none\n", encoding="utf-8")
+        current = self.observe(paths=[name])["snapshot"]
+        old = dict(current, documents={name: hashlib.sha256(epic.read_bytes()).hexdigest()})
+        self.assertNotEqual(old, current)
+        result = self.observe(old, [name])
+        self.assertEqual("unchanged", result["status"], result["findings"])
+        self.assertEqual(current, result["snapshot"])
+
+    def test_handoff_outside_an_epic_is_still_hashed(self):
+        for name in ("AGENTS.md", "docs/epics/team/E.md"):
+            with self.subTest(name):
+                path = self.root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("# Rules\n\n## Handoff\n\nfirst\n", encoding="utf-8")
+                snapshot = self.observe(paths=[name])["snapshot"]
+                path.write_text("# Rules\n\n## Handoff\n\nsecond\n", encoding="utf-8")
+                result = self.observe(snapshot, [name])
+                self.assertIn({"kind": "document_changed", "path": name}, result["findings"])
+
     def test_epic_discovery_rejects_linked_directory(self):
         with patch.object(Path, "is_symlink", lambda path: path == self.root / "docs/epics"):
             with self.assertRaises(ValueError):

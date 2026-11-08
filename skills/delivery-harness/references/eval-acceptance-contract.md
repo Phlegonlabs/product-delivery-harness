@@ -77,9 +77,9 @@ It never executes project commands, writes reports or supplies credentials.
 Exit 0 means both eval obligations pass structurally; exit 1 means failed/invalid
 evidence; argument errors exit 2. It is not a release or provenance certification.
 
-Before H1, set `-text -filter` for actual frozen inputs, contracts, delivered
-artifacts, register and evidence paths. Confirm effective attributes and exact
-bytes in HEAD. Primary and independent clean-checkout full runs execute at H1;
+Before H1, store frozen inputs, contracts, delivered artifacts, register and
+evidence byte for byte under [Gitattributes Contract](gitattributes-contract.md)
+and confirm their exact bytes in HEAD. Primary and independent clean-checkout full runs execute at H1;
 only the parent adds directly listed reports and register as evidence child H2.
 Run this checker before the unchanged delivery-acceptance gate at clean H2.
 It resolves HEAD once, verifies source/report bytes, H1 ancestry and the existing

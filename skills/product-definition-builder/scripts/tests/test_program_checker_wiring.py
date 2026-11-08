@@ -13,8 +13,11 @@ sys.path.insert(0, str(TESTS_DIR))
 sys.path.insert(0, str(TESTS_DIR.parent))
 
 import check_product_package  # noqa: E402
+import contract_utils  # noqa: E402
 import program_fixtures as fx  # noqa: E402
+from test_feature_coverage import feature  # noqa: E402
 from test_product_package_checker import (  # noqa: E402
+    bdd_stack,
     finalize_approval_digests,
     release_target,
     strictize_approved_package,
@@ -52,7 +55,7 @@ class ProgramCheckerWiringTests(unittest.TestCase):
                 "--prd", str(root / "PRD.md"),
                 "--architecture", str(root / "architecture.md"),
                 "--stack-decisions", str(root / "stack-decisions.md"),
-                *flags,
+                *(flag.replace("{root}", str(root)) for flag in flags),
             ]
             out, err = io.StringIO(), io.StringIO()
             with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -238,6 +241,75 @@ class ProgramCheckerWiringTests(unittest.TestCase):
             "prd: At a Glance row 'Delivery profile' must be one of: mvp, standard, program",
             self.failures(result),
         )
+
+
+    def test_each_approval_block_binds_its_own_feature_file(self) -> None:
+        self.files["stack-decisions.md"] = bdd_stack()
+        scenarios = {
+            ("PRD.md", "program.feature"): ("TEST-PRG-001", "TEST-PRG-002", "TEST-PRG-003", "TEST-PRG-004",
+                                            "TEST-PRG-005", "TEST-PRG-009", "TEST-E2E-001"),
+            ("modules/kernel/PRD.md", "krn.feature"): ("TEST-KRN-001", "TEST-KRN-002", "TEST-KRN-003", "TEST-KRN-004"),
+            ("modules/inventory/PRD.md", "inv.feature"): ("TEST-INV-001", "TEST-INV-002", "TEST-INV-003", "TEST-INV-004"),
+        }
+        for (_, name), test_ids in scenarios.items():
+            self.files[f"features/{name}"] = feature(*test_ids)
+        bound = approved(self.files)
+        flags = ("--features", "{root}/features", "--require-filled", "--require-approved")
+        missing = self.failures(self.check(*flags, files=bound))
+        self.assertEqual(
+            ["prd approval: missing required field 'Feature files'",
+             "kernel: prd approval: missing required field 'Feature files'",
+             "inventory: prd approval: missing required field 'Feature files'"],
+            missing,
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            for (prd, name), _ in scenarios.items():
+                path = Path(tmp) / name
+                path.write_text(bound[f"features/{name}"], encoding="utf-8")
+                field = f"- Feature files: sha256:{contract_utils.feature_files_digest([path])}\n"
+                fx.edit(bound, prd, "- Blocking items:", field + "- Blocking items:")
+        result = self.check(*flags, files=bound)
+        self.assertEqual((0, ""), (result.code, result.err))
+        # A kernel scenario edit reopens only the kernel approval.
+        fx.edit(bound, "features/krn.feature", "Then the result shows", "Then the result is shown")
+        self.assertEqual(
+            ["kernel: prd approval: Feature files digest does not match the approved feature files"],
+            self.failures(self.check(*flags, files=bound)),
+        )
+
+    def test_program_scenario_pointer_line_turns_coverage_on(self) -> None:
+        fx.edit(
+            self.files, "PRD.md", "## UI Design Handoff Status\n",
+            "Scenarios for these rows live in `docs/product/features/program.feature`.\n\n## UI Design Handoff Status\n",
+        )
+        failures = self.failures(self.check())
+        self.assertTrue(any(f.startswith("prd: features directory not found: ") for f in failures), failures)
+
+    def test_features_cover_the_program_and_the_selected_modules(self) -> None:
+        result = self.check("--features", "{root}/features")
+        self.assertIn(
+            "stack-decisions: feature files need a 'BDD runner' layer row in a technology decision table",
+            self.failures(result),
+        )
+        self.files["stack-decisions.md"] = bdd_stack()
+        self.files["features/program.feature"] = feature("TEST-PRG-001", "TEST-PRG-002", "TEST-PRG-003", "TEST-PRG-004", "TEST-PRG-005", "TEST-PRG-009", "TEST-E2E-001")
+        self.files["features/krn.feature"] = feature("TEST-KRN-001", "TEST-KRN-002", "TEST-KRN-003", "TEST-KRN-004")
+        result = self.check("--features", "{root}/features")
+        self.assertEqual(1, result.code)
+        self.assertEqual(
+            [
+                "prd: TEST-INV-001 is a required integration obligation with no scenario",
+                "prd: TEST-INV-002 is a required reliability obligation with no scenario",
+                "prd: TEST-INV-003 is a required security obligation with no scenario",
+                "prd: TEST-INV-004 is a required integration obligation with no scenario",
+            ],
+            self.failures(result),
+        )
+        result = self.check("--features", "{root}/features", "--module", "kernel")
+        self.assertEqual((0, ""), (result.code, result.err))
+        self.files["features/inv.feature"] = feature("TEST-INV-001", "TEST-INV-002", "TEST-INV-003", "TEST-INV-004")
+        result = self.check("--features", "{root}/features")
+        self.assertEqual((0, ""), (result.code, result.err))
 
 
 if __name__ == "__main__":

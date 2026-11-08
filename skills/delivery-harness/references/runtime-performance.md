@@ -6,7 +6,7 @@ Remove repeated work and measure the result. This contract carries no percentage
 
 Repeated work, in the order it usually costs the most:
 
-1. The scripted write path removes the hand-authored RUN edits between selection and integration: one `record-observation` replaces transcribing `harness_step.py`'s printed snapshot, one `accept-wave` plus one `lease-worker` per mission replace the wave/lease hand edits, `record-integration` closes each mission, and `close-wave` retires the finished wave with its tombstone in one write. Each is a single validated atomic write, so parent output stays flat instead of growing with RUN history. `reserve-review-dispatch --packet-out <path>` renders the reviewer packet from the in-memory reserved run in the same command, removing the separate render pass and its repeated validation; the selector accepts `manifest_already_validated` from callers that just validated the identical pair.
+1. The scripted write path removes the hand-authored RUN edits between selection and integration: one `record-observation` replaces transcribing `harness_step.py`'s printed snapshot, one `accept-wave` plus one `lease-worker` per mission replace the wave/lease hand edits, `record-integration` closes each mission, and `close-wave` retires the finished wave with its tombstone in one write. Each is a single validated atomic write, so parent output stays flat instead of growing with RUN history. `reserve-review-dispatch --packet-out <path>` renders the reviewer packet from the in-memory reserved run in the same command, removing the separate render pass and its repeated validation; the selector accepts `manifest_already_validated` from callers that just validated the identical pair. `lease-worker --packet-out <path> --max-message-bytes <n>` renders the worker goal packet from the in-memory leased run the same way, removing the field-by-field template transcription and the separate packet check.
 
 2. Re-dispatching a reviewer against a commit an earlier review already passed.
 3. Re-running a deterministic local verifier whose inputs did not change.
@@ -94,8 +94,6 @@ Host verifiers are serialized even when the runner has free slots, and run fresh
 Declare resources for shared caches, generated clients, databases, ports, browsers, and external state. Exclusive claims serialize operations that conflict outside a checkout. Host execution is serial within the runner, but does not coordinate unrelated processes or grant permission to mutate external systems. Audit shared state before authorizing the command.
 
 ## Host Mapping
-
-- Use a fresh bounded native task or child, then subscribe to terminal events or cursor waits when observed. Use bounded polling only when events are unavailable and record that fallback. Preserve installed role and model settings and the configured role bridge.
 
 Process each terminal result immediately. Under `per_mission`, streaming review may overlap remaining workers; serial integration may overlap them under either policy. RUN remains parent-owned. A failed integration follows the existing integration-failure route.
 

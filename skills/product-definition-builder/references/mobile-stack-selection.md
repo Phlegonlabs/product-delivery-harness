@@ -2,15 +2,7 @@
 
 Use this guide for every PRD package whose product surface includes a mobile app. First resolve the target operating systems, then compare native and cross-platform implementation strategies, and finally obtain owner acceptance for one coherent client stack. A mobile app's release path is an app store or signed build, not the web deployment-platform question; its backend resolves hosting separately.
 
-Label the decision status accurately:
-
-- `Required`: mandated by the user, organization, or hard external constraint.
-- `Selected`: already adopted by the current product or repository.
-- `Approved`: accepted by the human owner for this package, directly or through an explicit recorded delegation.
-- `Recommended`: the PRD's evidence-backed proposal; not yet owner-approved and not executable.
-- `Provisional`: the leading choice pending named evidence or a spike.
-
-Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
+Assign status per layer; one section may mix statuses. Authority is the cited source, not a status label. Record Selection, status, cited authority/evidence, fit and constraint on every row, as `output-contract.md`'s `stack-decisions.md` section defines.
 
 ## App And Companion Web Contract
 
@@ -117,27 +109,17 @@ Follow `architecture-playbook.md`'s Native iOS Pattern and Native Android Patter
 2. Classify native-capability needs, performance profile, existing-codebase reuse potential, team skills, signing/build ownership, and distribution constraints.
 3. Resolve native versus cross-platform, then the framework, then (for React Native) Expo versus bare, eliminating any option that cannot satisfy a hard constraint or whose current support is unverified.
 4. Build two or three coherent client bundles. Each covers target OSs, code strategy, framework/toolchain, navigation, state, local persistence, secure storage, sync, push, native modules, testing, signing/build, cost, and ownership.
-5. Recommend one bundle and present its tradeoffs plus serious alternatives under the recorded Stack Decision Mode. Do not hand the implementer an unranked shortlist.
-6. For each bundle, state store/developer-program and build-service cost assumptions, license/build-vs-buy and maintenance ownership, compatibility evidence or a time-boxed spike, and the revisit trigger. Keep native typography, navigation, safe areas, keyboard, gestures, accessibility, reduced motion, and haptics decisions distinct from an HTML projection.
-7. Mark accepted new choices `Approved`; retain adopted choices as `Selected` and hard constraints as `Required`. Keep unaccepted proposals `Recommended` and non-executable.
-8. Verify current Expo/React Native/Flutter and Apple/Google documentation and capture direct sources plus the check date.
-9. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+5. For each bundle, state store/developer-program and build-service costs. Keep native typography, navigation, safe areas, keyboard, gestures, accessibility, reduced motion, and haptics decisions distinct from an HTML projection.
+6. Verify current Expo, React Native, Flutter, Apple and Google documentation; record direct sources and the check date.
 
 For a frontend or mobile enhancement, inspect the current platform baseline first. Classify its UI impact and preserve unaffected screens and stack. Hand affected UI IDs and constraints to `ui-design-builder` for same-content before/after studies. Do not author visual directions in Product Definition or use HTML screenshots as native verification; retain the representative native first-slice and final full-matrix gates.
 
 ## Required Architecture Record
 
-The `Mobile/Desktop Technology Decision` section in `stack-decisions.md` must include (a sibling section template for it lives in `references/output-contract.md`):
+Fill the `Mobile/Desktop Technology Decision` template in [`output-contract.md`](output-contract.md#stack-decisionsmd), and also record:
 
-- Product evidence and hard constraints, including existing-codebase reuse potential and target operating systems at launch.
-- The Stack Decision Mode, human owner, coherent bundles presented, accepted bundle or layer overrides, delegation source when used, and checkpoint decision.
-- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. Approved packages use `Required`, `Selected`, or `Approved`; `Recommended` and `Provisional` remain draft-only.
-- One recorded stack separated by target operating systems, cross-platform-vs-native, framework, React Native workflow when applicable, styling approach (for example `platform theme`), navigation, local persistence, state, offline/sync, secure storage, push, native-module boundaries, and testing.
 - The extra target surfaces (React Native for Web, Windows/macOS, Flutter web/desktop) that are in scope, if any.
-- Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
-- Official documentation links and verification date.
 - Store distribution obligations per platform: developer-program requirement, code signing, testing track, target-API rules, and push service (APNs / FCM), cross-referenced to the matching `architecture-playbook.md` pattern; and EAS Build/Submit/Update usage when Expo is selected.
-- Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck
 

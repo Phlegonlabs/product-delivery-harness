@@ -533,7 +533,7 @@ def render_packet(
             "",
             "## Architecture review",
             "",
-            "Apply references/delegation-contract.md#architecture-method to affected state, trust, integration or migration boundaries.",
+            "Apply references/architecture-method.md to affected state, trust, integration or migration boundaries.",
             "Check the concrete caller example before the derived interfaces and types.",
             "Check mutable-state ownership, readers, invariants, invalid states and trust boundaries.",
             "Check repeat-call behavior and recovery after failure between steps against existing acceptance and TEST obligations.",

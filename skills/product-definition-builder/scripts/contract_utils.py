@@ -126,6 +126,16 @@ def sha256_text(value: str | bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
 
 
+def feature_files_digest(paths: Iterable[Path]) -> str:
+    """Hex sha256 over the sorted file names and LF-normalized text of these feature files.
+
+    Raises OSError or UnicodeError when a file cannot be read as UTF-8.
+    """
+
+    payload = {path.name: path.read_bytes().decode("utf-8").replace("\r\n", "\n") for path in paths}
+    return sha256_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")))
+
+
 def parse_digest(value: str) -> str | None:
     match = re.fullmatch(r"sha256:([0-9a-f]{64})", value.strip(), re.I)
     return match.group(1).lower() if match else None

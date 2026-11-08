@@ -14,6 +14,7 @@ When a repository is available, read the applicable current files before drawing
 - `docs/product/architecture.md` Release Targets: every build surface and its class;
 - `docs/product/stack-decisions.md`: the analytics, auth, subscription, crash and registry providers the product actually uses;
 - `docs/DEPLOYMENT.md`: the deployed release identity per target, External Console Setup status, and the Measurement Sources table with each `MS-*` row's role and status;
+- `docs/gtm/MESSAGING.md`, when present: Approved Public Claims and Per-Surface One-Liners. Live listing, registry, README, bio or tagline text that contradicts them is a finding routed to `content`;
 - the public pages, listings, registry entries and account pages themselves, as rendered today.
 
 An absent repository does not block a public baseline review. Missing target market, language or business outcome does: ask one short question rather than ranking generic keywords or listings.
@@ -50,13 +51,4 @@ Choose one mode from the available evidence:
 
 ## Output
 
-Report:
-
-- scope, mode, the surfaces reviewed with class and lens, target market and language, data windows, cutoff and source freshness;
-- measurement integrity per surface and any property, listing, registry or release mismatch;
-- observed blockers and non-blocking findings per surface;
-- prioritized opportunities per surface with evidence strength, then the cross-surface reconciliation against the north star;
-- which opportunities improve an existing page, listing or account and which need a new or changed product contract;
-- the owner route for every follow-up, from Gap Routing in `references/review-method.md`;
-- the metric and next complete comparison window that can show whether an approved change worked; and
-- the proposed `## Handoff` block for the current Epic, reported inline because the review is read-only.
+Return the [Default Output](../review-method.md#default-output), including its Handoff block.

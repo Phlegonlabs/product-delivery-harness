@@ -11,7 +11,7 @@
   "stylingMechanism": "<utility CSS | Tailwind CSS | CSS-in-JS | CSS modules | plain CSS | platform theme; the closed value that names stackSemantics.stylingMechanism>",
   "enforcement": "<blocking | advisory>",
 
-  "$comment:sourceBindings": "Every binding names one current repo-relative input and its lowercase SHA-256. sourceBindings.uiDesign uses the canonical UI approval digest, which omits only derived pair/replacement linkage fields. The pair checker resolves each path and hash under --repo-root.",
+  "$comment:sourceBindings": "Filled by check_design_system_pair.py --write-bindings.",
   "sourceBindings": {
     "prd": { "path": "<docs/product/PRD.md>", "sha256": "<lowercase sha256>" },
     "architecture": { "path": "<docs/product/architecture.md>", "sha256": "<lowercase sha256>" },
@@ -49,10 +49,20 @@
     "radius": { "<--radius-sm>": "<value>", "<--radius-md>": "<value>", "<--radius-lg>": "<value>" },
     "fontSize": { "<--text-body>": "<value>", "<--text-heading>": "<value>", "<--text-display>": "<value>" },
     "lineHeight": { "<--leading-body>": "<value>", "<--leading-heading>": "<value>" },
+    "fontFamily": { "<--font-body>": "<value>", "<--font-display>": "<value>" },
+    "fontWeight": { "<--weight-body>": "<value>", "<--weight-heading>": "<value>" },
     "shadow": { "<--shadow-raised>": "<value>", "<--shadow-overlay>": "<value>" },
     "duration": { "<--duration-fast>": "<value>", "<--duration-base>": "<value>" },
     "easing": { "<--ease-standard>": "<value>" }
   },
+
+  "$comment:evidence": "Name every text, UI-boundary and semantic-color pairing and every type role by token; var() resolves inside the group. --write renders their ratios into design-system.md and reports a ratio below its floor without failing.",
+  "contrastPairs": [
+    { "group": "color", "fg": "<--text>", "bg": "<--bg>", "use": "<normal | large | ui>", "note": "<non-color cue or notes>" }
+  ],
+  "typeSteps": [
+    { "role": "<body>", "fontSize": "<--text-body>", "lineHeight": "<--leading-body>", "kind": "<text | heading>", "usage": "<usage>" }
+  ],
 
   "$comment:primitives": "Four layers: layout, surface, typography, control. Every variant list is a closed set — a page picks from it and may not extend it. A primitive may carry one globally unique DS-<FAMILY>-<number> dsId when prose or PLAN traces need to name it. 'class' is the base class name when it differs from the kebab-cased primitive name.",
   "primitives": {

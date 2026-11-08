@@ -3,7 +3,7 @@
 <!--
 Instantiate this template as docs/goal/HARNESS_GOAL.md in the target project.
 This file records owner statements made before launch. It grants nothing by itself.
-The parent transcribes each yes row into the RUN `authorizations` ledger through the documented procedure. The RUN remains authoritative.
+The parent records each yes row into the RUN `authorizations` ledger with `harness_transition.py record-grant`. The RUN remains authoritative.
 Fill instructions sit in HTML comments and <angle-bracket> placeholders. Replace every placeholder before launch.
 -->
 
@@ -102,9 +102,9 @@ Never guess an owner decision. Never open a second RUN to pass the gate.
 
 ## Stop And Resume
 
-- Session cap: stop at <n> wall-clock hours per session. Stop at a safe boundary; first record the `Next action:` line in the mission runbook's `## Goal And Checkpoint`.
+- Session cap: stop at <n> wall-clock hours per session. Stop at a safe boundary; first record the `Next action:` line in the current Epic's `## Handoff`.
 - Stall rule: three consecutive no-progress iterations end the session. Record the blocker in the Epic or task record and pause the run with `pause --source <text>`.
-- On compaction or restart, the first command is `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root> --session-id <id>`. Follow its `Next` block, then the mission runbook's `## Goal And Checkpoint` `Next action:` line.
+- On compaction or restart, the first command is `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <root> --session-id <id>`. Follow its `Next` block, then the current Epic's `## Handoff` `Next action:` line.
 - A `running` RUN with no run lock needs one owner decision before selection: pause, cancel, or resume. Record it with the matching `harness_transition.py` subcommand; each requires `--source`.
 - When the review budget is exhausted, route the remaining defects to the Isolated Repair Protocol (`references/verification-gates.md#isolated-repair-protocol`). Never open a new RUN for them.
 

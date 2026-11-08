@@ -80,6 +80,27 @@ WIREFRAME_DATA_RE = re.compile(
 )
 
 
+def line_ending_hint(path: str) -> str:
+    """Repair hint for bytes that differ from a pinned hash only by CRLF/LF conversion."""
+    return (
+        f"`{path}` differs only by line-ending conversion; check "
+        f"`git check-attr text eol filter -- {path}` against "
+        "delivery-harness/references/gitattributes-contract.md#converted-files; "
+        "do not regenerate or re-pin"
+    )
+
+
+def line_ending_note(data: bytes, expected_sha256: object, path: str) -> str:
+    """`; <hint>` when the bytes match the hash only after CRLF/LF conversion, else ''."""
+    if not isinstance(expected_sha256, str):
+        return ""
+    lf = data.replace(b"\r\n", b"\n")
+    for form in (lf, lf.replace(b"\n", b"\r\n")):
+        if form != data and hashlib.sha256(form).hexdigest() == expected_sha256:
+            return "; " + line_ending_hint(path)
+    return ""
+
+
 def normalized_kind(value: object) -> str:
     if not isinstance(value, str):
         return ""
@@ -188,7 +209,7 @@ def _strict_source_inventory(plan: dict[str, Any]) -> tuple[dict[str, list[dict[
     errors: list[str] = []
     for key in _STRICT_SOURCE_SPECS:
         if key in {"eval-contract", "delivery-acceptance"}:
-            continue  # Eval adoption owns these joins; legacy pins keep their source contract.
+            continue  # eval_plan_contract owns these joins; current pins require the acceptance source even without adoption.
         rows, row_errors = _strict_source_rows(plan, key)
         inventory[key] = rows
         errors.extend(row_errors)
@@ -437,7 +458,12 @@ def _frozen_preview_errors(inventory: dict[str, list[dict[str, Any]]], paths: di
             sys.path.remove(str(scripts))
         except ValueError:
             pass
-    if paths["design-system-preview"].read_bytes() != expected.encode("utf-8"):
+    actual = paths["design-system-preview"].read_bytes()
+    if actual != expected.encode("utf-8"):
+        note = line_ending_note(actual, hashlib.sha256(expected.encode("utf-8")).hexdigest(),
+                                str(inventory["design-system-preview"][0].get("location")))
+        if note:
+            return ["plan.sources: frozen design-system-preview.html" + note]
         return ["plan.sources: frozen design-system-preview.html is stale or modified; regenerate it from the frozen pair"]
     return []
 
@@ -1267,6 +1293,7 @@ def _resolve_source_bytes(
             return None, [
                 f"plan.sources: frozen {label} current bytes differ from "
                 f"source_revision {revision}"
+                + line_ending_note(current_contents, hashlib.sha256(contents).hexdigest(), relative)
             ]
     else:
         if current_contents is not None:
@@ -1281,6 +1308,7 @@ def _resolve_source_bytes(
         return None, [
             f"plan.sources: frozen {label} bytes do not match content_sha256 "
             f"(expected {expected_hash}, actual {actual_hash})"
+            + line_ending_note(contents, expected_hash, relative)
         ]
     if strict and label == "approved UI target" and isinstance(revision, str) and revision:
         # The entry hash binds the page manifest; read children from that same
@@ -1759,6 +1787,21 @@ def full_product_package_checker_errors(
         kwargs["repo_root"] = Path(repo_root)
     if ui_contract is not None:
         kwargs["ui_contract"] = ui_contract
+    if repo_root is not None and "deltas_dir" in inspect.signature(validate_package).parameters:
+        # A delta-mode PRD (one that records `Latest delta:`) needs its deltas
+        # directory, exactly as the checker's own CLI derives it from the PRD path.
+        deltas_dir = Path(repo_root) / "docs" / "product" / "deltas"
+        if deltas_dir.is_dir():
+            kwargs["deltas_dir"] = deltas_dir
+    if repo_root is not None and "features_dir" in inspect.signature(validate_package).parameters:
+        # Test Obligations that name feature files bind them to the approval digest.
+        # Derive the directory as the checker's own CLI does. A declared but missing
+        # directory is passed on so the checker reports it.
+        declared_features_dir = getattr(inspect.getmodule(validate_package), "declared_features_dir", None)
+        if declared_features_dir is not None:
+            features_dir = declared_features_dir(prd_text, Path(repo_root) / "docs" / "product" / "PRD.md")
+            if features_dir is not None:
+                kwargs["features_dir"] = features_dir
     try:
         return validate_package(
             prd_text,

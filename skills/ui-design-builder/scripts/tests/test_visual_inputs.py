@@ -6,10 +6,14 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import types
 import unittest
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
+import review_evidence
+import visual_inputs
 from visual_inputs import build_visual_inputs
 
 
@@ -306,6 +310,29 @@ Decision: not_required
         self.assertEqual(0, result.returncode, result.stderr)
         self.assertEqual(build_visual_inputs(self.root, self.ui, "implementation"), result.stdout)
         self.assertEqual(before, {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
+
+    def test_preview_above_the_read_limit_is_still_checked_against_a_fresh_render(self):
+        markdown = self.write("docs/design/design-system.md", "# Approved system\n")
+        registry = self.write("docs/design/design-system.json", '{"schema":"design-system/4"}')
+        rendered = "<!doctype html>" + "x" * 65536
+        preview = self.write("docs/design/design-system-preview.html", rendered)
+        text = self.contract(target=True, hifi=True).replace(
+            "Decision: not_required", "Decision: required\nCompiled design system pair: "
+            + self.binding(markdown) + " and " + self.binding(registry) + "\nPackage action: compile")
+        self.write(self.ui, text)
+        renderer = types.ModuleType("render_design_system_preview")
+        renderer.render_view = lambda registry_bytes, markdown_bytes, root: rendered
+        cap = 32768
+        with mock.patch.dict(sys.modules, {"render_design_system_preview": renderer}), \
+                mock.patch.object(visual_inputs, "MAX_BYTES", cap), \
+                mock.patch.object(review_evidence, "MAX_BYTES", cap):
+            self.assertGreater((self.root / preview).stat().st_size, cap)
+            packet = build_visual_inputs(self.root, self.ui, "implementation")
+            self.assertIn("current derived view matches the bound pair and HiFi", packet)
+            self.assertIn("  - " + self.binding(preview), packet.split("- Source files:", 1)[1])
+            self.write(preview, rendered + "modified")
+            with self.assertRaisesRegex(ValueError, "stale or modified"):
+                build_visual_inputs(self.root, self.ui, "implementation")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,6 @@
 # Review Recheck Convergence
 
-Status: source merged through PR #157; formal release work pending
+Status: complete; PR #157 merge 8abcd645 released in v0.70.0
 Design workflow: enhancement
 UI impact: none (review contracts, attempt scripts and documentation; no product UI changes).
 

@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.76.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.79.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -27,7 +27,7 @@ cd product-delivery-harness
 
 安装器会锁定目标目录，只暂存 Git index 已跟踪的 bundle 文件。它把当前与旧版 managed ID 备份到 `~/.agents/skill-backups/product-delivery-harness/`，再逐路径、逐字节验证安装结果。
 
-安装器拒绝不安全的链接与非预期源文件。Attempt ownership marker 让 rollback 只处理本次建立的路径，保留外来路径与旧备份。来源收据记录 source SHA 与未提交状态。
+安装器拒绝不安全的链接与非预期源文件。Attempt ownership marker 让 rollback 只处理本次建立的路径，保留外来路径与旧备份。来源收据记录 source SHA 与未提交状态。安装器会打印新安装的 five-skill contract digest 与被替换的那一个，并与收据一起保存；`harness_contract.py --skills-root <dir>` 可打印任一 skills tree 的 digest。
 
 安装器复制 scripts、references、assets 与 templates。测试保留在源 checkout，请在该处运行。验证前先安装固定的 Python 依赖：
 
@@ -35,7 +35,7 @@ cd product-delivery-harness
 python -m pip install -r skills/delivery-harness/requirements-test.txt
 ```
 
-更新沿用同一安装器，不能用 raw-copy 覆盖。先取得授权、暂停相关 skill session 并保留备份；验证成功后才开启新的宿主会话。安装失败会 rollback；后续验证失败时，从前一个 release tag 重跑安装器。
+更新沿用同一安装器，不能用 raw-copy 覆盖。先取得授权、暂停相关 skill session 并保留备份；验证成功后才开启新的宿主会话。安装失败会 rollback；后续验证失败时，从前一个 release tag 重跑安装器。consumer 仓库接着按 [bundle adoption](skills/delivery-harness/references/bundle-adoption.md) 采用新 bundle：更新 `AGENTS.md` 的 `## Harness Version` 条目，运行 `check_skill_bindings.py --previous-skill-dir <installer backup>` 把每个变动的 pin 标为 `previous_release` 或 `owner_pin`，并在 Epic 的 Change Log 记一行。
 
 从 0.23 或更早版本升级时，在同一份备份中用原 ID 保存各旧目录：`full-harness` → `delivery-harness`、`prd-builder` → `product-definition-builder`、`product-design-builder` → `design-system-compiler`。自 0.73.0 起安装器也会退役 `code-security-review`（改为 `delivery-harness/references/security-review.md`）、`product-activation`（改为 deployment record 与 `references/external-setup.md`）与 `seo-growth-review`（改为 `growth-review`）。
 
@@ -45,10 +45,10 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 
 | 当前起点 | Skill | 结果 |
 | --- | --- | --- |
-| 产品想法 | `product-definition-builder` | 已批准的 PRD、architecture、stack 与 TEST 义务 |
+| 产品想法 | `product-definition-builder` | 已批准的 PRD、architecture、stack、TEST 义务与 BDD feature 文件 |
 | 已批准且包含 UI 的 Product Definition（Product Thesis 之后即可开始设计，可先做可选的探索轮） | `ui-design-builder` | 方向、journey map、完整 HiFi、浏览器证据与 Visual Approval |
 | 已批准且需要设计系统的 HiFi | `design-system-compiler` | 冻结的 pair 与来源绑定派生 HTML |
-| 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN；UI mission 按已批准的 journey 进行 |
+| 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN；验收 scenario 由 PRD 的 feature 文件生成；UI mission 按已批准的 journey 进行 |
 | 已发布且有任何可被发现 surface 的产品 | `growth-review` | 逐 surface 的只读增长 review，以及已路由后续工作 |
 
 五个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
@@ -60,7 +60,7 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 Codex 使用 `$skill-name`；其他宿主可直接指定 skill 名称。说明准确写入范围，以及本地或远端的预期结果。
 
 ```text
-Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests, and Product Definition Approval. Stop before UI design.
+Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests with their feature files, and Product Definition Approval. Stop before UI design.
 ```
 
 ```text
@@ -87,17 +87,17 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | 负责范围 |
 | --- | --- |
-| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、研究、各轮 PRD delta 与 Product Definition Approval；多模块产品的 `program` 交付档（程序级 PRD 加每模块一个[模块包](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md)，逐模块校验）、[AI 功能契约](skills/product-definition-builder/references/ai-feature-contract.md) 与多模块产品的 modular monolith 模式 |
-| `ui-design-builder` | `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包 |
-| `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html` |
-| `delivery-harness` | 范围路由、授权、任务、集成、验证、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源（含 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 与 AI 供应商设置）、[性能与成本预算](skills/delivery-harness/references/performance-and-cost-budget.md)、跑完会清掉自己产物的原生验证，需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief |
-| `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复 |
+| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、`docs/product/features/` 下的 feature 文件、研究、各轮 PRD delta 与 Product Definition Approval；多模块产品的 `program` 交付档（程序级 PRD 加每模块一个[模块包](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md)，逐模块校验）、[AI 功能契约](skills/product-definition-builder/references/ai-feature-contract.md) 与多模块产品的 modular monolith 模式；每张 stack 表都有 `BDD runner` 行，批准区块带 `Feature files` digest，Test Obligations 一旦指明其 feature 文件，包 checker 就检查 feature 覆盖（含 eval-policy 的 scenario id） |
+| `ui-design-builder` | 由 `UI_DESIGN.template.md` 创建的 `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包，另有集中缺陷 ledger（`UI_DEFECT_LEDGER.template.json`）以及 grader、Impeccable operator 与 scoped 复查 packet（`UI_REVIEW_PACKET.template.md`）的模板 |
+| `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html`；`check_design_system_pair.py --write-bindings` 从 `ui-design.md` 填入 `sourceBindings`，`--write` 把 `contrastPairs` 与 `typeSteps` 的比值写入生成的证据区块，`design-system/4` 的 JSON token 须与 HiFi CSS 中的同名声明一致 |
+| `delivery-harness` | 范围路由、授权、任务、集成、验证、由 PRD feature 文件加一份 run profile 生成的交付验收 register、PRD delta 规则（新增或修订需求的每个 Required TEST 都须有新增或改动的 scenario）、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源（含 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 与 AI 供应商设置）、[性能与成本预算](skills/delivery-harness/references/performance-and-cost-budget.md)、跑完会清掉自己产物的原生验证，需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief；初始化的项目 `AGENTS.md` 含 `Harness Version` 与 `Behavior Specs` 段落，另有 direct 路线的 [assignment](skills/delivery-harness/assets/templates/ASSIGNMENT.template.md) 与 [review brief](skills/delivery-harness/assets/templates/DIRECT_REVIEW_BRIEF.template.md) 模板、由 `build_delivery_results.py` 转成 `delivery-results.json` 的 [delivery evidence](skills/delivery-harness/assets/templates/DELIVERY_EVIDENCE.template.md) 文件，以及对现有 app 先取证再改的 [open-ended refinement](skills/delivery-harness/references/open-ended-refinement.md) |
+| `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台、桌面 app，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复；与 `docs/gtm/MESSAGING.md` 矛盾的线上文案算 finding |
 
 ## 独立 skills
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) 选择渠道与实验、每个项目保留一份 messaging record、把 PRD 的 Launch Window 延伸成 launch runbook、为 Growth Contract 的再触达机制撰写 lifecycle messaging，并准备各渠道草稿、素材、日历与附两个 hook 的各渠道变体，涵盖开发者渠道与商店 listing。
 
-[Customer Discovery](standalone-skills/customer-discovery/SKILL.md) 规划用户访谈、整理去标识化笔记，并把 `RA-*` 候选发现交回 Product Definition。[README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。
+[Customer Discovery](standalone-skills/customer-discovery/SKILL.md) 规划用户访谈、整理去标识化笔记，并把 `RA-*` 候选发现交回 Product Definition。[README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README，有 messaging record 时从中取第一行。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。
 
 这四个完整 skill 目录须另行向宿主注册；`install.sh` 只安装五个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
 
@@ -105,11 +105,11 @@ Use $growth-review to read back every surface of this released product with its 
 
 ```mermaid
 flowchart LR
-  Product["Product Definition 与 Ambition、Growth Contract、owner 批准"] --> UI["UI 方向、journey map 与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
+  Product["Product Definition 与 Ambition、Growth Contract、feature 文件、owner 批准"] --> UI["UI 方向、journey map 与完整 HiFi"] --> Design["Visual Approval 与必要设计系统 pair"]
   Product -.->|"Product Thesis 之后的可选探索轮 R0"| UI
   Product -->|"无 UI，或限域增强或维护"| Harness["Direct 或 managed 交付"]
   Design -->|"mission 按已批准的 journey 进行"| Harness
-  Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation"] --> C["固定候选 C"]
+  Harness --> Review["最终 SHA 的一次合并 review"] --> Tests["一次 broad final validation 与交付验收 register"] --> C["固定候选 C"]
   C -->|managed| A["仅 managed：archive-only A"] --> Publish["已授权候选发布与适用 Preview"]
   C -->|direct| Publish
   Publish --> Main["另行授权 exact-SHA main landing"] --> Setup["逐 target 外部设置回读"] --> Outcome["测量成效与可选 growth review"]
@@ -123,26 +123,23 @@ flowchart LR
 
 Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。owner 选择 `Delivery profile: mvp` 时，小型项目或一周 MVP 走压缩路线：stack 与产品批准一次合并调用、必要页面才做 HiFi、一次合并交付 review 并入 Final UI Acceptance，owner gate 最多四个；证据、安全与数据保护规则不变。
 
-- [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。managed run 从 inspector 的 `Next` 区块恢复；停滞的 `running` RUN 先要 owner 决定，自主执行从已签署的 launch brief 开始。
-- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 与 review packet 在启动前先按路线的时间、turn 与 byte 上限切好大小。期限已到却没有 verdict，视为环境受阻，改以较小的 scoped 调用重新分派。
-- [验证](skills/delivery-harness/references/verification-gates.md)：必要证据绑定准确候选；缺能力或证据维持 blocked。浏览器矩阵的独立 review 采用先验证再抽样：验证 receipt，检查 FAIL 与经 diff 标记的行，再抽样 PASS 行。浏览器能力探测在同一 session 内重复使用。沙箱内跑不了 git 的 reviewer 以 `review_input.py` packet 证明身份与 checkout 干净。
-- [候选发布与晋升](skills/delivery-harness/references/branch-promotion-contract.md)：保留准确 target、授权与远端回读，不得 force-push。
+- [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。当前 Epic 就是 `docs/DOCUMENTS.md` 的 `Current Epic:` 行所指的那份；索引只保留一行 `docs/epics/`，各 Epic 的状态写在自己的文件里。初始化会从 `PROJECT_GITATTRIBUTES.template` 创建缺少的 `.gitattributes`，让哈希绑定的文件逐字节保存（[gitattributes 契约](skills/delivery-harness/references/gitattributes-contract.md)）；`configure_project_context.py --check` 不写入任何文件，报告 attribute 缺口、每个过时 `AGENTS.md` 段落的 diff，加上 `--documents` 时也报告 `docs/DOCUMENTS.md` 的偏差。managed run 从 inspector 的 `Next` 区块恢复；停滞的 `running` RUN 先要 owner 决定，自主执行从已签署的 launch brief 开始。
+- [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 与 review packet 在启动前先按路线的时间、turn 与 byte 上限切好大小。期限已到却没有 verdict，视为环境受阻，改以较小的 scoped 调用重新分派。变动边界的设计与 review 按 [architecture method](skills/delivery-harness/references/architecture-method.md) 进行。
+- [验证](skills/delivery-harness/references/verification-gates.md)：必要证据绑定准确候选；缺能力或证据维持 blocked。浏览器矩阵的独立 review 采用先验证再抽样：验证 receipt，检查 FAIL 与经 diff 标记的行，再抽样 PASS 行。浏览器能力探测在同一 session 内重复使用。沙箱内跑不了 git 的 reviewer 以 `review_input.py` packet 证明身份与 checkout 干净。`build_verifier_request.py` 按 live lease 生成 worker 与 task 的 verifier request；`security_review_result.py --result <file> --reviewed-sha <sha>` 不写入任何文件，检查 direct 路线的安全审查结果。
+- [交付验收](skills/delivery-harness/references/delivery-acceptance-contract.md)：feature 文件是 owner 批准的 PRD 内容，step definition 是代码。交付验收 register 由 feature 文件生成，不能手动编辑。改 scenario 文字是产品决定，须走 PRD delta；只改 step definition 是现有 Epic 上的小修正。BDD runner 是 stack 决策的一部分。run profile 的 `variants` 与 `assign` 映射可生成混合平台的 register；`render_delivery_acceptance.py --check` 只报告偏差，不写入。
+- [候选发布与晋升](skills/delivery-harness/references/branch-promotion-contract.md)：保留准确 target、授权与远端回读，不得 force-push。[Card 8](skills/delivery-harness/references/stages/stage-cards.md#card-8-archive-publish-and-promote) 按顺序列出归档、发布与晋升命令。
 - [源码维护](skills/delivery-harness/references/governance/source-maintenance.md)：每个 atomic task 跑聚焦检查，固定候选跑一次完整 matrix。
 
-每次交接前，核对来源哈希（source hashes）、Epic 记录与文件一致性，并原地重写 Epic 的 `## Handoff` 区块（阶段、有效核准、剩余工作、下一步）；每个 skill 进场先读这个区块。`docs/tasks.md` 由 RUN 派生，不能手动编辑生成区段。[文档同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修复](skills/delivery-harness/references/bounded-enhancement.md) 与[交付验收](skills/delivery-harness/references/delivery-acceptance-contract.md) 拥有这些检查规则。
+每次交接前，核对来源哈希（source hashes）、Epic 记录与文件一致性，并原地重写 Epic 的 `## Handoff` 区块（阶段、有效核准、剩余工作、下一步）；每个 skill 进场先读这个区块。文档同步计算每份 Epic 的哈希时不含该区块，所以重写它不算 drift。`docs/tasks.md` 由 RUN 派生，交付验收 register 由 `render_delivery_acceptance.py` 从 feature 文件生成；不能手动编辑生成区段。[文档同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修复](skills/delivery-harness/references/bounded-enhancement.md) 与[交付验收](skills/delivery-harness/references/delivery-acceptance-contract.md) 拥有这些检查规则。
 
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
-| Product Definition | 封闭式决策前先回读 Product Thesis。草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。Discovery 追加 Ambition 段落，`PRD.md` 放 `## Ambition`，且每轮 PRD 发布与其 Epic 对齐的 delta。At a Glance 的 `Shape` 行声明 track、companion 界面与 console，由 checker 验证；`## Growth Contract` 记录 north star、再触达、discovery surfaces 与 launch window。套件预算是作者自查、一次独立 review 与一次定向复查；之后的缺陷走隔离修复加 scoped review。 |
-| 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究；修改只新增一个所选方向的修订研究与一次决定，拒绝才重做整组。 |
-| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。自查由工具驱动：运行矩阵 driver、修正几何 FAIL 与 console 错误，并阅读有改动页面的渲染图。一次诊断 wave、一批集中修复与一次受影响范围复查。保留必要浏览器覆盖、Impeccable `critique` **与** `audit`、四舍五入的 H1–H9 总平均 **至少 85** 及每项 **至少 80**，再取得 Visual Approval。未变的 case 依 render fingerprint（几何加计算样式）而非页面 bytes 连同身份沿用。此阶段保有同样的两次 review 预算；之后的缺陷走隔离修复，并对修复差异做 scoped review，最多两次 scoped 复查。其后仍未结的行，以列出的 advisory 或 block 交给 Visual Approval。 |
-| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），findings 分为 blocking 与 notes，另加一次定向复查。复查后每个剩余或新缺陷各成一笔有界修复，附自己的聚焦 verifier，并只对修复差异做 scoped review（finding、修复差异、直接消费者）；差异碰到信任边界时安全维度才加入，scoped PASS 重新绑定被修复路径，scoped review 不占用 attempt 预算。除非修复碰到 UI 页面，否则不重跑 Final UI Acceptance，碰到时只重新采集该页面的条目，其余依 render fingerprint 沿用，并以 diff 优先判定 parity（`parity_capture.py` 会分类 pair）；broad final validation 每个候选于最后跑一次。环境受阻的 attempt 不占用预算。 |
+| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。其后的缺陷走隔离修复加 scoped review。 |
+| 方向 | 原作者先检查并修复已渲染的研究，再交 owner 选择。三个研究，由 owner 选定。 |
+| HiFi | 完整性 preflight 后，原作者先自查及修复，再交独立 review。Impeccable `critique` **与** `audit` 完成，且四舍五入的 H1–H9 总平均 **至少 85**、每项 **至少 80** 后，才取得 Visual Approval。 |
+| 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），另加一次定向复查。之后每个剩余缺陷各成一笔有界修复，只对其修复差异做 scoped review。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
-| 外部设置 | `docs/DEPLOYMENT.md` 每个动作一行 External Console Setup，另有 Measurement Sources 表。逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。 |
-
-缺少 `review_policy` 时保留旧版 `per_mission` 行为。保留冻结 PLAN/RUN pin 与历史批准，不可改 node 名称重置已用 attempts。预算用完后，剩余缺陷走隔离修复，并对每个修复差异做 scoped review；多个未结 family 合并为一次 consolidated repair，用一个 review point 审查，并以基线对比控件把关；没有额外 review 轮次。可执行差异必须有安全审查，缺少时报 `UNVALIDATED`，不能报 PASS。仅含 docs、copy、Epic、证据或簿记的差异改记 `security: not_applicable (<reason>)` 并列出路径。范围不相交而沿用的 PASS 保留原始 SHA，不得改称全新。 HiFi 初审跑基础矩阵，并在代表性 case 上抽样压力轴：200% 文字、forced colors、长文案、中间宽度、320 px reflow 与 reduced motion。每个 surface × state × target case 只采集一次，供该 case 上所有观察共用。PRD 的 UI surface 可声明 `derivedStates`：布局相同的 overlay 或子状态，每个只在该 surface 最小的 target 采集一次。每个 motion intent 在一个代表性 target 上留下 trigger frame、end-state frame 与 reduced-motion 时长检查。其 receipt 是该单一 intent 的离线 receipt，不带 bundle 的 interaction、navigation 与 reviewer 证据。矩阵 driver `hifi_matrix_capture.py` 在同一个浏览器 context 内走完整个矩阵，附几何探测、render fingerprint、从先前运行沿用与抽样轴，并写出 `ui-output/3` 结果。复查在受影响页面与状态重跑 critique 和 audit，只重新观察 render fingerprint（几何、computed styles 与媒体识别）有变的 case，不完整的 fingerprint 不得沿用，并以 diff 优先：相同的行自动记录，reviewer 只判定被标记的行。沿用让完整证据矩阵得以保留。
-
-HiFi 仍须使用 Impeccable，但它不是默认的只读实现 reviewer。其 workflow 的 subagent、浏览器／server、snapshot 写入与可选下载须另有授权。产品、stack、方向与 Visual Approval 决定仍属原 owner。Owner 的 Visual Approval（含附后续事项的接受）会结束该设计轮次；未结的行成为 Epic 的后续事项。一轮以进场时的 bundle pin 完成；轮次中途安装造成的 drift 只记录，不阻塞。
+| 外部设置 | `docs/DEPLOYMENT.md` 每个动作一行 External Console Setup，另有 Measurement Sources 表，每次 release 在 Release Log 记一行。逐 release target 验证授权、独立回读与适用行为；前置准备与 production readiness 分开。商店或安装程序 target 须有安装或下载证明；只有上传时保持 `pending`。 |
 
 ## 通用 runtime adapter
 
@@ -178,21 +175,17 @@ remove_worktrees, delete_branches
 python skills/delivery-harness/scripts/check_skill_spec.py
 python -m unittest discover -s skills/delivery-harness/scripts/tests -p "test_skill_contract.py"
 python skills/delivery-harness/scripts/docs_weight.py
+python skills/delivery-harness/scripts/prepare_release.py --check
 git diff --check
 ```
 
-[必要 matrix](skills/delivery-harness/references/governance/source-maintenance.md#required-verification) 在固定候选上通过 CI 跑一次，只有 CI 不可用时才在本地运行完整 matrix。保留浏览器与 native 覆盖，失败或输入变更时重验受影响部分；沿用证据须保留原始来源。
+[必要 matrix](skills/delivery-harness/references/governance/source-maintenance.md#required-verification) 在固定候选上通过 CI 跑一次，只有 CI 不可用时才在本地用 `python skills/delivery-harness/scripts/ci_test_shards.py matrix --base <released main SHA> --log-dir <new directory>` 运行完整 matrix，它为每一步写一份 log 与 `summary.txt`。保留浏览器与 native 覆盖，失败或输入变更时重验受影响部分；沿用证据须保留原始来源。
 
 ## 发布
 
-遵循[源码 Git flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) 与[必要验证](skills/delivery-harness/references/governance/source-maintenance.md#required-verification)。已审查的源码候选经必要 PR 进入受保护 `main`，并在该 commit 加上 `v<version>` tag。以下 release 字段一并更新：
+遵循[源码 Git flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) 与[必要验证](skills/delivery-harness/references/governance/source-maintenance.md#required-verification)。已审查的源码候选经必要 PR 进入受保护 `main`，并在该 commit 加上 `v<version>` tag。设定版本时，把四段版本历史写进同一目录的 `en.md`、`zh-TW.md`、`zh-CN.md` 与 `es.md`（各一行），再运行 `python skills/delivery-harness/scripts/prepare_release.py --version <X.Y.Z> --entries <dir>`。任何版本字段不一致时它会拒绝；一致时把新版本写进 `VERSION`、`package.json`、`package-lock.json` 与四份 README，并把 README 最旧的一条记录移到 `CHANGELOG.md`。测试从 `VERSION` 读取版本，不新增 hard-coded literal。
 
-1. `package.json` version 与 `skills/delivery-harness/VERSION`。
-2. 四种语言 README 的版本 badge 与当前版本历史。
-3. Delivery skill 的 `assets/templates/MISSION_RUNBOOK.template.md` 内 `required_harness_version`。
-4. 测试继续从 `VERSION` 读取版本，不新增 hard-coded literal。
-
-Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归档验证后才继承 C 的证据。差异只可包含收据列出的 coordination／evidence 移动、可选的派生 `docs/tasks.md`、`docs/DOCUMENTS.md` 更新与 `ARCHIVE_RECEIPT.json`，其他路径保持不变。保留 C 已审 SHA 与各结果的原始来源，不把继承证据当作 A 的新执行。Server 生成的 main SHA S 若 tree 相同，连同原始来源继承候选证据；不因 tree 相同而重跑完整 suite 或安全审查。Tree 不同则重新验证新候选。
+Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归档验证后才继承 C 的证据。差异只可包含收据列出的 coordination／evidence 移动、可选的派生 `docs/tasks.md`、`docs/DOCUMENTS.md` 更新与 `ARCHIVE_RECEIPT.json`，其他路径保持不变。保留 C 已审 SHA 与各结果的原始来源，不把继承证据当作 A 的新执行。Server 生成的 main SHA S 若 tree 相同，连同原始来源继承候选证据，由 `promotion_readback.py post` 的 JSON 证明；不因 tree 相同而重跑完整 suite 或安全审查。Tree 不同则重新验证新候选。
 
 发布须绑定 owner 授权的准确 SHA 与 branch，使用 no-force push 并回读远端。一个 release 指令可同时绑定这些授权；遇到 drift 或 gate 失败就停止。正式 release 验证完成后，若已安装 bundle 不同，在相关 session 静止时以官方安装器更新，保留备份及验证。Badge 不能证明已安装或已部署。
 
@@ -206,14 +199,14 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.79.1** — 0.79.0 PR 经 Codex review 后的补丁。`hifi_matrix_capture.py` 对产品控件不可见或焦点没有单独落在控件上的交互改记 FAIL，不再出现 `focusCorrect: false` 却 PASS 的行；reviewer pass 改点击带 surface 条件的状态控件，同一页两个 surface 共用 `ready` 等状态时不再误报“reviewer control missing”。frozen package 的 join 会把 PRD 声明的 `docs/product/features` 目录传给 Product Definition checker，批准后改动 scenario 会以 feature 文件 digest 不符拦下 readiness，与 CLI 行为一致。bundle 字节改变，consumer 需重 pin 五技能契约。
+
+- **0.79.0** — 整套 review 第二轮。0.78.0 那次审查留下的十项在此版落地。RUN 里权限最高的几个改动现在都有守卫的 transition：`harness_transition.py record-grant`、`open-run`、`close-run`、`record-runtime` 会取锁、带着 owner 的原话、从 RUN 填入 run_id 与 plan revision 和 digest、写入前验证整个 pair，并拒绝 `push`；`lease-worker --packet-out` 直接从已租用的 RUN 渲染并检查 worker goal 包大小，Card 4 因此去掉独立的渲染与检查步骤。`build_verifier_request.py --layer mission_integration` 生成 integration verifier 的 request，builder 与两个 validator 现在共用同一个 `verifier_context`。`promotion_readback.py pre` 与 `post` 以只读方式证明 main 的前状态、祖先关系与 tree 相等；README 以 `post` 的 JSON 作为 tree 相等的证明。`hifi_matrix_capture.py` 会点击并以键盘触发 manifest 的每个交互、测量 reviewer 行、用 `--color-scheme dark` 跑完整基础矩阵、用 `--intermediate` 写出中间宽度的输出，并新增 `reflow-320` 轴。`parity_capture.py --hifi-package` 通过 reviewer 控件比对 ui-hifi/2 包，route map 用 `PARITY_ROUTE_MAP.template.json`。consumer 会察觉的变化，在 0.79.0 pin 之后：eval policy 为 `not_required` 的 managed PLAN 仍须冻结 delivery-acceptance source、声明 acceptance 与 closeout gate 及 pass-only 链；system-conformance 的 `target_comparison` 必须引用冻结的已批准 HiFi。pin 在 0.79.0 之前的 run 保持现行行为。bundle 新增契约，因此升 minor 版本。
+
+- **0.78.0** — 整套 review。一次只读的整套审查问了三件事：哪里能简化、哪些该做成模板、还缺什么；91 项已验证的发现中，78 项分两波在此版落地，另外十项较大的留待第二轮。各入口行动前必读的字数下降：delivery-harness 由 43,863 降到约 31,100（managed 路线由 41,245 降到 28,389），product-definition-builder 由 41,185 降到约 37,700，ui-design-builder 由 32,758 降到约 30,800。新模板：`UI_DESIGN`、`UI_DEFECT_LEDGER`、`UI_REVIEW_PACKET`、`PROJECT_GITATTRIBUTES`、`DIRECT_REVIEW_BRIEF`、`ASSIGNMENT` 与 `DELIVERY_EVIDENCE`，初始化的记录另有 Release Log、`Current Epic:` 行与 `Harness Version` 段落。新 reference：architecture method、gitattributes 契约、bundle adoption、open-ended refinement 与 Card 8。新命令：`build_delivery_results.py`、`build_verifier_request.py`、`prepare_release.py`、`ci_test_shards.py matrix`、`security_review_result.py` 的 CLI、`render_delivery_acceptance.py --check` 与 profile variants，以及 `check_design_system_pair.py --write-bindings` 和自动计算的对比与字级证据。consumer 会察觉的变化：JSON 与 HiFi CSS 不一致的现有 `design-system/4` pair 可能在 token 值检查失败；商店与安装程序 target 须有安装或下载证明；`MISSION_RUNBOOK.template.md` 已移除，它的默认值不再是版本字段；带 pre-0.66 anchor key 的 archive receipt 会失败；Epic 哈希不含 Handoff 区块。bundle 新增契约，因此升 minor 版本。
+
+- **0.77.0** — 可执行的 scenario。`docs/product/features/` 下的 feature 文件纳入 PRD 包，与 PRD 一起批准。每个 scenario 恰好带一个 `@TEST-*` tag，每个 `Required: Yes` 的 Test Obligation 至少要有一个 scenario。`check_feature_coverage.py` 双向检查，新包运行 `check_product_package.py` 时另加 `--features <dir>`。`render_delivery_acceptance.py` 由 feature 文件加一份 run profile 生成交付验收 register；`@platform:`、`@auth:` 与 `@env:` tag 只针对单个 scenario 覆盖 profile，register 不能手动编辑。加上 `--features` 与 `--features-base` 时，`check_prd_delta_scope.py` 要求 delta 中每个新增或修订需求的 Required TEST 都有新增或改动的 scenario，否则拒绝。项目 AGENTS 模板新增 Behavior Specs 段落，Greenfield scaffold 会配置已批准的 BDD runner（新增的 stack 层）及其 step definition 目录。改 scenario 文字是产品决定，须走 PRD delta；只改 step definition 是现有 Epic 上的小修正。
+
 - **0.76.1** — 更快的 review 循环。motion receipt 按单一 intent 在代表性 target 上的离线 receipt 校验，沙箱为 allowlisted-local-pages，不再要求 HiFi bundle 的 interaction、navigation 与 reviewer 证据，motion collector 因此能通过安装的契约。沙箱内跑不了 git 的 reviewer 改用父进程以 `review_input.py` 生成的 packet（detached clone、按范围切分的 diff、父进程 status 与全文件 SHA-256 清单）证明候选身份与 checkout 干净；有该 packet 时 git 失败不再算 environment block。targeted re-check 后若仍有多个 finding family，合并成一次 consolidated repair，用一个 review point 审查，只有 packet 超过路线上限时才按路径组拆分；pre-review gate 要求基线对比控件，对绑定的 base 字节记录每个案例的预期转变（无效输入 old=accept new=reject，恢复的合法行为 old=reject new=accept，保留的正向样本两边都 accept）。
-
-- **0.76.0** — 更快的 UI review。PRD UI surface 可声明 `derivedStates`，只在最小 target 取证一次；第一波 stress axes 改为代表性抽样；isolated repair 最多两次 scoped re-review。沿用改以 render fingerprint（几何、computed styles 与媒体识别）而非页面 bytes；re-review 与 parity 先 diff 再判，并加区域规则；一个 case 一张 capture 供所有观察引用；motion 证据为单一代表 target 上的三项观察。新增 `ui-design-builder/scripts/hifi_matrix_capture.py` 以单一浏览器 context 跑完整 HiFi 矩阵，`parity_capture.py` 每条路由两侧各加载一次、分类配对并沿用未变者。浏览器矩阵的独立审查改为先验收再抽样，packet 在启动前按路线上限切分，浏览器能力探测每 session 重用，必要检查全过后 owner 接受即关闭该轮设计，一轮以进场时的 bundle pin 收尾。
-
-- **0.75.4** — Security 内容校订。`security-review.md` 不再允许直接路线上的 inline security review，trust boundary 改从 PRD Security Requirements 行及其 `TEST-*` trace 获取，在受审 head 上确认每个 planned boundary 的 denial test，`scope` 逐字照抄 packet，并说明 environment block 的记录方式。option library 索引把 exact-scope review 改指向 delivery-harness 的 security lens，不再指向已退役的 `code-security-review`；`security.md` 的控制方案移到来源清单之前。
-
-- **0.75.3** — 修正 0.75.2 consumer 采用时发现的模板问题。`PROJECT_AGENTS.template.md` 的 managed-run 规则改指向 `project-operating-rules.md`，不再指向模板里不存在的段落；`DEPLOYMENT.template.md` 的 presence 示例不再被 `check_deployment.py` 当成未填的 placeholder；GA4 指南写明 `MS-*` 行在 Realtime 或 DebugView 看到事件之前保持 `available`。
-
-- **0.75.2** — 阅读更薄。新增 `docs_reading_budget.py`，量出每个入口开工前必读的字数（必读与条件式链接分开，`--budget N` 可在 CI 守线）。七份 reference 在不删任何规则的前提下压缩：PRD output contract、verification gates、execution state model、design input updates、UI output contract、architecture playbook、interview guide（约减 8,600 字）；`design-input-updates.md` 改为只有 UI 工作才读，每次 direct 与 managed run 少读 3.7k 字。计入总字数已低于 v0.74.1，尽管本周新增了不少内容。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

@@ -4,7 +4,7 @@ Use this playbook to make architecture sections implementation-ready. The overal
 
 ## Caller And State Method
 
-Apply [Architecture Method](../../delivery-harness/references/delegation-contract.md#architecture-method) to the accepted journeys. Keep implementation signatures and types in the downstream implementation-design assignment. Compare structural alternatives only when coupling, durability, trust or migration remains unresolved. Reuse valid enhancement decisions and small-repair designs. These methods add no approval gate or mandatory package field.
+Apply [Architecture Method](../../delivery-harness/references/architecture-method.md) to the accepted journeys. Keep implementation signatures and types in the downstream implementation-design assignment. Compare structural alternatives only when coupling, durability, trust or migration remains unresolved. Reuse valid enhancement decisions and small-repair designs. These methods add no approval gate or mandatory package field.
 
 ## Baseline Architecture Coverage
 

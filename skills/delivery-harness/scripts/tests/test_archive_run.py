@@ -380,9 +380,6 @@ class ArchiveRunTests(unittest.TestCase):
             ],
             "documents_before_sha256": None,
             "documents_after_sha256": None,
-            "anchor_path": None,
-            "anchor_path_sha256": None,
-            "anchor_nonce": None,
             "receipt_sha256": "e" * 64,
         }
         errors = archive_run.validate_archive_receipt(value)
@@ -734,18 +731,14 @@ class ArchiveRunTests(unittest.TestCase):
         self.assertEqual(self.documents_original, documents.read_text(encoding="utf-8"))
         self.assertEqual([], [item.name for item in documents.parent.iterdir() if item.name.endswith(".tmp")])
 
-    def test_receipt_carries_no_anchor_and_legacy_anchor_keys_stay_valid(self) -> None:
+    def test_receipt_carries_no_anchor_and_pre_0_66_anchor_keys_are_refused(self) -> None:
         result = self.archive("--apply", "--stamp", "20260101-000000")
         self.assertEqual(0, result.returncode, result.stdout + result.stderr)
         receipt = json.loads((self.archived_dir() / "ARCHIVE_RECEIPT.json").read_text(encoding="utf-8"))
         self.assertEqual([], archive_run.validate_archive_receipt(receipt))
-        self.assertFalse(set(receipt) & archive_run.ARCHIVE_RECEIPT_LEGACY_ANCHOR_KEYS)
         legacy = {**receipt, "anchor_path": None, "anchor_path_sha256": None, "anchor_nonce": None}
         legacy["receipt_sha256"] = archive_run._receipt_digest(legacy)
-        self.assertEqual([], archive_run.validate_archive_receipt(legacy))
-        partial = {**receipt, "anchor_path": None}
-        partial["receipt_sha256"] = archive_run._receipt_digest(partial)
-        self.assertTrue(archive_run.validate_archive_receipt(partial))
+        self.assertIn("archive receipt has missing or extra fields", archive_run.validate_archive_receipt(legacy))
 
     def test_removed_anchor_and_recover_flags_are_refused(self) -> None:
         for flag in ("--anchor-out", "--recover"):

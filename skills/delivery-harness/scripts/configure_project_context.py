@@ -1,14 +1,28 @@
 #!/usr/bin/env python3
-"""Safely add host-specific project context files without overwriting local rules."""
+"""Safely add host-specific project context files without overwriting local rules.
+
+A missing `.gitattributes` is seeded from PROJECT_GITATTRIBUTES.template.
+`--check` also reports, read-only, whether Git stores docs/product, docs/design,
+docs/verification and docs/goal byte for byte, with the `.gitattributes` lines
+to add; `--require-resolved` makes a finding fail. It also lists the template
+lines an existing `.gitattributes` lacks.
+
+`--check --merge-agents` prints a unified diff for each AGENTS.md section that
+differs from the template beyond trailing blank lines, line endings, the
+Skill Bindings skill and pin cells and the Harness Version bullet values.
+`--check --documents` compares docs/DOCUMENTS.md with the manifest template.
+"""
 
 from __future__ import annotations
 
 import argparse
+import difflib
 import hashlib
 import json
 import os
 import re
 import stat
+import subprocess
 import sys
 from pathlib import Path
 
@@ -18,6 +32,9 @@ from check_skill_bindings import PIN_RE, STAGE_SLOTS, bound_skill_name, parse_bi
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
 DEFAULT_AGENTS_TEMPLATE = TEMPLATES_DIR / "PROJECT_AGENTS.template.md"
 DEFAULT_CLAUDE_TEMPLATE = TEMPLATES_DIR / "PROJECT_CLAUDE.template.md"
+DOCUMENTS_TEMPLATE = TEMPLATES_DIR / "DOCUMENTS.template.md"
+DOCUMENTS_PATH = "docs/DOCUMENTS.md"
+GITATTRIBUTES_TEMPLATE = TEMPLATES_DIR / "PROJECT_GITATTRIBUTES.template"
 MERGE_HEADING = "# Project Delivery Harness Shared Guidance"
 MERGE_INTRO = (
     "Added by `configure_project_context.py --merge-agents`. Local rules above "
@@ -36,6 +53,7 @@ MERGE_PLAN_KEYS = {
 FENCE_OPEN_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})")
 FENCE_CLOSE_RE = re.compile(r"^ {0,3}(`{3,}|~{3,})[ \t\r]*$")
 HEADING_RE = re.compile(r"^ {0,3}## (.+?)[ \t]*#*[ \t]*$")
+BULLET_LABEL_RE = re.compile(r"^(\s*[-*] [^:]+):.*$")
 UNRESOLVED_PLACEHOLDER_MARKERS = (
     "<fill>",
     "<bundled",
@@ -118,6 +136,38 @@ def _level_two_sections(
     if current is not None:
         sections[heading] = "".join(current)
     return sections, duplicates
+
+
+def _comparable_section(heading: str, section: str) -> str:
+    """Section text as compared: LF endings and no trailing blank lines.
+
+    Skill Bindings rows drop their skill and pin cells, which
+    check_skill_bindings.py owns. Harness Version bullets keep only their
+    labels: each consumer records its own installed version there.
+    """
+
+    text = section.replace("\r\n", "\n").rstrip() + "\n"
+    if heading == "Harness Version":
+        return "\n".join(BULLET_LABEL_RE.sub(r"\1: <value>", line) for line in text.split("\n"))
+    if heading != "Skill Bindings":
+        return text
+    lines = []
+    table_line = 0
+    for line in text.split("\n"):
+        if line.strip().startswith("|"):
+            table_line += 1
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if table_line > 2 and len(cells) == 4:
+                line = f"| {cells[0]} | {cells[1]} | <skill> | <pin> |"
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def _section_diff(heading: str, existing: str, template: str) -> list[str]:
+    return list(difflib.unified_diff(
+        existing.splitlines(), template.splitlines(),
+        f"AGENTS.md ## {heading}", f"template ## {heading}", n=1, lineterm="",
+    ))
 
 
 def _file_has_exact_bytes(path: Path, expected: bytes) -> bool:
@@ -282,33 +332,29 @@ def configure_context(
         ]
         if parser_errors:
             missing = []
-        divergent = [
-            heading
+        compared = {
+            heading: (
+                _comparable_section(heading, existing_sections[heading]),
+                _comparable_section(heading, template_section),
+            )
             for heading, template_section in template_sections.items()
             if heading in existing_sections
-            and existing_sections[heading] != template_section
-        ]
+        }
+        divergent = [heading for heading, (mine, theirs) in compared.items() if mine != theirs]
         merge["agents_sha256"] = _sha256(existing_bytes)
         merge["template_sha256"] = _sha256(template_bytes)
         merge["proposed_additions"] = missing
         merge["parser_errors"] = parser_errors
         divergences = [
-            {
-                "heading": heading,
-                "existing_sha256": _sha256(existing_sections[heading].encode("utf-8")),
-                "template_sha256": _sha256(template_sections[heading].encode("utf-8")),
-            }
+            {"heading": heading, "diff": _section_diff(heading, *compared[heading])}
             for heading in divergent
         ]
         if missing and any(
             line.strip() == MERGE_HEADING for line in existing_text.splitlines()
         ):
+            # The missing sections would join the existing shared block.
             divergences.append(
-                {
-                    "heading": MERGE_HEADING,
-                    "existing_sha256": _sha256(existing_bytes),
-                    "template_sha256": _sha256(template_text.encode("utf-8")),
-                }
+                {"heading": MERGE_HEADING, "diff": [f"+## {heading}" for heading in missing]}
             )
         merge["unresolved_divergences"] = divergences
         merge["semantic_review_required"] = bool(
@@ -393,6 +439,7 @@ def configure_context(
             )
             merge["status"] = "plan_valid"
 
+    gitattributes_created = False
     if not dry_run and not merge_blocked:
         if not _present(agents):
             _write_new(agents, resolved_agents_template.read_bytes())
@@ -400,12 +447,17 @@ def configure_context(
         if not _present(claude):
             _write_new(claude, resolved_claude_template.read_bytes())
             created.append("CLAUDE.md")
+        gitattributes = resolved_root / ".gitattributes"
+        if not _present(gitattributes):
+            _write_new(gitattributes, GITATTRIBUTES_TEMPLATE.read_bytes())
+            gitattributes_created = True
 
     result = inspect_context(resolved_root)
     result["created"] = created
     result["preserved"] = [
         name for name in ("AGENTS.md", "CLAUDE.md") if name not in created
     ]
+    result["gitattributes_created"] = gitattributes_created
     result["agents_merge"] = merge
     return result
 
@@ -435,6 +487,187 @@ def unresolved_placeholders(root: Path, *, stage: str = "all") -> list[str]:
                 f"line {number}: unresolved Skill Bindings row for slot {slot!r}"
             )
     return findings
+
+
+BACKTICKED = re.compile(r"`([^`]+)`")
+SEPARATOR_CELL = re.compile(r":?-{3,}:?")
+
+
+def _manifest_rows(text: str) -> list[tuple[int, set[str], set[str]]]:
+    """(line, document paths, all paths) for each table body row of a manifest."""
+
+    lines = text.splitlines()
+    rows = []
+    for index, line in enumerate(lines):
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        following = lines[index + 1] if index + 1 < len(lines) else ""
+        if (
+            not line.lstrip().startswith("|")
+            or len(cells) < 2
+            or all(SEPARATOR_CELL.fullmatch(cell) for cell in cells)
+            or all(SEPARATOR_CELL.fullmatch(cell.strip()) for cell in following.strip().strip("|").split("|"))
+        ):
+            continue
+        locations = BACKTICKED.findall(cells[1])
+        base = locations[0].rstrip("/") if locations else ""
+        documents = {
+            token if "/" in token or not base else f"{base}/{token}"
+            for token in BACKTICKED.findall(cells[0])
+        }
+        paths = documents | set(locations)
+        rows.append((index + 1, documents, {path.removeprefix("./").rstrip("/") for path in paths}))
+    return rows
+
+
+def documents_findings(root: Path) -> dict[str, object]:
+    """Read-only comparison of docs/DOCUMENTS.md with the manifest template."""
+
+    template = DOCUMENTS_TEMPLATE.read_text(encoding="utf-8")
+    manifest = root / DOCUMENTS_PATH
+    report: dict[str, object] = {
+        "path": DOCUMENTS_PATH, "present": manifest.is_file(), "missing_rows": [],
+        "single_record_rows": [], "intro_paragraph_missing": False,
+    }
+    if not report["present"]:
+        return report
+    try:
+        text = manifest.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"cannot read {DOCUMENTS_PATH} as UTF-8: {exc}") from exc
+    wanted = sorted({path for _, documents, _ in _manifest_rows(template) for path in documents})
+    # A template row naming a directory stands for generated records.
+    directories = [path.rstrip("/") for path in wanted if path.endswith("/")]
+    rows = _manifest_rows(text)
+    present = set().union(*(paths for _, _, paths in rows))
+    report["missing_rows"] = [path for path in wanted if path.rstrip("/") not in present]
+    report["single_record_rows"] = [
+        {"line": line, "path": path, "directory": directory + "/"}
+        for line, _, paths in rows
+        for path in sorted(paths)
+        for directory in directories
+        if path.startswith(directory + "/")
+    ]
+    intro = next(
+        part for part in template.split("\n\n") if part.strip() and not part.lstrip().startswith(("#", "|"))
+    )
+    report["intro_paragraph_missing"] = " ".join(intro.split()) not in " ".join(text.split())
+    return report
+
+
+# Product, design, verification and run files are hashed long before the
+# acceptance gate, so Git must store them byte for byte.
+BYTE_EXACT_ROOTS = ("docs/product", "docs/design", "docs/verification", "docs/goal")
+BYTE_ATTRIBUTES = ("text", "filter", "ident", "working-tree-encoding")
+ATTRIBUTE_PROBE = "pdh-attribute-probe"
+FINDINGS_PER_ROOT = 20
+
+
+def gitattributes_findings(root: Path) -> dict[str, object]:
+    """Template lines an existing `.gitattributes` lacks; read-only."""
+
+    path = root / ".gitattributes"
+    report: dict[str, object] = {"present": _present(path), "missing_template_lines": []}
+    if not report["present"]:
+        return report
+    try:
+        existing = {" ".join(line.split()) for line in path.read_text(encoding="utf-8").splitlines()}
+    except (OSError, UnicodeError) as exc:
+        raise ValueError(f"cannot read .gitattributes as UTF-8: {exc}") from exc
+    report["missing_template_lines"] = [
+        " ".join(line.split())
+        for line in GITATTRIBUTES_TEMPLATE.read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+        and " ".join(line.split()) not in existing
+    ]
+    return report
+
+
+def _git(root: Path, *arguments: str, stdin: bytes | None = None) -> bytes | None:
+    try:
+        completed = subprocess.run(
+            ["git", "--no-optional-locks", "-C", str(root), *arguments],
+            input=stdin, capture_output=True, timeout=120, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return completed.stdout if completed.returncode == 0 else None
+
+
+def _attribute_problems(found: dict[str, str]) -> list[str]:
+    problems = [] if found.get("text") == "unset" else ["text"]
+    problems += [
+        name for name in ("filter", "ident")
+        if found.get(name) not in {"unset", "unspecified"}
+    ]
+    if found.get("working-tree-encoding") != "unspecified":
+        problems.append("working-tree-encoding")
+    return problems
+
+
+def byte_attribute_findings(root: Path) -> dict[str, object]:
+    """Read-only `git check-attr` of the hashed docs roots; writes nothing."""
+
+    warnings: list[str] = []
+    report: dict[str, object] = {
+        "checked": False, "findings": [], "gitattributes_lines": [], "warnings": warnings,
+    }
+    toplevel = _git(root, "rev-parse", "--show-toplevel")
+    if toplevel is None or Path(toplevel.decode("utf-8").strip()).resolve() != root.resolve():
+        warnings.append("not the root of a Git checkout; attributes were not checked")
+        return report
+    listed = _git(root, "ls-files", "-z", "--", *BYTE_EXACT_ROOTS)
+    # One probe per root stands for files that do not exist yet.
+    probes = {f"{name}/{ATTRIBUTE_PROBE}": name for name in BYTE_EXACT_ROOTS}
+    paths = [item for item in (listed or b"").decode("utf-8", "surrogateescape").split("\0") if item]
+    query = "".join(f"{path}\0" for path in [*paths, *probes]).encode("utf-8", "surrogateescape")
+    output = None if listed is None else _git(
+        root, "check-attr", "-z", "--stdin", *BYTE_ATTRIBUTES, stdin=query
+    )
+    if output is None:
+        warnings.append("git ls-files or git check-attr failed; attributes were not checked")
+        return report
+    report["checked"] = True
+    fields = output.decode("utf-8", "surrogateescape").split("\0")
+    values: dict[str, dict[str, str]] = {}
+    for index in range(0, len(fields) - 2, 3):
+        path, attribute, value = fields[index : index + 3]
+        values.setdefault(path, {})[attribute] = value
+    failed: dict[str, list[str]] = {name: [] for name in BYTE_EXACT_ROOTS}
+    unsafe: dict[str, set[str]] = {name: set() for name in BYTE_EXACT_ROOTS}
+    for path, found in values.items():
+        problems = _attribute_problems(found)
+        name = probes.get(path) or next(
+            (item for item in BYTE_EXACT_ROOTS if path.startswith(item + "/")), None
+        )
+        if not problems or name is None:
+            continue
+        unsafe[name].update(problems)
+        label = f"new files under {name}/" if path in probes else path
+        if len(failed[name]) < FINDINGS_PER_ROOT:
+            failed[name].append(label + ": " + ", ".join(f"{item} {found.get(item)}" for item in problems))
+        elif len(failed[name]) == FINDINGS_PER_ROOT:
+            failed[name].append(f"more paths under {name}/ fail the same check")
+    flags = (("text", "-text"), ("filter", "-filter"), ("ident", "-ident"),
+             ("working-tree-encoding", "!working-tree-encoding"))
+    for name in BYTE_EXACT_ROOTS:
+        if failed[name]:
+            report["findings"].extend(failed[name])
+            # -text always: a later broad rule must not turn conversion back on.
+            needed = [flag for item, flag in flags if item == "text" or item in unsafe[name]]
+            report["gitattributes_lines"].append(f"{name}/** {' '.join(needed)}")
+    common = _git(root, "rev-parse", "--git-common-dir")
+    if common is not None:
+        info = root / common.decode("utf-8").strip() / "info" / "attributes"
+        try:
+            text = info.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            text = ""
+        if any(line.strip() and not line.lstrip().startswith("#") for line in text.splitlines()):
+            warnings.append(
+                f"{info.as_posix()} holds attribute rules that clones and CI do not get; "
+                "keep byte-exact rules in .gitattributes"
+            )
+    return report
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -477,11 +710,21 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
+        "--documents",
+        action="store_true",
+        help=(
+            "with --check: also compare docs/DOCUMENTS.md with the manifest template; "
+            "exit 1 on a missing template row, a row for one record inside a "
+            "generated-records directory, or a missing intro paragraph"
+        ),
+    )
+    parser.add_argument(
         "--require-resolved",
         action="store_true",
         help=(
             "with --check: also fail while a seeded AGENTS.md still carries "
-            "unresolved template placeholders (bindings, deployment record)"
+            "unresolved template placeholders (bindings, deployment record) "
+            "or a hashed docs path lacks byte-exact Git attributes"
         ),
     )
     return parser
@@ -492,6 +735,8 @@ def main() -> int:
     args = parser.parse_args()
     if args.merge_plan is not None and not args.merge_agents:
         parser.error("--merge-plan requires --merge-agents")
+    if args.documents and not args.check:
+        parser.error("--documents requires --check")
     try:
         root = args.root.resolve(strict=True)
         result = configure_context(
@@ -509,8 +754,29 @@ def main() -> int:
     if args.require_resolved:
         unresolved = unresolved_placeholders(root, stage=args.stage)
         result["unresolved_placeholders"] = unresolved
+    unsafe_attributes = False
+    if args.check:
+        result["byte_attributes"] = byte_attribute_findings(root)
+        unsafe_attributes = args.require_resolved and bool(result["byte_attributes"]["findings"])
+        try:
+            result["gitattributes"] = gitattributes_findings(root)
+        except ValueError as error:
+            print(json.dumps({"error": str(error)}, ensure_ascii=False))
+            return 2
+    documents_drift = False
+    if args.documents:
+        try:
+            documents = documents_findings(root)
+        except ValueError as error:
+            print(json.dumps({"error": str(error)}, ensure_ascii=False))
+            return 2
+        result["documents"] = documents
+        documents_drift = not documents["present"] or bool(
+            documents["missing_rows"] or documents["single_record_rows"]
+            or documents["intro_paragraph_missing"]
+        )
     print(json.dumps(result, ensure_ascii=False, indent=2, sort_keys=True))
-    if args.check and (result["missing"] or unresolved):
+    if args.check and (result["missing"] or unresolved or unsafe_attributes or documents_drift):
         return 1
     if not args.check and args.merge_agents and not args.merge_plan:
         merge = result["agents_merge"]

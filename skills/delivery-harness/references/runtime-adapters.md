@@ -44,9 +44,7 @@ Keep automatic context discovery enabled; never replay the parent transcript or 
 The child reads its named sources independently, verifies hashes, and reports its own reading evidence.
 Unknown loaded identity stays unknown.
 
-Every NEW parent launch carries an explicit observed or task `max_message_bytes`.
-Check the complete parent-visible UTF-8 packet with `check_launch_packet.py` before dispatch.
-Overflow means reduce optional context or defer. The guard does not measure host-injected tokens.
+Check each launch packet's bytes under [Bounded Context Capsule](runtime-performance.md#bounded-context-capsule).
 
 The parent records the actual session/model/result origin in attempt evidence.
 Accept a result only from the session the parent launched.
@@ -65,9 +63,9 @@ Worktree, branch, commit, integration and cleanup actions retain their separate 
 1. Validate PLAN/RUN and accept the selected frontier.
 2. Reserve runtime reviews with `reserve-review-dispatch` before launch; never reconstruct the reservation afterward.
 3. Verify repository, branch, exact base and clean status before allocating an authorized isolated writer.
-4. Render `../assets/templates/WORKER_GOAL.template.md` with scope, skills, permissions, verifier, result contract and exact input identity.
-5. Launch all selected siblings before waiting; run a blocking bridge asynchronously.
-6. Bind the real worker identity and assigned checkout through `lease-worker`.
+4. Bind the real worker identity and assigned checkout through `lease-worker`.
+5. With `--packet-out <new-path> --max-message-bytes <n>`, the same `lease-worker` call also renders `../assets/templates/WORKER_GOAL.template.md` from the leased run. Repeat `--context-path` for each ordered source; pass `--host-file` for the facts only the host holds. The call size-checks the packet before the RUN write and creates it after.
+6. Launch all selected siblings before waiting; run a blocking bridge asynchronously.
 7. Consume terminal events or waits; use bounded polling only when the host has neither.
 8. Validate each result against its current reservation, live Git, scope, commits and verifier evidence.
 9. Integrate serially after the gates required by `review_policy` pass.
@@ -92,7 +90,7 @@ Re-prove capability only when the route or session changed, or a browser failure
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
 A reviewer whose sandbox cannot run git receives the `review_input.py` output (a detached clone with `review-input/`: per-scope diffs, `HEAD.txt`, `parent-status.txt`, `tracked-files.sha256`). It proves identity and cleanliness from that manifest as the parent's attestation ([Security Review](security-review.md#required-inputs)).
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
-For architecture-bearing reviews, apply [Architecture Method](delegation-contract.md#architecture-method) to the affected boundaries.
+For architecture-bearing reviews, apply [Architecture Method](architecture-method.md) to the affected boundaries.
 
 When one review node's packet exceeds the reviewer route's caps, the parent dispatches that review as several scoped calls before launch.
 Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.

@@ -108,6 +108,7 @@ from harness_ui_evidence import (
     validate_ui_surface_design_coverage,
 )
 from harness_contract_join import (
+    line_ending_note,
     validate_frozen_contract_joins,
 )
 from platform_delivery_contract import platform_delivery_shape_errors
@@ -416,7 +417,8 @@ def validate_plan_sources(
                     errors,
                     f"{path}.content_sha256",
                     f"does not match immutable bytes from {immutable_descriptor} "
-                    f"(expected {content_sha}, actual {actual})",
+                    f"(expected {content_sha}, actual {actual})"
+                    + line_ending_note(contents, content_sha, relative_path),
                 )
 
     return sorted(set(errors))

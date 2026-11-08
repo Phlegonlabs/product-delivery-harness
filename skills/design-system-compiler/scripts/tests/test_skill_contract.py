@@ -1,3 +1,4 @@
+import json
 import re
 import unittest
 from pathlib import Path
@@ -39,9 +40,10 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(marker, skill)
         self.assertIn("check_product_package.py", stage)
+        self.assertIn("--write-bindings --ui-design <ui-design.md>", stage)
         self.assertIn(
-            "`sourceBindings.uiDesign.sha256` uses the canonical UI approval digest",
-            skill,
+            "`sourceBindings.uiDesign`: current path and canonical UI approval SHA-256",
+            self.read("assets/templates/DESIGN_SYSTEM.template.md"),
         )
         self.assertIn("Package action: compile|update|reuse", skill)
 
@@ -57,21 +59,20 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         self.assertIn("gaps return to `product-definition-builder`", stage)
         self.assertIn("HiFi-package gaps return to `ui-design-builder`", stage)
         self.assertIn("docs/design/ui-design.md", contract)
-        self.assertIn("approved HiFi target", lifecycle)
+        self.assertIn("approved target, and Design System Need Gate", lifecycle)
         self.assertIn("docs/design/design-system.md", lifecycle)
         self.assertIn("Legacy `docs/product/wireframes.html`", lifecycle)
 
     def test_compilation_uses_frontend_design_without_reopening_direction(self) -> None:
         skill = self.read("SKILL.md")
         stage = self.read(STAGE)
-        guide = self.read("references/design-system-guide.md")
         agent = self.read("agents/openai.yaml")
 
-        for content in (skill, stage, guide, agent):
+        for content in (skill, stage, agent):
             self.assertIn("frontend-design", content)
         self.assertIn("## Compilation Skills Gate", stage)
         self.assertIn("If `frontend-design` cannot be loaded, stop", stage)
-        self.assertIn("Do not rerun `frontend-design`, Impeccable", guide)
+        self.assertIn("Do not run Impeccable or another design pass merely to compile the pair", stage)
         self.assertIn("returns to `ui-design-builder`", stage)
         self.assertIn("`frontend-design` is required without a fallback", skill)
         self.assertNotIn("$impeccable", agent)
@@ -111,20 +112,30 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
     def test_design_pair_is_minimal_and_reconciled_to_approved_sources(self) -> None:
         stage = self.read(STAGE)
         guide = self.read("references/design-system-guide.md")
-        contract = self.read("references/output-contract.md")
         template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
 
         self.assertIn("PRD UI Surface Contract", stage)
         self.assertIn("stable `UI-*`, `UX-*`, `DS-*`, and `DS-COMP-*` IDs", stage)
-        self.assertIn("docs/design/ui-design.md", guide)
-        self.assertIn("Every required PRD element maps to the final registry", contract)
+        self.assertIn("`ui-design.md` owns the selected visual direction", guide)
+        self.assertIn(
+            "every required UI element maps to a registered primitive or product component, "
+            "and every registry entry is required by a real PRD surface",
+            stage,
+        )
         self.assertIn("Approved UI design contract", template_md)
         self.assertIn("Style Integration and HiFi evidence", template_md)
         self.assertIn('"schema": "design-system/3"', template_json)
         self.assertIn('"sourceBindings"', template_json)
         self.assertIn('"hifi"', template_json)
         self.assertIn('"requiredContentOrder"', template_json)
+
+    def test_template_declares_the_font_groups_the_preview_renders(self) -> None:
+        tokens = json.loads(self.read("assets/templates/DESIGN_SYSTEM.template.json"))["tokens"]
+        guide = self.read("references/design-system-guide.md")
+        for group in ("fontFamily", "fontWeight"):
+            self.assertIsInstance(tokens.get(group), dict, group)
+            self.assertIn(f"- `{group}`", guide)
 
     def test_inputs_name_the_sections_compilation_reads(self) -> None:
         stage = self.read(STAGE)
@@ -168,8 +179,8 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
             "<design-system-compiler-skill-root>/scripts/check_design_system_pair.py",
             stage,
         )
-        self.assertIn("scripts/check_color_contrast.py", stage)
-        self.assertIn("scripts/check_type_scale.py", stage)
+        self.assertIn("`--write` also renders the ratios of the JSON `contrastPairs` and `typeSteps`", stage)
+        self.assertIn("a ratio below its floor is shown for an owner decision, not failed", stage)
 
     def test_pair_less_preflight_runs_inside_the_pair_checker(self) -> None:
         skill = self.read("SKILL.md")
@@ -179,7 +190,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
             "pair-less preflight has no separate command; it runs inside `check_design_system_pair.py --repo-root`",
             stage,
         )
-        self.assertIn("there is no separate preflight command", guide)
+        self.assertIn("[Workflow](stages/design-compilation.md#workflow) owns the drafting order", guide)
         self.assertIn("Design System Need Gate", skill)
         self.assertNotIn("Run the UI builder's exact pair-less preflight", skill)
 
@@ -190,12 +201,14 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
         template_md = self.read("assets/templates/DESIGN_SYSTEM.template.md")
         template_json = self.read("assets/templates/DESIGN_SYSTEM.template.json")
 
-        for content in (stage, guide, contract, template_md, template_json):
+        for content in (guide, template_md, template_json):
             self.assertIn("at least two", content)
+        self.assertIn("at least three ascending web `viewports` or two native/desktop `sizeClasses`", contract)
+        self.assertIn("equals the approved set exactly", stage)
         self.assertIn("all sets match the PRD, approved HiFi scope, and stack", stage)
         self.assertIn("Copy the exact approved PRD and HiFi set", guide)
         self.assertIn("Unintended overlap, clipping, occlusion", guide)
-        self.assertIn("passing browser-matrix evidence", contract)
+        self.assertIn("approvals with passing browser-matrix evidence", stage)
         self.assertIn("named stacking, focus, and dismissal", template_md)
 
     def test_template_responsive_set_comes_from_prd_and_hifi(self) -> None:

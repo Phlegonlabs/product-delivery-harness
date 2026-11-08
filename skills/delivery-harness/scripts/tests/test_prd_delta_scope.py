@@ -78,6 +78,16 @@ TEMPLATE_DELTA_TEXT = """# PRD-DELTA-EPIC-7
 """
 
 
+FEATURE_201 = """Feature: Round outcome
+
+  @TEST-201
+  Scenario: Outcome is observed
+    Given a member of tenant acme
+    When the member opens the round page
+    Then the outcome is shown
+"""
+
+
 def separator_row(style: str, cells: int) -> str:
     tokens = {"left": ":---", "right": "---:", "center": ":---:"}
     styles = [tokens[style]] if style in tokens else [":---", "---:", ":---:", "---"]
@@ -154,13 +164,22 @@ class PrdDeltaScopeTests(unittest.TestCase):
         plan["sources"] = [source]
         return plan
 
-    def run_checker(self) -> tuple[int, str]:
+    def run_checker(self, *extra: str) -> tuple[int, str]:
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
             code = delta_scope_main(
-                ["--plan", str(self.plan_path), "--repo-root", str(self.root)]
+                ["--plan", str(self.plan_path), "--repo-root", str(self.root), *extra]
             )
         return code, buffer.getvalue()
+
+    def run_with_features(self, base_text: str, current_text: str) -> tuple[int, str]:
+        paths = []
+        for name, text in (("features-base", base_text), ("features", current_text)):
+            directory = self.root / name
+            directory.mkdir(exist_ok=True)
+            (directory / "product.feature").write_text(text, encoding="utf-8")
+            paths.append(str(directory))
+        return self.run_checker("--features", paths[1], "--features-base", paths[0])
 
     def write_template_delta(self) -> str:
         delta_bytes = (TEMPLATE_DELTA_TEXT % ("f" * 64)).encode("utf-8")
@@ -337,6 +356,22 @@ class PrdDeltaScopeTests(unittest.TestCase):
         self.assertEqual(1, code, output)
         self.assertIn("content_sha256", output)
 
+    def test_crlf_copy_names_the_attribute_check_but_a_real_change_does_not(self) -> None:
+        self.write_plan(self.bound_plan())
+        hint = (f"`{DELTA_LOCATION}` differs only by line-ending conversion; check "
+                f"`git check-attr text eol filter -- {DELTA_LOCATION}` against "
+                "delivery-harness/references/gitattributes-contract.md#converted-files; "
+                "do not regenerate or re-pin")
+        self.delta_path.write_bytes(self.delta_bytes.replace(b"\n", b"\r\n"))
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn(f"bytes do not match content_sha256 {self.delta_sha}; {hint}", output)
+        self.delta_path.write_bytes(self.delta_bytes.replace(b"\n", b"\r\n") + b"Changed.\r\n")
+        code, output = self.run_checker()
+        self.assertEqual(1, code, output)
+        self.assertIn("bytes do not match content_sha256", output)
+        self.assertNotIn("line-ending conversion", output)
+
     def test_template_delta_required_yes_resolved_from_prd_fails(self) -> None:
         sha = self.write_template_delta()
         self.write_plan(
@@ -431,6 +466,59 @@ class PrdDeltaScopeTests(unittest.TestCase):
         code, output = self.run_checker()
         self.assertEqual(1, code, output)
         self.assertIn("has no task", output)
+
+    def test_new_or_changed_required_scenario_passes(self) -> None:
+        self.write_plan(self.bound_plan())
+        for label, base in (("new", "Feature: Round outcome\n"),
+                            ("changed", FEATURE_201.replace("is shown", "is shown once"))):
+            with self.subTest(label):
+                code, output = self.run_with_features(base, FEATURE_201)
+                self.assertEqual(0, code, output)
+                self.assertIn("scope ok", output)
+
+    def test_unchanged_required_scenario_fails(self) -> None:
+        self.write_plan(self.bound_plan())
+        code, output = self.run_with_features(FEATURE_201, FEATURE_201)
+        self.assertEqual(1, code, output)
+        self.assertIn("delta requirement PRD-101 carries Required TEST TEST-201", output)
+        self.assertIn("no scenario for it changed", output)
+        # TEST-202 is Required: No, so PRD-102 needs no changed scenario.
+        self.assertNotIn("PRD-102", output)
+
+    def test_delta_marker_alone_makes_a_test_required(self) -> None:
+        self.prd_path.write_text(PRD_TEXT.replace("| E2E | Yes |", "| E2E | No |"), encoding="utf-8")
+        self.write_plan(self.bound_plan())
+        code, output = self.run_with_features(FEATURE_201, FEATURE_201)
+        self.assertEqual(1, code, output)
+        self.assertIn("TEST-201", output)
+
+    def test_scenario_rule_is_off_without_the_feature_flags(self) -> None:
+        self.write_plan(self.bound_plan())
+        self.run_with_features(FEATURE_201, FEATURE_201)
+        code, output = self.run_checker()
+        self.assertEqual(0, code, output)
+        self.assertIn("scope ok", output)
+
+    def test_feature_flags_go_together(self) -> None:
+        self.write_plan(self.bound_plan())
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as raised:
+            self.run_checker("--features", str(self.root))
+        self.assertEqual(2, raised.exception.code)
+
+    def test_malformed_feature_file_exits_2(self) -> None:
+        self.write_plan(self.bound_plan())
+        broken = FEATURE_201.replace("Scenario:", "Scenario Outline:")
+        code, output = self.run_with_features(broken, FEATURE_201)
+        self.assertEqual(2, code, output)
+        self.assertIn("Scenario Outline is not supported", output)
+
+    def test_missing_base_directory_exits_2(self) -> None:
+        self.write_plan(self.bound_plan())
+        self.run_with_features(FEATURE_201, FEATURE_201)
+        code, output = self.run_checker(
+            "--features", str(self.root / "features"), "--features-base", str(self.root / "absent"))
+        self.assertEqual(2, code, output)
+        self.assertIn("absent is not a directory", output)
 
     def test_sources_null_exits_2(self) -> None:
         plan = self.bound_plan()

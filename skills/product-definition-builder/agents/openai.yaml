@@ -3,15 +3,16 @@ interface:
   short_description: "Create owner-approved product and stack decisions"
   default_prompt: >-
     Use $product-definition-builder to create or refine an owner-approved
-    Product Definition package. Follow its SKILL.md and stage file: three
+    Product Definition package. Follow its SKILL.md and stage file: four
     bounded free-text interview turns, then AskUserQuestion for the closed
     decisions; a research-first assessment with a public-safe query summary;
-    PRD.md, architecture.md and stack-decisions.md in English with Chinese
-    review copies; post-draft market research; the Stack Decision Checkpoint;
-    and Product Definition Approval with the exact publish paths in the
-    request. Validate with check_product_package.py --require-filled
-    --require-approved. Never choose a stack or approve for the owner, and
-    write only the paths the owner approved. Stop after approval. UI design
+    PRD.md with its feature files, architecture.md and stack-decisions.md in
+    English with Chinese review copies; post-draft market research; the Stack
+    Decision Checkpoint; and Product Definition Approval with the exact
+    publish paths in the request. Validate with check_product_package.py as
+    the stage file's step 15 states; check_feature_coverage.py checks
+    scenarios alone while drafting. Never choose a stack or approve for the
+    owner, and write only the paths the owner approved. Stop after approval. UI design
     belongs to $ui-design-builder and implementation to $delivery-harness.
 policy:
   allow_implicit_invocation: false

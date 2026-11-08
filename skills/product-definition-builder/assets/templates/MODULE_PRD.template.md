@@ -173,6 +173,8 @@ Document: [Document name]. Terminal states: [states].
 | TEST-<SCOPE>-001 | [Observable behavior or quality obligation] | [Unit / integration / contract / E2E / performance / security / accessibility / operational] | Yes | PRD-<SCOPE>-001 | [Literal pass signal, measured result, or threshold] |
 | TEST-<SCOPE>-002 | [Observable obligation that proves PRD-<SCOPE>-002] | [Performance / reliability / operational] | Yes | PRD-<SCOPE>-002 | [Measured result against the NFR threshold] |
 
+Scenarios for these rows live in `docs/product/features/<scope>.feature`, with the scope token in lowercase.
+
 ---
 
 ## UI Design Handoff Status
@@ -192,6 +194,7 @@ UI decision owner: [Human owner / n/a for headless]
 - Decision owner: [Human product owner]
 - Decided on: [YYYY-MM-DD]
 - Approved artifacts: PRD.md, architecture.md, stack-decisions.md
+- Feature files: [sha256:<64 lowercase hex> over the name and LF text of `<scope>.feature`]
 - Market research reconciliation: [completed / skipped — reason / blocked — reason]
 - Stack Decision Checkpoint: [approved / revision_requested / blocked]
 - Accepted assumptions and non-blocking questions: [None / exact rows accepted for this revision]

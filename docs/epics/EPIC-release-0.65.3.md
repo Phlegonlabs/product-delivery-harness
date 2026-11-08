@@ -1,6 +1,6 @@
 # Release 0.65.3
 
-Status: in_progress
+Status: complete; v0.65.3 tagged
 Design workflow: maintenance
 UI impact: none (skill workflow and source release)
 

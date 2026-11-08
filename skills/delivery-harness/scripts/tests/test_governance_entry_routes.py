@@ -219,9 +219,8 @@ class GovernanceEntryRouteTests(unittest.TestCase):
         source = self.read(GOVERNANCE / "source-maintenance.md")
         commands = source.split("```text", 1)[1].split("```", 1)[0]
         for command in (
-            "python skills/delivery-harness/scripts/check_skill_spec.py\n",
-            "python skills/delivery-harness/scripts/docs_weight.py\n",
-            "git diff --check\n",
+            "python -m pip install -r skills/delivery-harness/requirements-test.txt\n",
+            "python skills/delivery-harness/scripts/ci_test_shards.py matrix --base <released main SHA> --log-dir <new directory> --workers 8\n",
         ):
             with self.subTest(repository_root_command=command.strip()):
                 self.assertIn(command, commands)

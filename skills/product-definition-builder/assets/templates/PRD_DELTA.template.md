@@ -35,6 +35,14 @@ Reuse the table from `output-contract.md` `## PRD.md` with unchanged columns. Re
 | --- | --- | --- | --- | --- |
 | PRD-0xx | new / revised / retired | [summary or n/a] | [summary] | TEST-0xx |
 
+## Changed Scenarios
+
+One row per scenario this round adds, revises or retires in `docs/product/features/`.
+
+| Scenario ID | Change | TEST ID |
+| --- | --- | --- |
+| TEST-0xx/[scenario-slug] | new / revised / retired | TEST-0xx |
+
 ## Decisions
 
 - decision:<slug> — [one line]

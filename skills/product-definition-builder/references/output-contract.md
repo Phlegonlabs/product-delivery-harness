@@ -50,6 +50,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | Artifact | Primary reader | Answers |
 | --- | --- | --- |
 | `PRD.md` | The owner and anyone deciding whether to build | What it is, for whom, what counts as done, whether the definition is approved |
+| `features/<scope>.feature` | The owner and the engineer who automates it | What each required behavior looks like as a scenario a BDD runner executes |
 | `architecture.md` | An engineer about to implement | How the system is shaped and where the risk is |
 | `PRD.zh-TW.md`, `architecture.zh-TW.md` | The owner reviewing in Chinese | The complete meaning of the matching English sources; non-canonical review only |
 | `stack-decisions.md` | The owner and engineer choosing or reviewing technology | Options considered, what the owner approved, and why |
@@ -59,7 +60,7 @@ Every artifact has one primary reader and one job. Write for that reader.
 | `docs/DEPLOYMENT.md` | The human operator preparing and checking a release | Which secret and variable names go where, which external consoles need work, which measurement sources are planned or verified, and what deployed |
 | `docs/DOCUMENTS.md` | Anyone locating flow artifacts | Which documents exist, who owns them, and their current status |
 
-Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and its HiFi target are later downstream inputs; pinned legacy packages also retain `docs/design/wireframes.html`. Optional UI/design-system and operational records never override Product Definition.
+Core decision order is `PRD.md` → `architecture.md` → `stack-decisions.md`. For UI products, `docs/design/ui-design.md` and its HiFi target come later; pinned legacy packages also keep `docs/design/wireframes.html`. Optional UI, design-system and operational records never override Product Definition.
 
 The research-to-approval order is research-first evidence → complete candidate → Platform Optimization Recommendations → explicit owner choices → accepted revisions → Stack Decision Checkpoint → Product Definition Approval.
 
@@ -68,7 +69,7 @@ Two rules keep the package readable:
 - **Meaning before bookkeeping.** Each file opens with what a human needs to understand the product and ends with the ID matrices and decision records. Never open a file with a trace table.
 - **One notation per block.** Prose, ASCII, and ID tables do not interleave inside a section. A table wider than seven columns should be a list instead; the Metrics table's `Stretch` column and the environment contract in `architecture.md` are the exceptions.
 
-Length budget. Targets, not caps: say less when the product is simple; go over only when it is genuinely more complex, not when a section drifted:
+Length budget. These are targets, not caps: say less for a simple product; go over only for real complexity, not drift:
 
 - `PRD.md`: about 200 lines. `## At a Glance` fits on one screen.
 - `architecture.md`: about 250 lines.
@@ -77,7 +78,7 @@ Length budget. Targets, not caps: say less when the product is simple; go over o
 - `research-assessment.md`: about 80 lines.
 - `outcomes/YYYY-MM-DD-<release-set>.md`: about 60 lines.
 
-When a section runs past its share, move the detail that belongs in another artifact before expanding the file.
+When a section runs long, move detail that belongs in another artifact before growing the file.
 
 ## `PRD.md`
 
@@ -292,7 +293,7 @@ Older documents may be inspected for history, but a current approval requires th
 ## AI and Automation
 AI and Automation Gate: [required / not_required / blocked] — [reason], decided by [human owner]
 
-New packages include the active `eval-policy/1` JSON block from `eval-policy-contract.md` here and run the core checker with `--repo-root <repository-root> --eval-policy eval-policy/1`. Freeze policy/input bytes before approval. Required AI cannot waive eval.
+New packages include the active `eval-policy/1` JSON block from `eval-policy-contract.md` here and validate it with the package checker command in `stages/product-definition.md` step 15. Freeze policy/input bytes before approval. Required AI cannot waive eval. The quality scenario has five Then steps in the policy's key order and the handoff scenario has one; the renderer keys them to the eval checks.
 
 When `required`, record:
 
@@ -361,7 +362,11 @@ During candidate refinement, use these existing fields for unresolved lifecycle 
 | --- | --- | --- | --- | --- | --- |
 | TEST-001 | [Observable behavior or quality obligation] | [Unit / integration / contract / E2E / performance / security / accessibility / operational] | [Yes / No] | PRD-001 | [Literal pass signal, measured result, or threshold] |
 
-Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row may cover more than one upstream requirement only when one test genuinely verifies all of them. Preserve each `TEST-*` ID when its obligation keeps the same meaning; retire rather than reuse an ID whose meaning changes.
+Scenarios for these rows live in `docs/product/features/product.feature`.
+
+Every `Must` functional requirement and every applicable non-functional requirement maps to at least one row whose `Required` value is `Yes`. A row covers several upstream requirements only when one test verifies all of them. Keep a `TEST-*` ID while its meaning holds; retire, never reuse, an ID whose meaning changes.
+
+Every `Required: Yes` row needs at least one scenario in a feature file built from `assets/templates/FEATURE.template.feature`, because the delivery-acceptance register freezes one scenario per Required TEST; `Required: No` rows may have one. Each scenario carries exactly one `@TEST-*` tag. Its id, `<TEST-ID>/<slug of the scenario name>`, is the delivery-acceptance register's `scenarios[].id`. Given holds the persona and initial data, When the ordered actions, Then the assertions `ASSERT-001..` in order. Background steps are Given steps of every scenario; And and But continue the previous keyword. `@platform:`, `@auth:` and `@env:` tags override the run profile for that scenario; they take only the delivery-acceptance profile values and never sit on the Feature line. Scenario Outline, Examples, Rule, doc strings, data tables and non-English keywords are not supported. Feature text is owner-approved product content, bound by the approval block's `Feature files` digest, so changing it takes a PRD delta; step definitions are implementation code. Each stack table whose surface runs scenarios records its runner as the `BDD runner` layer; the architecture `## Testing` section names that row.
 
 ---
 
@@ -393,6 +398,7 @@ Research Gate: [go / clarify / stop / skipped] — [assessment date and findings
 - Decision owner: [Human product owner]
 - Decided on: [YYYY-MM-DD]
 - Approved artifacts: [PRD.md, architecture.md, stack-decisions.md]
+- Feature files: [sha256:<64 lowercase hex> over the sorted names and LF text of the package's feature files; required once the PRD names them]
 - Market research reconciliation: [completed / skipped — reason / blocked — reason]
 - Stack Decision Checkpoint: [approved / revision_requested / blocked]
 - Accepted assumptions and non-blocking questions: [None / exact rows accepted for this revision]
@@ -526,37 +532,6 @@ Rules:
 ## `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md`
 
 An enhancement round that changes the approved package records itself in a PRD delta with schema `prd-delta/1`. `<EPIC-ID>` is the Epic file's id token: `EPIC-041` for `docs/epics/EPIC-041-<slug>.md`. One delta per round, aligned one-to-one with that round's Epic. `PRD.md` keeps only the approved state. Create it from `assets/templates/PRD_DELTA.template.md` at the start of the round with the baseline hash, and publish the delta, the PRD, and their review copies together.
-
-Use this structure:
-
-```markdown
-# PRD Delta <EPIC-ID>: <outcome in one line>
-
-| | |
-| --- | --- |
-| Epic | docs/epics/EPIC-<id>-<slug>.md |
-| Baseline PRD | sha256:<64 lowercase hex of PRD.md before this delta> |
-| Result PRD | sha256:<64 lowercase hex after publication> or pending |
-| Status | draft / approved |
-| Ambition rung | 1 / 2 / 3 — <one line naming the rung from the PRD Ambition ladder> |
-
-## Why
-[Owner request, date and source; the goal beyond the goal this round serves.]
-
-## Enhancement Impact Record
-[The table from `## PRD.md`, unchanged columns.]
-
-## Changed Requirements
-| ID | Change | Before | After | TEST IDs |
-| --- | --- | --- | --- | --- |
-| PRD-0xx | new / revised / retired | [summary or n/a] | [summary] | TEST-0xx |
-
-## Decisions
-- decision:<slug> — [one line]
-
-## Approval
-[Product Definition Approval for this delta: owner, date, result PRD hash, using the same `product-definition-approval` marker block convention as PRD.md.]
-```
 
 A `Baseline PRD` or `Result PRD` hash is the SHA-256 of `PRD.md`'s file text without the `product-definition-approval` marker block, exactly as `bilingual-review.md` defines the review-source hash. The delta's own hash excludes its marker block. Each published delta receives a complete `PRD-DELTA-<EPIC-ID>.zh-TW.md` review copy; `bilingual-review.md` owns the pairing.
 
@@ -696,6 +671,9 @@ Record the budget signals and cost alerts from [Performance And Cost Budget](../
 
 Record the capacity assumptions, the budget table, the caching and queue limits, and the cost model from [Performance And Cost Budget](../../delivery-harness/references/performance-and-cost-budget.md) here.
 
+## Testing
+[The `BDD runner` stack row, the `features/` link or copy of `docs/product/features/`, the step-definition directory, and any shared fixture data set ID and sha256; or `not_required — <reason>` for a package with no executable surface.]
+
 ## Technical Risks and Tradeoffs
 | Decision | Options Considered | Recommendation | Reason |
 | --- | --- | --- | --- |
@@ -714,9 +692,9 @@ Coverage matrix. Fill it last and read it only when checking that a requirement 
 
 Every decision uses the same shape: drivers, coherent bundles presented to the owner, then resolved layers with status and authority/evidence on every row; the shared `Alternatives Considered` and `Unresolved Decision Protocol` tables cover all decisions.
 
-Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row. A `Selected` row uses `repository:<repo-relative-path>@<40-character-commit-SHA>` when the path is bound to a real Git revision, or `repository:<repo-relative-path>@sha256:<64-character-current-content-hash>` for current non-Git evidence; the checker resolves the path and revision/hash under `--repo-root`. Authority is not another status label, and recommendation text alone is not approval.
+Use these statuses per layer: `Required` means a user, organization, or hard external constraint mandates the selection; `Selected` means the current product or repository already adopted it; `Approved` means the human owner accepted a new choice directly or through an explicit recorded delegation; `Recommended` is evidence-backed advice not yet accepted and is non-executable; `Provisional` is a leading choice pending named evidence. Only `Required`, `Selected`, and `Approved` are executable. A section may mix statuses. `Authority / evidence` cites the source that justifies the row: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike; `PRD recommendation` alone is not evidence. A `Selected` row uses `repository:<repo-relative-path>@<40-character-commit-SHA>` when the path is bound to a real Git revision, or `repository:<repo-relative-path>@sha256:<64-character-current-content-hash>` for current non-Git evidence; the checker resolves the path and revision/hash under `--repo-root`. Authority is not another status label, and recommendation text alone is not approval.
 
-Use this structure:
+Use this structure. Each layer row fills its four empty cells: a status from the rule above, the cited source, why it fits, and the constraint or follow-up.
 
 ```markdown
 # Stack Decisions: [Product Name]
@@ -759,17 +737,18 @@ Use this section for every product with a browser frontend.
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Language | [TypeScript / JavaScript / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Package manager | [npm / pnpm / Yarn / Bun / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Framework | [e.g. Astro, React Router, or none] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| UI library | [e.g. React or none] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Component foundation | [e.g. shadcn/ui owned source, headless primitives, packaged suite, or custom] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Styling approach | [Tailwind CSS / CSS Modules / modern vanilla CSS / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Build tool | [e.g. Vite, or framework-managed] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Routing and data | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Testing | [Unit, component, end-to-end, accessibility] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Deployment / runtime | [e.g. Cloudflare Workers with Static Assets] | | | | |
+| Rendering model | [Static, SSG, SSR, on-demand, SPA, islands, or hybrid by route] | | | | |
+| Language | [TypeScript / JavaScript / another exact choice] | | | | |
+| Package manager | [npm / pnpm / Yarn / Bun / another exact choice] | | | | |
+| Framework | [e.g. Astro, React Router, or none] | | | | |
+| UI library | [e.g. React or none] | | | | |
+| Component foundation | [e.g. shadcn/ui owned source, headless primitives, packaged suite, or custom] | | | | |
+| Styling approach | [Tailwind CSS / CSS Modules / modern vanilla CSS / another exact choice] | | | | |
+| Build tool | [e.g. Vite, or framework-managed] | | | | |
+| Routing and data | [Approach] | | | | |
+| Testing | [Unit, component, end-to-end, accessibility] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as cucumber-js, Cucumber-JVM, Reqnroll or a platform BDD runner] | | | | |
 
 ### Rendering and Route Strategy
 | Route Group | Rendering | Data Source | Cache / Freshness | Auth Boundary | Rationale |
@@ -789,24 +768,25 @@ A product may add this section in a later revision after Frontend Technology Dec
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Target operating systems | [iOS / Android / both / macOS / Windows / Linux / exact set] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Client strategy | [Platform-native / cross-platform] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Framework | [SwiftUI / Jetpack Compose / Flutter / React Native / Tauri / Electron / exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Styling approach | [platform theme / another exact choice] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Toolchain | [Xcode / Android Studio / Flutter-Dart / Expo or bare React Native / desktop equivalent] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Navigation and state | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Local persistence | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Secure storage | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Offline sync | [Approach or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Push and native modules | [Approach or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Backend/API integration | [Approach] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Distribution mechanism | [Store/test track, signing/build service, installer/update feed] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Testing | [Unit and UI automation per platform] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Target operating systems | [iOS / Android / both / macOS / Windows / Linux / exact set] | | | | |
+| Client strategy | [Platform-native / cross-platform] | | | | |
+| Framework | [SwiftUI / Jetpack Compose / Flutter / React Native / Tauri / Electron / exact choice] | | | | |
+| Styling approach | [platform theme / another exact choice] | | | | |
+| Toolchain | [Xcode / Android Studio / Flutter-Dart / Expo or bare React Native / desktop equivalent] | | | | |
+| Navigation and state | [Approach] | | | | |
+| Local persistence | [Approach] | | | | |
+| Secure storage | [Approach] | | | | |
+| Offline sync | [Approach or n/a] | | | | |
+| Push and native modules | [Approach or n/a] | | | | |
+| Backend/API integration | [Approach] | | | | |
+| Distribution mechanism | [Store/test track, signing/build service, installer/update feed] | | | | |
+| Testing | [Unit and UI automation per platform] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as cucumber-js, Cucumber-JVM, Reqnroll or a platform BDD runner] | | | | |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
 ## CLI and Toolchain Decision
-Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `container_or_self_hosted`, `internal_service` and `other_nonpublic` release surfaces. All map to the single canonical `Toolchain` area in Approved, Applicable, Resolved, and Coherent Options records; `CLI/toolchain` is accepted as an alias. Keep activation profile names separate from stack areas.
+Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `container_or_self_hosted`, `internal_service` and `other_nonpublic` release surfaces. All map to the one canonical `Toolchain` area in the Approved, Applicable, Resolved and Coherent Options records; `CLI/toolchain` is an accepted alias. Activation profile names are not stack areas.
 
 ### Decision Drivers
 - [Target platforms, command/interface contract, packaging, distribution, upgrade policy, and team constraints.]
@@ -814,10 +794,11 @@ Use this section for `cli`, `mcp_server`, `skill_or_plugin`, `library_or_sdk`, `
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Language | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Toolchain | [Runtime/compiler and build/package tooling] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Distribution mechanism | [Package registry, signed binary, or internal artifact channel] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Testing | [Command/interface and platform checks] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Language | [Selection] | | | | |
+| Toolchain | [Runtime/compiler and build/package tooling] | | | | |
+| Distribution mechanism | [Package registry, signed binary, or internal artifact channel] | | | | |
+| Testing | [Command/interface and platform checks] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as pytest-bdd, cucumber-js or Reqnroll] | | | | |
 
 ## Backend and Data Technology Decision
 Use this section for every product with a backend, persistent data, or auth requirement.
@@ -828,15 +809,17 @@ Use this section for every product with a backend, persistent data, or auth requ
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Service topology | [Monolith or named services; monorepo or polyrepo organization] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Backend runtime / framework | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Database category | [Relational / Document / Key-value or cache only / None] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Database engine | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Auth provider | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| API style | [REST / GraphQL / RPC / server actions] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Background jobs / queue | [Selection or not applicable] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| File / object storage | [Selection or not applicable] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Service topology | [Monolith or named services; monorepo or polyrepo organization] | | | | |
+| Backend runtime / framework | [Selection] | | | | |
+| Database category | [Relational / Document / Key-value or cache only / None] | | | | |
+| Database engine | [Selection] | | | | |
+| Auth strategy | [Build custom / Managed third-party / Platform-native / None] | | | | |
+| Auth provider | [Selection] | | | | |
+| API style | [REST / GraphQL / RPC / server actions] | | | | |
+| Background jobs / queue | [Selection or not applicable] | | | | |
+| File / object storage | [Selection or not applicable] | | | | |
+| Testing | [Unit, integration, contract and API checks] | | | | |
+| BDD runner | [Runner for `features/*.feature`, such as pytest-bdd, cucumber-js, Cucumber-JVM or Reqnroll] | | | | |
 
 ### Data Entity to Store Mapping
 | Entity | Store | Rationale |
@@ -856,13 +839,13 @@ Include this section only when the PRD's AI and Automation Gate is `required`.
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Model / automation provider | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Model and version policy | [Pinned/rolling model, change and evaluation policy] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Context / retrieval | [Selection or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Tool execution and approvals | [Execution shape; SDK; durable state/resume; tool/sandbox boundary; allowlist; human gates] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Evaluation and output validation | [Harness, dataset, schemas/policies] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Observability and cost controls | [Tracing, budgets, alerts] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Fallback and shutoff | [Selection] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Model / automation provider | [Selection] | | | | |
+| Model and version policy | [Pinned/rolling model, change and evaluation policy] | | | | |
+| Context / retrieval | [Selection or n/a] | | | | |
+| Tool execution and approvals | [Execution shape; SDK; durable state/resume; tool/sandbox boundary; allowlist; human gates] | | | | |
+| Evaluation and output validation | [Harness, dataset, schemas/policies] | | | | |
+| Observability and cost controls | [Tracing, budgets, alerts] | | | | |
+| Fallback and shutoff | [Selection] | | | | |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
@@ -875,12 +858,12 @@ Always record the two PRD gate results here. When both are `not_required`, state
 ### Recorded or Approved Stack
 | Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |
 | --- | --- | --- | --- | --- | --- |
-| Store commerce / billing | [Native store, RevenueCat Billing, Stripe Billing, Paddle Billing, Lemon Squeezy, existing, custom, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Subscription and entitlement source | [RevenueCat, Qonversion, Superwall, native/custom, existing, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Paywall / checkout | [Adapty, Superwall, RevenueCat, provider checkout, custom, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Merchant of record / tax | [Product company, Paddle, Lemon Squeezy, Stripe arrangement, other, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Affiliate / referral / reseller platform | [PartnerStack, Rewardful, FirstPromoter, Lemon Squeezy Affiliates, custom, existing, or n/a] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
-| Attribution, commission, payout, and reseller operations | [Provider/custom boundary] | [Required / Selected / Approved / Recommended / Provisional] | [Cited source] | [Reason] | [Constraint] |
+| Store commerce / billing | [Native store, RevenueCat Billing, Stripe Billing, Paddle Billing, Lemon Squeezy, existing, custom, or n/a] | | | | |
+| Subscription and entitlement source | [RevenueCat, Qonversion, Superwall, native/custom, existing, or n/a] | | | | |
+| Paywall / checkout | [Adapty, Superwall, RevenueCat, provider checkout, custom, or n/a] | | | | |
+| Merchant of record / tax | [Product company, Paddle, Lemon Squeezy, Stripe arrangement, other, or n/a] | | | | |
+| Affiliate / referral / reseller platform | [PartnerStack, Rewardful, FirstPromoter, Lemon Squeezy Affiliates, custom, existing, or n/a] | | | | |
+| Attribution, commission, payout, and reseller operations | [Provider/custom boundary] | | | | |
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 
@@ -970,7 +953,8 @@ Before archiving earlier documents or publishing the staged package, verify:
 ### Completeness
 
 - Before first-delivery approval, the one author self-review applies the UI and technical perspectives of `prd-refinement.md` to complete journeys and cross-feature dependencies. Findings retain evidence, stable IDs and dispositions; required gaps cannot be silently deferred. Later findings follow the same rule without rewriting frozen approvals.
-- `PRD.md`, `architecture.md`, and `stack-decisions.md` are present in the run-specific staging directory with Product Definition Approval and Stack Decision Checkpoint both `approved`. Run `python "<product-definition-builder-skill-root>/scripts/check_product_package.py" --prd <staged PRD.md> --architecture <staged architecture.md> --stack-decisions <staged stack-decisions.md> --repo-root <repository-root> --require-filled --require-approved` before publication; new packages add `--eval-policy eval-policy/1`, and new whole-platform authoring adds `--platform-delivery platform-delivery/1`. The staged operational documents follow their existing applicability rules.
+- `PRD.md`, `architecture.md` and `stack-decisions.md` are in the run-specific staging directory with Product Definition Approval and Stack Decision Checkpoint both `approved`, and the package checker passes there before publication as [Workflow step 15](stages/product-definition.md#workflow) states. Staged operational documents follow their own applicability rules.
+- Each staged scenario states its TEST row's behavior and expected signal in product language, not implementation steps.
 - Required trust, security, AI, monetization, and partner gates carry into architecture, stack decisions, UI surfaces, and `TEST-*` obligations, including failure and termination states.
 - A UI-bearing `PRD.md` records the human owner for later UI design and a complete UI Surface Contract, with no guessed layout, style, motion/media treatment, wireframe approval, or design token. UI preference is not presented as user validation.
 - A hosted target records the platform resolved during interview (via `AskUserQuestion` unless the user or repository already named one; never a silent default).

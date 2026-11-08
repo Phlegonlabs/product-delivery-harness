@@ -922,7 +922,10 @@ def execution_retention_binding_errors(
     if require_host_evidence:
         required = {"checkout_root", "git_guard", "isolation_mode", "source_head_sha", "tracked_files",
                     "protected_path_sha256", "protected_path_stats", "host_execution_attestation"}
-        if not isinstance(guard, dict) or set(guard) != required:
+        # A RUN-retained record may carry the compact form of the tracked-file
+        # map (its canonical digest and count) beside an empty map.
+        compact = {"tracked_files_sha256", "tracked_files_count"}
+        if not isinstance(guard, dict) or not required <= set(guard) or set(guard) - required - compact:
             errors.append("current host PASS requires complete git_guard_attestation")
         elif guard["host_execution_attestation"] != attestation:
             errors.append("nested host_execution_attestation differs from host execution")

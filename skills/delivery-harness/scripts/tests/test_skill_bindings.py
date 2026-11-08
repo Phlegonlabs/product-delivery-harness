@@ -3,10 +3,12 @@
 
 from __future__ import annotations
 
+import io
 import re
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 
@@ -185,6 +187,44 @@ class SkillBindingTests(unittest.TestCase):
         findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills])
         joined = "\n".join(findings)
         self.assertIn("not found under any skill directory", joined)
+
+    def test_previous_skill_dir_labels_previous_release_and_owner_pins(self) -> None:
+        previous = self.root / "backup"
+        for name in ("taste-skill", "front-skill"):
+            (previous / name).mkdir(parents=True)
+            (previous / name / "SKILL.md").write_text(f"# {name} old\n", encoding="utf-8", newline="\n")
+        old_reference = previous / "delivery-harness" / "references" / "security-review.md"
+        old_reference.parent.mkdir(parents=True)
+        old_reference.write_text("# Security review old\n", encoding="utf-8", newline="\n")
+        taste_old = check_skill_bindings.hash_skill(previous / "taste-skill")
+        taste_new = check_skill_bindings.hash_skill(self.skills / "taste-skill")
+        security_old = check_skill_bindings.hash_reference(old_reference)
+        self.write_agents("`taste-skill`", taste_old, "`front-skill`", "a" * 64, security_pin=security_old)
+
+        findings, _ = check_skill_bindings.check_bindings(self.agents, [self.skills], previous_dirs=[previous])
+        joined = "\n".join(findings)
+        self.assertEqual(2, joined.count(
+            f"previous_release: old {taste_old} new {taste_new}; history: git log -S {taste_old} -- AGENTS.md"))
+        self.assertIn(f"owner_pin: old {'a' * 64} new ", joined)
+        self.assertIn(f"previous_release: old {security_old} new ", joined)
+        self.assertEqual(4, len(findings))
+        without, _ = check_skill_bindings.check_bindings(self.agents, [self.skills])
+        self.assertEqual(4, len(without))
+        self.assertNotIn("previous_release", "\n".join(without))
+
+        with redirect_stdout(io.StringIO()) as out:
+            code = check_skill_bindings.main([
+                "--agents-md", str(self.agents), "--skill-dir", str(self.skills),
+                "--previous-skill-dir", str(previous),
+            ])
+        self.assertEqual(1, code)
+        self.assertIn("owner_pin", out.getvalue())
+        with redirect_stderr(io.StringIO()) as err:
+            code = check_skill_bindings.main([
+                "--agents-md", str(self.agents), "--previous-skill-dir", str(self.root / "missing"),
+            ])
+        self.assertEqual(2, code)
+        self.assertIn("previous skill directory not found", err.getvalue())
 
     def test_prose_compound_and_placeholder_bindings_fail(self) -> None:
         self.write_agents(

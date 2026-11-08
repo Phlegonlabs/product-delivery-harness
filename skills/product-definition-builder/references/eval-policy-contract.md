@@ -1,10 +1,9 @@
 # Evaluation Policy
 
-New packages run `check_product_package.py --repo-root <repository-root> --eval-policy eval-policy/1`
-with the three canonical paths. The root enables approved-input byte checks.
-Calls without a root inspect shape only and cannot complete the new-package
-approval/publication flow.
-Legacy calls may omit the flag and marker; a present marker always validates.
+New packages run the package checker as [Workflow step 15](stages/product-definition.md#workflow)
+states. Its `--repo-root` enables approved-input byte checks; a call without it
+inspects shape only and cannot complete the new-package approval/publication flow.
+Legacy calls may omit `--eval-policy` and the marker; a present marker always validates.
 Never migrate historical approvals automatically.
 
 Record one `<!-- eval-policy:start -->` / `<!-- eval-policy:end -->` pair in
@@ -29,7 +28,7 @@ cannot waive eval. Non-AI products may opt in. No universal threshold is supplie
 | Exact field | Contract |
 | --- | --- |
 | `schema`, `applicability`, `reason`, `owner` | `eval-policy/1`, `required`, concrete reason and human owner |
-| `quality`, `handoff` | Each `{test_id, scenario_id, report}`; distinct Required-Yes TESTs and reports; AI packages trace both to `AI-EVALUATION` |
+| `quality`, `handoff` | Each `{test_id, scenario_id, report}`; `scenario_id` is the `<TEST-ID>/<slug>` of a feature-file scenario tagged with that TEST, and the package checker verifies it when feature coverage runs; distinct Required-Yes TESTs and reports; AI packages trace both to `AI-EVALUATION` |
 | `dataset`, `rubric`, `grader`, `subject` | Each `{path, sha256}` for approved files; relative POSIX paths and lowercase hashes; no secrets or links |
 | `metric`, `trials_per_case`, `minimum_rate` | `case_all_trials` or `trial_pass_rate`; integer repeats; rate `{numerator, denominator}` with positive denominator and numerator within it |
 | `slices` | List of `{id, minimum_cases, minimum_rate}`; membership from dataset only; overlap allowed, empty/undersized slices fail |

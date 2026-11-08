@@ -79,7 +79,7 @@ Required flags per `harness_transition.py` subcommand, as the parser defines the
 
 - `pause`, `resume`, `cancel`: `--source`.
 - `accept-wave`: `--wave-id`, repeatable `--mission-id`, `--batch-base-sha`.
-- `lease-worker`: `--mission-id`, `--node-id`, `--worker-id`, `--lease-id`, `--attempt-id`, `--branch-ref`, and `--worktree-path`. Optional `--provider`, `--driver`, `--model`, `--reasoning-effort`, `--worker-runtime`, `--workspace-mode`, and `--completion-channel` are compatibility assertions and must match the selector-derived binding.
+- `lease-worker`: `--mission-id`, `--node-id`, `--worker-id`, `--lease-id`, `--attempt-id`, `--branch-ref`, and `--worktree-path`. Optional `--provider`, `--driver`, `--model`, `--reasoning-effort`, `--worker-runtime`, `--workspace-mode`, and `--completion-channel` are compatibility assertions and must match the selector-derived binding. With `--packet-out <new-path>` and `--max-message-bytes <n>`, the call also renders `WORKER_GOAL.template.md` from the in-memory leased run and refuses any unfilled `<...>` placeholder; the packet is size-checked before the durable RUN write and created exclusively after it. Repeatable `--context-path <path>` names the ordered context sources; the packet records each with its SHA-256 hash. `--host-file <file>` holds a JSON object of the host-only placeholder values: worker contract, parent launch identity, route caps, permissions, visual inputs, and repair context.
 - `reserve-node-attempt`: `--node-id`, `--attempt-id`; optional repeatable `--evidence`.
 - `record-node-result`: `--node-id`, `--attempt-id`, `--outcome`, repeatable `--evidence`; optional repeatable `--blocker` and `--verifier-result`.
 - `record-observation`: requires global `--repo-root`; optional `--available-worker-slots <n>`, `--isolation-capacity <n>`, and `--capacity-evidence <text>` must be supplied together from current host observations. Omitted flags preserve existing capacity and do not discover agent slots.
@@ -92,6 +92,10 @@ Required flags per `harness_transition.py` subcommand, as the parser defines the
 - `reject-worker-result`: `--node-id`, `--worker-id`, `--outcome retryable_failure|blocked`, repeatable `--reason`.
 - `record-integration`: `--mission-id`, `--integrated-sha`; optional repeatable `--verifier-result <absolute-external-json>` admits fresh protocol-v2 mission integration output; existing valid retained evidence remains usable without it.
 - `reconcile-candidate-head`: `--candidate-sha`, `--source`, `--repair-node-id`, `--repair-attempt-id`, `--repair-task-id`; requires global `--repo-root` and a held `--session-id` lock. Records an already committed, authorized repair after mission integration; it never edits Git or grants repair authority. Repeatable `--repair-path <repo-relative path>` records the repair scope on the new candidate in `integration.repair_scopes` (entries: `candidate_sha`, `prior_head_sha`, `repair_paths`, `source`, optional `trust_boundary`) and requires `git diff <old-head>..<new-head>` to stay inside the declared paths; `--trust-boundary` marks the repair as touching a trust boundary. With `--repair-path` (a scoped repair) the review node's exhausted attempt budget does not block reconciliation; the scoped review that follows refunds its attempt.
+- `record-grant`: `--action`, `--expires-when`, `--source`; repeatable `--target` and `--mission-id`. `--action execution` takes no `--target` and authorizes execution with the mission scope.
+- `open-run`: `--intent`, `--source`; optional repeatable `--mission-id` and `--expires-when`. Execution flags must travel together and need an execution intent.
+- `close-run`: `--source`; requires a held `--session-id` lock. Global `--repo-root` defaults to the RUN file's repository and binds the closeout conditions to live Git.
+- `record-runtime`: `--provider`; repeatable `--driver` and `--route-caps` (`<route>=<cap>=<integer>` or a JSON object); optional `--loaded-digest`. It keeps the installed digest `new_run.py` recorded and never reads installed bytes to fill the loaded one.
 
 `scripts/validate_result.py` requires `--plan` and `--run`; its optional flags include `--ancestry-confirmed` and `--repo-root`. `scripts/inspect_harness_run.py` requires `--repo-root` and takes `--session-id`; `scripts/harness_step.py` accepts `--observe-only`. `--help` lists the rest.
 
@@ -115,11 +119,11 @@ plan_digest_sha256
 
 A selected wave also binds a committed `batch_base_sha`. A proposal is stale when its plan revision, plan digest, or base SHA no longer matches observed facts; recompute it rather than editing the old result.
 
-PLAN authoring is owner-gated and separate from a running RUN. Validate a candidate with `scripts/validate_harness_plan.py` before treating a new revision as authoritative; validators are read-only diagnostics, and a pass proves only that the bytes are well formed. It authorizes no rewrite, recomputing retained history, rebinding a grant, or erasing receipts or attempts, and replaces no lock/receipt/exact-SHA evidence. Routine RUN operations use the guarded `harness_transition.py` subcommands; initial readiness, capability/authorization recording, formal revisions, and final closeout need their documented parent-owned procedure. Do not invent a subcommand, bypass an available transition, or “validate and write back” RUN.
+PLAN authoring is owner-gated and separate from a running RUN. Validate a candidate with `scripts/validate_harness_plan.py` before treating a new revision as authoritative; validators are read-only diagnostics, and a pass proves only that the bytes are well formed. It authorizes no rewrite, recomputing retained history, rebinding a grant, or erasing receipts or attempts, and replaces no lock/receipt/exact-SHA evidence. Routine RUN operations use the guarded `harness_transition.py` subcommands. `open-run` records initial readiness, `record-grant` and `record-runtime` record capability and authorization, and `close-run` records the final closeout. Formal revisions keep their documented parent-owned procedure. Do not invent a subcommand, bypass an available transition, or “validate and write back” RUN.
 
 The tools have no guarded formal PLAN-revision mutation. For a substantive revision while a RUN is live: stop new dispatch at a safe boundary, reconcile active workers and reviews, preserve every worktree, dirty state, failed attempt, receipt, and historical RUN record, release the run lock when the session ends, and get a fresh owner instruction for the new revision and its exact actions. Validate the revision as a new candidate and continue only through the documented revision/recovery procedure with exact new authorization, or a newly authorized run pair. Never edit the live RUN to make old grants or evidence look current, reset attempt counts, discard verifier records, or relabel an old result as new-revision evidence. Keep an unchanged copy of the previous pair and review the full state diff before writing.
 
-Render the non-canonical tasks view explicitly with `scripts/render_tasks_view.py --plan <PLAN.md> --run <RUN.md> --out docs/tasks.md --repo-root <target-root>`; add `--check` to diagnose staleness. RUN transitions no longer refresh it, so render and check at handoff and after a formal PLAN revision or closeout outside the transitions. Only RUN and the declared `docs/tasks.md` carrying this run's generation marker/identity are exceptions to the clean-checkout check; a hand-authored, undeclared, retargeted, or other-run view is ordinary dirt, as are product files. No coordination commit is needed between checkpoints.
+Render the non-canonical tasks view explicitly with `scripts/render_tasks_view.py --plan <PLAN.md> --run <RUN.md> --out docs/tasks.md --repo-root <target-root>`; add `--check` to diagnose staleness. RUN transitions no longer refresh it, so render and check at handoff and after a formal PLAN revision or closeout outside the transitions. Only RUN and the declared `docs/tasks.md` carrying this run's generation marker/identity are exceptions to the clean-checkout check; a hand-authored, undeclared, retargeted, or other-run view is ordinary dirt, as are product files. Between checkpoints, commit nothing to the run branch except mission merges.
 
 At every required integration or wave-close checkpoint, commit the exact declared coordination files as one ordinary direct child of the recorded integration head, then freshly observe that commit and bind it with `reconcile-coordination-head`. Supported exact paths are `PLAN.md`, `RUN.md`, `DECISIONS.md`, and `REFINEMENT_BACKLOG.md` directly under `docs/goal/` or in one bounded run namespace such as `docs/goal/pdr12/`, the historical or matching generated `tasks.md`, `docs/DOCUMENTS.md`, and one exact `docs/epics/*.md` checkpoint record. A glob, arbitrary application/package source, frozen product/design source, non-regular Git entry, or mode/type change never qualifies; from 0.55.0 RUN validation also rejects an `integration.coordination_paths` entry outside the supported paths. Bind it only with no active integration reviewers or parent-side checks; isolated in-flight mission workers and isolated preintegration reviewers are allowed.
 
@@ -222,7 +226,7 @@ After a confirmed stopped review fan-out, run `harness_transition.py reconcile-i
 
 ## Repairing The Integrated Candidate
 
-For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck. The re-check packet carries the prior reviewed head, the prior blocking findings, the prior notes, and the repair range `<prior>..<head>`; `verification-gates.md#review-topology` owns the scope.
+For the optional isolated repair mission, follow `graph-orchestration.md#optional-repair-only-mission`. First-pass approval leaves it dormant; a finding activates one repair and one targeted recheck. `verification-gates.md#review-topology` owns the re-check packet and scope.
 
 A passed or failed integration reviewer at a recorded prior head stays admissible after its graph binding is cleared (unique retained attempt, matching outcome and lineage); a blocked one qualifies only through the interrupted-review reconciliation receipt or an environment-blocked attempt entry (`--blocker-class environment`), using the same predicates as closeout; other blocked or active old reviewers refuse candidate movement. The older fix_required prior-head rule keeps its pinned semantics. Admission never revives the old PASS or security coverage for the new candidate.
 
@@ -310,22 +314,9 @@ Each `authorizations` entry has this minimum shape:
 }
 ```
 
-When `authorized` is true, add a required `scope` object with `run_id`, `mission_ids`, and exact `targets`, plus `expires_when`. Schema v10 additionally requires `plan_revision` and `plan_digest_sha256` in that scope, and both must equal `run.plan.revision` and `run.plan.digest_sha256`:
+When `authorized` is true, add a required `scope` object with `run_id`, `mission_ids`, and exact `targets`, plus `expires_when`. Schema v10 additionally requires `plan_revision` and `plan_digest_sha256` in that scope, and both must equal `run.plan.revision` and `run.plan.digest_sha256`.
 
-```json
-{
-  "authorized": true,
-  "source": "<exact user statement>",
-  "scope": {
-    "run_id": "<run id>",
-    "plan_revision": 3,
-    "plan_digest_sha256": "<64-hex>",
-    "mission_ids": ["M1"],
-    "targets": ["branch:refs/heads/<exact-run-branch>"]
-  },
-  "expires_when": "run_complete"
-}
-```
+Record the authorized entry with `harness_transition.py record-grant`; it fills the scope from the live run pair and refuses a grant it cannot bind.
 
 That pair is what makes `SKILL.md`'s rule real: when the plan revision or digest changes, the scope stops matching and the grant covers nothing. Below v10 the scope has no plan binding, so nothing compares one — the invalidation rule is inert there and a v7-v9 grant survives a plan change untouched.
 

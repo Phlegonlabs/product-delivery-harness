@@ -2,15 +2,7 @@
 
 Use this guide for every PRD package with a backend, persistent data, or auth requirement. The wider architecture may remain technology-neutral. This guide separates the backend layers, produces coherent choices from product evidence, and requires owner acceptance before a recommendation becomes executable.
 
-Label the decision status accurately:
-
-- `Required`: mandated by the user, organization, or hard external constraint.
-- `Selected`: already adopted by the current product or repository.
-- `Approved`: accepted by the human owner for this package, directly or through an explicit recorded delegation.
-- `Recommended`: the PRD's evidence-backed proposal; not yet owner-approved and not executable.
-- `Provisional`: the leading choice pending named evidence or a spike.
-
-Assign status per layer; one section may mix statuses. Every layer row also cites its authority/evidence: a dated user statement, organization policy, repository/config path, product requirement IDs, official documentation with check date, or named spike. Authority is the cited source, not a status label, and `PRD recommendation` alone is not evidence.
+Assign status per layer; one section may mix statuses. Authority is the cited source, not a status label. Record Selection, status, cited authority/evidence, fit and constraint on every row, as `output-contract.md`'s `stack-decisions.md` section defines.
 
 ## First Separate the Layers
 
@@ -139,26 +131,15 @@ Verify these rules against current official documentation on the date the PRD is
 2. Eliminate options that cannot satisfy a hard constraint or whose current support is unverified.
 3. Choose service topology first, then the simplest coherent combination of runtime, database, and auth that covers the dominant access patterns and identity needs without unnecessary infrastructure.
 4. Build two or three coherent backend bundles from the surviving choices. Each bundle covers topology, runtime, database category and engine, auth strategy and provider, API style, jobs/queue, storage, operational ownership, cost, and data constraints.
-5. Recommend one bundle and explain where the serious alternatives fit better, why they lose here, and what would trigger reconsideration. Present them under the recorded Stack Decision Mode instead of silently choosing vendors.
-6. For each bundle, state operating-cost assumptions, license/build-vs-buy and maintenance ownership, compatibility evidence or a time-boxed spike, and the change/revisit trigger. Keep production language/runtime separate from build/package-manager and framework layers.
-7. Mark accepted new choices `Approved`; preserve adopted choices as `Selected` and hard constraints as `Required`. An unaccepted proposal remains `Recommended` and cannot enter implementation.
-8. Verify current platform/vendor documentation and capture direct sources plus the check date.
-9. When evidence is missing, define a time-boxed spike with pass/fail criteria. Until then, label the layer `Provisional` and keep the Stack Decision Checkpoint blocked.
+5. Keep production language/runtime separate from build/package-manager and framework layers.
+6. Verify current platform and vendor documentation; record direct sources and the check date.
 
 ## Required Architecture Record
 
-The `Backend and Data Technology Decision` section in `stack-decisions.md` must include:
+Fill the `Backend and Data Technology Decision` template in [`output-contract.md`](output-contract.md#stack-decisionsmd), and also record:
 
-- Product evidence and hard constraints.
-- The Stack Decision Mode, human owner, coherent bundles presented, accepted bundle or layer overrides, delegation source when used, and checkpoint decision.
-- Selection, status, cited authority/evidence, product-fit reason, and constraint/follow-up on every layer row. `Recommended` and `Provisional` rows remain draft-only; an approved package uses `Required`, `Selected`, or `Approved` for every executable layer.
-- One recorded stack separated in this order: service topology (monolith versus named services, and monorepo/polyrepo structure), backend runtime/framework, database category, database engine, auth strategy, auth provider, API style, background jobs/queue, and file/object storage.
-- A data-entity-to-store mapping when more than one store is used.
-- Alternatives and revisit triggers, as rows in the file's shared `Alternatives Considered` table with `[Area]` naming this decision — not a table inside this section.
-- Official documentation links and verification date.
 - Platform-managed-service bindings or configuration where applicable.
 - For a deployable product, migration order, development/production isolation, and rollback path for schema or data changes.
-- Any provisional layer, as a row in the file's shared `Unresolved Decision Protocol` table with owner, deadline, time-boxed spike, and pass/fail criteria.
 
 ## Official Sources to Recheck
 

@@ -15,6 +15,8 @@ sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_product_package  # noqa: E402
 import contract_utils  # noqa: E402
+import eval_fixtures  # noqa: E402
+import eval_policy  # noqa: E402
 from git_evidence import GitEvidenceError, verify_revision_path  # noqa: E402
 from prd_ui_contract import validate_prd_wireframe_data  # noqa: E402
 from release_targets import is_public_web_target, parse_release_targets  # noqa: E402
@@ -3909,6 +3911,256 @@ class GrowthContractTests(unittest.TestCase):
             any("Growth Contract references unknown TEST-999" in item for item in findings),
             findings,
         )
+
+
+BDD_RUNNER_ROW = "| BDD runner | cucumber-js | Approved | Owner decision | Runs the feature files | None |\n"
+
+
+def bdd_stack() -> str:
+    """valid_stack() with the BDD runner row a package with feature files needs."""
+
+    testing = "| Testing | Vitest and Playwright | Approved | Owner decision | Covers required layers | None |\n"
+    return valid_stack().replace(testing, testing + BDD_RUNNER_ROW, 1)
+
+
+def bind_features(prd: str, features: Path) -> str:
+    """Record the Feature files digest of every file in `features` in the PRD approval block."""
+
+    digest = contract_utils.feature_files_digest(sorted(features.glob("*.feature")))
+    prd = re.sub(r"^- Feature files:.*\n", "", prd, flags=re.MULTILINE)
+    return re.sub(r"^(- Approved artifacts:.*\n)", rf"\1- Feature files: sha256:{digest}\n", prd, count=1, flags=re.MULTILINE)
+
+
+class FeaturesFlagTests(unittest.TestCase):
+    # One scenario per Required TEST of valid_prd().
+    FEATURE = "Feature: Fixture\n" + "".join(
+        f"  @{test_id}\n  Scenario: Cover {test_id}\n"
+        "    When the owner runs the fixture\n    Then completion is observed\n"
+        for test_id in ("TEST-001", "TEST-002", "TEST-003")
+    )
+
+    def test_features_need_a_bdd_runner_row_and_legacy_packages_do_not(self) -> None:
+        options = {"require_filled": True, "require_approved": True}
+        legacy = strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())
+        self.assertEqual([], check_product_package.validate_texts(*legacy, **options))
+        with tempfile.TemporaryDirectory() as directory:
+            features = Path(directory)
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            prd = bind_features(legacy[0], features)
+            self.assertEqual(
+                ["stack-decisions: feature files need a 'BDD runner' layer row in a technology decision table"],
+                check_product_package.validate_texts(prd, *legacy[1:], features_dir=features, **options),
+            )
+            # Any present stack table may hold the row; its status follows the usual rule.
+            backend = "| File / object storage | None | Required | Owner decision | No files | Revisit if files land |\n"
+            stack = valid_stack().replace(backend, backend + BDD_RUNNER_ROW.replace("Approved", "Required"))
+            texts = strictize_approved_package(prd, valid_architecture(), stack)
+            self.assertEqual([], check_product_package.validate_texts(*texts, features_dir=features, **options))
+            recommended = bdd_stack().replace("| cucumber-js | Approved |", "| cucumber-js | Recommended |")
+            texts = strictize_approved_package(prd, valid_architecture(), recommended)
+            self.assertEqual(
+                ["stack-decisions: layer 'BDD runner' remains 'Recommended'; owner approval is required"],
+                check_product_package.validate_texts(*texts, features_dir=features, **options),
+            )
+
+    def test_feature_files_digest_ignores_line_endings_and_argument_order(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            first, second = root / "a.feature", root / "b.feature"
+            first.write_bytes(b"Feature: A\n")
+            second.write_bytes(b"Feature: B\n")
+            digest = contract_utils.feature_files_digest([first, second])
+            self.assertRegex(digest, r"^[0-9a-f]{64}$")
+            self.assertEqual(digest, contract_utils.feature_files_digest([second, first]))
+            first.write_bytes(b"Feature: A\r\n")
+            self.assertEqual(digest, contract_utils.feature_files_digest([first, second]))
+            renamed = first.rename(root / "c.feature")
+            self.assertNotEqual(digest, contract_utils.feature_files_digest([renamed, second]))
+
+    def test_approval_binds_the_feature_files(self) -> None:
+        options = {"require_filled": True, "require_approved": True}
+        prd, architecture, stack = strictize_approved_package(valid_prd(), valid_architecture(), bdd_stack())
+        with tempfile.TemporaryDirectory() as directory:
+            features = Path(directory)
+            product = features / "product.feature"
+            product.write_text(self.FEATURE, encoding="utf-8")
+
+            def check(text: str) -> list[str]:
+                return check_product_package.validate_texts(text, architecture, stack, features_dir=features, **options)
+
+            self.assertEqual(["prd approval: missing required field 'Feature files'"], check(prd))
+            bound = bind_features(prd, features)
+            self.assertEqual([], check(bound))
+            # The field sits inside the approval block, so the package digest stays the same.
+            self.assertEqual(
+                contract_utils.canonical_product_bytes(prd, architecture, stack),
+                contract_utils.canonical_product_bytes(bound, architecture, stack),
+            )
+            self.assertEqual(
+                ["prd approval: Feature files must use sha256:<64 lowercase hex>"],
+                check(bound.replace("- Feature files: sha256:", "- Feature files: ")),
+            )
+            product.write_bytes(self.FEATURE.replace("\n", "\r\n").encode("utf-8"))
+            self.assertEqual([], check(bound))
+            # A scenario edited or added after approval no longer matches.
+            stale = ["prd approval: Feature files digest does not match the approved feature files"]
+            product.write_text(self.FEATURE.replace("completion is observed", "nothing is observed", 1), encoding="utf-8")
+            self.assertEqual(stale, check(bound))
+            product.write_text(self.FEATURE, encoding="utf-8")
+            (features / "extra.feature").write_text(
+                "Feature: Extra\n  @TEST-001\n  Scenario: Repeat the fixture\n    When the owner reruns it\n"
+                "    Then completion is observed again\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(stale, check(bound))
+            # Without feature files in scope the field stays optional.
+            self.assertEqual([], check_product_package.validate_texts(prd, architecture, stack, **options))
+
+    def test_features_flag_adds_coverage_under_the_prd_scope(self) -> None:
+        texts = strictize_approved_package(valid_prd(), valid_architecture(), bdd_stack())
+        options = {"require_filled": True}
+        self.assertEqual([], check_product_package.validate_texts(*texts, **options))
+        with tempfile.TemporaryDirectory() as directory:
+            features = Path(directory)
+            self.assertEqual(
+                [
+                    "prd: TEST-001 is a required integration obligation with no scenario",
+                    "prd: TEST-002 is a required reliability obligation with no scenario",
+                    "prd: TEST-003 is a required security obligation with no scenario",
+                ],
+                check_product_package.validate_texts(*texts, features_dir=features, **options),
+            )
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            self.assertEqual([], check_product_package.validate_texts(*texts, features_dir=features, **options))
+
+    def test_cli_features_flag(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, text in zip(
+                ("PRD.md", "architecture.md", "stack-decisions.md"),
+                strictize_approved_package(valid_prd(), valid_architecture(), bdd_stack()),
+            ):
+                (root / name).write_text(text, encoding="utf-8")
+            features = root / "features"
+            features.mkdir()
+            base = ["--prd", str(root / "PRD.md"), "--architecture", str(root / "architecture.md"),
+                    "--stack-decisions", str(root / "stack-decisions.md"), "--require-filled",
+                    "--require-approved", "--features", str(features)]
+
+            def run() -> tuple[int, str]:
+                errors = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(errors):
+                    return check_product_package.main(base), errors.getvalue()
+
+            code, errors = run()
+            self.assertEqual(1, code)
+            self.assertIn("FAIL prd: TEST-001 is a required integration obligation with no scenario", errors)
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            prd = root / "PRD.md"
+            prd.write_text(bind_features(prd.read_text(encoding="utf-8"), features), encoding="utf-8")
+            self.assertEqual((0, ""), run())
+
+    def test_scenario_pointer_line_turns_coverage_on_without_the_flag(self) -> None:
+        pointer = "Scenarios for these rows live in `docs/product/features/product.feature`.\n"
+        last_row = "| TEST-003 | Deny untrusted fixture input before any write |"
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prd = valid_prd()
+            row_end = prd.index("\n", prd.index(last_row)) + 1
+            prd = prd[:row_end] + "\n" + pointer + prd[row_end:]
+            for name, text in zip(
+                ("PRD.md", "architecture.md", "stack-decisions.md"),
+                strictize_approved_package(prd, valid_architecture(), bdd_stack()),
+            ):
+                (root / name).write_text(text, encoding="utf-8")
+            base = ["--prd", str(root / "PRD.md"), "--architecture", str(root / "architecture.md"),
+                    "--stack-decisions", str(root / "stack-decisions.md"), "--require-filled", "--require-approved"]
+
+            def run(*extra: str) -> tuple[int, str, str]:
+                out, errors = io.StringIO(), io.StringIO()
+                with contextlib.redirect_stdout(out), contextlib.redirect_stderr(errors):
+                    return check_product_package.main(base + list(extra)), out.getvalue(), errors.getvalue()
+
+            features = root / "features"
+            code, _, errors = run()
+            self.assertEqual(1, code)
+            self.assertIn(f"FAIL prd: features directory not found: {features}", errors)
+            features.mkdir()
+            (features / "product.feature").write_text(self.FEATURE.split("  @TEST-003", 1)[0], encoding="utf-8")
+            code, out, errors = run()
+            self.assertEqual(1, code)
+            self.assertIn(f"INFO Test Obligations name feature files; checking {features}", out)
+            self.assertIn("FAIL prd: TEST-003 is a required security obligation with no scenario", errors)
+            (features / "product.feature").write_text(self.FEATURE, encoding="utf-8")
+            (root / "PRD.md").write_text(bind_features((root / "PRD.md").read_text(encoding="utf-8"), features), encoding="utf-8")
+            self.assertEqual(0, run()[0])
+            # An explicit --features still wins over the default.
+            self.assertIn(f"features directory not found: {root / 'missing'}", run("--features", str(root / "missing"))[2])
+            # A PRD without the pointer line keeps the legacy behavior: no coverage check.
+            (root / "PRD.md").write_text(
+                strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())[0], encoding="utf-8"
+            )
+            (root / "stack-decisions.md").write_text(
+                strictize_approved_package(valid_prd(), valid_architecture(), valid_stack())[2], encoding="utf-8"
+            )
+            self.assertEqual((0, ""), run()[0::2])
+
+
+class EvalScenarioIdTests(unittest.TestCase):
+    """With --features and --eval-policy, a `<TEST-ID>/<slug>` policy scenario id must be a feature scenario."""
+
+    FEATURE = (
+        "Feature: Fixture\n"
+        "  @TEST-001\n  Scenario: Answer quality\n    When the owner runs the eval\n    Then the frozen rate passes\n"
+        "  @TEST-002\n  Scenario: Clean checkout run\n    When the owner reruns it\n    Then the full run passes\n"
+        "  @TEST-003\n  Scenario: Cover TEST-003\n    When the owner runs the fixture\n    Then completion is observed\n"
+    )
+    RENAMED = FEATURE.replace("Answer quality", "Score answers")
+
+    def check(self, feature: str, *, quality: str = "TEST-001/answer-quality",
+              features: bool = True, policy: bool = True) -> list[str]:
+        block, _ = eval_fixtures.inputs()
+        block["quality"]["scenario_id"] = quality
+        block["handoff"]["scenario_id"] = "TEST-002/clean-checkout-run"
+        text = eval_fixtures.prd(block)
+        text = text[text.index(eval_policy.START):text.index(eval_policy.END) + len(eval_policy.END)]
+        prd = valid_prd().replace("## Business Rules", text + "\n## Business Rules", 1)
+        texts = strictize_approved_package(prd, valid_architecture(), bdd_stack())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "product.feature").write_text(feature, encoding="utf-8")
+            problems = check_product_package.validate_texts(
+                *texts,
+                require_filled=True,
+                features_dir=root if features else None,
+                eval_policy="eval-policy/1" if policy else None,
+            )
+        return [problem.replace(root.as_posix() + "/", "") for problem in problems]
+
+    def test_found(self) -> None:
+        self.assertEqual([], self.check(self.FEATURE))
+
+    def test_missing(self) -> None:
+        self.assertEqual(
+            ["prd: eval-policy quality scenario TEST-001/answer-quality is not in the feature files; "
+             "expected a scenario tagged @TEST-001"],
+            self.check(self.RENAMED),
+        )
+
+    def test_wrong_tag(self) -> None:
+        moved = self.RENAMED.replace("Cover TEST-003", "Answer quality")
+        self.assertEqual(
+            ["prd: eval-policy quality scenario TEST-001/answer-quality is tagged @TEST-003 "
+             "(product.feature:11); expected @TEST-001"],
+            self.check(moved),
+        )
+
+    def test_legacy_id_is_not_checked(self) -> None:
+        self.assertEqual([], self.check(self.RENAMED, quality="eval-quality"))
+
+    def test_needs_both_flags(self) -> None:
+        self.assertEqual([], self.check(self.RENAMED, features=False))
+        self.assertEqual([], self.check(self.RENAMED, policy=False))
 
 
 if __name__ == "__main__":
