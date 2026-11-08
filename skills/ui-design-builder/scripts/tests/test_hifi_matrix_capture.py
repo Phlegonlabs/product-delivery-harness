@@ -1103,6 +1103,20 @@ class InteractionTests(unittest.TestCase):
         self.assertIn("not unique", sidecar["interactions"][0]["reasons"][0])
         self.assertEqual((8, 1), (summary["interactions"], summary["interactionsFail"]))
 
+    def test_a_reply_without_visibility_or_correct_focus_fails_the_run(self):
+        for field, reason in (("focusCorrect", "product focus did not land on the control alone"),
+                              ("visible", "product control was not visible")):
+            with self.subTest(field=field):
+                cli, driver = self.cli(), FakeDriver()
+                driver.interact_scripts[("UI-001-to-details", "390", "click")] = {field: False}
+                code, summary, out = cli.run(driver)
+                _, sidecar = cli.load(out)
+                failed = [r for r in sidecar["interactions"] if r["result"] != "PASS"]
+                self.assertEqual(1, code)
+                self.assertEqual(summary["cases"], summary["pass"])
+                self.assertEqual([("UI-001-to-details", "390", "click", "FAIL", [reason])],
+                                 [(r["id"], r["target"], r["trigger"], r["result"], r["reasons"]) for r in failed])
+
     def test_an_undeclared_navigation_during_an_interaction_stays_raw_and_fails(self):
         cli, driver = self.cli(), FakeDriver()
         row = {"url": "https://hifi.invalid/pkg/missing.html", "method": "GET", "resourceType": "document", "allowlisted": True}
@@ -1735,6 +1749,31 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual("PASS", build_receipt(root, "docs/evidence/reviewer/" + m.OUTPUT_NAME)["result"])
             for row in output["console"]:
                 self.assertEqual("Unrecognized Content-Security-Policy directive 'navigate-to'.", row["message"])
+
+    def test_two_surfaces_sharing_a_state_pass_the_reviewer_in_real_chromium(self):
+        module = self.playwright()
+        third = ('<main data-ui-surface="UI-003" data-ui-route="/third" class="desk" hidden><h1 tabindex="-1">Third desk</h1>'
+                 '<section class="card" data-hifi-state-view="ready"><p>Berth 9 is ready.</p></section></main>')
+
+        def add_surface(manifest):
+            manifest["surfaces"].append({"id": "UI-003", "page": "index.html", "route": "/third", "platformGroup": "Web",
+                                         "states": ["ready"], "responsive": {"kind": "viewports", "targets": [390, 1200]},
+                                         "navigation": [], "controls": []})
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, manifest_edit=add_surface,
+                                    page_edit=lambda html: html.replace("</main>", "</main>" + third, 1) if "Harbor desk" in html else html)
+            code, text = self.run_main(module, root, package, "--out", "docs/evidence/shared", "--only", "UI-003")
+            sidecar = json.loads((root / "docs/evidence/shared" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual([[]] * 2, [r["reasons"] for r in sidecar["reviewer"]])
+            self.assertEqual(0, code, text)
+            rows = {(r["surface"], r["target"]): r for r in json.loads(
+                (root / "docs/evidence/shared" / m.OUTPUT_NAME).read_text(encoding="utf-8"))["reviewer"]["viewport"]}
+            self.assertEqual({("UI-001", "390"), ("UI-001", "1200"), ("UI-003", "390"), ("UI-003", "1200"),
+                              ("UI-002", "390"), ("UI-002", "1200")}, set(rows))
+            self.assertEqual({"PASS"}, {r["result"] for r in rows.values()})
+            self.assertEqual([["UI-003"]] * 2, [rows[("UI-003", t)]["visibleSurfaces"] for t in ("390", "1200")])
 
     def test_specimen_rows_in_real_chromium(self):
         module = self.playwright()

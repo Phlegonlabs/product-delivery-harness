@@ -449,15 +449,16 @@ async function axis(request) {
 // controls are clicked; no product control is touched.
 async function reviewer(request) {
   const timeout = request.timeoutMs;
-  const press = async (attribute, value) => {
-    const control = page.locator('[' + attribute + '=' + quote(value) + ']');
-    if (await control.count() !== 1) throw new Error('reviewer control missing: ' + value);
+  const press = async (selector, name) => {
+    const control = page.locator(selector);
+    if (await control.count() !== 1) throw new Error('reviewer control missing: ' + name);
     if (await control.getAttribute('aria-pressed') !== 'true') await control.click({ timeout });
   };
   const selectSurface = async (surface, state) => {
-    const control = page.locator('[data-hifi-state-control=' + quote(state) + '][data-hifi-state-surface=' + quote(surface) + ']');
+    const selector = '[data-hifi-state-control=' + quote(state) + '][data-hifi-state-surface=' + quote(surface) + ']';
+    const control = page.locator(selector);
     if (await control.count() !== 1) return;
-    if (await control.isVisible()) await press('data-hifi-state-control', state);
+    if (await control.isVisible()) await press(selector, state);
     else {
       await page.evaluate(hash => { location.hash = hash; },
         '#hifi-state=' + encodeURIComponent(surface) + '/' + encodeURIComponent(state));
@@ -530,7 +531,7 @@ async function reviewer(request) {
     result.viewport = [];
     for (const row of request.viewport) {
       if (row.state) await selectSurface(row.surface, row.state);
-      await press('data-hifi-target-control', row.target);
+      await press('[data-hifi-target-control=' + quote(row.target) + ']', row.target);
       await page.waitForFunction(t => {
         const el = document.querySelector('[data-hifi-canvas]');
         return Boolean(el) && el.dataset.hifiTarget === t;
@@ -565,7 +566,7 @@ async function reviewer(request) {
   if (request.reads && request.reads.length) {
     const defaults = request.defaults || {};
     if (defaults.state && defaults.surface) await selectSurface(defaults.surface, defaults.state);
-    if (defaults.target) await press('data-hifi-target-control', defaults.target);
+    if (defaults.target) await press('[data-hifi-target-control=' + quote(defaults.target) + ']', defaults.target);
     const tokens = page.locator('[data-hifi-review-view="design-tokens"]');
     if (await tokens.count() === 1) {
       await tokens.click({ timeout });
@@ -1267,6 +1268,11 @@ class Runner:
             self.transcript[kind].extend(dict(row, page=action["page"]) for row in events.get(kind, []))
         self.transcript["navigation"].extend(dict(row, page=action["page"]) for row in stray)
         reasons.extend(result.get("problems") or [])
+        if result and not result.get("problems"):
+            if result.get("visible") is not True:
+                reasons.append("product control was not visible")
+            if result.get("focusCorrect") is not True:
+                reasons.append("product focus did not land on the control alone")
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
         if action["kind"] == "navigate":
             if record["arrived"] is None:
