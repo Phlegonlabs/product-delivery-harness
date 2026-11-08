@@ -1103,6 +1103,20 @@ class InteractionTests(unittest.TestCase):
         self.assertIn("not unique", sidecar["interactions"][0]["reasons"][0])
         self.assertEqual((8, 1), (summary["interactions"], summary["interactionsFail"]))
 
+    def test_a_reply_without_visibility_or_correct_focus_fails_the_run(self):
+        for field, reason in (("focusCorrect", "product focus did not land on the control alone"),
+                              ("visible", "product control was not visible")):
+            with self.subTest(field=field):
+                cli, driver = self.cli(), FakeDriver()
+                driver.interact_scripts[("UI-001-to-details", "390", "click")] = {field: False}
+                code, summary, out = cli.run(driver)
+                _, sidecar = cli.load(out)
+                failed = [r for r in sidecar["interactions"] if r["result"] != "PASS"]
+                self.assertEqual(1, code)
+                self.assertEqual(summary["cases"], summary["pass"])
+                self.assertEqual([("UI-001-to-details", "390", "click", "FAIL", [reason])],
+                                 [(r["id"], r["target"], r["trigger"], r["result"], r["reasons"]) for r in failed])
+
     def test_an_undeclared_navigation_during_an_interaction_stays_raw_and_fails(self):
         cli, driver = self.cli(), FakeDriver()
         row = {"url": "https://hifi.invalid/pkg/missing.html", "method": "GET", "resourceType": "document", "allowlisted": True}

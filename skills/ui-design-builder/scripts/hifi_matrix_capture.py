@@ -1267,6 +1267,11 @@ class Runner:
             self.transcript[kind].extend(dict(row, page=action["page"]) for row in events.get(kind, []))
         self.transcript["navigation"].extend(dict(row, page=action["page"]) for row in stray)
         reasons.extend(result.get("problems") or [])
+        if result and not result.get("problems"):
+            if result.get("visible") is not True:
+                reasons.append("product control was not visible")
+            if result.get("focusCorrect") is not True:
+                reasons.append("product focus did not land on the control alone")
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
         if action["kind"] == "navigate":
             if record["arrived"] is None:
