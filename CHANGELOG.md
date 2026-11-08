@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.75.4. Current releases are in [README.md](README.md#version-history).
+English release history through 0.76.0. Current releases are in [README.md](README.md#version-history).
+
+- **0.76.0** — Faster UI review. A PRD UI surface may declare `derivedStates`, captured once at its smallest target; first-wave stress axes are sampled on representative cases; isolated repairs are capped at two scoped re-reviews. Carry-forward is by render fingerprint (geometry, computed styles and media identity) instead of page bytes; re-review and parity are diff-first with a region rule; one capture serves every observation on a case; motion evidence is three observations at one representative target. New `ui-design-builder/scripts/hifi_matrix_capture.py` drives the whole HiFi matrix in one browser context, and `parity_capture.py` loads each side once per route, classifies pairs and carries unchanged ones. Independent review of a browser matrix is verify-then-sample, packets are sized to the route before launch, browser probes are reused per session, owner acceptance closes a design round once every required check passes, and a round finishes on its entry bundle pin.
 
 - **0.75.4** — Security content review. `security-review.md` no longer allows an inline security review on the direct route, takes trust boundaries from the PRD Security Requirements rows and their `TEST-*` traces, confirms each planned boundary's denial test at the reviewed head, copies `scope` from the packet verbatim, and says how an environment-blocked attempt is recorded. The option library's index routes exact-scope review to the delivery-harness security lens instead of the retired `code-security-review`, and `security.md` puts its controls before the sources list.
 
