@@ -1,6 +1,6 @@
 # EPIC-suite-review-round-2: the heavy items from the suite review
 
-Status: complete locally; candidate `29614b6c` (0.79.0) on `feat/suite-review-r2` passed the full matrix; merge to local `main`, install and the consumer rollout follow at the owner's instruction of 2026-11-07; push and tag stay owner actions
+Status: published as 0.79.1 through PR #180 (`release/0.79.0`); 0.79.0 merged to local `main`, installed and rolled out to the consumers on 2026-11-07; the three Codex review findings on the PR were repaired as 0.79.1 on 2026-11-08; tags stay owner actions
 
 ## Problem And Baseline
 
@@ -344,6 +344,11 @@ Existing coverage, not to duplicate:
 | 0.79.0 surfaces | `prepare_release.py --version 0.79.0 --entries <four entries>`: VERSION, package.json, both lock fields, four badges and entries, CHANGELOG rotation | `001e925d` | `prepare_release.py --check` and the skill contract tests exit 0 |
 | Fixtures at the 0.79.0 pin (parent) | with VERSION at 0.79.0 the template-rendered PLAN and the golden-path package fall under M23's rule: the new_run and tasks-view fixtures seed a contract bound to the PRD hash and `bind_acceptance_gate` fills the strict argv; the golden-path package freezes the acceptance source and gate chain; the topology check binds a gate to its local-command node only, since a review node may cite a gate as its ref | `ec6aa2c6`, `7a0ccbbb`, `29614b6c` | new_run 12, tasks view 13, transition 11, eval plan 28, golden path and lifecycle modules exit 0 |
 | Matrix at `29614b6c` | full Required Verification run at the candidate with browsers required (absolute `PLAYWRIGHT_MODULE`) | `task/release-0790/matrix-29614b6c/summary.txt` | result: pass (skill spec, pyflakes, docs weight, harness 122 modules, golden path, product-definition 446 tests, ui-design-builder 491 tests with real Chromium, design-system-compiler 222 tests, diff check, all exit 0) |
+| Codex finding r4505301183: feature bindings skipped in the frozen-package join | `full_product_package_checker_errors` derives `features_dir` with the checker's own `declared_features_dir` and passes it when the PRD names feature files, so a scenario changed after approval fails the join as it fails the CLI | `3c8d5aef`, merged `a5949d19` | 4 new tests, join loader, source binding, golden path and lifecycle modules exit 0 |
+| Codex finding r4505301176: a bad focus never failed an interaction | `Runner.run_interaction` adds a reason when the driver reports `visible` or `focusCorrect` other than `True`; BLOCKED and driver-error paths unchanged | `0572b36c`, merged `6389054e` | fake-driver tests for both fields exit 1 from the run with the reason in the sidecar |
+| Codex finding r4505301182: reviewer pass clicked an unqualified state control | `press` takes a full selector and `selectSurface` clicks the surface-qualified control, so two surfaces sharing a state no longer report `reviewer control missing` | `47f91e3e`, merged `6389054e` | real-Chromium test with two surfaces sharing `ready`; 105 module tests exit 0 |
+| 0.79.1 surfaces | `prepare_release.py --version 0.79.1 --entries <four entries>`: VERSION, package files, four README entries, CHANGELOG rotation | `561afe8b` | `prepare_release.py --check` and the skill contract tests exit 0 |
+| Matrix at `561afe8b` | full Required Verification run at 0.79.1 with browsers required; the first run's ui and design-system steps were cut off by a session teardown (Windows exit codes 1073807364 and 3221226091, no test failure) and were rerun with the same command and environment | `task/release-0791/matrix-561afe8b/summary.txt`, `task/release-0791/rerun-561afe8b/summary.txt` | skill spec, pyflakes, docs weight, harness 122 modules, golden path, product-definition 446, ui-design-builder 493 with real Chromium, design-system-compiler 222, diff check, all exit 0 |
 
 ## Results And Remaining Work
 
@@ -355,16 +360,18 @@ Writers: GLM-5.3 Flash via `glm` / `glm-5.3-flash` at thought_level max, 17 laun
 
 Not done here: push, PR and tag `v0.79.0` are owner actions. Merge to local `main`, `./install.sh` and the consumer rollout follow in this session under the owner's instruction of 2026-11-07.
 
+Publication (owner instruction 2026-11-07, push granted): `main` on GitHub is governed by a ruleset (pull request plus the `validate` check), so the direct push was rejected and the content went up as `release/0.79.0` with PR #180. The Codex review on the PR raised three P2 findings; Sonnet 5.5 writers fixed them (rows above), the parent reviewed and merged the fixes into local `main`, prepared 0.79.1 and reran the matrix. The PR merges 0.79.1 into `main`; local `main` is then aligned to the merge commit and the tree equality proven with `promotion_readback.py post`. Consequence for the estate: 0.79.1 changes bundle bytes, so the 22 consumers pinned to the 0.79.0 digest `359be684…` need a re-pin round after the 0.79.1 install.
+
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / feat/suite-review-r2 / 29614b6c plus this record / task/ untracked
-Stage and skill: source maintenance, round 2 closed locally
-Inputs consumed (path + hash or revision): docs/epics/EPIC-suite-review-2026-11.md backlog; workflow result wf_19618f07-bb2
-Approvals in force (gate, owner, date, candidate): owner 2026-11-07: merge round 1 into local main, run round 2 with GLM 5.3 Flash writers, then update every consumer; no push, tag or install granted
-Done and verified (command, exit code): full matrix at 29614b6c (task/release-0790/matrix-29614b6c): result: pass (skill spec, pyflakes, docs weight, harness 122 modules, golden path, product-definition 446 tests, ui-design-builder 491 tests with real Chromium, design-system-compiler 222 tests, diff check, all exit 0)
-Remaining: merge to local main, install, consumer rollout (this session); push, PR, tag v0.79.0 (owner)
-Blocked / waiting (gate name or owner decision): none for the local steps; publication waits for the owner
-Next action (one command or one owner decision): git merge --no-ff feat/suite-review-r2 into main, then ./install.sh
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / 561afe8b plus this record / task/ untracked (local matrix logs)
+Stage and skill: source maintenance, round 2 published as 0.79.1
+Inputs consumed (path + hash or revision): PR #180 Codex review threads r4505301176, r4505301182, r4505301183; task/release-0791 matrix records
+Approvals in force (gate, owner, date, candidate): owner 2026-11-07: merge, install, consumer rollout, commit and push everything; 2026-11-08: remove the merged branches; tags not granted
+Done and verified (command, exit code): matrix at 561afe8b (task/release-0791): every step exit 0 (ui and design-system rerun after a teardown cut the first run)
+Remaining: merge PR #180 after CI, align local main to the merge commit, promotion_readback.py post; install 0.79.1 and re-pin the 22 consumers; tags v0.77.0, v0.78.0, v0.79.0, v0.79.1 (owner)
+Blocked / waiting (gate name or owner decision): PR #180 required check on the 0.79.1 head; tags
+Next action (one command or one owner decision): gh pr merge 180 --merge after the validate check passes
 Next owner (skill or human): harness parent
 ```
