@@ -125,6 +125,7 @@ def invoke(
     contract_bytes: bytes | None = None,
     prd_text: str = PRD,
     expected_hash: str | None = None,
+    extra: tuple[str, ...] = (),
 ) -> tuple[int, dict[str, Any]]:
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
@@ -164,9 +165,49 @@ def invoke(
                     str(results_path),
                     "--candidate-sha",
                     CANDIDATE,
+                    *extra,
                 ]
             )
         return status, json.loads(output.getvalue())
+
+
+def production_scenario(name: str) -> dict[str, Any]:
+    return {
+        "id": name,
+        "execution": execution(),
+        "platform": "web",
+        "auth_mode": "real",
+        "environment": "production",
+        "build": {"build_id": "fixture-prod-1", "config_digest": CONFIG},
+        "fixtures": [],
+    }
+
+
+def production_row(name: str, status: str = "blocked", test_id: str = "TEST-001") -> dict[str, Any]:
+    return {
+        "test_id": test_id,
+        "scenario_id": name,
+        "execution": execution(),
+        "assertion_results": {"A1": "pass" if status == "pass" else status},
+        "fixture_cleanup": "not_required",
+        "platform": "web",
+        "auth_mode": "real",
+        "environment": "production",
+        "build": {"build_id": "fixture-prod-1", "config_digest": CONFIG},
+        "status": status,
+        "evidence": {"path": "evidence/web.txt", "sha256": EVIDENCE_SHA},
+    }
+
+
+def with_production(*rows: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """The base register plus a production scenario for each row, in row order."""
+
+    frozen = contract()
+    observed = results()
+    for row in rows:
+        frozen["tests"][0]["scenarios"].append(production_scenario(row["scenario_id"]))
+        observed["results"].append(row)
+    return frozen, observed
 
 
 class DeliveryAcceptanceTests(unittest.TestCase):
@@ -450,6 +491,122 @@ class DeliveryAcceptanceTests(unittest.TestCase):
                 status, payload = invoke(result_value=value)
                 self.assertEqual(1, status)
                 self.assertIn(expected, " ".join(payload["errors"]))
+
+
+class ProductionSmokeTests(unittest.TestCase):
+    """Production scenarios run after landing: deferred before, required after."""
+
+    COMPLETE = ("--production-smoke-complete",)
+
+    def test_nothing_deferred_reports_an_empty_list(self) -> None:
+        status, payload = invoke()
+        self.assertEqual(0, status)
+        self.assertEqual([], payload["production_smoke_deferred"])
+        status, payload = invoke(extra=self.COMPLETE)
+        self.assertEqual(0, status)
+        self.assertEqual([], payload["production_smoke_deferred"])
+
+    def test_blocked_production_row_is_deferred_before_landing(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke"))
+        status, payload = invoke(frozen, observed)
+        self.assertEqual((0, "PASS", []), (status, payload["status"], payload["errors"]))
+        self.assertEqual(["TEST-001/prod-smoke"], payload["production_smoke_deferred"])
+        self.assertEqual(["TEST-001/api-real", "TEST-001/web-mock"], payload["matched_scenarios"])
+        self.assertIn("TEST-001/prod-smoke", payload["required_scenarios"])
+
+    def test_post_landing_run_refuses_the_blocked_production_row(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke"))
+        status, payload = invoke(frozen, observed, extra=self.COMPLETE)
+        self.assertEqual(1, status)
+        self.assertIn("required TEST-001/prod-smoke status must be pass", payload["errors"])
+        self.assertEqual([], payload["production_smoke_deferred"])
+
+    def test_missing_production_row_is_never_deferred(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke"))
+        observed["results"].pop()
+        for extra in ((), self.COMPLETE):
+            with self.subTest(extra=extra):
+                status, payload = invoke(frozen, observed, extra=extra)
+                self.assertEqual(1, status)
+                self.assertIn("required TEST-001/prod-smoke has no exact passing evidence",
+                              payload["errors"])
+                self.assertEqual([], payload["production_smoke_deferred"])
+
+    def test_other_production_statuses_still_fail_before_landing(self) -> None:
+        for state in ("fail", "skipped", "unvalidated"):
+            with self.subTest(status=state):
+                frozen, observed = with_production(production_row("prod-smoke", state))
+                status, payload = invoke(frozen, observed)
+                self.assertEqual(1, status)
+                self.assertIn("required TEST-001/prod-smoke status must be pass", payload["errors"])
+                self.assertEqual([], payload["production_smoke_deferred"])
+
+    def test_blocked_non_production_row_still_fails(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke"))
+        for scenario_id, position in (("web-mock", 0), ("api-real", 1)):
+            with self.subTest(scenario=scenario_id):
+                changed = json.loads(json.dumps(observed))
+                changed["results"][position]["status"] = "blocked"
+                changed["results"][position]["assertion_results"] = {"A1": "blocked"}
+                status, payload = invoke(frozen, changed)
+                self.assertEqual(1, status)
+                text = " ".join(payload["errors"])
+                self.assertIn(f"required TEST-001/{scenario_id} status must be pass", text)
+                self.assertNotIn("TEST-001/prod-smoke status", text)
+
+    def test_blocked_production_row_still_needs_its_evidence_file(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke"))
+        observed["results"][2]["evidence"]["sha256"] = "d" * 64
+        status, payload = invoke(frozen, observed)
+        self.assertEqual(1, status)
+        self.assertIn("does not match the evidence artifact", " ".join(payload["errors"]))
+
+    def test_optional_blocked_production_row_is_not_listed(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke", "pass"))
+        frozen["tests"].append({"test_id": "TEST-002", "scenarios": [production_scenario("optional-smoke")]})
+        observed["results"].append(production_row("optional-smoke", "blocked", "TEST-002"))
+        status, payload = invoke(frozen, observed)
+        self.assertEqual((0, []), (status, payload["production_smoke_deferred"]))
+
+    def test_passing_production_row_is_checked_with_exact_evidence(self) -> None:
+        frozen, observed = with_production(production_row("prod-smoke", "pass"))
+        for extra in ((), self.COMPLETE):
+            with self.subTest(extra=extra):
+                status, payload = invoke(frozen, observed, extra=extra)
+                self.assertEqual((0, []), (status, payload["production_smoke_deferred"]))
+                self.assertIn("TEST-001/prod-smoke", payload["matched_scenarios"])
+        for label, change in (("hash", {"sha256": "d" * 64}), ("path", {"path": "../outside.txt"})):
+            with self.subTest(evidence=label):
+                broken = json.loads(json.dumps(observed))
+                broken["results"][2]["evidence"].update(change)
+                for extra in ((), self.COMPLETE):
+                    self.assertEqual(1, invoke(frozen, broken, extra=extra)[0])
+
+    def test_deferred_list_is_sorted(self) -> None:
+        frozen, observed = with_production(
+            production_row("zeta-smoke"), production_row("alpha-smoke"), production_row("mid-smoke"))
+        status, payload = invoke(frozen, observed)
+        self.assertEqual(0, status)
+        self.assertEqual(
+            ["TEST-001/alpha-smoke", "TEST-001/mid-smoke", "TEST-001/zeta-smoke"],
+            payload["production_smoke_deferred"],
+        )
+
+    def test_results_check_without_a_deferred_list_stays_strict(self) -> None:
+        # check_eval_acceptance.py calls _results() and relies on the strict default.
+        frozen, observed = with_production(production_row("prod-smoke"))
+        scenarios, errors = checker._contract(frozen, {"TEST-001"}, {"TEST-001"})
+        self.assertEqual([], errors)
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            (root / "evidence").mkdir()
+            (root / "evidence" / "web.txt").write_bytes(EVIDENCE)
+            (root / "evidence" / "api.txt").write_bytes(EVIDENCE)
+            args = (observed, scenarios, {"TEST-001"}, CANDIDATE, root, "evidence", {})
+            self.assertIn("required TEST-001/prod-smoke status must be pass", checker._results(*args)[1])
+            deferred: list[str] = []
+            self.assertEqual([], checker._results(*args, deferred)[1])
+            self.assertEqual(["TEST-001/prod-smoke"], deferred)
 
 
 class CandidateTreeTests(unittest.TestCase):

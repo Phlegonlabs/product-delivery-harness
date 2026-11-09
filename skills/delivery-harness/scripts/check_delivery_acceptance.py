@@ -285,7 +285,16 @@ def _results(
     root: Path,
     allowed_root: str,
     captured: dict[str, bytes],
+    deferred: list[str] | None = None,
 ) -> tuple[list[str], list[str]]:
+    """Check every result row against the frozen scenarios.
+
+    A list passed as ``deferred`` turns on the pre-landing rule: a required
+    production-environment row with status ``blocked`` is not an error and its
+    ``<test_id>/<scenario_id>`` is added there, sorted. ``None`` keeps every
+    required row strict.
+    """
+
     errors: list[str] = []
     if not _exact_keys(value, RESULT_KEYS, "results", errors):
         return [], errors
@@ -304,6 +313,7 @@ def _results(
 
     seen_rows: set[tuple[Any, ...]] = set()
     matched: set[tuple[str, str]] = set()
+    deferred_keys: set[tuple[str, str]] = set()
     required_keys = {key for key in scenarios if key[0] in required_tests}
     for index, row in enumerate(rows):
         row_path = f"results.results[{index}]"
@@ -352,14 +362,19 @@ def _results(
             continue
         observations(row, expected, row_path, errors)
         if test_id in required_tests:
-            if status != "pass":
+            if (deferred is not None and status == "blocked"
+                    and expected["environment"] == "production"):
+                deferred_keys.add(key)
+            elif status != "pass":
                 errors.append(f"required {test_id}/{scenario_id} status must be pass")
             elif evidence_ok:
                 matched.add(key)
 
-    missing = sorted(required_keys - matched)
+    missing = sorted(required_keys - matched - deferred_keys)
     for test_id, scenario_id in missing:
         errors.append(f"required {test_id}/{scenario_id} has no exact passing evidence")
+    if deferred is not None:
+        deferred.extend(sorted(f"{test_id}/{scenario_id}" for test_id, scenario_id in deferred_keys))
     return sorted(f"{test_id}/{scenario_id}" for test_id, scenario_id in matched), errors
 
 
@@ -508,9 +523,12 @@ def _run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         candidate_sha = recorded if isinstance(recorded, str) else ""
     allowed_root = evidence_root(results_path)
     captured_evidence: dict[str, bytes] = {}
+    # Before landing, a production scenario cannot have run yet; a blocked
+    # row is deferred. The post-landing run passes --production-smoke-complete.
+    deferred: list[str] | None = None if args.production_smoke_complete else []
     matched, result_errors = _results(
         results, scenarios, required_tests, candidate_sha, root, allowed_root,
-        captured_evidence,
+        captured_evidence, deferred,
     )
     errors.extend(result_errors)
     if head_sha is not None and GIT_SHA_RE.fullmatch(candidate_sha):
@@ -538,6 +556,7 @@ def _run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             if test_id in required_tests
         ),
         matched_scenarios=matched,
+        production_smoke_deferred=deferred or [],
         prd_sha256=prd_hash,
         contract_sha256=args.contract_sha256,
         candidate_sha=candidate_sha,
@@ -561,6 +580,10 @@ def main(argv: list[str] | None = None) -> int:
     candidate = parser.add_mutually_exclusive_group(required=True)
     candidate.add_argument("--candidate-sha")
     candidate.add_argument("--candidate-from-head", action="store_true")
+    parser.add_argument(
+        "--production-smoke-complete", action="store_true",
+        help="post-landing run: every required production scenario must pass",
+    )
     args = parser.parse_args(argv)
     status, payload = _run(args)
     print(json.dumps(payload, ensure_ascii=False, sort_keys=True))
