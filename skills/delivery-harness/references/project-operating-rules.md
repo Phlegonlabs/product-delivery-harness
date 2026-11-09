@@ -62,7 +62,7 @@ Verified: <command or action> (<pass signal>)
 ```
 
 - Subject limits, types and scopes are in `commit-convention.md`.
-- One commit holds one kind of change.
+- One commit holds one kind of change. Two kinds of change land as two commits in dependency order.
 - Every commit names exactly one task ID, its upstream traces, and the actual verifier with its literal pass signal. A merge or integration-only commit uses the mission-level form (`chore(integration): integrate mission M2` with `Mission`, `Plan-Revision`, `Integrated-Head`), never a fake task body.
 - Direct small work — including plan-mode edits outside a managed run — commits with the same subject shape `<type>(<scope>): <imperative summary>` and no trailers required. The subject is the record:
 

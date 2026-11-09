@@ -1,6 +1,6 @@
 # Candidate Preview And Main Promotion Contract
 
-Use this contract after a direct change or managed RUN has produced one fixed, locally verified candidate SHA. For a Harness 0.38+ managed RUN, closeout candidate C is local-only; archive-only child A becomes the release candidate. Publishing A to its run branch and promoting A to `main` are separate post-RUN actions with separate action-time authorization.
+Use this contract after a direct change or managed RUN has produced one fixed, locally verified candidate SHA. For a Harness 0.38+ managed RUN, closeout candidate C is local-only; archive-only child A becomes the release candidate. The archived RUN remains immutable at C. Publishing A to its run branch and promoting A to `main` are separate post-RUN actions with separate action-time authorization.
 
 New delivery uses two branch roles: a temporary candidate branch and protected production `main`.
 PR or branch Preview supplies internal acceptance before main landing, except for an `initial_delivery`. No permanent `development` branch is required.
@@ -53,7 +53,7 @@ Archive read-back uses a fresh non-repository Git process. A private endpoint us
 
 Candidate gates start only after the candidate SHA (A for a managed RUN; the fixed commit for a direct change) has passed every applicable task, integration, build/typecheck/test, E2E, UI, migration, security, and complete-diff gate. The checkout must be clean and the candidate must descend from the frozen PLAN base. A dirty checkout, uncommitted fix, missing required result, stale review, SHA mismatch, or non-fast-forward ancestry blocks promotion. Candidate-preview evidence binds its own immutable candidate SHA; it never substitutes for protected-branch evidence or advances the PLAN base.
 
-Harness 0.38+ RUNs never use `integration_push`; that RUN state remains legacy read compatibility only. A post-archive read-back proves only exact A at the run ref and grants no `main` update.
+Harness 0.38+ RUNs never use `integration_push`; that RUN state remains legacy read compatibility only. A post-archive read-back proves only exact A at the run ref. Archival grants no push, and the read-back grants no `main` update.
 
 When the product needs internal deployed verification before production, deploy or expose an isolated non-production environment from the exact candidate branch or immutable candidate SHA. Use separate URLs, resources, data, secrets, auth, and payment modes. Preview acceptance is deployed-SHA readback plus migration and the smoke of the primary journey. Record the deployed candidate SHA and run those checks there. Responsive, accessibility and visual evidence binds by SHA from the candidate review; do not recapture it in the preview. A preview build start, successful upload, green check from another SHA, or owner statement is not a PASS.
 
@@ -68,7 +68,7 @@ Once A is archived or published, its history and evidence are immutable. A faile
 Archive and publication prove candidate ancestry from the frozen PLAN base.
 Archive creation also binds its separately observed main SHA; later main movement requires fresh promotion reconciliation.
 Run-branch publication and protected-main landing are separate actions. Publication is required only when Preview builds from the remote branch.
-Retain the publication read-back record.
+Retain the publication read-back record; it never authorizes protected-main landing.
 
 One owner release instruction may name archive, publication, preview, exact-SHA promotion and deployment together. Record each grant from that statement and do not re-ask; stop only on drift or a failed gate. Deletion and cleanup stay separate grants.
 
@@ -89,12 +89,13 @@ Promotion to main requires all these conditions:
 8. A different tree is a new candidate: verify it as an exact SHA before promotion or release completion.
 9. Verify the production deployment and required smoke against the actual main SHA, independently of Preview acceptance.
 
-A moving branch Preview URL is not immutable evidence.
+A moving branch Preview URL is not immutable evidence. Record the fixed deployment URL or identity alongside the Git SHA.
+A changed tree, repaired code or configuration invalidates earlier exact-SHA evidence.
 Only receipt-verified archive A and provider-created tree-equal main S use the inheritance exceptions defined here.
 Record S's observed SHA, the `post` JSON and original candidate/result identities.
 Do not repeat the full suite or security review solely because the server assigned tree-equal S a new SHA.
 Never relabel inherited candidate, security or CI results as fresh executions at S.
-A different tree needs fresh applicable checks and exact-SHA security review.
+A different tree is a new candidate and needs fresh applicable checks and exact-SHA security review.
 Repair a failed landing through a new candidate and reviewed PR; never force-push or rewrite protected history.
 Hosted-browser production verifies deployed SHA and smoke; parity capture there is optional. Native, extension and desktop targets use their platform evidence.
 For a store-reviewed production target, the promotion pass ends after the main-SHA artifact and submission read-back, with its Release Target Status row `pending`. Report availability as pending the store decision; do not wait for review. A later read-only check of the same artifact moves the row to PASS without a new promotion; a changed artifact is a new candidate.
@@ -105,7 +106,7 @@ Separately authorized fixed-build external setup cannot claim release readiness.
 
 Main is the permanent protected production branch. New flow neither creates nor requires development.
 Existing development branches remain untouched and protected from RUN integration, publication and cleanup, including old or wildcard grants.
-Before a deployable remote connection or landing, prepare actual protection and read it back as condition 2 of Promote To Main requires.
+Before a deployable remote connection or landing, prepare actual protection and read it back as condition 2 of Promote To Main requires. A written intention does not prove that the host enforces it.
 Removing a policy requirement does not authorize deleting branches or their data.
 
 ## Outcome And Required Evidence
@@ -119,4 +120,4 @@ For a managed RUN, candidate A remains the archive-only child of C. Report:
 - production build/SHA, smoke and any external setup or outcome handoff.
 
 Unexpected remote movement, divergence, failed gates or mismatched deployments stop dependent operations.
-Preserve evidence and reconcile explicitly.
+Preserve evidence and reconcile explicitly; never force-push or silently rewrite history.

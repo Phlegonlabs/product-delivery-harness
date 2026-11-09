@@ -1,6 +1,6 @@
 # Deployment Contract
 
-Use this reference when a delivery will be deployed, verified, or moved between platforms. `branch-promotion-contract.md` controls candidate verification, exact-candidate Preview acceptance and separately authorized promotion to protected `main`; promotion does not require prior run-branch publication of A. This contract maps those SHAs to environments and verifies what the platform serves.
+Use this reference when a delivery will be deployed, verified, or moved between platforms. Harness 0.38+ RUNs end local-only at C. `branch-promotion-contract.md` controls candidate verification, exact-candidate Preview acceptance and separately authorized promotion to protected `main`; promotion does not require prior run-branch publication of A, which is needed only when a candidate environment must build from the remote run branch. This contract maps those SHAs to environments and verifies what the platform serves.
 
 ## Model
 
@@ -23,10 +23,10 @@ Any lowercase platform id is valid. Each section below names that platform's nat
 
 For initial website/app work, apply [Initial Product Foundations](initial-product-foundations.md) before dependent features need these services.
 Reconcile configuration from the first usable build, then perform separately authorized setup and verify the isolated bootstrap deployment.
-Do not postpone all external-console work until RUN close.
+Do not postpone all external-console work until RUN close. Harness still never deploys or reconfigures the platform.
 This record owns deployment placement, External Console Setup action rows, and Measurement Sources; the selection, authorization, and read-back rules for those rows live in [External Setup](external-setup.md).
 
-`docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every external-console task truthfully `pending`, `configured`, `verified`, or `n/a`. Growth review and the outcome review consume only `verified` Measurement Sources rows.
+`docs/DEPLOYMENT.md` is both the deployment record and the operator handoff. `product-definition-builder` seeds it from the product and architecture decisions. Before every deployable push, `delivery-harness` reconciles it against the implementation whenever the change adds, removes, renames, or changes the use of configuration, auth, a binding, an integration, or a deploy workflow. After deployment, the parent records the observed environment result and leaves every external-console task truthfully `pending`, `configured`, `verified`, or `n/a`. Growth review and the outcome review consume only `verified` Measurement Sources rows, and no row's presence or status authorizes an external action.
 
 The reconciliation is name-only and read-only:
 
@@ -107,4 +107,4 @@ Two records carry the deployment model. `docs/DEPLOYMENT.md`, seeded during PRD 
 
 ## Moving Between Platforms
 
-Migrating — Cloudflare to AWS or Vercel, or anywhere else — changes the record and platform section, not the flow: map the exact candidate run branch/SHA to isolated non-production and `main` to production, update the deployment record, and re-verify both exact SHAs.
+Migrating — Cloudflare to AWS or Vercel, or anywhere else — changes the record and platform section, not the flow: map the exact candidate run branch/SHA to isolated non-production and `main` to production, update the deployment record, and re-verify both exact SHAs. No promotion or authorization rule changes with the platform.
