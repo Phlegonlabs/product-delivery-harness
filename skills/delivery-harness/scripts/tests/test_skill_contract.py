@@ -1310,6 +1310,52 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn("separate exact target/SHA authorization", source_owner)
             self.assertIn("never force-push", source_owner.casefold())
 
+    def test_deployment_template_shows_the_initial_delivery_form(self) -> None:
+        import check_deployment
+
+        template = self.read("assets/templates/DEPLOYMENT.template.md")
+        literal = "n/a — initial delivery: production is the first deployed environment"
+        # The template and the checker spell the literal the same way.
+        self.assertEqual(literal, check_deployment.INITIAL_DELIVERY_LITERAL)
+        sections = {
+            heading: body
+            for heading, body in (
+                part.split("\n", 1) for part in template.replace("\r\n", "\n").split("\n## ")[1:]
+            )
+        }
+        for heading in (
+            "Record",
+            "Release Unit Names",
+            "Resource Isolation",
+            "Required Secrets and Variables",
+            "External Console Setup",
+            "Environment Status",
+        ):
+            with self.subTest(heading):
+                self.assertEqual(1, sections[heading].count(literal))
+        record = sections["Record"]
+        for label in (
+            "Preview mechanism",
+            "Preview URL pattern",
+            "Fixed Preview deployment URL / ID",
+            "Preview candidate SHA and acceptance",
+            "Protected resources preview must never bind",
+        ):
+            self.assertIn(f"`{label}`", record)
+        self.assertIn(
+            "the `Delivery kind` line under Branch Promotion must then be `initial_delivery`",
+            record,
+        )
+        # Other tests locate the Branch Promotion section by its first "## Branch
+        # Promotion" text, so no earlier prose may repeat that heading string.
+        self.assertEqual(1, template.count("## Branch Promotion"))
+        # Prose that names the literal is not a filled cell: the unfilled template
+        # reports its placeholders and nothing about the literal or Delivery kind.
+        findings = "\n".join(check_deployment.check_deployment_text(template))
+        self.assertIn("unresolved placeholder", findings)
+        self.assertNotIn("initial-delivery literal", findings)
+        self.assertNotIn("Delivery kind", findings)
+
     def test_adding_a_binding_runbook_orders_resource_before_declaration(self) -> None:
         contract = self.read("references/deployment-contract.md")
         deployment_template = self.read("assets/templates/DEPLOYMENT.template.md")

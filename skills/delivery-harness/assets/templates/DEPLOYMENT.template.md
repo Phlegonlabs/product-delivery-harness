@@ -18,9 +18,13 @@ The deployment record for this repository: the platform model, the exact configu
 - Deployed-commit check: <platform API/CLI command or response header>
 - Protected resources preview must never bind: <databases, buckets, secrets, domains>
 
+For an initial delivery, `Preview mechanism`, `Preview URL pattern`, `Fixed Preview deployment URL / ID`, `Preview candidate SHA and acceptance` and `Protected resources preview must never bind` may each hold `n/a — initial delivery: production is the first deployed environment`, and the `Delivery kind` line under Branch Promotion must then be `initial_delivery`.
+
 ## Release Unit Names
 
 Record one row per independently released artifact or hosted unit. Production uses the canonical lowercase kebab-case `<product-slug>-<surface-suffix>` name and never adds `-prod`; development uses that exact name plus `-dev`; no release name may appear under two different surfaces. The normal suffixes are `web`, `api`, and `extension`. Use another descriptive suffix only for a separately released unit. Record stage-specific provider/channel pairs as the exact `Provider;Exact channel / track` value. Chrome, Firefox, stores, and hosting vendors stay in those provider/channel cells unless their artifacts actually differ. Native artifacts may use `ios`, `android`, `macos`, `windows`, or `linux`; their separately hosted backend remains `api`. Public store or product titles may differ from these internal release names. Development is a logical non-production target, not a permanent branch or Worker. Record native Preview names and fixed deployment IDs separately.
+
+For an initial delivery whose architecture declares no development target, both development cells hold `n/a — initial delivery: production is the first deployed environment`.
 
 | Surface | Surface suffix | Production release name | Development release name | Production provider / channel | Development provider / channel |
 | --- | --- | --- | --- | --- | --- |
@@ -36,7 +40,7 @@ Copy the source ref from the architecture target. Leave Source SHA and authority
 
 ## Resource Isolation
 
-Production and development use fully separate stateful resources. Record every binding class this project uses; an identical ID in both columns is a blocker. Mark a class the project does not use `n/a`.
+Production and development use fully separate stateful resources. Record every binding class this project uses; an identical ID in both columns is a blocker. Mark a class the project does not use `n/a`. For an initial delivery, the Development resource of each class the project uses holds `n/a — initial delivery: production is the first deployed environment`.
 
 | Binding class | Production resource | Development resource |
 | --- | --- | --- |
@@ -53,11 +57,11 @@ This is the human configuration handoff. Inventory names and destinations only �
 | --- | --- | --- | --- | --- | --- | --- |
 | <secret or variable name> | <secret or variable> | <runtime, build, CI, or external service> | <fill> | <fill> | <fill> | pending |
 
-Placement means the exact control surface a human opens. Examples: Cloudflare native Preview secrets or an approved named development environment, and production secrets; Vercel Project Settings scoped to Preview or Production; or repository Actions secrets for a CI deploy token. Classify browser-exposed configuration as `variable`, not `secret`. Include deploy credentials used by CI as well as application runtime keys.
+Placement means the exact control surface a human opens. Examples: Cloudflare native Preview secrets or an approved named development environment, and production secrets; Vercel Project Settings scoped to Preview or Production; or repository Actions secrets for a CI deploy token. Classify browser-exposed configuration as `variable`, not `secret`. Include deploy credentials used by CI as well as application runtime keys. For an initial delivery, Preview placement holds `n/a — initial delivery: production is the first deployed environment`.
 
 ## External Console Setup
 
-Record every non-code task required in another system, especially auth setup: create the application or tenant, register preview and production callback/redirect URLs, set allowed origins and logout URLs, configure webhook endpoints, attach domains or DNS, and grant required roles. Put any credential name created by these steps in the inventory above, but never its value. If no external setup is required, keep one `none` / `n/a` row.
+Record every non-code task required in another system, especially auth setup: create the application or tenant, register preview and production callback/redirect URLs, set allowed origins and logout URLs, configure webhook endpoints, attach domains or DNS, and grant required roles. Put any credential name created by these steps in the inventory above, but never its value. If no external setup is required, keep one `none` / `n/a` row. For an initial delivery, the Preview / non-production cell holds `n/a — initial delivery: production is the first deployed environment`.
 
 Before external trials, include one scoped feedback intake route: a support inbox, form, or named interview route. Name its owner and applicable privacy controls.
 Keep one test report joined to the tested build and context. No feedback vendor or new tracker is required.
@@ -195,7 +199,7 @@ Fill this architecture-backed table from the stable target IDs in `docs/product/
 
 ## Environment Status
 
-Keep this legacy table for repositories and reviewers that inspect environment URLs without the richer architecture join. Do not replace the per-target table above with two generic rows. Fill Checked with an `<RFC3339>` time with a timezone, such as `2026-09-03T14:05:00Z`, like the Release Target table; a bare date fails `check_deployment.py`.
+Keep this legacy table for repositories and reviewers that inspect environment URLs without the richer architecture join. Do not replace the per-target table above with two generic rows. Fill Checked with an `<RFC3339>` time with a timezone, such as `2026-09-03T14:05:00Z`, like the Release Target table; a bare date fails `check_deployment.py`. For an initial delivery, delete the development row, or put `n/a — initial delivery: production is the first deployed environment` in its URL cell and leave its other cells empty.
 
 | Environment | URL | Expected head | Deployed SHA | Checked | Status |
 | --- | --- | --- | --- | --- | --- |
