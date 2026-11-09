@@ -126,8 +126,8 @@ Follow `delivery-harness/references/branch-promotion-contract.md`. Fill this rec
 - Frozen base SHA: <full SHA>
 - Candidate SHA: <full SHA>
 - Candidate branch pushed and read back: <full SHA | local_only | pending>
-- Preview fixed deployment URL / ID: <observed URL or ID | pending>
-- Candidate environment verification: <PASS/FAIL/not applicable/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
+- Preview fixed deployment URL / ID: <observed URL or ID | not applicable: initial delivery | pending>
+- Candidate environment verification: <PASS/FAIL/not applicable: initial delivery/pending; exact SHA, commands/checks, environment/URL, timestamp, evidence>
 - Promotion authorization: <statement reference naming remote, main and candidate SHA | pending>
 - Main before: <full SHA>
 - Candidate ancestry from frozen base: <PASS/FAIL/pending>
