@@ -208,6 +208,7 @@ DEPLOYMENT_SCHEMA_LINE_RE = re.compile(
 )
 KNOWN_LEVEL_TWO_SECTIONS = (
     "## Record",
+    "## Branch Promotion",
     "## Release Unit Names",
     "## Resource Isolation",
     "## Required Secrets and Variables",
@@ -489,10 +490,13 @@ def parse_delivery_kind(text: str) -> tuple[str | None, str]:
     """Return the Branch Promotion `Delivery kind` and, when unusable, why.
 
     A valid value returns (kind, ""). A missing, repeated, unfilled or unknown
-    value returns (None, reason).
+    value, or a record with more than one Branch Promotion section, returns
+    (None, reason).
     """
 
     blocks = _section_blocks(text).get("## Branch Promotion", [])
+    if len(blocks) > 1:
+        return None, "Branch Promotion appears more than once"
     values = DELIVERY_KIND_LINE_RE.findall("\n".join(blocks[0])) if blocks else []
     if not values:
         return None, "the Delivery kind line is missing"

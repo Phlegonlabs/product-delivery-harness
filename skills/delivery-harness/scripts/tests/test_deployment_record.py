@@ -1212,6 +1212,33 @@ class DeliveryKindTests(unittest.TestCase):
                 self.assertIsNone(kind)
                 self.assertIn(reason, found)
 
+    def test_a_second_branch_promotion_section_makes_the_kind_unusable(self) -> None:
+        for first, second in (
+            ("initial_delivery", "enhancement"),
+            ("enhancement", "initial_delivery"),
+            ("initial_delivery", "initial_delivery"),
+        ):
+            with self.subTest(f"{first} then {second}"):
+                text = with_delivery_kind(
+                    with_delivery_kind(GOOD_DEPLOYMENT, first), second
+                )
+                self.assertEqual(
+                    (None, "Branch Promotion appears more than once"),
+                    check_deployment.parse_delivery_kind(text),
+                )
+                self.assertIn(
+                    "Branch Promotion: duplicate required level-2 section",
+                    check_deployment.check_deployment_text(text),
+                )
+
+    def test_a_single_branch_promotion_section_is_not_a_duplicate(self) -> None:
+        self.assertNotIn(
+            "Branch Promotion: duplicate required level-2 section",
+            check_deployment.check_deployment_text(
+                with_delivery_kind(GOOD_DEPLOYMENT, "enhancement")
+            ),
+        )
+
     def test_an_unusable_kind_is_a_finding_only_where_the_literal_is_used(self) -> None:
         unusable = (
             ("missing", None),
@@ -1536,6 +1563,27 @@ class ProductionFirstTests(unittest.TestCase):
                     findings,
                 )
                 self.assertIn(place, findings)
+
+    def test_conflicting_branch_promotion_sections_reject_the_literal(self) -> None:
+        initial = initial_delivery_record()
+        enhancement = initial.replace(
+            "- Delivery kind: initial_delivery", "- Delivery kind: enhancement"
+        )
+        cases = (
+            ("initial_delivery then enhancement", with_delivery_kind(initial, "enhancement")),
+            ("enhancement then initial_delivery", with_delivery_kind(enhancement, "initial_delivery")),
+        )
+        for label, record in cases:
+            with self.subTest(label):
+                findings = self.check(record)
+                self.assertIn(
+                    "Branch Promotion: duplicate required level-2 section", findings
+                )
+                self.assertIn(
+                    "requires Delivery kind: initial_delivery; "
+                    "Branch Promotion appears more than once",
+                    findings,
+                )
 
     def test_the_literal_needs_an_architecture_that_declares_the_marker(self) -> None:
         record = initial_delivery_record()
