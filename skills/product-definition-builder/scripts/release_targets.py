@@ -13,6 +13,8 @@ from markdown_contract import active_text
 SECTION_HEADING = "## Release Targets"
 EXPECTED_PREFIX = "Expected deployable surfaces:"
 RELEASE_MARKER_LINE_RE = re.compile(r"^Release source policy:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
+INITIAL_DELIVERY_LINE_RE = re.compile(r"^Initial delivery:[ \t]*(.*?)[ \t]*$", re.MULTILINE)
+INITIAL_DELIVERY_PROTOCOL = "production-first/1"
 TARGET_HEADING_RE = re.compile(r"^### Release Target:\s*(.*?)\s*$", re.MULTILINE)
 KEBAB_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 SOURCE_POLICY_RE = re.compile(
@@ -115,6 +117,7 @@ class ReleaseTargetContract:
     targets: tuple[ReleaseTarget, ...]
     explicit_none_reason: str | None
     source_policy_protocol: str = "candidate/1"
+    initial_delivery_protocol: str | None = None
 
     def by_id(self) -> dict[str, ReleaseTarget]:
         return {target.target_id: target for target in self.targets}
@@ -189,6 +192,35 @@ def _release_marker_protocol(section: str) -> tuple[str, list[str]]:
     return protocol, findings
 
 
+def _initial_delivery_protocol(
+    section: str, source_policy_protocol: str
+) -> tuple[str | None, list[str]]:
+    """Read the optional production-first marker; any defect leaves it unset."""
+
+    markers = INITIAL_DELIVERY_LINE_RE.findall(section)
+    if not markers:
+        return None, []
+    findings: list[str] = []
+    if len(markers) > 1:
+        findings.append(
+            "architecture: Release Targets must contain at most one "
+            "active Initial delivery marker"
+        )
+    if any(marker != INITIAL_DELIVERY_PROTOCOL for marker in markers):
+        findings.append(
+            "architecture: the only supported Initial delivery marker is "
+            f"{INITIAL_DELIVERY_PROTOCOL}"
+        )
+    if source_policy_protocol != "main-preview/1":
+        findings.append(
+            f"architecture: the Initial delivery: {INITIAL_DELIVERY_PROTOCOL} marker "
+            "requires the Release source policy: main-preview/1 marker"
+        )
+    if findings:
+        return None, findings
+    return INITIAL_DELIVERY_PROTOCOL, []
+
+
 def parse_source_policy(
     source_policy: str,
     *,
@@ -252,6 +284,10 @@ def parse_release_targets(
         return ReleaseTargetContract((), (), None), findings
     marker_protocol, marker_findings = _release_marker_protocol(section)
     findings.extend(marker_findings)
+    initial_delivery, initial_delivery_findings = _initial_delivery_protocol(
+        section, marker_protocol
+    )
+    findings.extend(initial_delivery_findings)
 
     inventory_matches = list(
         re.finditer(
@@ -265,7 +301,10 @@ def parse_release_targets(
             "architecture: Release Targets must contain exactly one expected "
             "deployable-surface inventory"
         )
-        return ReleaseTargetContract((), (), None, marker_protocol), findings
+        return (
+            ReleaseTargetContract((), (), None, marker_protocol, initial_delivery),
+            findings,
+        )
 
     inventory = inventory_matches[0].group(1).strip()
     none_match = re.fullmatch(r"none\s*(?:—|-)\s*(.+)", inventory, re.I)
@@ -523,6 +562,7 @@ def parse_release_targets(
             tuple(targets),
             explicit_none_reason,
             marker_protocol,
+            initial_delivery,
         ),
         sorted(set(findings)),
     )
