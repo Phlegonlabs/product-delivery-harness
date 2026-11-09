@@ -1,6 +1,6 @@
 # EPIC-initial-delivery-production-first: a first delivery lands on main and ships to production
 
-Status: in progress on `feat/initial-delivery-production-first` (base `main` `1b70cd25`, 0.79.1); three Sonnet 5.5 writers, parent integrates
+Status: candidate 0.80.0 on `feat/initial-delivery-production-first` (base `main` `1b70cd25`, 0.79.1); five Sonnet 5.5 writers integrated, one GPT review round repaired; final matrix and re-review recorded in the Log; not pushed
 Design workflow: enhancement
 UI impact: none (release rules, two checkers, templates and references; no product UI).
 
@@ -20,6 +20,7 @@ Baseline: `main` `1b70cd25` (0.79.1). The 2026-10-14 change `5de8434c` replaced 
 - `branch-promotion-contract.md` and `deployment-contract.md`: the initial-delivery path skips preview acceptance; the production deploy of the main SHA and its smoke are the deployed verification; the first enhancement adds the development target and the preview.
 - `delivery-acceptance-contract.md`: deployed-environment scenarios of an initial delivery run as production smoke rows under the existing production constraints (no synthetic fixtures, no mock auth); a scenario that cannot be production-safe is owner-descoped, never relabelled.
 - Templates and operating rules updated to match; version 0.80.0 (the bundle gains a contract marker).
+- Added after the first review round: `check_delivery_acceptance.py` has two stages. Before landing, a required `environment: production` scenario whose row is `blocked` is deferred and listed in `production_smoke_deferred`; after the production deploy, `--production-smoke-complete --candidate-sha <main SHA>` requires every such row to pass, with the register committed as a child of the main SHA. `check_eval_acceptance.py` defers the same way. Without this, a first delivery with a required deployed scenario could never close its RUN.
 
 Kept unchanged: `main-preview/1`, the two-stage rule for enhancements, exact-SHA promotion, separate action-time authorization for push, landing and deploy, every security rule. The acceptance checker already enforces the production constraints.
 
@@ -39,3 +40,6 @@ Writers: `claude-t3-direct` / `claude-sonnet-5-5` / effort xhigh via `delegate_t
 ## Log
 
 - 2026-11-09: branch cut from `1b70cd25`; Epic and briefs written; W1 to W3 dispatched.
+- 2026-11-09: W1 (`13860162`), W3 (`f3b5d56c`) and W2 (`f5c88a93`) integrated as no-ff merges. The parent restored the rule sentences W3 had trimmed to offset docs weight (`0304e04c`; `docs_weight.py` only reports growth) and named the initial-delivery value for the two Branch Promotion preview lines (`dce372e6`). Version 0.80.0 prepared with `prepare_release.py` (`e69cea8f`).
+- 2026-11-09: matrix at `e69cea8f`: skill spec, pyflakes, docs weight, harness (589 s), golden path, product and diff check passed; ui and design-system failed only because the locked Playwright 1.62.1 had no Chromium 1234 on this machine. After `npx playwright install chromium`, both suites passed at the same head (493 and 222 tests). Protected read-only review (gpt-6.1-sol xhigh, `run_gpt_review.py`, run `20261109-143915-eccb7992`) returned fix_required with three findings: the development relaxation was reachable without `--architecture`; a second `## Branch Promotion` section was not rejected; the acceptance gate before closeout contradicted production smoke after landing.
+- 2026-11-09: W4 (`663fe94f`) closed the first two findings in `check_deployment.py`; W5 (`c25c1cc8`) added the two acceptance stages to `check_delivery_acceptance.py` and the contract. The parent made the eval gate defer the same way with a focused test, placed the post-landing register as a child of the main SHA in the contract, and extended the README entries. Final matrix and the targeted re-check follow at the final head.
