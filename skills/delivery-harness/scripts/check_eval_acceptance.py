@@ -93,6 +93,11 @@ def verify(root, *, prd, prd_sha256, contract, contract_sha256, delivery_contrac
     _, result_errors = acceptance._results(register, scenarios, required_tests, candidate,
                                            root, evidence_root, evidence, deferred)
     errors.extend(result_errors)
+    # The policy's own quality and handoff rows prove the eval; they never defer.
+    for purpose in ("quality", "handoff"):
+        declared = f"{policy[purpose]['test_id']}/{policy[purpose]['scenario_id']}"
+        if declared in deferred:
+            errors.append(f"required eval row {declared} cannot be deferred as production smoke")
     if errors:
         return {"status": "FAIL", "errors": errors}
     for path, raw in evidence.items():
