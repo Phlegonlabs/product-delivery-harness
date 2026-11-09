@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import io
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -18,6 +20,7 @@ if str(SCRIPTS_DIR) not in sys.path:
 
 import check_deployment  # noqa: E402
 import configure_project_context  # noqa: E402
+import release_targets  # noqa: E402
 
 
 GOOD_DEPLOYMENT = f"""# Deployment
@@ -1259,6 +1262,350 @@ class DeliveryKindTests(unittest.TestCase):
             check_deployment.check_deployment_text(
                 with_delivery_kind(production, "hotfix")
             ),
+        )
+
+INITIAL_DELIVERY_MARKER = "Initial delivery: production-first/1"
+
+
+def marked(architecture: str) -> str:
+    return replace_once(
+        architecture,
+        "Expected deployable surfaces: web-app",
+        "Release source policy: main-preview/1\n"
+        f"{INITIAL_DELIVERY_MARKER}\n\n"
+        "Expected deployable surfaces: web-app",
+    )
+
+
+def production_only(architecture: str) -> str:
+    head, remainder = architecture.split("### Release Target: web-dev\n", 1)
+    return head + "### Release Target: web-prod\n" + remainder.split(
+        "### Release Target: web-prod\n", 1
+    )[1]
+
+
+MARKED_ARCHITECTURE = marked(RELEASE_ARCHITECTURE)
+PRODUCTION_FIRST_ARCHITECTURE = marked(production_only(RELEASE_ARCHITECTURE))
+
+
+def initial_delivery_record(development_row: str = "literal") -> str:
+    """ARCHITECTURE_BACKED_DEPLOYMENT as a first delivery with no development stage."""
+
+    preview_lines = "\n".join(
+        f"- {label}: {LITERAL}"
+        for label in (
+            "Preview mechanism",
+            "Preview URL pattern",
+            "Fixed Preview deployment URL / ID",
+            "Preview candidate SHA and acceptance",
+        )
+    )
+    text = ARCHITECTURE_BACKED_DEPLOYMENT
+    for old, new in (
+        ("- Preview URL pattern: <hash>.example.pages.dev", preview_lines),
+        (
+            "- Protected resources preview must never bind: prod-db",
+            f"- Protected resources preview must never bind: {LITERAL}",
+        ),
+        (
+            DEV_UNIT_ROW,
+            DEV_UNIT_ROW.replace("example-web-dev", LITERAL).replace(
+                "Cloudflare;development route", LITERAL
+            ),
+        ),
+        ("| d1-prod-001 | d1-preview-001 |", f"| d1-prod-001 | {LITERAL} |"),
+        ("| kv-prod-001 | kv-preview-001 |", f"| kv-prod-001 | {LITERAL} |"),
+        ("Cloudflare preview Worker secret", LITERAL),
+        ("Cloudflare preview Worker variable", LITERAL),
+        ("https://abc.example.pages.dev/callback", LITERAL),
+        (
+            "| web-dev | web-app | development | Cloudflare;development route | "
+            "pending | pending | pending | pending | pending | pending | pending |\n",
+            "",
+        ),
+        (
+            DEV_ENVIRONMENT_ROW,
+            f"| development | {LITERAL} | | | | |"
+            if development_row == "literal"
+            else "",
+        ),
+    ):
+        text = replace_once(text, old, new)
+    return with_delivery_kind(text, "initial_delivery")
+
+
+class ProductionFirstTests(unittest.TestCase):
+    def setUp(self) -> None:
+        # Until release_targets parses the marker itself, stand in for it, so
+        # these tests run against the real parser once it supports the marker.
+        fields = {
+            field.name
+            for field in dataclasses.fields(release_targets.ReleaseTargetContract)
+        }
+        if "initial_delivery_protocol" in fields:
+            return
+        real_parse = check_deployment.parse_release_targets
+
+        def parse(architecture_text: str):
+            contract, findings = real_parse(architecture_text)
+            if INITIAL_DELIVERY_MARKER in architecture_text.splitlines():
+                findings = [
+                    item
+                    for item in findings
+                    if "is missing development release targets" not in item
+                ]
+                object.__setattr__(
+                    contract, "initial_delivery_protocol", "production-first/1"
+                )
+            return contract, findings
+
+        patcher = mock.patch.object(check_deployment, "parse_release_targets", parse)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def check(
+        self, record: str, architecture: str = PRODUCTION_FIRST_ARCHITECTURE
+    ) -> str:
+        return "\n".join(
+            check_deployment.check_deployment_text(
+                record, architecture_text=architecture
+            )
+        )
+
+    def test_a_full_initial_delivery_record_passes_with_zero_findings(self) -> None:
+        for label in ("literal", "absent"):
+            with self.subTest(f"development environment row: {label}"):
+                self.assertEqual(
+                    [],
+                    check_deployment.check_deployment_text(
+                        initial_delivery_record(label),
+                        architecture_text=PRODUCTION_FIRST_ARCHITECTURE,
+                    ),
+                )
+
+    def test_the_same_record_passes_the_cli(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            architecture = root / "architecture.md"
+            architecture.write_text(PRODUCTION_FIRST_ARCHITECTURE, encoding="utf-8")
+            for kind, status in (("initial_delivery", 0), ("enhancement", 1)):
+                with self.subTest(kind):
+                    deployment = root / f"DEPLOYMENT-{kind}.md"
+                    deployment.write_text(
+                        initial_delivery_record().replace(
+                            "- Delivery kind: initial_delivery",
+                            f"- Delivery kind: {kind}",
+                        ),
+                        encoding="utf-8",
+                    )
+                    stdout = io.StringIO()
+                    with contextlib.redirect_stdout(stdout):
+                        code = check_deployment.main(
+                            [
+                                "--deployment",
+                                str(deployment),
+                                "--architecture",
+                                str(architecture),
+                            ]
+                        )
+                    self.assertEqual(status, code, stdout.getvalue())
+
+    def test_every_listed_cell_takes_the_literal_for_an_initial_delivery(self) -> None:
+        for label, (record, _place) in literal_variants().items():
+            with self.subTest(label):
+                self.assertEqual(
+                    [],
+                    check_deployment.check_deployment_text(
+                        with_delivery_kind(record, "initial_delivery")
+                    ),
+                )
+
+    def test_two_surfaces_may_both_hold_the_literal_as_a_development_name(self) -> None:
+        literal_row = DEV_UNIT_ROW.replace("example-web-dev", LITERAL).replace(
+            "Cloudflare;development route", LITERAL
+        )
+        record = replace_once(
+            GOOD_DEPLOYMENT,
+            DEV_UNIT_ROW,
+            literal_row
+            + f"\n| api | api | example-api | {LITERAL} | Cloudflare;production route | {LITERAL} |",
+        )
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                with_delivery_kind(record, "initial_delivery")
+            ),
+        )
+
+    def test_other_n_a_forms_and_other_columns_keep_todays_findings(self) -> None:
+        def unit_row(development: str, production: str = "example-web") -> str:
+            return DEV_UNIT_ROW.replace("example-web-dev", development).replace(
+                "| example-web |", f"| {production} |"
+            )
+
+        cases = (
+            (
+                "hyphen instead of an em dash",
+                replace_once(
+                    GOOD_DEPLOYMENT, DEV_UNIT_ROW, unit_row(LITERAL.replace("—", "-"))
+                ),
+                "development release name must be lowercase kebab case",
+            ),
+            (
+                "bare n/a",
+                replace_once(GOOD_DEPLOYMENT, DEV_UNIT_ROW, unit_row("n/a")),
+                "web-app has no development release name",
+            ),
+            (
+                "literal as a production name",
+                replace_once(
+                    GOOD_DEPLOYMENT, DEV_UNIT_ROW, unit_row(LITERAL, LITERAL)
+                ),
+                "production release name must be lowercase kebab case",
+            ),
+            (
+                "placeholder beside the literal",
+                replace_once(
+                    GOOD_DEPLOYMENT,
+                    "- Preview URL pattern: <hash>.example.pages.dev",
+                    f"- Preview mechanism: {LITERAL}\n- Preview URL pattern: <pattern>",
+                ),
+                "unresolved placeholder '<pattern>'",
+            ),
+        )
+        for label, record, expected in cases:
+            with self.subTest(label):
+                findings = "\n".join(
+                    check_deployment.check_deployment_text(
+                        with_delivery_kind(record, "initial_delivery")
+                    )
+                )
+                self.assertIn(expected, findings)
+
+    def test_the_literal_requires_delivery_kind_initial_delivery(self) -> None:
+        for label, (record, place) in literal_variants().items():
+            with self.subTest(label):
+                findings = "\n".join(
+                    check_deployment.check_deployment_text(
+                        with_delivery_kind(record, "enhancement")
+                    )
+                )
+                self.assertIn(
+                    "requires Delivery kind: initial_delivery, not enhancement",
+                    findings,
+                )
+                self.assertIn(place, findings)
+
+    def test_the_literal_needs_an_architecture_that_declares_the_marker(self) -> None:
+        record = initial_delivery_record()
+        for label, architecture in (
+            ("both targets, no marker", RELEASE_ARCHITECTURE),
+            ("production only, no marker", production_only(RELEASE_ARCHITECTURE)),
+        ):
+            with self.subTest(label):
+                self.assertIn(
+                    "architecture does not declare Initial delivery: production-first/1",
+                    self.check(record, architecture),
+                )
+
+    def test_an_initial_delivery_without_the_literal_is_unchanged_by_the_marker(
+        self,
+    ) -> None:
+        ordinary = with_delivery_kind(
+            ARCHITECTURE_BACKED_DEPLOYMENT, "initial_delivery"
+        )
+        for label, architecture in (
+            ("unmarked architecture", RELEASE_ARCHITECTURE),
+            ("marked architecture with a development target", MARKED_ARCHITECTURE),
+        ):
+            with self.subTest(label):
+                self.assertEqual("", self.check(ordinary, architecture))
+
+    def test_an_enhancement_needs_the_development_target(self) -> None:
+        enhancement = with_delivery_kind(ARCHITECTURE_BACKED_DEPLOYMENT, "enhancement")
+        self.assertIn(
+            "enhancement requires the development release target for web-app; "
+            "production-first covers only the initial delivery",
+            self.check(enhancement),
+        )
+        for label, architecture in (
+            ("marked, development target present", MARKED_ARCHITECTURE),
+            ("unmarked", RELEASE_ARCHITECTURE),
+        ):
+            with self.subTest(label):
+                self.assertEqual("", self.check(enhancement, architecture))
+
+    def test_release_unit_names_must_hold_the_literal_without_a_development_target(
+        self,
+    ) -> None:
+        ordinary = with_delivery_kind(
+            ARCHITECTURE_BACKED_DEPLOYMENT, "initial_delivery"
+        )
+        findings = self.check(ordinary)
+        self.assertIn("web-app development release name must be", findings)
+        self.assertIn("web-app development provider / channel must be", findings)
+        self.assertIn("declares no development target", findings)
+
+    def test_a_present_development_target_is_validated_as_today(self) -> None:
+        findings = self.check(initial_delivery_record(), MARKED_ARCHITECTURE)
+        self.assertIn(
+            "development release name must equal architecture 'example-web-dev'",
+            findings,
+        )
+        self.assertIn("development provider/channel must equal architecture", findings)
+        self.assertIn("architecture release targets are missing: web-dev", findings)
+
+    def test_the_development_environment_row_is_optional_only_for_production_first(
+        self,
+    ) -> None:
+        no_row = replace_once(GOOD_DEPLOYMENT, DEV_ENVIRONMENT_ROW + "\n", "")
+        cases = (
+            (
+                "initial delivery without architecture or literal",
+                with_delivery_kind(no_row, "initial_delivery"),
+                None,
+            ),
+            (
+                "initial delivery, unmarked architecture",
+                initial_delivery_record("absent"),
+                RELEASE_ARCHITECTURE,
+            ),
+            (
+                "enhancement",
+                initial_delivery_record("absent").replace(
+                    "- Delivery kind: initial_delivery", "- Delivery kind: enhancement"
+                ),
+                PRODUCTION_FIRST_ARCHITECTURE,
+            ),
+        )
+        for label, record, architecture in cases:
+            with self.subTest(label):
+                findings = "\n".join(
+                    check_deployment.check_deployment_text(
+                        record, architecture_text=architecture
+                    )
+                )
+                self.assertIn(
+                    "Environment Status: missing the development row", findings
+                )
+
+    def test_the_production_row_stays_required_and_the_literal_row_stays_empty(
+        self,
+    ) -> None:
+        no_production = replace_once(
+            initial_delivery_record(), "| production | | | | | |\n", ""
+        )
+        self.assertIn(
+            "Environment Status: missing the production row", self.check(no_production)
+        )
+        filled = replace_once(
+            initial_delivery_record(),
+            f"| development | {LITERAL} | | | | |",
+            f"| development | {LITERAL} | {'a' * 40} | | | |",
+        )
+        self.assertIn(
+            "development row holding the initial-delivery literal must leave every other cell empty",
+            self.check(filled),
         )
 
 
