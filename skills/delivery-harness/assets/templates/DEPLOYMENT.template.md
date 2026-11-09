@@ -18,7 +18,7 @@ The deployment record for this repository: the platform model, the exact configu
 - Deployed-commit check: <platform API/CLI command or response header>
 - Protected resources preview must never bind: <databases, buckets, secrets, domains>
 
-For an initial delivery, `Preview mechanism`, `Preview URL pattern`, `Fixed Preview deployment URL / ID`, `Preview candidate SHA and acceptance` and `Protected resources preview must never bind` may each hold `n/a — initial delivery: production is the first deployed environment`, and the `Delivery kind` line under Branch Promotion must then be `initial_delivery`.
+For an initial delivery, `Preview mechanism`, `Preview URL pattern`, `Fixed Preview deployment URL / ID`, `Preview candidate SHA and acceptance` and `Protected resources preview must never bind` may each hold `n/a — initial delivery: production is the first deployed environment`, and the `Delivery kind` line under Branch Promotion must then be `initial_delivery`; `check_deployment.py` accepts the literal only with `--architecture` naming an architecture that declares `Initial delivery: production-first/1`.
 
 ## Release Unit Names
 
