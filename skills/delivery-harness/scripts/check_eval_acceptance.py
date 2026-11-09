@@ -88,8 +88,10 @@ def verify(root, *, prd, prd_sha256, contract, contract_sha256, delivery_contrac
     results_path = _safe_file(root, str(results)).relative_to(root).as_posix()
     evidence_root = acceptance.evidence_root(results_path)
     evidence = {}
+    # The eval gate runs before landing, so a blocked production row defers here too.
+    deferred: list[str] = []
     _, result_errors = acceptance._results(register, scenarios, required_tests, candidate,
-                                           root, evidence_root, evidence)
+                                           root, evidence_root, evidence, deferred)
     errors.extend(result_errors)
     if errors:
         return {"status": "FAIL", "errors": errors}
@@ -140,7 +142,8 @@ def verify(root, *, prd, prd_sha256, contract, contract_sha256, delivery_contrac
     if final_status.returncode or final_status.stdout.strip():
         errors.append("checkout changed during eval check")
     return {"status": "FAIL" if errors else "PASS", "errors": errors,
-            "candidate_sha": candidate, "checked_head_sha": head, "reports": summaries}
+            "candidate_sha": candidate, "checked_head_sha": head, "reports": summaries,
+            "production_smoke_deferred": deferred}
 
 
 def main(argv=None):

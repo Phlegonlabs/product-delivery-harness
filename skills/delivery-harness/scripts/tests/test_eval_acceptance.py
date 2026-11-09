@@ -111,6 +111,19 @@ class EvalAcceptanceTests(unittest.TestCase):
                        assertion_results={"artifact-check": "pass"},
                        evidence={"path": self.policy["delivery"][artifact_name], "sha256": ""})
             self.register["results"].append(row)
+        if getattr(self, "production_smoke", False):
+            # A production scenario cannot run before landing; its blocked row defers.
+            smoke = copy.deepcopy(self.delivery["tests"][0]["scenarios"][0])
+            smoke.update(id="prod-smoke", environment="production", platform="web", auth_mode="real")
+            self.delivery["tests"][0]["scenarios"].append(smoke)
+            raw = b"not run: production smoke runs after the main landing\n"
+            smoke_evidence = "docs/verification/evidence/prod-smoke.txt"
+            self.write(smoke_evidence, raw)
+            row = copy.deepcopy(self.register["results"][0])
+            row.update(scenario_id="prod-smoke", environment="production", platform="web", auth_mode="real",
+                       status="blocked", assertion_results={name: "blocked" for name in row["assertion_results"]},
+                       evidence={"path": smoke_evidence, "sha256": hashlib.sha256(raw).hexdigest()})
+            self.register["results"].append(row)
         self.write(self.delivery_path, encoded(self.delivery))
         self.h1 = self.commit("product candidate")
         self.register["candidate_sha"] = self.h1
@@ -163,6 +176,11 @@ class EvalAcceptanceTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             code = checker.main(argv)
         return code, json.loads(output.getvalue())
+
+    def test_deferred_list_names_only_the_blocked_production_rows(self):
+        code, result = self.invoke()
+        expected = ["TEST-001/prod-smoke"] if getattr(self, "production_smoke", False) else []
+        self.assertEqual((0, expected), (code, result["production_smoke_deferred"]))
 
     def test_h1_h2_full_quality_and_handoff_pass(self):
         code, result = self.invoke()
@@ -341,6 +359,18 @@ class EvalProtectedArtifactTests(unittest.TestCase):
                     self.assertTrue(any("tested candidate H1" in error and path in error for error in result["errors"]), result)
                 finally:
                     case.doCleanups()
+
+
+class EvalAcceptanceTestsWithProductionSmoke(EvalAcceptanceTests):
+    """The eval gate runs before landing, so a blocked production row defers here too."""
+
+    production_smoke = True
+
+    def test_blocked_production_row_is_deferred_before_landing(self):
+        code, result = self.invoke()
+        self.assertEqual((0, []), (code, result["errors"]))
+        self.assertEqual([self.policy["quality"]["test_id"] + "/prod-smoke"],
+                         result["production_smoke_deferred"])
 
 
 if __name__ == "__main__":
