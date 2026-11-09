@@ -208,6 +208,7 @@ DEPLOYMENT_SCHEMA_LINE_RE = re.compile(
 )
 KNOWN_LEVEL_TWO_SECTIONS = (
     "## Record",
+    "## Branch Promotion",
     "## Release Unit Names",
     "## Resource Isolation",
     "## Required Secrets and Variables",
@@ -489,10 +490,13 @@ def parse_delivery_kind(text: str) -> tuple[str | None, str]:
     """Return the Branch Promotion `Delivery kind` and, when unusable, why.
 
     A valid value returns (kind, ""). A missing, repeated, unfilled or unknown
-    value returns (None, reason).
+    value, or a record with more than one Branch Promotion section, returns
+    (None, reason).
     """
 
     blocks = _section_blocks(text).get("## Branch Promotion", [])
+    if len(blocks) > 1:
+        return None, "Branch Promotion appears more than once"
     values = DELIVERY_KIND_LINE_RE.findall("\n".join(blocks[0])) if blocks else []
     if not values:
         return None, "the Delivery kind line is missing"
@@ -562,27 +566,34 @@ def _delivery_kind_findings(
 ) -> list[str]:
     """The literal needs an initial delivery under a marked architecture.
 
-    A record that never uses it gets no finding here, marker or not.
+    A record that never uses it gets no finding here, marker or not. Without an
+    architecture there is no marker to confirm, so the literal is never accepted.
     """
 
     if not places:
         return []
     where = f"the initial-delivery literal in {', '.join(places)}"
+    findings: list[str] = []
     if kind is None:
-        return [
+        findings.append(
             f"Branch Promotion: {where} requires Delivery kind: initial_delivery; {reason}"
-        ]
-    if kind == "enhancement":
-        return [
+        )
+    elif kind == "enhancement":
+        findings.append(
             f"Branch Promotion: {where} requires Delivery kind: initial_delivery, "
             "not enhancement"
-        ]
-    if architecture_marked is False:
-        return [
+        )
+    elif architecture_marked is False:
+        findings.append(
             "Branch Promotion: architecture does not declare Initial delivery: "
             f"{INITIAL_DELIVERY_PROTOCOL}, which {where} requires"
-        ]
-    return []
+        )
+    if architecture_marked is None:
+        findings.append(
+            f"Branch Promotion: {where} requires --architecture declaring "
+            f"Initial delivery: {INITIAL_DELIVERY_PROTOCOL}"
+        )
+    return findings
 
 
 def parse_release_target_status(text: str) -> dict[str, dict[str, str]]:
@@ -1336,11 +1347,8 @@ def check_deployment_text(
             delivery_kind, delivery_reason, literal_places, architecture_marked
         )
     )
-    # The development stage may be absent only for an initial delivery that the
-    # architecture (or, without one, the record's own literal) puts production-first.
-    production_first = delivery_kind == "initial_delivery" and (
-        bool(literal_places) if architecture_marked is None else architecture_marked
-    )
+    # Every relaxation of the development stage needs the architecture marker.
+    production_first = delivery_kind == "initial_delivery" and architecture_marked is True
     if architecture_text is not None:
         findings.extend(_validate_release_source_provenance(text, architecture_text))
         findings.extend(
@@ -1457,7 +1465,9 @@ def check_deployment_text(
         if surface.casefold() in {"none", "n/a"}:
             findings.append("Release Unit Names: a deployable record needs at least one release unit")
             continue
-        development_is_literal = development_name == INITIAL_DELIVERY_LITERAL
+        development_is_literal = (
+            architecture_marked is True and development_name == INITIAL_DELIVERY_LITERAL
+        )
         for label, value in (
             ("surface", surface),
             ("surface suffix", suffix),
@@ -1596,7 +1606,11 @@ def check_deployment_text(
         if environment == "development":
             if row is None and production_first:
                 continue
-            if row is not None and row["url"] == INITIAL_DELIVERY_LITERAL:
+            if (
+                row is not None
+                and architecture_marked is True
+                and row["url"] == INITIAL_DELIVERY_LITERAL
+            ):
                 if any(
                     row[column]
                     for column in ("expected", "deployed", "checked", "status")

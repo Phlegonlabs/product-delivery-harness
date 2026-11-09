@@ -1212,6 +1212,33 @@ class DeliveryKindTests(unittest.TestCase):
                 self.assertIsNone(kind)
                 self.assertIn(reason, found)
 
+    def test_a_second_branch_promotion_section_makes_the_kind_unusable(self) -> None:
+        for first, second in (
+            ("initial_delivery", "enhancement"),
+            ("enhancement", "initial_delivery"),
+            ("initial_delivery", "initial_delivery"),
+        ):
+            with self.subTest(f"{first} then {second}"):
+                text = with_delivery_kind(
+                    with_delivery_kind(GOOD_DEPLOYMENT, first), second
+                )
+                self.assertEqual(
+                    (None, "Branch Promotion appears more than once"),
+                    check_deployment.parse_delivery_kind(text),
+                )
+                self.assertIn(
+                    "Branch Promotion: duplicate required level-2 section",
+                    check_deployment.check_deployment_text(text),
+                )
+
+    def test_a_single_branch_promotion_section_is_not_a_duplicate(self) -> None:
+        self.assertNotIn(
+            "Branch Promotion: duplicate required level-2 section",
+            check_deployment.check_deployment_text(
+                with_delivery_kind(GOOD_DEPLOYMENT, "enhancement")
+            ),
+        )
+
     def test_an_unusable_kind_is_a_finding_only_where_the_literal_is_used(self) -> None:
         unusable = (
             ("missing", None),
@@ -1237,10 +1264,16 @@ class DeliveryKindTests(unittest.TestCase):
                     ),
                 )
 
-    def test_a_usable_kind_adds_no_delivery_kind_finding_for_the_literal(self) -> None:
+    def test_a_usable_kind_leaves_only_the_architecture_finding_for_the_literal(
+        self,
+    ) -> None:
         record = literal_variants()["Record Preview URL pattern"][0]
         self.assertEqual(
-            [],
+            [
+                "Branch Promotion: the initial-delivery literal in Record Preview "
+                "URL pattern requires --architecture declaring Initial delivery: "
+                "production-first/1"
+            ],
             check_deployment.check_deployment_text(
                 with_delivery_kind(record, "initial_delivery")
             ),
@@ -1410,32 +1443,67 @@ class ProductionFirstTests(unittest.TestCase):
                         )
                     self.assertEqual(status, code, stdout.getvalue())
 
-    def test_every_listed_cell_takes_the_literal_for_an_initial_delivery(self) -> None:
-        for label, (record, _place) in literal_variants().items():
+    def test_every_listed_cell_needs_an_architecture_for_the_literal(self) -> None:
+        for label, (record, place) in literal_variants().items():
             with self.subTest(label):
-                self.assertEqual(
-                    [],
+                findings = "\n".join(
                     check_deployment.check_deployment_text(
                         with_delivery_kind(record, "initial_delivery")
-                    ),
+                    )
                 )
+                self.assertIn(
+                    "requires --architecture declaring Initial delivery: "
+                    "production-first/1",
+                    findings,
+                )
+                self.assertIn(place, findings)
 
-    def test_two_surfaces_may_both_hold_the_literal_as_a_development_name(self) -> None:
+    def test_the_literal_stays_a_finding_for_surfaces_without_a_marked_architecture(
+        self,
+    ) -> None:
         literal_row = DEV_UNIT_ROW.replace("example-web-dev", LITERAL).replace(
             "Cloudflare;development route", LITERAL
         )
-        record = replace_once(
-            GOOD_DEPLOYMENT,
-            DEV_UNIT_ROW,
-            literal_row
-            + f"\n| api | api | example-api | {LITERAL} | Cloudflare;production route | {LITERAL} |",
-        )
-        self.assertEqual(
-            [],
-            check_deployment.check_deployment_text(
-                with_delivery_kind(record, "initial_delivery")
+        record = with_delivery_kind(
+            replace_once(
+                GOOD_DEPLOYMENT,
+                DEV_UNIT_ROW,
+                literal_row
+                + f"\n| api | api | example-api | {LITERAL} | Cloudflare;production route | {LITERAL} |",
             ),
+            "initial_delivery",
         )
+        findings = "\n".join(check_deployment.check_deployment_text(record))
+        self.assertIn("requires --architecture declaring Initial delivery", findings)
+        self.assertIn(
+            "web-app development release name must be lowercase kebab case", findings
+        )
+
+    def test_a_record_without_an_architecture_never_gets_the_relaxation(self) -> None:
+        for label in ("literal", "absent"):
+            with self.subTest(f"development environment row: {label}"):
+                findings = "\n".join(
+                    check_deployment.check_deployment_text(initial_delivery_record(label))
+                )
+                self.assertIn(
+                    "requires --architecture declaring Initial delivery: "
+                    "production-first/1",
+                    findings,
+                )
+        absent = "\n".join(
+            check_deployment.check_deployment_text(initial_delivery_record("absent"))
+        )
+        self.assertIn("Environment Status: missing the development row", absent)
+
+    def test_the_cli_rejects_the_literal_without_an_architecture(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            deployment = Path(temp) / "DEPLOYMENT.md"
+            deployment.write_text(initial_delivery_record(), encoding="utf-8")
+            stdout = io.StringIO()
+            with contextlib.redirect_stdout(stdout):
+                code = check_deployment.main(["--deployment", str(deployment)])
+            self.assertEqual(1, code, stdout.getvalue())
+            self.assertIn("requires --architecture declaring", stdout.getvalue())
 
     def test_other_n_a_forms_and_other_columns_keep_todays_findings(self) -> None:
         def unit_row(development: str, production: str = "example-web") -> str:
@@ -1495,6 +1563,27 @@ class ProductionFirstTests(unittest.TestCase):
                     findings,
                 )
                 self.assertIn(place, findings)
+
+    def test_conflicting_branch_promotion_sections_reject_the_literal(self) -> None:
+        initial = initial_delivery_record()
+        enhancement = initial.replace(
+            "- Delivery kind: initial_delivery", "- Delivery kind: enhancement"
+        )
+        cases = (
+            ("initial_delivery then enhancement", with_delivery_kind(initial, "enhancement")),
+            ("enhancement then initial_delivery", with_delivery_kind(enhancement, "initial_delivery")),
+        )
+        for label, record in cases:
+            with self.subTest(label):
+                findings = self.check(record)
+                self.assertIn(
+                    "Branch Promotion: duplicate required level-2 section", findings
+                )
+                self.assertIn(
+                    "requires Delivery kind: initial_delivery; "
+                    "Branch Promotion appears more than once",
+                    findings,
+                )
 
     def test_the_literal_needs_an_architecture_that_declares_the_marker(self) -> None:
         record = initial_delivery_record()
