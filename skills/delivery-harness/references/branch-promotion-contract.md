@@ -3,9 +3,8 @@
 Use this contract after a direct change or managed RUN has produced one fixed, locally verified candidate SHA. For a Harness 0.38+ managed RUN, closeout candidate C is local-only; archive-only child A becomes the release candidate. The archived RUN remains immutable at C. Publishing A to its run branch and promoting A to `main` are separate post-RUN actions with separate action-time authorization.
 
 New delivery uses two branch roles: a temporary candidate branch and protected production `main`.
-PR or branch Preview supplies internal acceptance before main landing. No permanent `development` branch is required.
+PR or branch Preview supplies internal acceptance before main landing, except for an `initial_delivery`. No permanent `development` branch is required.
 The `development` release stage names a non-production target, not a Git branch.
-Existing `development` branches remain untouched and protected from generic RUN cleanup.
 
 Do not edit or commit directly on protected branches. Promote an exact already-committed candidate.
 Every fetch, branch creation, ref update, merge, push, external test, and branch deletion keeps its ordinary authorization boundary.
@@ -13,6 +12,8 @@ Every fetch, branch creation, ref update, merge, push, external test, and branch
 ## Delivery Kind And Base
 
 Classify delivery as `initial_delivery`, `enhancement`, or `needs_owner_decision`.
+`initial_delivery` is a product that has never been deployed; its architecture declares `Initial delivery: production-first/1` under `## Release Targets` and may declare only production targets.
+`enhancement` is every later delivery; it requires the development target and preview acceptance.
 Harness 0.63+ PLANs use `branch_policy.protocol: main-preview/1` and architecture marker `Release source policy: main-preview/1`.
 Both `ordinary` and `hotfix` freeze the observed remote `refs/remotes/<remote>/main` head and its full SHA.
 Cut the owner-resolved temporary branch from that base. Never advance the frozen base between waves.
@@ -71,6 +72,8 @@ Retain the publication read-back record; it never authorizes protected-main land
 
 One owner release instruction may name archive, publication, preview, exact-SHA promotion and deployment together. Record each grant from that statement and do not re-ask; stop only on drift or a failed gate. Deletion and cleanup stay separate grants.
 
+For `initial_delivery`, the Preview gate in condition 1 and condition 3 do not apply; condition 9, the production deploy and smoke of the actual main SHA, is the deployed verification. Every other condition applies unchanged.
+
 Promotion to main requires all these conditions:
 
 1. The fixed candidate passes every required local, security and applicable isolated Preview gate at its exact SHA.
@@ -102,7 +105,7 @@ Separately authorized fixed-build external setup cannot claim release readiness.
 ## Protected Branches
 
 Main is the permanent protected production branch. New flow neither creates nor requires development.
-Existing development branches remain protected from RUN integration, publication and cleanup, including old or wildcard grants.
+Existing development branches remain untouched and protected from RUN integration, publication and cleanup, including old or wildcard grants.
 Before a deployable remote connection or landing, prepare actual protection and read it back as condition 2 of Promote To Main requires. A written intention does not prove that the host enforces it.
 Removing a policy requirement does not authorize deleting branches or their data.
 
@@ -112,7 +115,7 @@ A completed new release has a reviewed candidate, exact-version Preview acceptan
 For a managed RUN, candidate A remains the archive-only child of C. Report:
 
 - delivery kind, temporary branch, protocol, frozen base and candidate SHA;
-- local checks, independent review and Preview deployment identity, URL, SHA and acceptance;
+- local checks, independent review and Preview deployment identity, URL, SHA and acceptance (`not applicable: initial delivery` for an `initial_delivery`);
 - main pre-state, authorization, ancestry, landing SHA and read-back;
 - production build/SHA, smoke and any external setup or outcome handoff.
 

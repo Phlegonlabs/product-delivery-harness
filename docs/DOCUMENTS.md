@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-suite-review-round-2](epics/EPIC-suite-review-round-2.md)
+Current Epic: [EPIC-initial-delivery-production-first](epics/EPIC-initial-delivery-production-first.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |

@@ -92,6 +92,8 @@ class EvalAcceptanceTests(unittest.TestCase):
             scenario = {"id": declared["scenario_id"], "execution": context,
                         "platform": "cli", "auth_mode": "none", "environment": "local",
                         "build": {"build_id": "fixture-eval-1", "config_digest": "b" * 64}, "fixtures": []}
+            if getattr(self, "production_eval_row", None) == purpose:
+                scenario["environment"] = "production"
             self.delivery["tests"].append({"test_id": declared["test_id"], "scenarios": [scenario]})
             current = copy.deepcopy(report)
             current.update(purpose=purpose, run_id=purpose + "-run-1", execution=context)
@@ -101,6 +103,9 @@ class EvalAcceptanceTests(unittest.TestCase):
                 **{name: scenario[name] for name in ("execution", "platform", "auth_mode", "environment", "build")},
                 "status": "pass", "assertion_results": {name: "pass" for name in assertions},
                 "fixture_cleanup": "not_required", "evidence": {"path": declared["report"], "sha256": ""}})
+            if getattr(self, "production_eval_row", None) == purpose:
+                self.register["results"][-1].update(
+                    status="blocked", assertion_results={name: "blocked" for name in assertions})
         if artifact_name:
             scenario = copy.deepcopy(self.delivery["tests"][0]["scenarios"][0])
             scenario["id"] = "implementation-evidence"
@@ -110,6 +115,19 @@ class EvalAcceptanceTests(unittest.TestCase):
             row.update(scenario_id=scenario["id"], execution=scenario["execution"],
                        assertion_results={"artifact-check": "pass"},
                        evidence={"path": self.policy["delivery"][artifact_name], "sha256": ""})
+            self.register["results"].append(row)
+        if getattr(self, "production_smoke", False):
+            # A production scenario cannot run before landing; its blocked row defers.
+            smoke = copy.deepcopy(self.delivery["tests"][0]["scenarios"][0])
+            smoke.update(id="prod-smoke", environment="production", platform="web", auth_mode="real")
+            self.delivery["tests"][0]["scenarios"].append(smoke)
+            raw = b"not run: production smoke runs after the main landing\n"
+            smoke_evidence = "docs/verification/evidence/prod-smoke.txt"
+            self.write(smoke_evidence, raw)
+            row = copy.deepcopy(self.register["results"][0])
+            row.update(scenario_id="prod-smoke", environment="production", platform="web", auth_mode="real",
+                       status="blocked", assertion_results={name: "blocked" for name in row["assertion_results"]},
+                       evidence={"path": smoke_evidence, "sha256": hashlib.sha256(raw).hexdigest()})
             self.register["results"].append(row)
         self.write(self.delivery_path, encoded(self.delivery))
         self.h1 = self.commit("product candidate")
@@ -163,6 +181,11 @@ class EvalAcceptanceTests(unittest.TestCase):
         with contextlib.redirect_stdout(output):
             code = checker.main(argv)
         return code, json.loads(output.getvalue())
+
+    def test_deferred_list_names_only_the_blocked_production_rows(self):
+        code, result = self.invoke()
+        expected = ["TEST-001/prod-smoke"] if getattr(self, "production_smoke", False) else []
+        self.assertEqual((0, expected), (code, result["production_smoke_deferred"]))
 
     def test_h1_h2_full_quality_and_handoff_pass(self):
         code, result = self.invoke()
@@ -341,6 +364,48 @@ class EvalProtectedArtifactTests(unittest.TestCase):
                     self.assertTrue(any("tested candidate H1" in error and path in error for error in result["errors"]), result)
                 finally:
                     case.doCleanups()
+
+
+class EvalAcceptanceTestsWithProductionSmoke(EvalAcceptanceTests):
+    """The eval gate runs before landing, so a blocked production row defers here too."""
+
+    production_smoke = True
+
+    def test_blocked_production_row_is_deferred_before_landing(self):
+        code, result = self.invoke()
+        self.assertEqual((0, []), (code, result["errors"]))
+        self.assertEqual([self.policy["quality"]["test_id"] + "/prod-smoke"],
+                         result["production_smoke_deferred"])
+
+
+class _DeclaredEvalRowMixin:
+    """A policy's quality or handoff row never defers, even as a production row."""
+
+    production_eval_row = None
+
+    def test_declared_eval_row_cannot_be_deferred(self):
+        code, result = self.invoke()
+        declared = self.policy[self.production_eval_row]
+        self.assertEqual(1, code)
+        self.assertIn(
+            f"required eval row {declared['test_id']}/{declared['scenario_id']} "
+            "cannot be deferred as production smoke",
+            result["errors"])
+
+
+class QualityRowNotDeferredTests(_DeclaredEvalRowMixin, EvalAcceptanceTests):
+    production_eval_row = "quality"
+
+
+class HandoffRowNotDeferredTests(_DeclaredEvalRowMixin, EvalAcceptanceTests):
+    production_eval_row = "handoff"
+
+
+for _case in (QualityRowNotDeferredTests, HandoffRowNotDeferredTests):
+    # Only the mixin's test belongs to these fixtures; hide the inherited ones.
+    for _name in dir(EvalAcceptanceTests):
+        if _name.startswith("test_"):
+            setattr(_case, _name, None)
 
 
 if __name__ == "__main__":

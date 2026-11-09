@@ -12,7 +12,11 @@ development uses that exact name plus ``-dev``. Also validates the Resource
 Isolation table: no binding class may list the same resource ID in both the
 production and development columns. When architecture.md is supplied, validates
 an exact architecture-backed Release Target Status table through the shared
-release-target parser while retaining the legacy environment inspection. Also
+release-target parser while retaining the legacy environment inspection. Reads
+the Branch Promotion Delivery kind: only an initial delivery under an
+architecture that declares Initial delivery: production-first/1 may hold the
+exact initial-delivery literal in its development cells and preview lines, or
+drop the development Environment Status row. Also
 validates the optional Measurement Sources table: its closed source-role and
 status vocabularies, its release bindings against architecture targets, and
 the stricter evidence demands on verified rows.
@@ -79,6 +83,22 @@ CONCRETE_CANDIDATE_REF_RE = re.compile(r"^refs/heads/[^\s<>\[\]]+$")
 ENVIRONMENT_ROWS = ("development", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
+INITIAL_DELIVERY_LITERAL = (
+    "n/a — initial delivery: production is the first deployed environment"
+)
+INITIAL_DELIVERY_PROTOCOL = "production-first/1"
+DELIVERY_KINDS = ("initial_delivery", "enhancement")
+DELIVERY_KIND_LINE_RE = re.compile(
+    r"^ {0,3}-[ \t]+Delivery kind:[ \t]*(.*?)[ \t]*$", re.MULTILINE
+)
+RECORD_LINE_RE = re.compile(r"^ {0,3}-[ \t]+([^:\n]+?):[ \t]*(.*?)[ \t]*$")
+RECORD_PREVIEW_LABELS = (
+    "preview mechanism",
+    "preview url pattern",
+    "fixed preview deployment url / id",
+    "preview candidate sha and acceptance",
+    "protected resources preview must never bind",
+)
 IDENTITY_ABSENT_VALUES = {"", "-"}
 HANDOFF_STATUSES = {"pending", "configured", "verified", "n/a"}
 ENVIRONMENT_STATUSES = {"PASS", "FAIL", "BLOCKED", "UNVALIDATED"}
@@ -188,6 +208,7 @@ DEPLOYMENT_SCHEMA_LINE_RE = re.compile(
 )
 KNOWN_LEVEL_TWO_SECTIONS = (
     "## Record",
+    "## Branch Promotion",
     "## Release Unit Names",
     "## Resource Isolation",
     "## Required Secrets and Variables",
@@ -463,6 +484,116 @@ def parse_section_table(text: str, heading: str) -> tuple[list[str], list[list[s
     if not sections:
         return [], []
     return _table_rows(sections[0])
+
+
+def parse_delivery_kind(text: str) -> tuple[str | None, str]:
+    """Return the Branch Promotion `Delivery kind` and, when unusable, why.
+
+    A valid value returns (kind, ""). A missing, repeated, unfilled or unknown
+    value, or a record with more than one Branch Promotion section, returns
+    (None, reason).
+    """
+
+    blocks = _section_blocks(text).get("## Branch Promotion", [])
+    if len(blocks) > 1:
+        return None, "Branch Promotion appears more than once"
+    values = DELIVERY_KIND_LINE_RE.findall("\n".join(blocks[0])) if blocks else []
+    if not values:
+        return None, "the Delivery kind line is missing"
+    if len(values) > 1:
+        return None, "Delivery kind appears more than once"
+    value = values[0]
+    if value in DELIVERY_KINDS:
+        return value, ""
+    if not value or "<" in value:
+        return None, "Delivery kind is not filled in"
+    return None, f"Delivery kind {value!r} is not initial_delivery or enhancement"
+
+
+def _initial_delivery_literal_places(text: str) -> list[str]:
+    """Name every development cell or preview line that holds the literal."""
+
+    places: list[str] = []
+    record_blocks = _section_blocks(text).get("## Record", [])
+    for line in record_blocks[0] if record_blocks else []:
+        match = RECORD_LINE_RE.match(line)
+        if (
+            match
+            and match.group(1).casefold() in RECORD_PREVIEW_LABELS
+            and match.group(2) == INITIAL_DELIVERY_LITERAL
+        ):
+            places.append(f"Record {match.group(1)}")
+    tables = (
+        (
+            "Release Unit Names",
+            RELEASE_UNIT_HEADERS,
+            {3: "development release name", 5: "development provider / channel"},
+        ),
+        ("Required Secrets and Variables", SECRET_HEADERS, {3: "preview placement"}),
+        (
+            "External Console Setup",
+            EXTERNAL_SETUP_HEADERS,
+            {2: "preview / non-production"},
+        ),
+    )
+    for section, expected_header, columns in tables:
+        header, rows = parse_section_table(text, f"## {section}")
+        if tuple(header) != expected_header:
+            continue
+        for row in rows:
+            if len(row) != len(expected_header):
+                continue
+            for index, label in columns.items():
+                if row[index] == INITIAL_DELIVERY_LITERAL:
+                    places.append(f"{section} {row[0]} {label}")
+    _header, rows = parse_section_table(text, "## Resource Isolation")
+    for row in rows:
+        if len(row) >= 3 and row[2] == INITIAL_DELIVERY_LITERAL:
+            places.append(f"Resource Isolation {row[0]} development resource")
+    _header, rows = parse_section_table(text, "## Environment Status")
+    for row in rows:
+        if (
+            len(row) >= 2
+            and row[0].casefold() == "development"
+            and row[1] == INITIAL_DELIVERY_LITERAL
+        ):
+            places.append("Environment Status development URL")
+    return places
+
+
+def _delivery_kind_findings(
+    kind: str | None, reason: str, places: list[str], architecture_marked: bool | None
+) -> list[str]:
+    """The literal needs an initial delivery under a marked architecture.
+
+    A record that never uses it gets no finding here, marker or not. Without an
+    architecture there is no marker to confirm, so the literal is never accepted.
+    """
+
+    if not places:
+        return []
+    where = f"the initial-delivery literal in {', '.join(places)}"
+    findings: list[str] = []
+    if kind is None:
+        findings.append(
+            f"Branch Promotion: {where} requires Delivery kind: initial_delivery; {reason}"
+        )
+    elif kind == "enhancement":
+        findings.append(
+            f"Branch Promotion: {where} requires Delivery kind: initial_delivery, "
+            "not enhancement"
+        )
+    elif architecture_marked is False:
+        findings.append(
+            "Branch Promotion: architecture does not declare Initial delivery: "
+            f"{INITIAL_DELIVERY_PROTOCOL}, which {where} requires"
+        )
+    if architecture_marked is None:
+        findings.append(
+            f"Branch Promotion: {where} requires --architecture declaring "
+            f"Initial delivery: {INITIAL_DELIVERY_PROTOCOL}"
+        )
+    return findings
 
 
 def parse_release_target_status(text: str) -> dict[str, dict[str, str]]:
@@ -1197,6 +1328,27 @@ def check_deployment_text(
             findings.append(
                 f"{heading.removeprefix('## ')}: duplicate required level-2 section"
             )
+    delivery_kind, delivery_reason = parse_delivery_kind(text)
+    literal_places = _initial_delivery_literal_places(text)
+    architecture_contract = None
+    architecture_findings: list[str] = []
+    # None without an architecture; otherwise whether it declares production-first/1.
+    architecture_marked: bool | None = None
+    if architecture_text is not None:
+        architecture_contract, architecture_findings = parse_release_targets(
+            architecture_text
+        )
+        architecture_marked = (
+            getattr(architecture_contract, "initial_delivery_protocol", None)
+            == INITIAL_DELIVERY_PROTOCOL
+        )
+    findings.extend(
+        _delivery_kind_findings(
+            delivery_kind, delivery_reason, literal_places, architecture_marked
+        )
+    )
+    # Every relaxation of the development stage needs the architecture marker.
+    production_first = delivery_kind == "initial_delivery" and architecture_marked is True
     if architecture_text is not None:
         findings.extend(_validate_release_source_provenance(text, architecture_text))
         findings.extend(
@@ -1231,7 +1383,6 @@ def check_deployment_text(
     )
     findings.extend(release_findings)
     if architecture_text is not None:
-        architecture_contract, architecture_findings = parse_release_targets(architecture_text)
         findings.extend(architecture_findings)
         architecture_by_surface: dict[str, object] = {}
         for target in architecture_contract.targets:
@@ -1254,7 +1405,7 @@ def check_deployment_text(
                 ),
                 None,
             )
-            if production is None or development is None:
+            if production is None or (development is None and not architecture_marked):
                 findings.append(
                     f"Release Unit Names: {surface!r} is not an exact architecture surface"
                 )
@@ -1267,20 +1418,41 @@ def check_deployment_text(
                 findings.append(
                     f"Release Unit Names: {surface} production release name must equal architecture {production.release_name!r}"
                 )
-            if development_name != development.release_name:
+            if development is not None and development_name != development.release_name:
                 findings.append(
                     f"Release Unit Names: {surface} development release name must equal architecture {development.release_name!r}"
                 )
             expected_production_provider = f"{production.provider};{production.channel}"
-            expected_development_provider = f"{development.provider};{development.channel}"
             if _production_provider.casefold() != expected_production_provider.casefold():
                 findings.append(
                     f"Release Unit Names: {surface} production provider/channel must equal architecture {expected_production_provider!r}"
                 )
-            if _development_provider.casefold() != expected_development_provider.casefold():
-                findings.append(
-                    f"Release Unit Names: {surface} development provider/channel must equal architecture {expected_development_provider!r}"
-                )
+            if development is not None:
+                expected_development_provider = f"{development.provider};{development.channel}"
+                if _development_provider.casefold() != expected_development_provider.casefold():
+                    findings.append(
+                        f"Release Unit Names: {surface} development provider/channel must equal architecture {expected_development_provider!r}"
+                    )
+            elif delivery_kind != "enhancement":
+                for label, value in (
+                    ("release name", development_name),
+                    ("provider / channel", _development_provider),
+                ):
+                    if value != INITIAL_DELIVERY_LITERAL:
+                        findings.append(
+                            f"Release Unit Names: {surface} development {label} must be "
+                            f"{INITIAL_DELIVERY_LITERAL!r} because the architecture declares no development target"
+                        )
+        if architecture_marked and delivery_kind == "enhancement":
+            for surface in sorted(architecture_by_surface):
+                if not any(
+                    target.surface == surface and target.stage == "development"
+                    for target in architecture_contract.targets
+                ):
+                    findings.append(
+                        f"Branch Promotion: enhancement requires the development release target for {surface}; "
+                        "production-first covers only the initial delivery"
+                    )
         missing_surfaces = sorted(set(architecture_by_surface) - recorded_surfaces)
         if missing_surfaces:
             findings.append(
@@ -1293,6 +1465,9 @@ def check_deployment_text(
         if surface.casefold() in {"none", "n/a"}:
             findings.append("Release Unit Names: a deployable record needs at least one release unit")
             continue
+        development_is_literal = (
+            architecture_marked is True and development_name == INITIAL_DELIVERY_LITERAL
+        )
         for label, value in (
             ("surface", surface),
             ("surface suffix", suffix),
@@ -1308,7 +1483,11 @@ def check_deployment_text(
             ("production release name", production_name),
             ("development release name", development_name),
         ):
-            if value.casefold() not in ABSENT_VALUES and not LOWER_KEBAB_RE.fullmatch(value):
+            if (
+                value.casefold() not in ABSENT_VALUES
+                and not LOWER_KEBAB_RE.fullmatch(value)
+                and not (label == "development release name" and development_is_literal)
+            ):
                 findings.append(f"Release Unit Names: {surface} {label} must be lowercase kebab case")
         if production_name.endswith("-prod"):
             findings.append(f"Release Unit Names: {surface} production release name must not end in -prod")
@@ -1316,11 +1495,19 @@ def check_deployment_text(
             findings.append(
                 f"Release Unit Names: {surface} production release name must end in -{suffix}"
             )
-        if production_name and development_name != f"{production_name}-dev":
+        if (
+            production_name
+            and not development_is_literal
+            and development_name != f"{production_name}-dev"
+        ):
             findings.append(
                 f"Release Unit Names: {surface} development release name must equal {production_name}-dev"
             )
-        for release_name in (production_name, development_name):
+        for release_name in (
+            (production_name,)
+            if development_is_literal
+            else (production_name, development_name)
+        ):
             normalized_name = release_name.casefold()
             if normalized_name in ABSENT_VALUES:
                 continue
@@ -1416,6 +1603,23 @@ def check_deployment_text(
         findings.append(f"Environment Status: duplicate {environment} row")
     for environment in ENVIRONMENT_ROWS:
         row = rows.get(environment)
+        if environment == "development":
+            if row is None and production_first:
+                continue
+            if (
+                row is not None
+                and architecture_marked is True
+                and row["url"] == INITIAL_DELIVERY_LITERAL
+            ):
+                if any(
+                    row[column]
+                    for column in ("expected", "deployed", "checked", "status")
+                ):
+                    findings.append(
+                        "Environment Status: a development row holding the "
+                        "initial-delivery literal must leave every other cell empty"
+                    )
+                continue
         if row is None:
             findings.append(f"Environment Status: missing the {environment} row")
             continue

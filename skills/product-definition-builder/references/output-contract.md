@@ -604,14 +604,14 @@ Describe in a few lines: service boundaries, API style, data access, and backgro
 Record initial deployment and measurement prerequisites, their owners, dependent work and evidence in the existing sections and `docs/DEPLOYMENT.md`.
 Use the fixed initial build for authorized setup; keep later release availability and unknown platform artifacts pending.
 
-For every deployable hosted web, API, or backend target, include this environment contract (Cloudflare Worker naming shown as the worked example; substitute the resolved platform's equivalent deployment unit). Do not use this two-row hosted-environment table for native mobile or desktop store/signed-installer distribution:
+For every deployable hosted web, API, or backend target, include this environment contract (Cloudflare Worker naming is the example; substitute the platform's equivalent unit). Do not use this two-row hosted-environment table for native mobile or desktop store/signed-installer distribution:
 
 | Target | Exact Release Source | Deployment Unit | Data / Bindings / Secrets | Auth Mode | Payment Mode | Migration Order | Deployed Verification | Rollback |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Development | [Exact PR/branch candidate and verified deployment SHA] | [`<product-slug>-<surface-suffix>-dev`] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Classification, command, and ordering or not applicable] | [Internal suite, URL, deployed SHA, smoke, evidence] | [Prior development version] |
-| Production | [Verified main landing SHA after candidate Preview acceptance and separate promotion read-back] | [`<product-slug>-<surface-suffix>`; never add `-prod`] | [Production resources] | [Production] | [Live or not applicable] | [Classification, command, and ordering or not applicable] | [URL, deployed SHA, production smoke, evidence] | [Prior production version] |
+| Development | [Exact PR/branch candidate and verified deployment SHA] | [`<product-slug>-<surface-suffix>-dev`] | [Isolated non-production resources] | [Development] | [Sandbox or not applicable] | [Classification, command, order, or not applicable] | [Internal suite, URL, deployed SHA, smoke, evidence] | [Prior development version] |
+| Production | [Verified main landing SHA after candidate Preview acceptance and separate promotion read-back] | [`<product-slug>-<surface-suffix>`; never add `-prod`] | [Production resources] | [Production] | [Live or not applicable] | [Classification, command, order, or not applicable] | [URL, deployed SHA, production smoke, evidence] | [Prior production version] |
 
-State that both hosted targets use one repository and one codebase. Write each Migration Order cell so the human or CI release process can run it in order.
+State that hosted targets use one repository and one codebase. Write each Migration Order cell as ordered steps a human or CI can run. Under `Initial delivery: production-first/1`, the `Development` row may read `n/a — initial delivery: production is the first deployed environment` and Production needs no Preview acceptance.
 
 ## Migration and Cutover
 [Required in a program architecture, optional otherwise. Fill the tables from `assets/templates/PROGRAM_MIGRATION.template.md`. A migrating program carries Required-Yes `TEST-MIG-001` to `TEST-MIG-004`; a greenfield program writes `not_required — <concrete reason>`. A module architecture adds a `### Migration` mapping table for its own legacy sources.]
@@ -620,15 +620,15 @@ State that both hosted targets use one repository and one codebase. Write each M
 
 New packages record `Release source policy: main-preview/1` immediately below this heading. Development is an isolated Preview or test channel, not a permanent Git branch. Historical `dual-branch/1` keeps its own policy; markerless historical packages keep `candidate/1`. Allow at most one matching active marker. A logical `-dev` release name need not equal a provider-generated Preview name or URL.
 
-Use this provider-neutral section for every deployable web, API, mobile, desktop, or browser-extension surface, including hosted targets already summarized in the environment table above. First record the complete expected deployable-surface inventory using stable surface IDs. Then record one block per exact destination and give it a stable target ID, surface suffix and release name. The production release name is the canonical `<product-slug>-<surface-suffix>` name and never ends in `-prod`; development uses that exact name plus `-dev`; one release name cannot belong to multiple surface IDs. Use the surface suffix guidance in `architecture-playbook.md`. Every expected surface needs at least one `development` target and one `production` target. Keep the stable `surface` identity separate from `provider`, because one surface may use different providers by stage. Keep surface and target IDs stable across revisions; retire rather than reuse an ID when its meaning changes.
+Write `Initial delivery: production-first/1` directly below that marker only for a never-deployed product whose first delivery lands on `main` as production. That package may declare only the production target per surface; the first enhancement adds the development target and removes nothing.
 
-This section is authoritative product documentation for the human or CI release process.
+Use this provider-neutral, authoritative section for every deployable web, API, mobile, desktop, or browser-extension surface. Record the expected deployable-surface inventory by stable surface ID, then one block per exact destination with a stable target ID, surface suffix and release name. The production release name is the canonical `<product-slug>-<surface-suffix>` name and never ends in `-prod`; development uses that exact name plus `-dev`; one release name cannot belong to multiple surface IDs. See `architecture-playbook.md` for surface suffix guidance. Every expected surface needs at least one `development` target and one `production` target, unless the marker above applies. Keep the `surface` identity separate from `provider`: one surface may use different providers by stage. Keep surface and target IDs stable; retire rather than reuse an ID whose meaning changes.
 
 Expected deployable surfaces: [stable surface IDs, for example `web-app`, `public-api`, `ios-app`]
 
 ### Release Target: [stable-target-id]
 - Surface: [Stable expected surface ID]
-- Surface class: [one class from the Surface Catalog: hosted_web / hosted_api / browser_extension / ios / android / macos / windows / linux / worker / job / webhook / realtime / cli / agent / mcp_server / skill_or_plugin / library_or_sdk / messaging_bot / marketplace_app / assistant_listing / container_or_self_hosted / internal_service / other_nonpublic]
+- Surface class: [a Surface Catalog class: hosted_web, hosted_api, browser_extension, ios, android, macos, windows, linux, worker, job, webhook, realtime, cli, agent, mcp_server, skill_or_plugin, library_or_sdk, messaging_bot, marketplace_app, assistant_listing, container_or_self_hosted, internal_service, other_nonpublic]
 - Public discoverability: [yes / no]
 - Surface suffix: [Lowercase kebab-case suffix for this independently released unit]
 - Release name: [Production `<product-slug>-<surface-suffix>` or that exact name plus `-dev` for development]
@@ -639,11 +639,11 @@ Expected deployable surfaces: [stable surface IDs, for example `web-app`, `publi
 - Signing requirement: [Not required, or exact certificate/signing/notarization requirement and owner]
 - Exact channel / track: [Named environment, URL, TestFlight group, Play track, App Store, update feed, direct-download channel, or another exact destination]
 - Submission / promotion / review / manual approval path: [Ordered gates and decision owner]
-- Availability signal: [Observable proof that the intended audience can reach, install, or download this exact release, plus the smoke/acceptance signal]
+- Availability signal: [Observable proof the intended audience can reach, install, or download this exact release, plus the smoke/acceptance signal]
 - Rollout: [Immediate, percentage/phased/staged rollout, audience ring, or another controlled sequence]
 - Rollback / forward-fix: [Prior deployed version for instant rollback, or rollout halt/removal plus corrected signed artifact through the same review/distribution path]
 
-A successful build, upload, submission, deployment command, notarization, or store approval is not availability by itself. Hosted availability requires the deployed route or API to answer the named smoke checks. Store and signed-installer availability requires the approved artifact to be actually installable or downloadable through the named channel and to pass its release smoke check. Native recovery may require halting a phased or staged rollout and shipping a signed forward-fix.
+A successful build, upload, submission, deployment command, notarization, or store approval is not availability. Hosted availability requires the deployed route or API to answer the named smoke checks. Store and signed-installer availability requires the approved artifact to be actually installable or downloadable through the named channel and pass its release smoke check. Native recovery may require halting a phased or staged rollout and shipping a signed forward-fix.
 
 For an owner-selected whole-platform sequence, add this opt-in section after Release Targets. A shared API or interface appears in the stage that first makes it available; shared ARCH IDs must be authority rows. The stage surfaces cover the expected inventory exactly once. `not_required` is valid only for one user-facing surface class, with a concrete reason. Draft and blocked statuses stay non-executable.
 
