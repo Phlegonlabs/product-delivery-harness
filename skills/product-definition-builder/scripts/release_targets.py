@@ -515,9 +515,15 @@ def parse_release_targets(
             )
 
     for surface in sorted(expected):
+        # Under production-first/1 a surface without a development target is
+        # a first delivery that has only its production target.
+        production_only = (
+            initial_delivery is not None
+            and (surface, "development") not in by_surface_stage
+        )
         missing_stages = [
             stage
-            for stage in ("development", "production")
+            for stage in (("production",) if production_only else ("development", "production"))
             if (surface, stage) not in by_surface_stage
         ]
         if missing_stages:
@@ -527,8 +533,21 @@ def parse_release_targets(
                 + " release targets"
             )
             continue
-        development = by_surface_stage[(surface, "development")]
         production = by_surface_stage[(surface, "production")]
+        if production.release_name.endswith("-prod"):
+            findings.append(
+                f"architecture: production release {production.release_name!r} "
+                "must not end in -prod"
+            )
+        if production_only:
+            if not production.release_name.endswith(f"-{production.surface_suffix}"):
+                findings.append(
+                    f"architecture: surface {surface!r} production release name "
+                    f"{production.release_name!r} must end in "
+                    f"-{production.surface_suffix}"
+                )
+            continue
+        development = by_surface_stage[(surface, "development")]
         if development.surface_suffix != production.surface_suffix:
             findings.append(
                 f"architecture: surface {surface!r} development and production "
@@ -541,11 +560,6 @@ def parse_release_targets(
         if development.public_discoverability != production.public_discoverability:
             findings.append(
                 f"architecture: surface {surface!r} development and production targets must use the same Public discoverability value"
-            )
-        if production.release_name.endswith("-prod"):
-            findings.append(
-                f"architecture: production release {production.release_name!r} "
-                "must not end in -prod"
             )
         if (
             not production.release_name.endswith(f"-{production.surface_suffix}")
