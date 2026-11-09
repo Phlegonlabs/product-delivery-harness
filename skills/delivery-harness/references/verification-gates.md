@@ -148,7 +148,7 @@ Final/current-head gate:
 E2E gate:
 
 - Proves the primary user journey works through UI, API, auth/permissions, data, and error handling. When the matrix becomes materially difficult to scan or needs separate ownership, expand it into `assets/templates/E2E_VERIFICATION.template.md` and link it from `RUN.md`.
-- Blocks final PASS while a required obligation is failed, blocked, or unvalidated. A named residual risk or next-round handoff does not turn it into PASS; an explicitly changed future scope is recorded separately.
+- Blocks final PASS while a required obligation is failed, blocked, or unvalidated. A named residual risk or next-round handoff does not turn it into PASS; an explicitly changed future scope is recorded separately. A production-smoke row the acceptance checker deferred is a post-landing obligation recorded in the deployment record, not a blocked candidate obligation.
 
 ## Full-Stack E2E Matrix
 
