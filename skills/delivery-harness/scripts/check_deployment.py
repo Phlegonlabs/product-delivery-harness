@@ -79,6 +79,21 @@ CONCRETE_CANDIDATE_REF_RE = re.compile(r"^refs/heads/[^\s<>\[\]]+$")
 ENVIRONMENT_ROWS = ("development", "production")
 BINDING_CLASSES = ("d1 database", "kv namespace", "r2 bucket", "durable objects")
 ABSENT_VALUES = {"", "-", "n/a"}
+INITIAL_DELIVERY_LITERAL = (
+    "n/a — initial delivery: production is the first deployed environment"
+)
+DELIVERY_KINDS = ("initial_delivery", "enhancement")
+DELIVERY_KIND_LINE_RE = re.compile(
+    r"^ {0,3}-[ \t]+Delivery kind:[ \t]*(.*?)[ \t]*$", re.MULTILINE
+)
+RECORD_LINE_RE = re.compile(r"^ {0,3}-[ \t]+([^:\n]+?):[ \t]*(.*?)[ \t]*$")
+RECORD_PREVIEW_LABELS = (
+    "preview mechanism",
+    "preview url pattern",
+    "fixed preview deployment url / id",
+    "preview candidate sha and acceptance",
+    "protected resources preview must never bind",
+)
 IDENTITY_ABSENT_VALUES = {"", "-"}
 HANDOFF_STATUSES = {"pending", "configured", "verified", "n/a"}
 ENVIRONMENT_STATUSES = {"PASS", "FAIL", "BLOCKED", "UNVALIDATED"}
@@ -463,6 +478,91 @@ def parse_section_table(text: str, heading: str) -> tuple[list[str], list[list[s
     if not sections:
         return [], []
     return _table_rows(sections[0])
+
+
+def parse_delivery_kind(text: str) -> tuple[str | None, str]:
+    """Return the Branch Promotion `Delivery kind` and, when unusable, why.
+
+    A valid value returns (kind, ""). A missing, repeated, unfilled or unknown
+    value returns (None, reason).
+    """
+
+    blocks = _section_blocks(text).get("## Branch Promotion", [])
+    values = DELIVERY_KIND_LINE_RE.findall("\n".join(blocks[0])) if blocks else []
+    if not values:
+        return None, "the Delivery kind line is missing"
+    if len(values) > 1:
+        return None, "Delivery kind appears more than once"
+    value = values[0]
+    if value in DELIVERY_KINDS:
+        return value, ""
+    if not value or "<" in value:
+        return None, "Delivery kind is not filled in"
+    return None, f"Delivery kind {value!r} is not initial_delivery or enhancement"
+
+
+def _initial_delivery_literal_places(text: str) -> list[str]:
+    """Name every development cell or preview line that holds the literal."""
+
+    places: list[str] = []
+    record_blocks = _section_blocks(text).get("## Record", [])
+    for line in record_blocks[0] if record_blocks else []:
+        match = RECORD_LINE_RE.match(line)
+        if (
+            match
+            and match.group(1).casefold() in RECORD_PREVIEW_LABELS
+            and match.group(2) == INITIAL_DELIVERY_LITERAL
+        ):
+            places.append(f"Record {match.group(1)}")
+    tables = (
+        (
+            "Release Unit Names",
+            RELEASE_UNIT_HEADERS,
+            {3: "development release name", 5: "development provider / channel"},
+        ),
+        ("Required Secrets and Variables", SECRET_HEADERS, {3: "preview placement"}),
+        (
+            "External Console Setup",
+            EXTERNAL_SETUP_HEADERS,
+            {2: "preview / non-production"},
+        ),
+    )
+    for section, expected_header, columns in tables:
+        header, rows = parse_section_table(text, f"## {section}")
+        if tuple(header) != expected_header:
+            continue
+        for row in rows:
+            if len(row) != len(expected_header):
+                continue
+            for index, label in columns.items():
+                if row[index] == INITIAL_DELIVERY_LITERAL:
+                    places.append(f"{section} {row[0]} {label}")
+    _header, rows = parse_section_table(text, "## Resource Isolation")
+    for row in rows:
+        if len(row) >= 3 and row[2] == INITIAL_DELIVERY_LITERAL:
+            places.append(f"Resource Isolation {row[0]} development resource")
+    _header, rows = parse_section_table(text, "## Environment Status")
+    for row in rows:
+        if (
+            len(row) >= 2
+            and row[0].casefold() == "development"
+            and row[1] == INITIAL_DELIVERY_LITERAL
+        ):
+            places.append("Environment Status development URL")
+    return places
+
+
+def _delivery_kind_findings(
+    kind: str | None, reason: str, places: list[str]
+) -> list[str]:
+    """The literal needs a usable Delivery kind; records without it are unchanged."""
+
+    if places and kind is None:
+        return [
+            f"Branch Promotion: the initial-delivery literal in {', '.join(places)} "
+            f"requires Delivery kind: initial_delivery; {reason}"
+        ]
+    return []
 
 
 def parse_release_target_status(text: str) -> dict[str, dict[str, str]]:
@@ -1197,6 +1297,9 @@ def check_deployment_text(
             findings.append(
                 f"{heading.removeprefix('## ')}: duplicate required level-2 section"
             )
+    kind, kind_reason = parse_delivery_kind(text)
+    literal_places = _initial_delivery_literal_places(text)
+    findings.extend(_delivery_kind_findings(kind, kind_reason, literal_places))
     if architecture_text is not None:
         findings.extend(_validate_release_source_provenance(text, architecture_text))
         findings.extend(

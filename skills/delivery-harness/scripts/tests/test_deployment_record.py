@@ -1086,6 +1086,182 @@ class DeploymentRecordTests(unittest.TestCase):
             self.assertNotIn("Traceback", stderr.getvalue())
 
 
+LITERAL = "n/a — initial delivery: production is the first deployed environment"
+DEV_UNIT_ROW = (
+    "| web-app | web | example-web | example-web-dev | "
+    "Cloudflare;production route | Cloudflare;development route |"
+)
+DEV_ENVIRONMENT_ROW = (
+    f'| development | https://abc.example.pages.dev | {"a" * 40} | {"a" * 40} | '
+    "2026-09-03T10:00:00Z | PASS |"
+)
+
+
+def replace_once(text: str, old: str, new: str) -> str:
+    assert text.count(old) == 1, old
+    return text.replace(old, new)
+
+
+def with_delivery_kind(text: str, value: str | None) -> str:
+    """Append a Branch Promotion section; None leaves the Delivery kind line out."""
+
+    line = "- Run branch: refs/heads/run/example" if value is None else f"- Delivery kind: {value}"
+    return text + f"\n## Branch Promotion\n\n{line}\n"
+
+
+def literal_variants() -> dict[str, tuple[str, str]]:
+    """One GOOD_DEPLOYMENT variant per cell or line that may hold the literal."""
+
+    def variant(old: str, new: str) -> str:
+        return replace_once(GOOD_DEPLOYMENT, old, new)
+
+    return {
+        "Record Preview URL pattern": (
+            variant(
+                "- Preview URL pattern: <hash>.example.pages.dev",
+                f"- Preview URL pattern: {LITERAL}",
+            ),
+            "Record Preview URL pattern",
+        ),
+        "Record protected resources": (
+            variant(
+                "- Protected resources preview must never bind: prod-db",
+                f"- Protected resources preview must never bind: {LITERAL}",
+            ),
+            "Record Protected resources preview must never bind",
+        ),
+        "development release name": (
+            variant(DEV_UNIT_ROW, DEV_UNIT_ROW.replace("example-web-dev", LITERAL)),
+            "Release Unit Names web-app development release name",
+        ),
+        "development provider": (
+            variant(
+                DEV_UNIT_ROW,
+                DEV_UNIT_ROW.replace("Cloudflare;development route", LITERAL),
+            ),
+            "Release Unit Names web-app development provider / channel",
+        ),
+        "development resource": (
+            variant(
+                "| D1 database | d1-prod-001 | d1-preview-001 |",
+                f"| D1 database | d1-prod-001 | {LITERAL} |",
+            ),
+            "Resource Isolation D1 database development resource",
+        ),
+        "preview placement": (
+            variant("Cloudflare preview Worker secret", LITERAL),
+            "Required Secrets and Variables AUTH_SECRET preview placement",
+        ),
+        "external preview target": (
+            variant("https://abc.example.pages.dev/callback", LITERAL),
+            "External Console Setup Auth provider preview / non-production",
+        ),
+        "development environment row": (
+            variant(DEV_ENVIRONMENT_ROW, f"| development | {LITERAL} | | | | |"),
+            "Environment Status development URL",
+        ),
+    }
+
+
+class DeliveryKindTests(unittest.TestCase):
+    def test_both_delivery_kinds_are_accepted(self) -> None:
+        for kind in ("initial_delivery", "enhancement"):
+            with self.subTest(kind):
+                self.assertEqual(
+                    (kind, ""),
+                    check_deployment.parse_delivery_kind(
+                        with_delivery_kind(GOOD_DEPLOYMENT, kind)
+                    ),
+                )
+
+    def test_a_missing_unfilled_or_unknown_kind_is_rejected(self) -> None:
+        fenced = GOOD_DEPLOYMENT + (
+            "\n## Branch Promotion\n\n```\n- Delivery kind: initial_delivery\n```\n"
+        )
+        repeated = with_delivery_kind(GOOD_DEPLOYMENT, "enhancement") + (
+            "- Delivery kind: initial_delivery\n"
+        )
+        cases = (
+            ("no section", GOOD_DEPLOYMENT, "the Delivery kind line is missing"),
+            ("no line", with_delivery_kind(GOOD_DEPLOYMENT, None), "line is missing"),
+            ("fenced line", fenced, "line is missing"),
+            (
+                "placeholder",
+                with_delivery_kind(GOOD_DEPLOYMENT, "<initial_delivery | enhancement>"),
+                "is not filled in",
+            ),
+            ("empty", with_delivery_kind(GOOD_DEPLOYMENT, ""), "is not filled in"),
+            (
+                "unknown",
+                with_delivery_kind(GOOD_DEPLOYMENT, "hotfix"),
+                "'hotfix' is not initial_delivery or enhancement",
+            ),
+            (
+                "wrong case",
+                with_delivery_kind(GOOD_DEPLOYMENT, "Initial_Delivery"),
+                "'Initial_Delivery' is not initial_delivery or enhancement",
+            ),
+            ("repeated", repeated, "appears more than once"),
+        )
+        for label, text, reason in cases:
+            with self.subTest(label):
+                kind, found = check_deployment.parse_delivery_kind(text)
+                self.assertIsNone(kind)
+                self.assertIn(reason, found)
+
+    def test_an_unusable_kind_is_a_finding_only_where_the_literal_is_used(self) -> None:
+        unusable = (
+            ("missing", None),
+            ("placeholder", "<initial_delivery | enhancement>"),
+            ("unknown", "hotfix"),
+        )
+        for label, (record, place) in literal_variants().items():
+            for kind_label, value in unusable:
+                with self.subTest(f"{label}, {kind_label}"):
+                    findings = "\n".join(
+                        check_deployment.check_deployment_text(
+                            with_delivery_kind(record, value)
+                        )
+                    )
+                    self.assertIn("requires Delivery kind: initial_delivery", findings)
+                    self.assertIn(place, findings)
+        for kind_label, value in unusable:
+            with self.subTest(f"no literal, {kind_label}"):
+                self.assertEqual(
+                    [],
+                    check_deployment.check_deployment_text(
+                        with_delivery_kind(GOOD_DEPLOYMENT, value)
+                    ),
+                )
+
+    def test_a_usable_kind_adds_no_delivery_kind_finding_for_the_literal(self) -> None:
+        record = literal_variants()["Record Preview URL pattern"][0]
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                with_delivery_kind(record, "initial_delivery")
+            ),
+        )
+
+    def test_the_literal_in_a_cell_that_does_not_take_it_is_not_a_place(self) -> None:
+        # Production cells and unlisted Record lines never count as literal use.
+        production = replace_once(
+            GOOD_DEPLOYMENT,
+            "- Production URL: https://example.com",
+            f"- Production URL: {LITERAL}",
+        )
+        self.assertEqual(
+            [],
+            check_deployment._initial_delivery_literal_places(production),
+        )
+        self.assertEqual(
+            [],
+            check_deployment.check_deployment_text(
+                with_delivery_kind(production, "hotfix")
+            ),
+        )
+
+
 class ConfigurePlaceholderTests(unittest.TestCase):
     def test_unresolved_markers_are_reported_with_line_numbers(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
