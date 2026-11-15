@@ -18,7 +18,7 @@ Words cannot carry layout, spacing and type; pictures can. For a new visual scop
 
 - Pick current public pages that match the product's task and platform, not a generic color collection.
 - Between them, the entries cover layout and section structure, spacing and density, typography, color and surface, control treatment, and motion when a motion intent is in scope. Each entry names the one or two roles it is there for.
-- Each entry is a real inspected page at the relevant viewport and state, captured as a full-page screenshot (a short recording for a motion lesson) under `docs/design/directions/<round>/references/`, with its path and SHA-256 in its `REF-*` record.
+- Each entry is a real inspected page at the relevant viewport and state, captured as a full-page screenshot under `docs/design/directions/<round>/references/`, with its path and SHA-256 in its `REF-*` record. A motion lesson also keeps a short recording there, with its own path and SHA-256, and one still frame from it; the still is the entry's image on the board sheet.
 - A smaller board is allowed with its count and reason recorded: `Delivery profile: mvp` (floor of 5), an owner-named page-faithful target, or an owner who supplied a complete set. An enhancement that keeps the approved direction needs no board.
 - References set quality and feel; the design is this product's own. Two or more references may feed one direction; no direction copies one reference.
 
