@@ -135,8 +135,8 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 | 階段 | 預設 review 與停止條件 |
 | --- | --- |
 | Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更；之後再做一次獨立唯讀 PRD review 與一次定向複查，owner 依十題 review 指南決定。其後的缺陷走隔離修復加 scoped review。 |
-| 方向 | 新視覺範圍先建立 9–12 張截圖的參考板，由 owner 確認。原作者先檢查並修復已渲染的研究（含 `slop_scan.py` 與對照參考板的比對頁），再交 owner 選擇。三個研究，由 owner 選定。 |
-| HiFi | 先做靜態，再加動效。完整性 preflight 後，原作者先自查及修復（含 `slop_scan.py`，以及用 `capture_sheet.py` 把選定方向和候選稿並排的比對頁），再交獨立 review。Impeccable `critique` **與** `audit` 完成，且四捨五入的 H1–H9 總平均 **至少 85**、每項 **至少 80** 後，才取得 Visual Approval。 |
+| 方向 | 新視覺範圍先建立 9–12 張截圖的參考板，由 owner 確認。原作者先檢查並修復已渲染的研究，再交 owner 選擇；檢查包含 `slop_scan.py` 與對照參考板的比對頁。三個研究，由 owner 選定。 |
+| HiFi | 先做靜態，再加動效。完整性 preflight 後，原作者先自查及修復，再交獨立 review；自查包含 `slop_scan.py`，以及用 `capture_sheet.py` 把選定方向和候選稿並排的比對頁。Impeccable `critique` **與** `audit` 完成，且四捨五入的 H1–H9 總平均 **至少 85**、每項 **至少 80** 後，才取得 Visual Approval。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），另加一次定向複查。之後每個剩餘缺陷各成一筆有界修復，只對其修復差異做 scoped review。 |
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
 | 外部設定 | `docs/DEPLOYMENT.md` 每個動作一列 External Console Setup，另有 Measurement Sources 表，每次 release 在 Release Log 記一列。逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。商店或安裝程式 target 須有安裝或下載證明；只有上傳時維持 `pending`。 |
