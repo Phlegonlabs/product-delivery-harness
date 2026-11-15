@@ -2,7 +2,9 @@
 
 import hashlib
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -333,6 +335,98 @@ Decision: not_required
             self.write(preview, rendered + "modified")
             with self.assertRaisesRegex(ValueError, "stale or modified"):
                 build_visual_inputs(self.root, self.ui, "implementation")
+
+    def link_directory(self, link, target):
+        """Symlinks need a privilege on Windows; fall back to a junction."""
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(target, link, target_is_directory=True)
+        except OSError:
+            if os.name != "nt":
+                raise
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                           check=True, capture_output=True, timeout=15)
+
+    def board(self, *names):
+        for name in names:
+            self.write("docs/design/directions/R1/references/" + name, b"capture " + name.encode())
+        return ["docs/design/directions/R1/references/" + name for name in sorted(names)]
+
+    def test_reference_board_lists_captures_in_sorted_order_with_hashes(self):
+        paths = self.board("b-hero.png", "a-nav.png", "sub/c-detail.jpg")
+        self.write("docs/design/directions/R2/references/other-round.png", b"later round")
+        for stage, target in (("direction", False), ("hifi", False)):
+            with self.subTest(stage=stage):
+                self.contract(studies=True, target=target)
+                packet = build_visual_inputs(self.root, self.ui, stage)
+                line = next(row for row in packet.splitlines() if row.startswith("- Reference board: "))
+                self.assertEqual("- Reference board: " + "; ".join(self.binding(path) for path in sorted(paths)), line)
+                self.assertNotIn("other-round.png", packet)
+                self.assertEqual(packet, build_visual_inputs(self.root, self.ui, stage))
+
+    def test_reference_board_round_comes_from_the_direction_ids_even_when_pending(self):
+        paths = self.board("a.png")
+        text = self.contract(selected="pending", studies=True)
+        for source in (self.screen, self.other, self.study, self.other_study):
+            text = text.replace(self.binding(source), "pending")
+        self.write(self.ui, text)
+        packet = build_visual_inputs(self.root, self.ui, "direction")
+        self.assertIn("- Reference board: " + self.binding(paths[0]), packet)
+
+    def test_missing_or_empty_reference_board_is_not_an_error(self):
+        self.contract(studies=True)
+        for stage in ("direction", "hifi"):
+            with self.subTest(layout="missing", stage=stage):
+                self.assertIn("- Reference board: none recorded", build_visual_inputs(self.root, self.ui, stage))
+        (self.root / "docs/design/directions/R1/references/empty").mkdir(parents=True)
+        for stage in ("direction", "hifi"):
+            with self.subTest(layout="empty", stage=stage):
+                self.assertIn("- Reference board: none recorded", build_visual_inputs(self.root, self.ui, stage))
+
+    def test_reference_board_rejects_linked_entries_and_non_folders(self):
+        self.contract(studies=True)
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "stray.png").write_bytes(b"outside the repository")
+        self.board("a.png")
+        self.link_directory(self.root / "docs/design/directions/R1/references/linked", outside.name)
+        with self.assertRaisesRegex(ValueError, "links or reparse points"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+        self.assertTrue((Path(outside.name) / "stray.png").is_file())
+        os.rmdir(self.root / "docs/design/directions/R1/references/linked")
+        shutil.rmtree(self.root / "docs/design/directions/R1/references")
+        self.write("docs/design/directions/R1/references", "not a folder")
+        with self.assertRaisesRegex(ValueError, "must be a folder"):
+            build_visual_inputs(self.root, self.ui, "direction")
+
+    def test_linked_reference_folder_is_rejected(self):
+        self.contract(studies=True)
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "stray.png").write_bytes(b"outside the repository")
+        self.link_directory(self.root / "docs/design/directions/R1/references", outside.name)
+        with self.assertRaisesRegex(ValueError, "links or reparse points"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+        os.rmdir(self.root / "docs/design/directions/R1/references")
+
+    def test_implementation_stage_ignores_the_reference_board(self):
+        self.board("a.png")
+        self.contract(target=True, hifi=True)
+        packet = build_visual_inputs(self.root, self.ui, "implementation")
+        self.assertNotIn("Reference board", packet)
+        self.assertNotIn("references/a.png", packet)
+
+    def test_reference_board_cli_matches_the_function_and_writes_nothing(self):
+        self.board("a.png")
+        self.contract(studies=True)
+        before = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        result = subprocess.run([sys.executable, "-B", str(SCRIPTS / "visual_inputs.py"),
+                                 "--repo-root", str(self.root), "--ui-design", self.ui,
+                                 "--stage", "hifi"], capture_output=True, text=True,
+                                encoding="utf-8", timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(build_visual_inputs(self.root, self.ui, "hifi"), result.stdout)
+        self.assertEqual(before, {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
 
 
 if __name__ == "__main__":
