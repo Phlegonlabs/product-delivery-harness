@@ -347,10 +347,35 @@ Decision: not_required
             subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
                            check=True, capture_output=True, timeout=15)
 
-    def board(self, *names):
+    def unlink_directory(self, link):
+        """A directory symlink is removed with unlink; a Windows junction with rmdir."""
+        if os.name != "nt" and os.path.islink(link):
+            os.unlink(link)
+        else:
+            os.rmdir(link)
+
+    def board(self, *names, round_id="R1"):
+        folder = "docs/design/directions/" + round_id + "/references/"
         for name in names:
-            self.write("docs/design/directions/R1/references/" + name, b"capture " + name.encode())
-        return ["docs/design/directions/R1/references/" + name for name in sorted(names)]
+            self.write(folder + name, b"capture " + round_id.encode() + b" " + name.encode())
+        return [folder + name for name in sorted(names)]
+
+    def test_reference_board_follows_the_round_of_the_direction_ids(self):
+        first = self.board("a.png", round_id="R1")
+        second = self.board("b.png", round_id="R2")
+        text = self.contract(selected="VD-R2-01 editorial", studies=True).replace("VD-R1-", "VD-R2-")
+        self.write(self.ui, text)
+        for stage in ("direction", "hifi"):
+            with self.subTest(stage=stage):
+                line = next(row for row in build_visual_inputs(self.root, self.ui, stage).splitlines()
+                            if row.startswith("- Reference board: "))
+                self.assertEqual("- Reference board: " + self.binding(second[0]), line)
+        # During exploration the studies may span rounds; every referenced round is listed.
+        mixed = self.contract(selected="pending", studies=True).replace("VD-R1-02", "VD-R2-02")
+        self.write(self.ui, mixed)
+        line = next(row for row in build_visual_inputs(self.root, self.ui, "direction").splitlines()
+                    if row.startswith("- Reference board: "))
+        self.assertEqual("- Reference board: " + "; ".join(self.binding(path) for path in first + second), line)
 
     def test_reference_board_lists_captures_in_sorted_order_with_hashes(self):
         paths = self.board("b-hero.png", "a-nav.png", "sub/c-detail.jpg")
@@ -393,7 +418,7 @@ Decision: not_required
         with self.assertRaisesRegex(ValueError, "links or reparse points"):
             build_visual_inputs(self.root, self.ui, "hifi")
         self.assertTrue((Path(outside.name) / "stray.png").is_file())
-        os.rmdir(self.root / "docs/design/directions/R1/references/linked")
+        self.unlink_directory(self.root / "docs/design/directions/R1/references/linked")
         shutil.rmtree(self.root / "docs/design/directions/R1/references")
         self.write("docs/design/directions/R1/references", "not a folder")
         with self.assertRaisesRegex(ValueError, "must be a folder"):
@@ -407,7 +432,7 @@ Decision: not_required
         self.link_directory(self.root / "docs/design/directions/R1/references", outside.name)
         with self.assertRaisesRegex(ValueError, "links or reparse points"):
             build_visual_inputs(self.root, self.ui, "hifi")
-        os.rmdir(self.root / "docs/design/directions/R1/references")
+        self.unlink_directory(self.root / "docs/design/directions/R1/references")
 
     def test_implementation_stage_ignores_the_reference_board(self):
         self.board("a.png")

@@ -1,7 +1,9 @@
 """capture_sheet.py builds a self-contained image sheet from synthetic PNG bytes."""
 
+import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 import struct
@@ -40,10 +42,22 @@ class CaptureSheetTests(unittest.TestCase):
         path.write_bytes(data)
         return hashlib.sha256(data).hexdigest()
 
-    def run_sheet(self, *args, out="sheet.html"):
+    def run_sheet(self, *args, out="sheet.html", title="Reference board"):
         return subprocess.run([sys.executable, "-B", str(SCRIPT), "--repo-root", str(self.root),
-                               "--title", "Reference board", *args, "--out", out],
+                               "--title", title, *args, "--out", out],
                               capture_output=True, text=True, encoding="utf-8", timeout=30)
+
+    def link_directory(self, link, target):
+        """Symlinks need a privilege on Windows; fall back to a junction. Removed after the test."""
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError:
+            if sys.platform != "win32":
+                raise
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                           check=True, capture_output=True, timeout=15)
+        # A POSIX directory symlink is removed with unlink; Windows links and junctions with rmdir.
+        self.addCleanup(os.unlink if os.name != "nt" and link.is_symlink() else os.rmdir, link)
 
     def page(self, out="sheet.html"):
         return (self.root / out).read_text(encoding="utf-8")
@@ -67,6 +81,9 @@ class CaptureSheetTests(unittest.TestCase):
             self.assertLess(text.index(first), text.index(second))
         self.assertLess(text.index("refs/b.png"), text.index("refs/a.png"))
         self.assertEqual(3, text.count("<img "))
+        embedded = [hashlib.sha256(base64.b64decode(payload)).hexdigest()
+                    for payload in re.findall(r'src="data:image/png;base64,([A-Za-z0-9+/=]+)"', text)]
+        self.assertEqual([self.images["b.png"], self.images["a.png"], self.images["c.png"]], embedded)
 
     def test_column_headings_appear_once_per_image_position(self):
         result = self.run_sheet("--row", "Detail", "refs/a.png", "refs/c.png", "--columns", "Target", "Candidate")
@@ -76,9 +93,14 @@ class CaptureSheetTests(unittest.TestCase):
         self.assertEqual(1, text.count("<b>Candidate</b>"))
 
     def test_labels_titles_and_columns_are_escaped(self):
-        result = self.run_sheet("--row", '<img src=x onerror=1>&"', "refs/a.png", "--columns", "<b>col</b>")
+        result = self.run_sheet("--row", '<img src=x onerror=1>&"', "refs/a.png", "--columns", "<b>col</b>",
+                                title='</title><script>x</script>&"')
         self.assertEqual(0, result.returncode, result.stderr)
         text = self.page()
+        escaped = "&lt;/title&gt;&lt;script&gt;x&lt;/script&gt;&amp;&quot;"
+        self.assertIn("<title>" + escaped + "</title>", text)
+        self.assertIn("<h1>" + escaped + "</h1>", text)
+        self.assertNotIn("<script", text)
         self.assertNotIn("<img src=x", text)
         self.assertIn("&lt;img src=x onerror=1&gt;&amp;&quot;", text)
         self.assertIn("&lt;b&gt;col&lt;/b&gt;", text)
@@ -148,18 +170,21 @@ class CaptureSheetTests(unittest.TestCase):
         outside = tempfile.TemporaryDirectory()
         self.addCleanup(outside.cleanup)
         (Path(outside.name) / "stray.png").write_bytes(png(2))
-        link = self.root / "linked"
-        try:
-            link.symlink_to(outside.name, target_is_directory=True)
-        except OSError:
-            if sys.platform != "win32":
-                raise
-            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), outside.name],
-                           check=True, capture_output=True, timeout=15)
-        self.addCleanup(link.rmdir)
+        self.link_directory(self.root / "linked", outside.name)
         result = self.run_sheet("--row", "Home", "linked/stray.png")
         self.assertEqual(2, result.returncode, result.stderr)
         self.assertIn("links or reparse points", result.stderr)
+
+    def test_output_under_a_linked_folder_is_rejected_even_with_overwrite(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        existing = Path(outside.name) / "sheet.html"
+        existing.write_bytes(b"outside the repository")
+        self.link_directory(self.root / "out", outside.name)
+        result = self.run_sheet("--row", "Home", "refs/a.png", "--overwrite", out="out/sheet.html")
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("links or reparse points", result.stderr)
+        self.assertEqual(b"outside the repository", existing.read_bytes())
 
     def test_output_is_deterministic(self):
         args = ("--row", "Home", "refs/a.png", "refs/b.png", "--columns", "Target", "Candidate")
