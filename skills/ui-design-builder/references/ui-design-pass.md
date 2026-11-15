@@ -33,16 +33,20 @@ The pass may choose hierarchy, grouping, section rhythm, composition, typography
 
 ## Direction Authoring Prompt
 
-Use this prompt with the approved source paths and the existing Design Brief. Read requirements from those sources; do not copy per-page contracts into another table.
+Use this prompt with the approved source paths, the existing Design Brief and the reference board captures. It follows the frontend brief in [Parent-Owned Delegation](../../delivery-harness/references/delegation-contract.md#resolve-roles-before-direct-or-managed-work). The prompt carries requirements and points at captures; it does not describe a visual style. Read requirements from the sources; do not copy per-page contracts into another table.
 
 ```text
-Read the approved PRD UI Surface Contract, architecture, stack decisions and UI Design Brief at [source paths]. Derive the exact page/surface count and affected UI IDs from the PRD. For each page, satisfy its purpose, content and data responsibilities, required controls and operations, routes, states, responsive targets and sourced copy. Preserve unaffected pages in an enhancement.
+Open every capture on the reference board at [board path] before designing, then read the approved PRD UI Surface Contract, architecture, stack decisions and UI Design Brief at [source paths]. The captures and the Brief set the quality bar. Derive the exact page/surface count and affected UI IDs from the PRD. For each page, satisfy its purpose, content and data responsibilities, required controls and operations, routes, states, responsive targets and sourced copy. Preserve unaffected pages in an enhancement.
 
 For administration, include the required work areas and their responsibilities, data fields, filters, actions and permissions. For charts, honor the declared metric, source, units, time range and loading/empty/error behavior. For agent workflows, show the required inputs, execution progress, human decisions, results, failures and recovery. Use the approved frontend/backend and service boundaries; do not invent endpoints or product capabilities. Report missing product decisions upstream.
 
 Choose composition, hierarchy, grouping, typography, imagery and motion freely within the approved constraints. A hero, introduction, feature group or CTA is a design choice when it serves the page purpose; do not impose a universal section sequence. Use the existing Page-purpose mapping to distinguish fixed requirements from design freedom.
 
 Produce three materially different visual directions by default, with inspected reference lessons and the same representative primary and stress cases. Show applicable motion and reduced-motion treatment. If the owner explicitly requested one direction, or the delivery profile is `mvp`, produce one. Present comparable studies and wait for the owner's selection before creating the full connected HiFi HTML package; under mvp, present the one study with the HiFi.
+
+Match the quality and feel of the board as closely as possible; aim for a 99% direction match. The first render that works is not the finish. Quality over speed: ask blocking questions before starting, then build without check-ins.
+
+Avoid the Design Brief's avoid rules and the default patterns `slop_scan.py --list` names, unless a direction calls for one.
 ```
 
 ## Cheap Completeness Check
@@ -68,6 +72,8 @@ When the owner explicitly instructs a single recommendation, produce one product
 Present the complete direction set to the human owner. End the turn and wait for `approve`, `select`, `mix`, or `reject`; even a one-direction set needs explicit approval, except under `Delivery profile: mvp` ([Workflow](stages/ui-design.md#workflow)). A mix or modification produces one revised study of the selected direction, with any requested variants inside it, and one more owner decision. A rejection starts a complete new set. Do not create the connected HiFi reference or invoke a generation provider before a direction is selected.
 
 Before this selection, render bounded representative studies for every direction: a frequent primary task and a stress case using dense data, long content, or an approved alternate state. A one-screen product may show two content scenarios in the same approved state; do not invent a state or rewrite frozen copy. Use the same surface, state, target, scenario, and content basis across directions. Cover each in-scope platform. Compare composition, hierarchy, density, typography, and control treatment; changing only an accent color is not a distinct direction.
+
+Design changes are cheapest in the studies, so mix and modify at this stage. Settle layout before adding a study's motion option ([Composition Before Motion](motion-and-media-routing.md#composition-before-motion)).
 
 Where useful, a study may play a bounded local deterministic motion option within the existing MM scope, and with its normal/reduced-motion behavior visible. This makes a design choice easier to judge; it is not Required motion evidence, native proof, or permission to call a generation provider. Full connected HiFi remains the source of final motion evidence on the selected route, and provider calls remain after direction selection with exact authorization. For a landing or portfolio region with a proposed or selected `expressive` row, at least one direction plays that motion live; a static frame cannot stand in for it.
 
