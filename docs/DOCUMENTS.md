@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-initial-delivery-production-first](epics/EPIC-initial-delivery-production-first.md)
+Current Epic: [EPIC-ui-reference-driven-design](epics/EPIC-ui-reference-driven-design.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
