@@ -31,8 +31,8 @@ Agent policy designates the executor for UI authoring, implementation and repair
 
 Every frontend dispatch packet carries an explicit maximum-creativity brief. It directs the writer to pursue the most distinctive, high-craft visual concept the frozen PRD allows — ambitious hierarchy, typography, composition and motion rather than a generic template or a mechanical section recipe. The PRD bounds pages, operations, states and copy; it does not cap creative ambition. The brief also carries four lines:
 
-- **References over prose.** The author opens every capture on the reference board before designing. The captures set the quality bar; the prompt does not describe the style in words.
-- **A number.** Match the quality and feel of the board, and after selection the selected direction study, as closely as possible. Aim for a 99% direction match. The first render that works is not the finish.
+- **References over prose.** The author opens every capture on the reference board, when the round has one, before designing. The captures set the quality bar; the prompt does not describe the style in words.
+- **A number.** Match the quality and feel of the board, after selection the selected direction study, and in implementation the approved HiFi, as closely as possible. Aim for a 99% direction match. The first render that works is not the finish.
 - **Time.** Quality over speed. Ask blocking questions before starting, then build without check-ins.
 - **Ban list.** The Design Brief's avoid rules, plus the patterns `slop_scan.py --list` names, unless the selected direction calls for one.
 
