@@ -29,7 +29,14 @@ The parent owns every launch, result reconciliation, canonical coordination reco
 
 Agent policy designates the executor for UI authoring, implementation and repairs; this skill does not select an agent type. The actual author reads the complete pinned `frontend-design` and applicable project design skills in its own context before editing. UI research remains read-only and may have multiple sibling researchers while one frontend author owns the candidate.
 
-Every frontend dispatch packet carries an explicit maximum-creativity brief. It directs the writer to pursue the most distinctive, high-craft visual concept the frozen PRD allows — ambitious hierarchy, typography, composition and motion rather than a generic template or a mechanical section recipe. The PRD bounds pages, operations, states and copy; it does not cap creative ambition. Direction and HiFi launch prompts restate this brief; a bare task list is not a valid frontend dispatch.
+Every frontend dispatch packet carries an explicit maximum-creativity brief. It directs the writer to pursue the most distinctive, high-craft visual concept the frozen PRD allows — ambitious hierarchy, typography, composition and motion rather than a generic template or a mechanical section recipe. The PRD bounds pages, operations, states and copy; it does not cap creative ambition. The brief also carries four lines:
+
+- **References over prose.** The author opens every capture on the reference board before designing. The captures set the quality bar; the prompt does not describe the style in words.
+- **A number.** Match the quality and feel of the board, and after selection the selected direction study, as closely as possible. Aim for a 99% direction match. The first render that works is not the finish.
+- **Time.** Quality over speed. Ask blocking questions before starting, then build without check-ins.
+- **Ban list.** The Design Brief's avoid rules, plus the patterns `slop_scan.py --list` names, unless the selected direction calls for one.
+
+Direction and HiFi launch prompts restate this brief; a bare task list is not a valid frontend dispatch.
 
 Apply [Frontend Visual Inputs](frontend-visual-inputs.md) in the actual task for every frontend stage. Pass current selected screens, font and asset sources, concrete visual-feature sources and inspection duties. Preserve source authority and stage-specific pending decisions.
 
