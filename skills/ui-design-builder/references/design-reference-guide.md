@@ -77,7 +77,7 @@ Reason: [product-specific reason]
 Status: proposed | confirmed | rejected
 ```
 
-Show the proposed Adopt / Adapt / Avoid set, with the reference board when one was gathered, to the human owner and end the turn. Do not design from supplied or researched references until the owner confirms the principles. Keep `RP-*` principles few: only what is adopted, adapted or avoided.
+Show the proposed Adopt / Adapt / Avoid set, with the reference board when one was gathered, to the human owner and end the turn. Do not design from supplied or researched references until the owner confirms the principles. `Delivery profile: mvp` is the exception for a researched board: it takes no turn of its own. The author designs the one study from it as a proposal, presents the board and principles with that study, and the owner confirms them in the Visual Approval. References the owner supplied, and principles the owner already confirmed, bind from the start. Keep `RP-*` principles few: only what is adopted, adapted or avoided.
 
 ## Direction Records
 
