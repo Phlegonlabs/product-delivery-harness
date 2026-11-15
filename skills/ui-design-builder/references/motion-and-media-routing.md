@@ -19,6 +19,16 @@ For page-specific defaults, use `page-design-profiles.md`. Landing/portfolio exp
 
 After the Motion and Media Intent is recorded, a representative direction study may play a small deterministic motion option locally with CSS/WAAPI or GSAP when that stays within the approved scope, with normal and reduced-motion behavior. It helps the owner judge selection only; it is not Required motion evidence, native proof, or permission to invoke a generation provider. A provider route stays deferred until after direction selection receives its exact provider/action authorization, and the selected effect still needs complete final HiFi motion evidence.
 
+## Composition Before Motion
+
+Settle composition first and add motion second. A direction study fixes layout, type and spacing before its motion option is added. HiFi authoring finishes and self-checks the static pass before the motion pass begins. The rule that a landing or portfolio region with a proposed or selected `expressive` row has at least one direction playing the motion live stays in [`ui-design-pass.md`](ui-design-pass.md).
+
+## Motion References And Notes
+
+A motion reference is a recording, captured under the [Reference Board](design-reference-guide.md#reference-board) rule. Before implementing from it, the author reads the recording frame by frame (or from frame samples) and writes **motion notes** in its `REF-*` record. Per movement, the notes give the element, trigger, property or distance, duration, easing and order.
+
+Take lessons from several recordings; reproduce none exactly. The notes inform the `MM-*` row and the implementation route below; they never replace the row's trigger, reduced-motion fallback or approved scope.
+
 ## Typed Motion Intent Records
 
 For every marquee or media-bearing screen region, record one treatment:
