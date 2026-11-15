@@ -40,9 +40,9 @@ EXPECTED_CLI_ENTRYPOINTS = {
         "check_review_translations.py",
     },
     "ui-design-builder": {
-        "assemble_ui_review.py", "check_ui_design_contract.py",
+        "assemble_ui_review.py", "capture_sheet.py", "check_ui_design_contract.py",
         "check_wireframe_html.py", "design_workflow.py", "hifi_matrix_capture.py",
-        "review_evidence.py", "ui_approval_digest.py", "visual_inputs.py",
+        "review_evidence.py", "slop_scan.py", "ui_approval_digest.py", "visual_inputs.py",
     },
 }
 
