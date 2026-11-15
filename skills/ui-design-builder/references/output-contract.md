@@ -164,6 +164,8 @@ For retained historical approvals only, each PASS evidence file is a `ui-evidenc
 
 For new work, agents may assemble `ui-evidence/3` from actual observations but never invent a human owner, attestation or Visual Approval. Historical `ui-evidence/2` attestation remains the owner's record and cannot be relabeled.
 
+The plain paragraph above the `## HiFi Review` fields also records the author's and the lead grader's direction match and the grader models, as [Direction Match](ui-grading-rubric.md#direction-match) states.
+
 Current grading, critique and audit assessments bind each matrix case to its own hashed screenshot, DOM or native capture, separate from the reviewed subject and execution input source files; a source hash or synthetic case label alone is not capture evidence. See `review-evidence.md` for allowed capture formats and the limits of hash proof.
 
 Impeccable's heuristic scores and audit scores are diagnostic. A current `ui-design/2` package uses only the `H1`–`H9` thresholds in `ui-grading-rubric.md` to decide readiness. `W1`–`W5` and the wireframe evidence rows apply only to legacy inspection and validation.
