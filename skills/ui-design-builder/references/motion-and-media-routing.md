@@ -27,7 +27,7 @@ Settle composition first and add motion second. A direction study fixes layout, 
 
 A motion reference is a recording, captured under the [Reference Board](design-reference-guide.md#reference-board) rule. Before implementing from it, the author reads the recording frame by frame (or from frame samples) and writes **motion notes** in its `REF-*` record. Per movement, the notes give the element, trigger, property or distance, duration, easing and order.
 
-Take lessons from several recordings; reproduce none exactly. The notes inform the `MM-*` row and the implementation route below; they never replace the row's trigger, reduced-motion fallback or approved scope.
+Take lessons from several recordings; reproduce none exactly, unless the owner named one a page-faithful target with its scope and tolerance. The notes inform the `MM-*` row and the implementation route below; they never replace the row's trigger, reduced-motion fallback or approved scope.
 
 ## Typed Motion Intent Records
 
