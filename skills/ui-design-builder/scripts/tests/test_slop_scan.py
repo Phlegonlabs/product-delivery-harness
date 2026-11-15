@@ -69,11 +69,13 @@ class PatternTests(unittest.TestCase):
 
     def test_purple_gradient(self):
         for css in ("a{background:linear-gradient(135deg,#7c3aed,#4f46e5)}",
+                    "a{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%)}",
                     "a{background-image:radial-gradient(circle,hsl(270 70% 50%),#fff)}",
                     ":root{--g:linear-gradient(#7c3aed,#fff)}a{background:var(--g)}",
                     ":root{--p:#8b5cf6}a{background:linear-gradient(var(--p),#fff)}"):
             self.assertHit("purple-gradient", page(css))
         for css in ("a{background:linear-gradient(#0b6e4f,#e8f5ee)}", "a{background:linear-gradient(#777,#888)}",
+                    "a{background:linear-gradient(#0ea5e9,#2563eb)}",
                     "a{background:#7c3aed}", ":root{--g:linear-gradient(#7c3aed,#fff)}"):
             self.assertNoHit("purple-gradient", page(css))
 
@@ -96,11 +98,11 @@ class PatternTests(unittest.TestCase):
             self.assertNoHit("colored-glow", page(css))
 
     def test_beige_canvas(self):
-        for css in ("body{background:#f5f0e8}", "html{background-color:hsl(40 30% 95%)}",
+        for css in ("body{background:#f5f0e8}", "body{background:#f6f0e6}", "html{background-color:hsl(40 30% 95%)}",
                     ":root{--bg:#f5f0e8}body{background:var(--bg)}"):
             self.assertHit("beige-canvas", page(css))
         for css in ("body{background:#fbfbfa}", "body{background:#fff}", "body{background:#1a1a1a}",
-                    ".card{background:#f5f0e8}", "body{background:#e9d8b4}"):
+                    ".card{background:#f5f0e8}", "body{background:#e9d8b4}", "body{background:#fff4cc}"):
             self.assertNoHit("beige-canvas", page(css))
 
     def test_uniform_rounded_cards(self):

@@ -16,11 +16,11 @@ SCHEMA = "slop-scan/1"
 CLUSTER_AT = 3
 PATTERNS = {
     "default-sans": "first font-family is Inter, Roboto, Arial, Helvetica, Open Sans, Poppins, system-ui, -apple-system, Segoe UI or bare sans-serif, set on html, body, :root, *, p or h1-h6 (the font shorthand counts)",
-    "purple-gradient": "linear or radial gradient with a color at hue 240-300 and saturation >= 40% (var(--x) is resolved from the page)",
+    "purple-gradient": "linear or radial gradient with a color at hue 225-300 and saturation >= 35% (var(--x) is resolved from the page)",
     "gradient-text": "background-clip: text, with or without -webkit-",
     "glass-blur": "backdrop-filter with blur(",
     "colored-glow": "box-shadow with blur >= 20px and a color at saturation >= 40% and lightness 15-85%",
-    "beige-canvas": "html, body or :root plain background at hue 25-60, saturation <= 40%, lightness >= 90% and a visible tint (chroma >= 3%)",
+    "beige-canvas": "html, body or :root plain background at hue 25-60, lightness >= 90% and a faint tint (chroma 3-12%)",
     "uniform-rounded-cards": "one border-radius of 12-28px together with a box-shadow in the same rule, on three or more distinct selectors",
     "equal-feature-tiles": "grid-template-columns: repeat(3, 1fr) or repeat(4, 1fr), also minmax(0, 1fr)",
     "emoji-ui": "emoji character in heading, button, link or list-item text",
@@ -235,7 +235,7 @@ def scan_html(html: str, allow: set[str]) -> dict:
                 if first_family(name, value) in DEFAULT_FAMILIES:
                     hit("default-sans", label)
             if re.search(r"(linear|radial)-gradient\(", value) and any(
-                    240 <= hue <= 300 and sat >= 40 for hue, sat, _ in colors(value)):
+                    225 <= hue <= 300 and sat >= 35 for hue, sat, _ in colors(value)):
                 hit("purple-gradient", label)
             if name.endswith("background-clip") and "text" in value:
                 hit("gradient-text", label)
@@ -249,8 +249,8 @@ def scan_html(html: str, allow: set[str]) -> dict:
                     inline is not None and page.elements[inline][0] in {"html", "body"}
                     or inline is None and CANVAS_SELECTOR_RE.search(selector)):
                 found = colors(value)[:1]
-                if found and 25 <= found[0][0] <= 60 and found[0][1] <= 40 and found[0][2] >= 90 and (
-                        found[0][1] * (100 - abs(2 * found[0][2] - 100)) / 100 >= 3):
+                if found and 25 <= found[0][0] <= 60 and found[0][2] >= 90 and (
+                        3 <= found[0][1] * (100 - abs(2 * found[0][2] - 100)) / 100 <= 12):
                     hit("beige-canvas", label)
             if name == "grid-template-columns" and TILES_RE.search(value):
                 hit("equal-feature-tiles", label)
