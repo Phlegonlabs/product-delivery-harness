@@ -26,6 +26,21 @@ import showcase_runtime as runtime  # noqa: E402
 from design_system_runtime_assets import INITIAL_MOUNT, RUNTIME_FRAME, RUNTIME_GALLERY  # noqa: E402
 from runtime_fixture import (HIFI, INTENTS, PRODUCT_CSS, PRODUCT_SCRIPT, REVIEWER_RUNTIME, UI, evidence_files,  # noqa: E402
                              pages, reader, registry, render, repo_files, sha, ui_record)
+import runtime_fixture as fixture  # noqa: E402
+from test_script_order_static import FILLER_BODY  # noqa: E402
+
+# A uniquely annotated shared subject: annotated copy directly in the surface, outside every
+# state view, with the source state-family constraint the product runtime itself honors.
+SHARED_NOTE = ('<p class="belt-note" data-specimen-variant="progress" data-specimen-state="running" '
+               'data-live-on="running">Cone 04</p>')
+SHARED_ROWS = INTENTS + (("MM-004", "UI-001 / shared belt note", "Note restage while running"),)
+
+
+def shared_files(page_set, rows=SHARED_ROWS):
+    files = {f"docs/design/evidence/{intent.lower()}-{case}.json": json.dumps({"intent": intent, "case": case}).encode()
+             for intent, _, _ in rows for case in ("normal", "reduced")}
+    files[UI] = ui_record(files, rows=rows).encode("utf-8")
+    return files
 
 
 def joins(data=None, page_set=None, files=None):
@@ -143,6 +158,84 @@ class ScriptAndScopeTests(unittest.TestCase):
         data = registry()
         row(data, "kiln-rise")["trigger"]["target"] = "768"
         self.assertEqual([], joins(data, page_set={"index.html": only_wide}))
+
+
+    def test_token_filler_hash_is_rejected_as_a_product_script(self):
+        panel = ('<section data-hifi-panel="design-tokens" hidden aria-labelledby="dt-h"><script>'
+                 + FILLER_BODY + '</script></section>')
+        page = pages()["index.html"].replace(f"<script>{PRODUCT_SCRIPT}</script>", panel + f"<script>{PRODUCT_SCRIPT}</script>", 1)
+        data = registry()
+        row(data, "kiln-rise")["trigger"]["scriptSha256"] = sha(FILLER_BODY)
+        self.assertIn("names a reviewer script", chr(10).join(joins(data, page_set={"index.html": page})))
+        changed = registry()
+        row(changed, "kiln-rise")["trigger"]["scriptSha256"] = sha(FILLER_BODY + ";")
+        self.assertIn("matches no executable", chr(10).join(joins(changed, page_set={"index.html": page})))
+
+
+class SharedSubjectTests(unittest.TestCase):
+    def data(self, **trigger_changes):
+        data = registry()
+        data["motionVariants"].append("belt-note-live")
+        data["showcase"]["specimens"].append({"id": "belt-note-live", "subject": {"kind": "primitive", "name": "FiringBelt"},
+                                              "axes": {}, "source": {"page": "index.html", "selector": ".belt-note",
+                                                                     "variant": "progress", "state": "running"}})
+        motion = {"variant": "belt-note-live", "specimen": "belt-note-live",
+                  "trigger": fixture.trigger("css-animation", "MM-004", "running", "state-entry")}
+        motion["trigger"].update(trigger_changes)
+        data["showcase"]["motion"].append(motion)
+        return data
+
+    def pages(self, note=SHARED_NOTE, surface_attrs=""):
+        views = "".join(fixture._view(state, target) for state in ("ready", "running") for target in ("390", "768"))
+        page = fixture.pages(views=views + note)["index.html"]
+        if surface_attrs:
+            page = page.replace('data-ui-surface="UI-001"', 'data-ui-surface="UI-001"' + surface_attrs, 1)
+        return {"index.html": page}
+
+    def joins(self, page_set=None, **trigger_changes):
+        page_set = page_set or self.pages()
+        return joins(self.data(**trigger_changes), page_set=page_set, files=shared_files(page_set))
+
+    def test_uniquely_annotated_shared_subject_resolves_outside_state_views(self):
+        self.assertEqual([], self.joins())
+        page_set = self.pages()
+        manifest = json.loads(showcase.MANIFEST_RE.search(page_set["index.html"]).group("data"))
+        bound, _ = runtime.resolve_runtime(self.data(), page_set, manifest, reader(shared_files(page_set)))
+        subjects = bound["belt-note-live"]["subjects"]
+        self.assertEqual({"390", "768"}, set(subjects))
+        for node in subjects.values():
+            self.assertEqual("p", node["tag"])
+            self.assertEqual("running", node["map"].get("data-live-on"))
+
+    def test_shared_subject_rejections_stay_closed(self):
+        hidden = SHARED_NOTE.replace('<p class="belt-note"', '<p class="belt-note" hidden', 1)
+        cases = {
+            "wrong state": (dict(state="ready"), None, "does not resolve inside UI-001 state ready"),
+            "hidden path": (None, self.pages(note=hidden), "does not resolve inside UI-001 state running"),
+            "contradictory data-in": (None, self.pages(note='<div data-in="ready">' + SHARED_NOTE + "</div>"),
+                                      "does not resolve inside UI-001 state running"),
+            "constrained to another target": (None, self.pages(note=SHARED_NOTE.replace('data-live-on="running"',
+                                                   'data-live-on="running" data-responsive-target="768"')),
+                                              "does not resolve inside UI-001 state running at target 390"),
+            "duplicate shared copies": (None, self.pages(note=SHARED_NOTE
+                                         + '<p class="belt-note" data-specimen-variant="progress" '
+                                         'data-specimen-state="running">Cone 04</p>'),
+                                        "specimen is ambiguous in UI-001 running at 390"),
+            "wrong surface": (dict(surface="UI-002"), None, "is not the manifest surface"),
+            "unapproved target": (dict(target="1024"), None, "not an approved target"),
+            "missing annotation": (None, self.pages(note='<p class="belt-note">Cone 04</p>'),
+                                   "does not resolve to a product .belt-note"),
+        }
+        for label, (changes, page_set, expected) in cases.items():
+            with self.subTest(label):
+                found = self.joins(page_set=page_set, **(changes or {}))
+                self.assertIn(expected, chr(10).join(found), found)
+
+    def test_constrained_target_and_effective_state_still_resolve(self):
+        constrained = SHARED_NOTE.replace('data-live-on="running"', 'data-live-on="running" data-responsive-target="768"')
+        self.assertEqual([], self.joins(page_set=self.pages(note=constrained), target="768"))
+        self.assertEqual([], self.joins(page_set=self.pages(note='<div data-in="ready">' + SHARED_NOTE + "</div>",
+                                                           surface_attrs=' data-keep="running" data-base="ready"')))
 
 
 class SourceProvenanceTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 # UI compiler evidence scope
 
-Status: verified and installed as an owner-authorized development patch
+Status: the checker patch is installed; its reviewed runtime successor is integrated for full verification.
 
 AgentKiosk's approved Shop talk package exposed two checker mismatches. Declared
 `:n/a` states entered the expected capture matrix, and intermediate-width receipts
@@ -16,7 +16,7 @@ not authorize a release, main landing, push or changes to other consumers' pins.
 The approved AgentKiosk design remains unchanged. The official installer must
 retain the previous installed bundle and record the source commit.
 
-## Handoff
+## Previous checker adoption
 
 Candidate `aa4df4520fcf132674a4483329084de4bd21242b` passed the focused tests and
 all nine source-matrix steps, with required browser tests enabled. Its checker
@@ -35,3 +35,24 @@ retained at `C:/Users/mps19/AppData/Local/Temp/agentkiosk-harness-adoption-cnukx
 The matrix's dirty flag refers only to the pre-existing untracked `task/` folder.
 No push, main landing, tag or formal release was performed. Other consumers retain
 their own pins. Any formal release remains a separately authorized action.
+
+## Runtime successor
+
+The owner confirmed adoption of the reviewed compiler runtime patch on 2026-11-15.
+This checkout uses the existing independent `fix/agentkiosk-ui-compiler-contract`
+branch. The separate 0.81 checkout remains untouched. No push or release is included.
+
+Nine source/test files match AgentKiosk proposal `c3feb29c` byte for byte. Its
+protected code/security review passed; the exact result and seven regressions
+are in AgentKiosk's `compiler-runtime-repair-001/`. Four README descriptions now
+explain the shared-subject and script-classification contract. Source behavior
+is unchanged from the reviewed proposal. Git's initial CRLF conversion was
+normalized back to the reviewed bytes before testing.
+
+## Handoff
+
+Base: `31edbcf4`, whose only change after `aa4df452` was the earlier adoption record.
+Next: run the full source matrix on the integrated commit, verify the integration
+identity, and use the official installer only after those checks pass. Then rebind
+AgentKiosk and resume its annotation, pair and preview work. No installed update,
+complete compilation or production acceptance is claimed yet.

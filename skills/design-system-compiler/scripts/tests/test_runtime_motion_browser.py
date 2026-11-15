@@ -19,6 +19,7 @@ sys.path.append(str(TESTS))
 sys.path.append(str(TESTS.parents[2] / "ui-design-builder/scripts/tests"))
 
 import runtime_fixture as fixture  # noqa: E402
+from test_script_order_static import ordered_pages  # noqa: E402
 
 TIMEOUT = 240
 HELPERS = r"""
@@ -239,6 +240,42 @@ def negative_sources():
     }
 
 
+BOOT = HELPERS + r"""
+(async () => {
+  const browser = await chromium.launch();
+  const out = {};
+  try {
+    for (const item of cases.items) {
+      const context = await browser.newContext({viewport: {width: 1280, height: 800}});
+      try {
+        const page = await context.newPage();
+        const r = {};
+        watch(context, page, r);
+        await page.goto(item.url);
+        await page.waitForTimeout(800);
+        const {act, frame, wait, show} = tools(page);
+        for (const variant of ["kiln-rise", "belt-step"]) {
+          await show(variant);
+          r[variant] = {phase: await wait(variant, ["settled", "invalid"], 9000),
+                        states: await (await frame(variant)).evaluate(() => window.__bootStates || [])};
+        }
+        await show("kiln-rise");
+        await act("kiln-rise", "replay");
+        r.replay = await wait("kiln-rise", ["settled", "invalid"], 9000);
+        r.replayStates = await (await frame("kiln-rise")).evaluate(() => window.__bootStates || []);
+        await act("kiln-rise", "stop");
+        await show("kiln-rise");
+        await act("kiln-rise", "replay");
+        r.stopReplay = await wait("kiln-rise", ["settled", "invalid"], 9000);
+        r.stopReplayStates = await (await frame("kiln-rise")).evaluate(() => window.__bootStates || []);
+        out[item.name] = r;
+      } finally { await context.close(); }
+    }
+  } finally { console.log(JSON.stringify(out)); await browser.close(); }
+})().catch(error => { console.error(error); process.exit(1); });
+"""
+
+
 class RuntimeBrowserTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -337,6 +374,26 @@ class RuntimeBrowserTests(unittest.TestCase):
                 self.assertNotIn("settled", out[name]["seen"])
                 self.assertEqual([], out[name]["requests"])
         self.assertIn("source script error: Uncaught Error: kiln source failed", out["exception"]["status"])
+
+
+    def test_boot_binds_the_surface_state_before_any_product_script(self):
+        self.require()
+        script = ('(function () { var s = document.querySelector("[data-ui-surface]");'
+                  '(window.__bootStates = window.__bootStates || []).push(s.getAttribute("data-hifi-state") || null);})();'
+                  + fixture.PRODUCT_SCRIPT)
+        path = self.folder / "boot-state.html"
+        path.write_text(fixture.render(ordered_pages(script=script), fixture.registry(script)), encoding="utf-8")
+        url = path.resolve().as_uri()
+        out = self.run_node(BOOT, {"items": [{"name": "boot", "url": url}]})["boot"]
+        self.assertEqual(([], [], []), (out["errors"], out["requests"], out["popups"]))
+        self.assertEqual("settled", out["kiln-rise"]["phase"][-1], out["kiln-rise"])
+        self.assertEqual(["ready"], out["kiln-rise"]["states"], "the boot bound the state before the product script ran")
+        self.assertEqual("settled", out["belt-step"]["phase"][-1], out["belt-step"])
+        self.assertEqual(["running"], out["belt-step"]["states"])
+        self.assertEqual("settled", out["replay"][-1], out["replay"])
+        self.assertEqual(["ready"], out["replayStates"], "a replay remount binds the state again in its fresh realm")
+        self.assertEqual("settled", out["stopReplay"][-1], out["stopReplay"])
+        self.assertEqual(["ready"], out["stopReplayStates"])
 
 
 if __name__ == "__main__":
