@@ -12,19 +12,37 @@ Link supplied or inspected sources to the existing Design Brief with what the ow
 
 ## Proactive Reference Research
 
-For a new visual scope, or a revised one without supplied references, inspect a few current public pages that match the product's task and platform—not a generic color collection. Curated candidate directories include [Astro themes](https://astro.build/themes/), [Tailwind Plus UI blocks](https://tailwindcss.com/plus/ui-blocks/marketing) (paid reuse—verify the license), [application UI blocks](https://tailwindcss.com/plus/ui-blocks/application-ui), [Codrops](https://tympanus.net/codrops/), [Uiverse](https://uiverse.io/), and [Open Props](https://open-props.style/). A directory entry is not evidence by itself: inspect the actual page and relevant desktop/mobile state before recording it. Record every inspected source as `REF-*` and its proposed `Adopt | Adapt | Avoid` rule as `RP-*`; never install a template or dependency without the approved stack's explicit component/source decision and license review.
+### Reference Board
 
-For motion or 3D lessons, also look at [Motion examples](https://motion.dev/examples) (Motion+ entries are paid), the [GSAP showcase](https://gsap.com/showcase/) and [three.js examples](https://threejs.org/examples/). Use only the ones that match an approved route.
+Words cannot carry layout, spacing and type; pictures can. For a new visual scope (initial design, explicit full redesign, or an enhancement whose accepted delta changes the direction), gather a board of **9 to 12 captured references** before direction studies. Owner-supplied references count toward it. The direction and HiFi author works from the captures, so the prompt stays short.
 
-### Manual Website Discovery
+- Pick current public pages that match the product's task and platform, not a generic color collection.
+- Between them, the entries cover layout and section structure, spacing and density, typography, color and surface, control treatment, and motion when a motion intent is in scope. Each entry names the one or two roles it is there for.
+- Each entry is a real inspected page at the relevant viewport and state, captured as a full-page screenshot (a short recording for a motion lesson) under `docs/design/directions/<round>/references/`, with its path and SHA-256 in its `REF-*` record.
+- A smaller board is allowed with its count and reason recorded: `Delivery profile: mvp` (floor of 5), an owner-named page-faithful target, or an owner who supplied a complete set. An enhancement that keeps the approved direction needs no board.
+- References set quality and feel; the design is this product's own. Two or more references may feed one direction; no direction copies one reference.
 
-Use manual website search and owner-shared example links or screenshots for this reference workflow. Do not install or connect design-reference MCP servers. The optional [design catalog](../../delivery-harness/references/option-library/design.md) compares Mobbin for real product screens/flows, Dribbble for visual studies, Awwwards for website/interaction references, Refero for app patterns, and MotionSites for landing/section/prompt ideas. MotionSites provisionally means `https://motionsites.ai/`; confirm a different owner-supplied URL before attributing an inspection to it. A product prototype, concept shot and original website are different evidence scopes.
+Show the board to the owner as one page built with `capture_sheet.py`, together with the proposed Adopt / Adapt / Avoid principles, in the confirmation turn under [Records](#records). It adds no turn. Resolve `<ui-design-builder-skill-root>` as [Installed Commands](../../delivery-harness/references/installed-commands.md) states.
+
+```text
+python "<ui-design-builder-skill-root>/scripts/capture_sheet.py" --repo-root . --title <text> --row <label> <image> [<image> ...] [--row ...] --out <html>
+```
+
+A one-image row is a board entry. The script prints each image's SHA-256.
+
+Curated candidate directories include [Astro themes](https://astro.build/themes/), [Tailwind Plus UI blocks](https://tailwindcss.com/plus/ui-blocks/marketing) (paid reuse—verify the license), [application UI blocks](https://tailwindcss.com/plus/ui-blocks/application-ui), [Codrops](https://tympanus.net/codrops/), [Uiverse](https://uiverse.io/), and [Open Props](https://open-props.style/). A directory entry is not evidence by itself: inspect the actual page and relevant desktop/mobile state before recording it. Record every inspected source as `REF-*` and its proposed `Adopt | Adapt | Avoid` rule as `RP-*`; never install a template or dependency without the approved stack's explicit component/source decision and license review.
+
+For motion or 3D lessons, also look at [Motion examples](https://motion.dev/examples) (Motion+ entries are paid), the [GSAP showcase](https://gsap.com/showcase/) and [three.js examples](https://threejs.org/examples/). Use only the ones that match an approved route. A motion reference is a recording; before implementing from it, write motion notes as [Motion And Media Routing](motion-and-media-routing.md#motion-references-and-notes) states.
+
+### Finding And Capturing References
+
+Use manual website search, owner-shared example links or screenshots, and any reference tool the owner has already connected. A reference MCP (for example Inspo or Awwwards) or a browser tool (for example agent-browser) may find candidates and capture pages and recordings. An agent never installs or connects one itself; it asks the owner. A tool hit is still only a candidate: the actual page, viewport and state must be inspected and captured before it becomes a `REF-*`. The optional [design catalog](../../delivery-harness/references/option-library/design.md) compares Mobbin for real product screens/flows, Dribbble for visual studies, Awwwards for website/interaction references, Refero for app patterns, and MotionSites for landing/section/prompt ideas. MotionSites provisionally means `https://motionsites.ai/`; confirm a different owner-supplied URL before attributing an inspection to it. A product prototype, concept shot and original website are different evidence scopes.
 
 For each chosen example, retain its URL, the original website URL when available through Visit Website or another link, the intended lesson and affected UI surface. Inspect the actual page, relevant viewport and state; for a motion lesson retain a short capture or a working source with an explicit capture limitation. If login, payment or access is unavailable, use inspectable owner-supplied material and state what remains uninspected. A directory listing or search snippet cannot become a confirmed `REF-*`.
 
 React Bits is a reusable React effect/component source; Anime.js is an animation engine. Compare their roles with the adopted stack and the [motion catalog](../../delivery-harness/references/option-library/motion.md). A liked example does not authorize copied code or an added dependency: check the selected item's license, source, actual dependencies and maintenance duties first. Propose scoped `RP-*` principles and use the existing owner-confirmation step below before designing from them.
 
-Keep what was inspected, not only a description of it. Save a screenshot, or a short screen recording for a motion lesson, of each confirmed `REF-*` under `docs/design/directions/<round>/references/`, and add its path and SHA-256 to the record. A source that cannot be captured keeps its written record with the limitation stated.
+Keep what was inspected, not only a description of it: every confirmed `REF-*` has its capture under `docs/design/directions/<round>/references/` with path and SHA-256, as the [Reference Board](#reference-board) states. A source that cannot be captured keeps its written record with the limitation stated and does not count toward the board.
 
 Adapting a template's markup, CSS or animation code into HiFi is allowed when its license permits it and the code fits the approved stack. Record the source URL, license and what was changed in the `RP-*` principle. Paid or unclear licenses need the owner's decision before any code is copied.
 
@@ -34,7 +52,7 @@ For each useful reference, record whole-template adaptation, selected-component 
 
 ## Records
 
-Record every inspected source with a stable `REF-*` ID:
+Record every inspected source with a stable `REF-*` ID, one record per source:
 
 ```text
 REF-001
@@ -59,7 +77,7 @@ Reason: [product-specific reason]
 Status: proposed | confirmed | rejected
 ```
 
-Show the proposed Adopt / Adapt / Avoid set to the human owner and end the turn. Do not design from supplied references until the owner confirms the principles.
+Show the proposed Adopt / Adapt / Avoid set, with the reference board when one was gathered, to the human owner and end the turn. Do not design from supplied or researched references until the owner confirms the principles. Keep `RP-*` principles few: only what is adopted, adapted or avoided.
 
 ## Direction Records
 
