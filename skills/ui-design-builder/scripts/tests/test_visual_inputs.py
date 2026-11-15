@@ -377,6 +377,13 @@ Decision: not_required
                     if row.startswith("- Reference board: "))
         self.assertEqual("- Reference board: " + "; ".join(self.binding(path) for path in first + second), line)
 
+    def test_unreadable_reference_folder_is_an_error_not_an_empty_board(self):
+        self.board("a.png")
+        self.contract(studies=True)
+        with mock.patch.object(visual_inputs.os, "scandir", side_effect=PermissionError("denied")):
+            with self.assertRaises(PermissionError):
+                build_visual_inputs(self.root, self.ui, "hifi")
+
     def test_reference_board_lists_captures_in_sorted_order_with_hashes(self):
         paths = self.board("b-hero.png", "a-nav.png", "sub/c-detail.jpg")
         self.write("docs/design/directions/R2/references/other-round.png", b"later round")

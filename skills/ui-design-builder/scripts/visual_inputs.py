@@ -37,7 +37,11 @@ def _reference_board(root: Path, rounds: set[str]) -> list[dict[str, str]]:
             continue
         if not folder.is_dir():
             raise ValueError("reference board must be a folder: docs/design/directions/" + name + "/references")
-        for current, dirs, files in os.walk(folder):
+        def unreadable(error: OSError) -> None:
+            # os.walk skips a folder it cannot list; that would report an empty board.
+            raise error
+
+        for current, dirs, files in os.walk(folder, onerror=unreadable):
             for entry in dirs + files:
                 relative = (Path(current) / entry).relative_to(base).as_posix()
                 path = safe_path(base, relative)
