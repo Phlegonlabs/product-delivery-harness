@@ -1,6 +1,6 @@
 # Modern Web, Native And AI-Assisted Design
 
-Sources inspected 2026-09-25. Publication dates below are stated by the source; undated living references are dated by inspection only. These are selected primary sources, not a claim to cover every recent release. Modern means task-fit, adaptive and coherent, not a mandated visual style. Apply the relevant platform guidance through the existing Design Brief, Platform rules and H2/H4/H5/H7/H8/H9 evidence; no new gate or competing design document.
+Sources inspected 2026-09-25, except the Leon Lin entry (2026-11-15). Publication dates below are stated by the source; undated living references are dated by inspection only. These are selected primary sources, not a claim to cover every recent release. Modern means task-fit, adaptive and coherent, not a mandated visual style. Apply the relevant platform guidance through the existing Design Brief, Platform rules and H2/H4/H5/H7/H8/H9 evidence; no new gate or competing design document.
 
 ## Web Baseline
 
@@ -27,6 +27,8 @@ Sources inspected 2026-09-25. Publication dates below are stated by the source; 
 - [Anthropic: Improving frontend design through Skills, 2025-11-12](https://claude.com/blog/improving-frontend-design-through-skills): make typography, composition and visual intent explicit before generation. Adapt this into the existing selected direction and Adopt/Adapt/Avoid rationale. Do not import its illustrative font bans, mandatory external fonts or aesthetic exaggerations; system fonts and restrained designs remain valid.
 - [Anthropic: Harness design for long-running application development, 2026-03-24](https://www.anthropic.com/engineering/harness-design-long-running-apps): distinguish design coherence, originality, execution and functionality, and evaluate a running page rather than trusting author self-praise. Map these lenses to existing H dimensions and independent review authorization. Retain the current bounded repair budget; do not copy the experiment's many iterations, prioritization over usability, scope expansion or agent topology.
 - [Google Labs: Stitch skills](https://github.com/google-labs-code/stitch-skills): the observed repository supports extracting a design description from frontend source and managing design systems. Adopt the source-grounded handoff principle: inspect existing components/tokens before proposing replacements and record names, roles and usage in the current UI handoff. Do not introduce a parallel DESIGN.md authority, install Stitch or upload product code by implication. The living repository has no publication date asserted here.
+
+- [Leon Lin: AI design workflow article (X)](https://x.com/LexnLin/status/2116662591363690999) and the [`cook` skill](https://github.com/Leonxlnx/cook): inspected 2026-11-15 through a [video walkthrough](https://www.youtube.com/watch?v=-bv2xKQzZio), not the primary text. Adopted: a captured reference board, a numeric match target with grader calibration, composition before motion, feedback that names a target, and a judge that did not author. Not adopted: looping rounds until a score clears, an eight-hour default run, and installing reference MCPs. `cook` is not a dependency and is never invoked.
 
 ## Taste Skills: Selective Adoption
 
