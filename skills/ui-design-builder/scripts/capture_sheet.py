@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Write one self-contained HTML sheet of labelled image rows.
 
-A one-image row is a reference-board entry. A row of two or more images sits side by side,
-for example selected direction next to HiFi candidate. The sheet is for people to judge by eye.
+A one-image row is a reference-board entry; consecutive entries share one grid. A row of two or
+more images sits side by side at full width, for example selected direction next to HiFi candidate.
+The sheet is for people to judge by eye.
 """
 
 from __future__ import annotations
@@ -28,12 +29,15 @@ body{margin:0;background:var(--bg);color:var(--fg);font:16px/1.5 system-ui,-appl
 main{max-width:1440px;margin:0 auto;padding:40px 16px 64px}
 h1{margin:0 0 32px;font-size:1.5rem;font-weight:600;line-height:1.25}
 h2{margin:0 0 12px;font-size:1rem;font-weight:600}
-section{padding:24px 0;border-top:1px solid var(--line)}
-section:first-of-type{border-top:0;padding-top:0}
+.pair,.board{padding:24px 0;border-top:1px solid var(--line)}
+h1+.pair,h1+.board{border-top:0;padding-top:0}
 .shots{display:grid;gap:16px;grid-template-columns:repeat(var(--n),minmax(0,1fr));align-items:start}
+.board{display:grid;gap:32px 16px;grid-template-columns:repeat(auto-fill,minmax(min(400px,100%),1fr));align-items:start}
 figure{margin:0;min-width:0}
 .well{padding:8px;background:var(--well);border:1px solid var(--line);border-radius:6px}
-img{display:block;width:100%;height:auto;max-height:80vh;object-fit:contain}
+.board .well{max-height:70vh;overflow:auto}
+img{display:block;max-width:100%;height:auto;margin:0 auto}
+.board img{width:100%}
 figcaption{margin-top:8px;font-size:.8125rem;color:var(--muted);overflow-wrap:anywhere}
 figcaption b{display:block;color:var(--fg);font-weight:600}
 code{display:block;font:.75rem/1.4 ui-monospace,Consolas,monospace}
@@ -66,21 +70,31 @@ def read_image(root: Path, text: str) -> dict:
 
 def render(title: str, rows: list[dict], columns: list[str]) -> str:
     esc = html.escape
-    width = max(len(row["images"]) for row in rows)
     out = ['<!doctype html>', '<html lang="en">', "<head>", '<meta charset="utf-8">',
            f'<meta http-equiv="Content-Security-Policy" content="{CSP}">',
            '<meta name="viewport" content="width=device-width, initial-scale=1">',
            f"<title>{esc(title)}</title>", f"<style>{CSS}</style>", "</head>", "<body>",
-           f'<main style="--n:{width}">', f"<h1>{esc(title)}</h1>"]
+           "<main>", f"<h1>{esc(title)}</h1>"]
+    in_board = False
     for row in rows:
-        out += ["<section>", f"<h2>{esc(row['label'])}</h2>", '<div class="shots">']
+        # Consecutive one-image rows share one board grid of scrollable captures. A row of
+        # several images is a full-width comparison whose captures scroll with the page.
+        single = len(row["images"]) == 1
+        if single != in_board:
+            out.append('<div class="board">' if single else "</div>")
+            in_board = single
+        out += ["<section>" if single else '<section class="pair">', f"<h2>{esc(row['label'])}</h2>"]
+        if not single:
+            out.append(f'<div class="shots" style="--n:{len(row["images"])}">')
         for index, image in enumerate(row["images"]):
             heading = f"<b>{esc(columns[index])}</b>" if index < len(columns) else ""
             alt = esc(row["label"] + (" - " + columns[index] if index < len(columns) else ""))
-            out += ["<figure>", f'<div class="well"><img src="{image["uri"]}" alt="{alt}"></div>',
+            out += ["<figure>", f'<div class="well" tabindex="0"><img src="{image["uri"]}" alt="{alt}"></div>',
                     f'<figcaption>{heading}{esc(image["path"])}<code>sha256:{image["sha256"]}</code></figcaption>',
                     "</figure>"]
-        out += ["</div>", "</section>"]
+        out += ["</section>"] if single else ["</div>", "</section>"]
+    if in_board:
+        out.append("</div>")
     return "\n".join(out + ["</main>", "</body>", "</html>"]) + "\n"
 
 

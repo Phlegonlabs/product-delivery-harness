@@ -93,7 +93,22 @@ class CaptureSheetTests(unittest.TestCase):
         self.assertNotRegex(bare.lower(), r"https?:|//|@import|url\(|<script|<link|src=\"(?!data:)")
         self.assertIn("default-src 'none'; img-src data:; style-src 'unsafe-inline'", text)
         self.assertIn("prefers-color-scheme:dark", text)
-        self.assertIn("object-fit:contain", text)
+        self.assertIn("img{display:block;max-width:100%;height:auto", text)
+        self.assertNotIn("object-fit:cover", text)
+
+    def test_board_entries_share_a_grid_and_comparisons_keep_their_own_width(self):
+        result = self.run_sheet("--row", "One", "refs/a.png", "--row", "Two", "refs/b.png",
+                                "--row", "Pair", "refs/a.png", "refs/c.png", "--row", "Three", "refs/c.png")
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = self.page()
+        self.assertEqual(2, text.count('<div class="board">'))
+        first_board = text.split('<div class="board">')[1]
+        self.assertIn("<h2>One</h2>", first_board)
+        self.assertIn("<h2>Two</h2>", first_board)
+        self.assertNotIn("<h2>Three</h2>", first_board.split('<section class="pair">')[0])
+        self.assertEqual(1, text.count('<div class="shots" style="--n:2">'))
+        self.assertEqual(text.count("<div"), text.count("</div>"))
+        self.assertEqual(text.count("<section"), text.count("</section>"))
 
     def test_overwrite_is_refused_until_requested(self):
         args = ("--row", "Home", "refs/a.png")
