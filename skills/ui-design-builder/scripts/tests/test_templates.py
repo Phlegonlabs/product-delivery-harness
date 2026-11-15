@@ -107,10 +107,11 @@ class ReviewPacketTemplateTests(unittest.TestCase):
             "Assignment": ["Assignment ID", "Attempt", "Role", "Route caps"],
             "Frozen inputs (path @ sha256)": ["PRD", "Architecture", "Stack", "ui-design.md", "HiFi entry",
                                               "HiFi pages", "Selected direction", "Journey map",
+                                              "Comparison sheet", "Slop scan output", "Models",
                                               "Impeccable authorization"],
             "Scoped re-review only": ["Defect ledger", "Prior candidate", "Source diff", "Direct consumers",
                                       "Closure cases", "Tolerance source"],
-            "Return": ["Verdict", "Candidate SHA-256", "Findings", "ui-output/3", "Receipt", "Commands run"],
+            "Return": ["Verdict", "Direction match", "Candidate SHA-256", "Findings", "ui-output/3", "Receipt", "Commands run"],
         }, {name: fields for name, fields in self.blocks.items() if name not in {"Read", "Do not read", "Write scope"}})
         self.assertIn("time <seconds> / turns <n> / max_message_bytes <n>", self.packet)
         self.assertIn("lead grader | Impeccable operator | scoped re-review", self.packet)
