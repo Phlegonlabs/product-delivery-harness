@@ -1,6 +1,6 @@
 # UI compiler evidence scope
 
-Status: development patch; verification and owner-authorized installation pending
+Status: verified and installed as an owner-authorized development patch
 
 AgentKiosk's approved Shop talk package exposed two checker mismatches. Declared
 `:n/a` states entered the expected capture matrix, and intermediate-width receipts
@@ -18,8 +18,20 @@ retain the previous installed bundle and record the source commit.
 
 ## Handoff
 
-Focused regression tests pass. Run the source verification matrix on the committed
-candidate, then install through `install.sh`, update AgentKiosk's pins and run its
-official compiler preflight. The four-hunk checker patch already has protected
-read-only review in AgentKiosk's `compiler-reconciliation-002/protected-review.txt`.
-Full verification and installed preflight results are not yet claimed.
+Candidate `aa4df4520fcf132674a4483329084de4bd21242b` passed the focused tests and
+all nine source-matrix steps, with required browser tests enabled. Its checker
+bytes match the protected reviewed proposal exactly. Review:
+AgentKiosk's `compiler-reconciliation-002/protected-review.txt`.
+
+Official `install.sh` exited 0. It retained the prior five skills under
+`C:/Users/mps19/.agents/skill-backups/product-delivery-harness/20261115-114155`.
+Installed bundle: `3f829c96b8132b741e24f43b7f59cd237a99c12989b458507e8dd092d109a9d2`.
+AgentKiosk adopted this binding. Its installed compiler preflight reports zero
+findings after preserving the original AGENTS input of three assessment receipts.
+The product, approved HiFi and observations are unchanged.
+
+Evidence is in AgentKiosk's `shared-checker-adoption-001/`. Source matrix logs are
+retained at `C:/Users/mps19/AppData/Local/Temp/agentkiosk-harness-adoption-cnukxwpv/matrix-aa4df452/`.
+The matrix's dirty flag refers only to the pre-existing untracked `task/` folder.
+No push, main landing, tag or formal release was performed. Other consumers retain
+their own pins. Any formal release remains a separately authorized action.
