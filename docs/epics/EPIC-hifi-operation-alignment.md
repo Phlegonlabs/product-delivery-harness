@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: consolidated review repair 2/5 verified locally; targeted recheck pending
+Status: consolidated review repair 3/5 verified locally; targeted recheck pending
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -77,6 +77,7 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ### Consolidated repair of reviewed b0dab02a
 
+- F3 (R7): test_hifi_product_contract.py: 11 tests, exit 0; all 11 roles and inline widgets rejected on terminal surfaces. Terminal and Supporting focused tests: exit 0.
 - F2 (R3): test_hifi_operation_alignment.py -k NotApplicable -v: 2 tests, exit 0; complete and partial legacy n/a markers accepted; missing real cases rejected.
 - F1 (R5): test_hifi_operation_alignment.py -k Supporting -v: 5 tests, exit 0; all four action types and button/link roles rejected.
 The independent read-only review of `b0dab02a` returned FAIL with F1–F5. This repair does not claim reviewer acceptance.
@@ -113,6 +114,8 @@ The independent read-only review of `b0dab02a` returned FAIL with F1–F5. This 
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: F3 (R7) repair: share interactive-role and tabindex/inline-handler discovery across control parsers and terminal-surface rejection.
 
 - 2026-11-16: F2 (R3) repair: keep declared :n/a markers and target cases optional; retained markers pass and missing real-state cases still fail.
 
@@ -174,12 +177,12 @@ The focused tests use the existing fixtures. A separate helper module would spli
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; consolidated F1–F5 repair, through F2
+Stage and skill: source maintenance; consolidated F1–F5 repair, through F3
 Inputs consumed (path + hash or revision): released main 9abe4b9e (v0.83.1); specification 92cab19b; unchanged consumer package and PRD identities above
 Approvals in force (gate, owner, date, candidate): owner authorizes the consolidated F1–F5 repair and local atomic commits; no delegation or publication
-Done and verified (command, exit code): through F2; test_hifi_operation_alignment.py -k NotApplicable -v: 2 tests, exit 0; complete and partial legacy n/a markers accepted; missing real cases rejected.
-Remaining: F3–F5; required regressions; longer-timeout matrix; targeted exact-head recheck
+Done and verified (command, exit code): through F3; test_hifi_product_contract.py: 11 tests, exit 0; all 11 roles and inline widgets rejected on terminal surfaces. Terminal and Supporting focused tests: exit 0.
+Remaining: F4–F5; required regressions; longer-timeout matrix; targeted exact-head recheck
 Blocked / waiting (gate name or owner decision): targeted recheck pending; consumer adoption and publication remain separate
-Next action (one command or one owner decision): repair F3
+Next action (one command or one owner decision): repair F4
 Next owner (skill or human): this source-maintenance writer, then the independent read-only reviewer
 ```

@@ -32,7 +32,7 @@ from review_evidence import (
     line_ending_note,
     score_findings,
 )
-from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, product_control_findings, reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1210,10 +1210,8 @@ class _HiFiSurfaceParser(HTMLParser):
         if isinstance(surface_id, str) and isinstance(route, str) and route.strip():
             current["route"].add(route.strip())
         role = (values.get("role") or "").casefold()
-        nav_valid = tag.lower() in {"a", "nav"} or role in {"link", "navigation", "menuitem", "tab"}
-        control_valid = tag.lower() in {"button", "input", "select", "textarea"} or role in {
-            "button", "checkbox", "combobox", "radio", "slider", "spinbutton", "switch", "tab", "textbox"
-        }
+        control_valid = is_product_control(tag.lower(), values)
+        nav_valid = control_valid or tag.lower() == "nav" or role == "navigation"
         if nav_valid and isinstance(values.get("data-navigation-id"), str) and values["data-navigation-id"].strip():
             current["navigation"].add(values["data-navigation-id"].strip())
         if control_valid and isinstance(values.get("data-control-id"), str) and values["data-control-id"].strip():
@@ -1259,7 +1257,7 @@ class _HiFiProductControls(HTMLParser):
         surface = values.get("data-ui-surface") or (self.stack[-1][1] if self.stack else None)
         if tag not in {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}:
             self.stack.append((tag, surface))
-        interactive = tag in {"a", "button", "select", "textarea", "input"} or values.get("role") in {"tab", "button", "link", "menuitem"}
+        interactive = is_product_control(tag, values)
         if surface and interactive:
             control = values.get("data-navigation-id") or values.get("data-control-id")
             data_entry = (tag in {"input", "select", "textarea"}

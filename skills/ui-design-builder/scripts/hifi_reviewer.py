@@ -10,12 +10,24 @@ from reviewer_shell import shared_css_drift
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 INERT_CONTAINERS = {"template", "noscript"}
+INTERACTIVE_ROLES = frozenset({
+    "button", "link", "menuitem", "tab", "checkbox", "radio", "switch", "slider",
+    "spinbutton", "textbox", "combobox",
+})
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
     "border-radius", "border-width", "box-shadow", "opacity", "z-index",
     "transition-duration", "transition-timing-function",
 }
+
+
+def is_product_control(tag, attrs):
+    """Share native, ARIA and directly authored widget discovery across HiFi checks."""
+    return (tag in {"a", "button", "input", "select", "textarea"}
+            or bool(INTERACTIVE_ROLES.intersection((attrs.get("role") or "").casefold().split()))
+            or ("tabindex" in attrs and any(key.startswith("on") and isinstance(value, str) and value.strip()
+                                         for key, value in attrs.items())))
 
 
 class ReviewerParser(HTMLParser):

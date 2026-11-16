@@ -8,7 +8,7 @@ from typing import Any, Mapping
 from check_wireframe_html import LOCALE_RE, validate_copy_item
 from prd_ui_contract import parse_prd_ui_contract
 from operation_coverage import hifi_coverage_findings, required_operations
-from hifi_reviewer import ReviewerParser
+from hifi_reviewer import ReviewerParser, is_product_control
 
 
 UI_HIFI_COPY_RE = re.compile(
@@ -338,10 +338,10 @@ def hifi_prd_findings(
             parser.feed(html)
             parser.close()
             for tag, attrs, parents in parser.nodes:
-                surface_id = next((p["data-ui-surface"] for p in reversed(parents) if "data-ui-surface" in p), None)
+                surface_id = attrs.get("data-ui-surface") or next(
+                    (p["data-ui-surface"] for p in reversed(parents) if "data-ui-surface" in p), None)
                 if (surface_id in terminal and id(attrs) not in parser.inert_nodes
-                    and (tag in {"a", "button", "input", "select", "textarea"}
-                         or attrs.get("role") in {"tab", "button", "link", "menuitem"})):
+                    and is_product_control(tag, attrs)):
                     findings.append(f"HiFi {surface_id} renders a product control but PRD operations are none")
     findings.extend(hifi_copy_findings(prd_surfaces, manifest, documents))
     return findings

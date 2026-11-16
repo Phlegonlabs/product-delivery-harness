@@ -32,6 +32,41 @@ def documents(inventory, markup):
 
 
 class HiFiProductContractTests(unittest.TestCase):
+    def test_terminal_surface_rejects_custom_interactive_roles_and_inline_widgets(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        passive = markup.replace('<a ', '<p ').replace('</a>', '</p>')
+        roles = ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
+                 'slider', 'spinbutton', 'textbox', 'combobox')
+        for attributes in tuple(f'role="{role}" tabindex="0" aria-checked="false"' for role in roles) + ('tabindex="0" onclick="this.dataset.changed=true"',):
+            with self.subTest(attributes=attributes):
+                widget = passive.replace('<p ', '<p ' + attributes + ' ', 1)
+                findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
+                self.assertIn('renders a product control', '\n'.join(findings))
+        self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+
+    def test_all_interactive_roles_use_the_same_control_discovery(self):
+        for role in ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
+                     'slider', 'spinbutton', 'textbox', 'combobox'):
+            with self.subTest(role=role):
+                markup = f'<main data-ui-surface="UI-001"><p role="{role}" data-control-id="toggle">Toggle</p></main>'
+                parser = ui._HiFiProductControls()
+                parser.feed(markup)
+                parser.close()
+                self.assertEqual([], parser.errors)
+                self.assertIn(('UI-001', 'toggle'), parser.controls)
+                surface_parser = ui._HiFiSurfaceParser()
+                surface_parser.feed(markup)
+                surface_parser.close()
+                self.assertIn('toggle', surface_parser.surfaces['UI-001']['controls'])
+                unbound = ui._HiFiProductControls()
+                unbound.feed(markup.replace(' data-control-id="toggle"', ''))
+                unbound.close()
+                self.assertIn('needs a navigation/control ID', '\n'.join(unbound.errors))
+
     def test_terminal_prd_surface_has_empty_lists_and_no_product_control(self):
         product, manifest, inventory, markup = fixture()
         anchor = next(line for line in product.splitlines() if '`operations`:' in line)
