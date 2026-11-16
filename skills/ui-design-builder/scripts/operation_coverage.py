@@ -47,8 +47,8 @@ def hifi_coverage_findings(prd, manifest):
     This is the cheap wireframe-free preflight.  It does not infer an omitted
     operation from prose or use reviewer chrome as a product control.  The
     manifest's ``kind`` is intentionally narrower than the PRD's presentation:
-    a page transition must navigate, while overlay, feedback, state, and tab
-    changes are all observable state interactions.
+    A page transition navigates. Other operations use feedback for equal
+    endpoints and state for different endpoints.
     """
 
     operations, errors = required_operations(prd)
@@ -78,7 +78,9 @@ def hifi_coverage_findings(prd, manifest):
             errors.append(label + ": HiFi operation ID differs from PRD")
         if action.get("destination") != operation["destination"]:
             errors.append(label + ": HiFi destination state differs from PRD")
-        expected_kind = "navigate" if operation["presentation"] == "page" else "state"
+        source = {"surface": operation["surface"], "state": operation["sourceState"]}
+        expected_kind = ("navigate" if operation["presentation"] == "page" else
+                         "feedback" if source == operation["destination"] else "state")
         if action.get("kind") != expected_kind:
             errors.append(
                 label + ": HiFi interaction kind does not represent PRD presentation "

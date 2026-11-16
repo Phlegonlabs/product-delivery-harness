@@ -1425,8 +1425,11 @@ def _validate_hifi_bundle(
                 _add(problems, "HiFi state interaction must stay on the same page")
             if action["source"] == action["destination"]:
                 _add(problems, "HiFi state interaction must declare an observable destination state")
+        elif action["kind"] == "feedback":
+            if action["source"] != action["destination"]:
+                _add(problems, "HiFi feedback interaction must keep its source surface and state")
         else:
-            _add(problems, "HiFi interaction kind must be navigate or state")
+            _add(problems, "HiFi interaction kind must be navigate, state or feedback")
     declared = {(row["id"], control) for row in surfaces for control in row["navigation"] + row["controls"]}
     if covered != declared or set(product_controls) != declared:
         _add(problems, "HiFi interactions must cover every declared and rendered product control")
@@ -2322,7 +2325,27 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
     expected, navigation = expectations
     def rows_equal(actual: Any, required: list[dict[str, Any]]) -> bool:
         return isinstance(actual, list) and sorted(json.dumps(row, sort_keys=True) for row in actual) == sorted(json.dumps(row, sort_keys=True) for row in required)
-    if not rows_equal(output.get("interactions"), expected):
+    actual = output.get("interactions")
+    normalized = []
+    feedback_ids = {action["id"] for action in manifest["interactions"] if action["kind"] == "feedback"}
+    observations_valid = isinstance(actual, list)
+    for row in actual if isinstance(actual, list) else []:
+        if not isinstance(row, dict):
+            observations_valid = False
+            continue
+        observed = row.get("observed", {})
+        if not isinstance(observed, dict) or set(observed) - {"change"}:
+            observations_valid = False
+        else:
+            change = observed.get("change")
+            if "change" in observed or row.get("id") in feedback_ids:
+                if (not isinstance(change, dict) or set(change) != {"beforeSha256", "afterSha256"}
+                    or any(not isinstance(value, str) or re.fullmatch(r"[0-9a-f]{64}", value) is None
+                           for value in change.values())
+                    or change.get("beforeSha256") == change.get("afterSha256")):
+                    observations_valid = False
+        normalized.append({key: value for key, value in row.items() if key != "observed"})
+    if not observations_valid or not rows_equal(normalized, expected):
         findings.append("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target")
     if not rows_equal(output.get("navigation"), navigation):
         findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")

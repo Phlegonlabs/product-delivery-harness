@@ -48,7 +48,7 @@ INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
 TRIGGERS = ("click", "keyboard")
-INTERACT_KINDS = ("navigate", "state")
+INTERACT_KINDS = ("navigate", "state", "feedback")
 DRIVER_BASE = "https://hifi.invalid/pkg/"
 SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
@@ -299,6 +299,12 @@ async function open(request) {
 // shell, then activate the declared product control by click or keyboard. The
 // destination surface/state must apply; the control, and only the control, must
 // take product focus during the attempt.
+const FEEDBACK_SNAPSHOT = surfaceId => {
+  const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
+  return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
+    .map(el => [el.value, el.checked, el.selectedIndex])]) : null;
+};
+
 async function interact(request) {
   const problems = [];
   const timeout = request.timeoutMs;
@@ -331,7 +337,7 @@ async function interact(request) {
       }
     }
   }
-  let visible = null, focusCorrect = null, arrivedTo = null;
+  let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
   if (!problems.length) {
     const surface = '[data-ui-surface=' + quote(request.surface) + ']';
     const product = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + ']:visible,'
@@ -341,13 +347,27 @@ async function interact(request) {
       const handle = product.first();
       visible = await handle.isVisible();
       let pressedFocused = null;
+      let before = null;
       if (request.trigger === 'keyboard') {
         await handle.focus({ timeout });
         pressedFocused = await handle.evaluate(el => el === document.activeElement);
         const tag = await handle.evaluate(el => el.tagName.toLowerCase());
+        if (request.kind === 'feedback') before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
         await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
       } else {
+        if (request.kind === 'feedback') before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
         await handle.click({ timeout });
+      }
+      if (request.kind === 'feedback') {
+        try {
+          await page.waitForFunction(({ surfaceId, before }) => {
+            const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
+            return surface && JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
+              .map(el => [el.value, el.checked, el.selectedIndex])]) !== before;
+          }, { surfaceId: request.surface, before }, { timeout: Math.min(timeout, 2000) });
+        } catch (_) { problems.push('feedback did not change the source surface'); }
+        const after = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
+        if (before && after) observed = { change: { beforeSha256: sha(before), afterSha256: sha(after) } };
       }
       try {
         await page.waitForFunction(([surface, state]) => {
@@ -365,7 +385,7 @@ async function interact(request) {
         && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
     }
   }
-  return { problems, visible, focusCorrect, arrivedTo };
+  return { problems, visible, focusCorrect, arrivedTo, observed };
 }
 
 async function runCase(request) {
@@ -971,6 +991,10 @@ def interaction_plan(package, only=None):
             if row is None or not isinstance(state, str) or state not in [str(s) for s in row["states"]]:
                 raise UsageError(f"interaction {ident} names an unknown {field} surface state: {surface} {state}")
         source_row = surfaces[action["source"]["surface"]]
+        if kind == "feedback" and action["source"] != action["destination"]:
+            raise UsageError(f"feedback interaction {ident} must keep its source surface and state")
+        if kind == "state" and action["source"] == action["destination"]:
+            raise UsageError(f"state interaction {ident} needs a different destination state")
         plan.append({"id": ident, "kind": kind, "control": control, "source": action["source"],
                      "destination": action["destination"], "page": source_row["page"],
                      "destinationPage": surfaces[action["destination"]["surface"]]["page"],
@@ -1274,6 +1298,8 @@ class Runner:
             if result.get("focusCorrect") is not True:
                 reasons.append("product focus did not land on the control alone")
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
+        if result.get("observed") is not None:
+            record["observed"] = result["observed"]
         if action["kind"] == "navigate":
             if record["arrived"] is None:
                 reasons.append("the destination page did not load")
@@ -1476,6 +1502,8 @@ def interaction_rows(runner):
                         "source": {"surface": record["surface"], "state": record["state"]},
                         "destination": record["destination"], "control": record["control"],
                         "visible": record["visible"], "focusCorrect": record["focusCorrect"], "result": record["result"]})
+        if "observed" in record:
+            results[-1]["observed"] = record["observed"]
         if record["kind"] == "navigate" and record["arrived"]:
             navigation.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
                                "from": record["page"], "to": record["arrived"]})
