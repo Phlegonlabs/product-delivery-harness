@@ -33,8 +33,12 @@ def is_product_control(tag, attrs):
             or INTERACTIVE_ROLES.intersection((attrs.get("role") or "").casefold().split())):
         return True
     handlers = {name for name, value in attrs.items() if isinstance(value, str) and value.strip()}
+    focusable = ("tabindex" in attrs or tag in {"summary", "iframe"}
+                 or (tag == "area" and "href" in attrs)
+                 or (tag in {"audio", "video"} and "controls" in attrs)
+                 or ("contenteditable" in attrs and (attrs.get("contenteditable") or "").casefold() != "false"))
     return bool(POINTER_ACTIVATION_HANDLERS.intersection(handlers)
-                or ("tabindex" in attrs and KEYBOARD_ACTIVATION_HANDLERS.intersection(handlers)))
+                or (focusable and KEYBOARD_ACTIVATION_HANDLERS.intersection(handlers)))
 
 
 class ReviewerParser(HTMLParser):

@@ -112,6 +112,36 @@ class HiFiProductContractTests(unittest.TestCase):
             parser.close()
             self.assertIn('needs a navigation/control ID', '\n'.join(parser.errors))
 
+    def test_keyboard_discovery_includes_native_focusability_only_with_a_handler(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        cases = (('summary', '', True), ('area', 'href="details.html"', True), ('area', '', False),
+                 ('iframe', '', True), ('audio', 'controls', True), ('audio', '', False),
+                 ('video', 'controls', True), ('video', '', False), ('p', 'contenteditable', True),
+                 ('p', 'contenteditable="plaintext-only"', True), ('p', 'contenteditable="false"', False),
+                 ('p', 'contenteditable="FALSE"', False))
+        for tag, attributes, focusable in cases:
+            for handler in ('', 'onkeydown="activate()"', 'onfocus="observe()"'):
+                with self.subTest(tag=tag, attributes=attributes, handler=handler):
+                    widget = markup.replace('<a ', f'<{tag} {attributes} {handler} ').replace('</a>', f'</{tag}>')
+                    if tag == 'summary':
+                        widget = widget.replace('<summary ', '<details><summary ').replace('</summary>', '</summary></details>')
+                    elif tag == 'area':
+                        widget = widget.replace('>Home</area>', ' alt="Home">')
+                    expected = focusable and handler.startswith('onkeydown=')
+                    parser = ui._HiFiProductControls()
+                    parser.feed(widget)
+                    parser.close()
+                    self.assertEqual(expected, 'needs a navigation/control ID' in '\n'.join(parser.errors))
+                    findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
+                    if expected:
+                        self.assertIn('renders a product control', '\n'.join(findings))
+                    else:
+                        self.assertEqual([], findings)
+
     def test_all_interactive_roles_use_the_same_control_discovery(self):
         for role in ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
                      'slider', 'spinbutton', 'textbox', 'combobox'):

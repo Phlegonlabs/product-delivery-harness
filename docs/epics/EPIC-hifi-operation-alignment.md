@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: N2 (R7) repaired locally; scoped re-review pending; N1 resolved on reviewed 3c133d59
+Status: N3 (R7) implemented; not independently reviewed; pull-request review must cover is_product_control
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -75,6 +75,26 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+### Review history and N3 repair
+
+| Review | Exact head | Owner-reported result |
+| --- | --- | --- |
+| Initial independent review | `b0dab02a` | FAIL with blocking F1–F5. |
+| Targeted recheck | `ce5837da` | F1–F5 resolved; N1 blocking. |
+| Scoped re-review 1 | `3c133d59` | N1 resolved; N2 blocking. |
+| Scoped re-review 2 | `3d043588` | N1 stays resolved; N2 pointer escape resolved; N3 blocking. |
+
+The scoped re-review budget is spent (two runs).
+This N3 repair commit has had no independent review.
+The pull-request review must cover `is_product_control`.
+
+- N3 adds only the specified native focusability conditions to keyboard discovery; pointer, passive, native-tag and role rules stay unchanged.
+- Working-tree focused checks pass: 14 product-contract tests and 30 operation-alignment tests, both exit 0.
+- Both callers reject keyboard handlers on the specified focusable elements; plain summary and passive handlers remain accepted.
+- The earlier N1/N2 regression cases remain in the focused suite.
+- Final candidate commands, exits, hashes and platform skips live under `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-n3-repair-20261116-95cb20f1/`.
+- Use its `verification.md`, `commands.jsonl` and `final-candidate.json` for test evidence; those records do not constitute independent review.
+
 ### Isolated N2 repair of reviewed 3c133d59
 
 - The owner reports N1 resolved on `3c133d59` and replaces its reachability rule with the exact N2 pointer/keyboard distinction.
@@ -146,6 +166,8 @@ The handoff report records the final results without changing that tested SHA.
 
 ## Change Log
 
+- 2026-11-16: N3 (R7) repair: add native focusability to keyboard discovery and preserve plain summaries. No independent review; PR review must cover `is_product_control`.
+
 - 2026-11-16: N2 (R7) repair: separate unconditional pointer activation from focus-capable keyboard activation; keep passive handlers, native tags and roles unchanged.
 
 - 2026-11-16: N1 (R7) repair: require reachable activation handlers for custom-control discovery; preserve passive focus targets and native/ARIA controls.
@@ -216,12 +238,12 @@ The focused tests use the existing fixtures. A separate helper module would spli
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; second and last isolated handler repair, N2 attributed to R7
-Inputs consumed (path + hash or revision): reviewed 3c133d59; owner reports N1 resolved and supplies exact N2 rule; released main 9abe4b9e; specification 92cab19b
-Approvals in force (gate, owner, date, candidate): owner authorizes one local N2 repair commit with precommit UI/compiler/golden checks and final reruns; no delegation, publication, installation or version bump
-Done and verified (command, exit code): precommit focused 30/13, UI 640, compiler 240 and golden path 1 test, all exit 0; final candidate reruns and exits are in the N2 evidence directory above
-Remaining: scoped exact-head N2 re-review; consumer adoption and publication need their own owner decisions
-Blocked / waiting (gate name or owner decision): N2 scoped re-review pending; N1 resolved on 3c133d59; F1–F5 resolved on ce5837da
-Next action (one command or one owner decision): re-review N2 on the SHA recorded in the N2 final-candidate.json and verification.md
-Next owner (skill or human): independent read-only reviewer after the writer completes the final reruns
+Stage and skill: source maintenance; N3 repair attributed to R7, not independently reviewed
+Inputs consumed (path + hash or revision): reviewed 3d043588; owner reports N1 and N2 pointer escape resolved, N3 blocking; scoped budget spent; released main 9abe4b9e
+Approvals in force (gate, owner, date, candidate): owner authorizes one local N3 commit and affected checks; no delegation, push, PR, tag, installation or version bump
+Done and verified (command, exit code): working-tree focused product-contract 14 and operation-alignment 30 tests, exit 0; final candidate commands and exits are in the N3 evidence directory above
+Remaining: pull-request review must cover is_product_control; this N3 repair commit has had no independent review
+Blocked / waiting (gate name or owner decision): scoped re-review budget spent (two); independent review deferred to the pull-request review
+Next action (one command or one owner decision): at the separately authorized pull-request review, review is_product_control and the N3 regression cases on the recorded candidate SHA
+Next owner (skill or human): pull-request reviewer after the owner separately authorizes the PR
 ```
