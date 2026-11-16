@@ -536,6 +536,20 @@ class MergeCheckTests(unittest.TestCase):
             self.assertEqual(1, len(report["details"]["merge_tree_unavailable"]))
             self.assertIsNone(report["merge_command"])
 
+    def test_a_forbidden_file_changed_then_restored_is_still_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            integration, worker, base = _worker_fanout(temp)
+            _commit_worker_file(worker, "PLAN.md", "plan\n")
+            _git(worker, "rm", "--quiet", "PLAN.md")
+            _git(worker, "commit", "-qm", "worker removes PLAN.md again")
+            head = _commit_worker_file(worker, "src/feature.py", "feature\n")
+            self.assertEqual("src/feature.py", _git(worker, "diff", "--name-only", base, head))
+            code, report = run_merge_check(integration, base, "worker-1", ["src/**"])
+            self.assertEqual(1, code)
+            self.assertEqual(["out_of_scope", "parent_owned_file"], report["reasons"])
+            self.assertEqual(["PLAN.md", "src/feature.py"], report["changed_paths"])
+            self.assertIsNone(report["merge_command"])
+
     def test_two_failures_are_both_reported(self):
         with tempfile.TemporaryDirectory() as temp:
             integration, worker, base = _worker_fanout(temp)

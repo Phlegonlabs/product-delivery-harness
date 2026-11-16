@@ -118,6 +118,22 @@ def _changed_paths(root: Path, base: str, head: str) -> list[str]:
     return sorted(set(paths))
 
 
+def _touched_paths(root: Path, base: str, head: str) -> list[str]:
+    """Every path any commit in base..head touched.
+
+    The endpoint diff misses a file a worker changed in one commit and put back
+    in a later one, yet the merge still brings in both commits.
+    """
+
+    result = run_git(
+        root, "log", "--format=", "--name-only", "-z", "--no-renames",
+        "--diff-merges=first-parent", f"{base}..{head}",
+    )
+    if result.returncode != 0:
+        raise GitCommandError(f"cannot list touched paths: {result.stderr.strip()}")
+    return sorted({item.strip() for item in result.stdout.split("\0") if item.strip()})
+
+
 def _whitespace_problems(root: Path, base: str, head: str) -> list[str]:
     result = run_git(root, "diff", "--check", f"{base}..{head}")
     if result.returncode == 0 and not result.stdout.strip():
@@ -290,8 +306,9 @@ def build_merge_report(
     if tracked_changes:
         note("integration_checkout_dirty", tracked_changes)
 
-    paths = _changed_paths(repo_root, base, head)
-    collisions = _untracked_collisions(repo_root, paths)
+    incoming = _changed_paths(repo_root, base, head)
+    paths = sorted(set(incoming) | set(_touched_paths(repo_root, base, head)))
+    collisions = _untracked_collisions(repo_root, incoming)
     if collisions:
         note("untracked_collision", collisions)
     outside = []
