@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-ui-motion-and-libraries](epics/EPIC-ui-motion-and-libraries.md)
+Current Epic: [EPIC-parallel-delivery](epics/EPIC-parallel-delivery.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
