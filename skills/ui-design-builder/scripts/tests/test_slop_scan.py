@@ -11,6 +11,7 @@ import sys
 import tempfile
 import time
 import unittest
+from unittest import mock
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "slop-scan"
@@ -23,6 +24,7 @@ ROCKET = chr(0x1F680)
 CHECK = chr(0x2713)
 HEART = chr(0x2764)
 VS16 = chr(0xFE0F)
+FIRE = chr(0x1F525)
 SHADOW = "box-shadow:0 2px 8px rgba(0,0,0,.1)"
 # One page that fires every pattern the scanner can emit.
 EVERYTHING = (
@@ -31,10 +33,8 @@ EVERYTHING = (
     ".a,.b,.c{border-radius:16px;box-shadow:0 2px 8px rgba(0,0,0,.1)}"
     ".hero{background:var(--g);-webkit-background-clip:text;backdrop-filter:blur(10px);"
     "box-shadow:0 10px 40px rgba(124,58,237,.4)}"
-    ".grid{display:grid;grid-template-columns:repeat(4,1fr)}.tag{border-radius:9999px}</style>"
-    "<h2>" + ROCKET + " Title</h2><span class=tag>1</span><span class=tag>2</span><span class=tag>3</span>"
+    ".grid{display:grid;grid-template-columns:repeat(4,1fr)}</style><h2>" + ROCKET + " Title</h2>"
 )
-TAGS = "<span class=tag>1</span><span class=tag>2</span><span class=tag>3</span>"
 
 
 def page(style="", body=""):
@@ -74,6 +74,7 @@ class PatternTests(Asserts):
                     "code{font-family:monospace}", "body{font:16px/1.5 Georgia,serif}"):
             self.assertNoHit("default-sans", page(css))
         self.assertNoHit("default-sans", page(body='<a style="font-family:Inter">x</a>'))
+        self.assertHit("default-sans", page("body{font-family:Inter}.a{--x:1}"))
 
     def test_purple_gradient(self):
         for css in ("a{background:linear-gradient(135deg,#7c3aed,#4f46e5)}",
@@ -81,11 +82,14 @@ class PatternTests(Asserts):
                     "a{background-image:radial-gradient(circle,hsl(270 70% 50%),#fff)}",
                     "a{background:repeating-linear-gradient(#7c3aed,#fff 4px)}",
                     ":root{--g:linear-gradient(#7c3aed,#fff)}a{background:var(--g)}",
-                    ":root{--p:#8b5cf6}a{background:linear-gradient(var(--p),#fff)}"):
+                    ":root{--p:#8b5cf6}a{background:linear-gradient(var(--p),#fff)}",
+                    ".x{--tone:#7c3aed;background:linear-gradient(var(--tone),#fff)}",
+                    "a{background:#fff,linear-gradient(#7c3aed,#fff)}"):
             self.assertHit("purple-gradient", page(css))
         for css in ("a{background:linear-gradient(#0b6e4f,#e8f5ee)}", "a{background:linear-gradient(#777,#888)}",
                     "a{background:linear-gradient(#0ea5e9,#2563eb)}",
-                    "a{background:#7c3aed}", ":root{--g:linear-gradient(#7c3aed,#fff)}"):
+                    "a{background:#7c3aed}", ":root{--g:linear-gradient(#7c3aed,#fff)}",
+                    "a{background:linear-gradient(#fff,#eee),#7c3aed}"):
             self.assertNoHit("purple-gradient", page(css))
 
     def test_gradient_text(self):
@@ -140,16 +144,6 @@ class PatternTests(Asserts):
             self.assertNoHit("emoji-ui", page(body=body % ROCKET if "%s" in body else body))
         self.assertNoHit("emoji-ui", page(body="<script>var x = '" + ROCKET + "'</script><h2>Fast</h2>"))
 
-    def test_pill_badge_row(self):
-        self.assertEqual(3, ids(page(".tag{border-radius:999px}", TAGS))["pill-badge-row"]["count"])
-        self.assertHit("pill-badge-row", page(".tag{border-radius:100vmax}", TAGS))
-        self.assertHit("pill-badge-row", page(".tag{border-radius:50rem}", TAGS))
-        self.assertHit("pill-badge-row", page(body="<i style='border-radius:9999px'>1</i>" * 3))
-        self.assertNoHit("pill-badge-row", page(".tag{border-radius:999px}", TAGS[:-len("<span class=tag>3</span>")]))
-        self.assertNoHit("pill-badge-row", page(".tag{border-radius:8px}", TAGS))
-        self.assertNoHit("pill-badge-row", page("button{border-radius:999px}", "<button>1</button>" * 3))
-        self.assertNoHit("pill-badge-row", page(".pill{border-radius:999px}", "<a class='pill btn'>x</a>" * 3))
-
     def test_neutral_pages_have_no_hits(self):
         html = (FIXTURES / "neutral.html").read_text(encoding="utf-8")
         self.assertEqual({}, ids(html))
@@ -171,13 +165,18 @@ class ContractTests(Asserts):
         note, _, patterns = out.partition("\n\n")
         self.assertEqual(0, code)
         self.assertTrue(note.startswith("Reads:"))
-        for phrase in ("style attributes", "External sheets", "Named colors", "oklch", "rad or turn", ":root, html or body",
-                       "Misses are expected"):
+        for phrase in ("style attributes", "External sheets", "Named colors", "oklch", "rad or turn",
+                       "var(--x) is replaced once, from the same rule or from :root, html or body; a value that still "
+                       "contains var() after that is not read.", "last compound", "No selector is matched against elements",
+                       "unclosed", "shell", "Misses are expected"):
             self.assertIn(phrase, note)
         for pattern in slop_scan.PATTERNS:
             self.assertIn(pattern + ": ", patterns)
             self.assertNotIn(pattern, note)
         self.assertIn("Reads:", slop_scan.__doc__)
+        self.assertNotIn("million", note)
+        self.assertEqual(9, len(slop_scan.PATTERNS))
+        self.assertNotIn("pill-badge-row", slop_scan.PATTERNS)
 
     def test_named_colors_and_other_color_functions_are_not_read(self):
         for css in ("a{background:linear-gradient(purple,blue)}", "a{background:linear-gradient(rebeccapurple,#fff)}",
@@ -235,6 +234,17 @@ class CssTokenizerTests(Asserts):
                     "body{font-family:Inter}a{color:red", "body{font-family:Inter}@media all{a{color:red}"):
             self.assertEqual("body", slop_scan.css_rules(css)[0][0], css)
 
+    def test_an_escaped_quote_does_not_end_a_string_in_a_declaration(self):
+        for css in (r'p{content:"a\"; font-family:Arial; x: \"";color:#000}',
+                    r"p{content:'a\'; font-family:Roboto; x: \'';color:#000}",
+                    r'p{content:"x\";font:16px Inter;\"";color:#000}'):
+            self.assertNoHit("default-sans", page(css))
+        self.assertEqual(["content", "color"],
+                         [name for name, _ in slop_scan.declarations(r'content:"a\"; b: \"";color:#000')])
+        self.assertHit("default-sans", page(r'p{content:"a\\";font-family:Arial}'))
+        self.assertEqual(["a", "b"], slop_scan.split_top("a;b", ";"))
+        self.assertEqual([r"x\;y"], slop_scan.split_top(r"x\;y", ";"))
+
     def test_nesting_deeper_than_64_raises(self):
         with self.assertRaises(ValueError):
             slop_scan.css_rules("@media all{" * 65)
@@ -271,27 +281,51 @@ class ReviewerShellTests(Asserts):
         self.assertEqual({}, ids(page(body=self.TRIGGERS)))
         self.assertIn("emoji-ui", ids(page(body=planted + "<h1>" + ROCKET + " Product</h1>")))
 
-    def test_uppercase_aside_and_style_are_ignored(self):
-        aside = "<ASIDE data-hifi-reviewer-shell><H2>" + ROCKET + " Review</H2></ASIDE>"
-        style = "<STYLE data-hifi-reviewer-css>body{font-family:Inter}</STYLE>"
-        self.assertEqual({}, ids(page(body=aside)))
-        self.assertEqual({}, ids("<!doctype html><html><head>" + style + "</head><body></body></html>"))
-        self.assertEqual({}, ids(page(body="<!-- REVIEWER:START -->" + self.TRIGGERS + "<!-- REVIEWER:END -->")))
+    def test_uppercase_and_spaced_markup_is_ignored(self):
+        for body in ("<style DATA-DIRECTION-REVIEWER-CSS>p{font-family:Arial}</style >",
+                     '<aside title=">" data-hifi-reviewer-shell><h3>' + FIRE + "</h3></aside>",
+                     "<ASIDE data-hifi-reviewer-shell><H2>" + ROCKET + " Review</H2></ASIDE>",
+                     "<STYLE data-hifi-reviewer-css>body{font-family:Inter}</STYLE>",
+                     "<style data-hifi-reviewer-css>p{font-family:Arial}</STYLE >",
+                     "<!-- REVIEWER:START -->" + self.TRIGGERS + "<!-- REVIEWER:END -->",
+                     "<!--   hifi-reviewer:runtime:start-->" + self.TRIGGERS + "<!--hifi-reviewer:runtime:end   -->"):
+            self.assertEqual({}, ids(page(body=body)), body)
+        self.assertEqual({}, ids("<!doctype html><html><head><STYLE data-hifi-reviewer-css>body{font-family:Inter}"
+                                 "</STYLE></head><body></body></html>"))
 
-    def test_an_unmatched_start_marker_strips_nothing_further(self):
-        for opening in ("<!-- reviewer:start -->", "<aside data-hifi-reviewer-shell>"):
-            self.assertIn("emoji-ui", ids(page(body=opening + "<h1>" + ROCKET + " Product</h1>")), opening)
-        unmatched = ("<style data-hifi-reviewer-css>body{font-family:Inter}",
-                     "<aside data-hifi-reviewer-shell><h1>" + ROCKET + " Product</h1>",
-                     "<!-- hifi-reviewer:css:start --><h1>" + ROCKET + " Product</h1>")
-        for text in unmatched:
-            self.assertEqual(text, slop_scan.strip_shell(text), text)
-            # A closed shell before it is still removed; the unmatched one and what follows stay.
-            closed = "<style data-hifi-reviewer-css>a{}</style><p>kept</p>"
-            self.assertEqual("<p>kept</p>" + text, slop_scan.strip_shell(closed + text), text)
-        # The parser never delivers the text of a style element that has no end tag, so an
-        # unclosed reviewer style cannot leak shell CSS into the scan.
-        self.assertEqual({}, ids("<html><head>" + unmatched[0]))
+    def test_a_shell_element_hides_everything_inside_until_it_closes(self):
+        inside = ("<h2 style='font-family:Inter'>" + ROCKET + "</h2><style>body{font-family:Inter}</style>"
+                  "<div><button>" + FIRE + "</button><i style='background:linear-gradient(#7c3aed,#fff)'></i></div>")
+        for opening, closing in (("<aside data-hifi-reviewer-shell>", "</aside>"),
+                                 ("<div data-reviewer-shell class=x>", "</div>"),
+                                 ("<section DATA-REVIEWER-SHELL>", "</section>")):
+            self.assertEqual({}, ids(page(body=opening + inside + closing)), opening)
+            self.assertEqual({"emoji-ui"}, set(ids(page(body=opening + inside + closing + "<h1>" + ROCKET + "</h1>"))))
+        nested = "<div data-reviewer-shell><div><div>" + inside + "</div></div></div>"
+        self.assertEqual({}, ids(page(body=nested)))
+        self.assertEqual({"emoji-ui"}, set(ids(page(body=nested + "<h1>" + ROCKET + "</h1>"))))
+
+    def test_a_void_shell_element_hides_only_itself(self):
+        void = "<input data-reviewer-shell style='background:linear-gradient(#7c3aed,#fff)'>"
+        self.assertEqual({}, ids(page(body=void)))
+        after = "<i style='background:linear-gradient(#7c3aed,#fff)'></i>"
+        self.assertEqual(1, ids(page(body=void + after))["purple-gradient"]["count"])
+
+    def test_an_unmatched_start_hides_the_rest_of_the_page(self):
+        product = "<h1>" + ROCKET + " Product</h1>"
+        for opening in ("<!-- reviewer:start -->", "<aside data-hifi-reviewer-shell>", "<!-- hifi-reviewer:css:start -->",
+                        "<div data-reviewer-shell><p>"):
+            self.assertEqual({}, ids(page(body=opening + product)), opening)
+            self.assertIn("emoji-ui", ids(page(body=product + opening)), opening)
+        self.assertEqual({}, ids("<html><head><style data-hifi-reviewer-css>body{font-family:Inter}"))
+        # An end marker or end tag with no start hides nothing.
+        self.assertIn("emoji-ui", ids(page(body="<!-- reviewer:end --></aside>" + product)))
+
+    def test_marker_regions_end_at_their_own_end_marker(self):
+        product = "<h1>" + ROCKET + " Product</h1>"
+        region = "<!-- hifi-reviewer:css:start -->" + self.TRIGGERS
+        self.assertEqual({}, ids(page(body=region + "<!-- reviewer:end -->" + product)))
+        self.assertIn("emoji-ui", ids(page(body=region + "<!-- hifi-reviewer:css:end -->" + product)))
 
     def test_shell_elements_only_hide_themselves(self):
         html = page("body{font-family:Inter}", self.TRIGGERS + "<h1>" + ROCKET + " Product</h1>")
@@ -319,62 +353,25 @@ class SubjectTests(Asserts):
         for selector in ("body .card", "main > p", "p", "body::before", ".card", "html .page", "*"):
             self.assertNoHit("beige-canvas", page(selector + "{background:#f5f0e8}"))
 
+    def test_classes_attributes_and_pseudo_classes_do_not_change_the_subject(self):
+        for selector in ("body[class='a b']", "html[lang]", "p:not(.x)", "h2:is(.a, .b)", "body#top.dark",
+                         "p[title=\"a b > c\"]", "h1:nth-child(2n+1)", "div p:not(:first-child)"):
+            self.assertHit("default-sans", page(selector + "{font-family:Inter}"))
+        for selector in (".card:not(p)", "div:not(body)", "[data-x=body]", ".a\\ p", ".\\31 p", "svg|p",
+                         "a:not(.x)::after", "p:before", "p:after", "p:first-letter", "p::selection", ":is(p)",
+                         "div > :where(body)"):
+            self.assertNoHit("default-sans", page(selector + "{font-family:Inter}"))
+
+    def test_subject_names(self):
+        self.assertEqual({"body", "p", ":root"}, slop_scan.subjects("a body, b > P:hover, .x :root"))
+        self.assertEqual({"*"}, slop_scan.subjects("*"))
+        self.assertEqual({"html", ":root"}, slop_scan.subjects("html:root"))
+        self.assertEqual(set(), slop_scan.subjects(".card, p::before, [x]"))
+
     def test_inline_styles_belong_to_their_own_element(self):
         self.assertHit("beige-canvas", "<html style='background:#f5f0e8'><body></body></html>")
         self.assertHit("default-sans", "<h2 style='font-family:Inter'>x</h2>")
         self.assertNoHit("beige-canvas", page(body="<div style='background:#f5f0e8'></div>"))
-
-
-class ElementMatchTests(Asserts):
-    def pills(self, selector, body, radius="999px"):
-        return ids(page("%s{border-radius:%s}" % (selector, radius), body)).get("pill-badge-row", {}).get("count", 0)
-
-    def test_an_absent_ancestor_means_no_match(self):
-        self.assertEqual(0, self.pills(".never-present .tag", TAGS))
-
-    def test_a_present_ancestor_matches(self):
-        self.assertEqual(3, self.pills(".row .tag", "<div class=row>" + TAGS + "</div>"))
-        self.assertEqual(3, self.pills(".row > .tag", "<div class=row><p>" + TAGS + "</p></div>"))
-
-    def test_ancestors_match_in_order(self):
-        outer_first = "<div class=outer><div class=inner>" + TAGS + "</div></div>"
-        inner_first = "<div class=inner><div class=outer>" + TAGS + "</div></div>"
-        self.assertEqual(3, self.pills(".outer .inner .tag", outer_first))
-        self.assertEqual(0, self.pills(".outer .inner .tag", inner_first))
-
-    def test_attribute_presence_and_equality(self):
-        badges = "<i data-badge>1</i><i data-badge>2</i><i data-badge>3</i>"
-        self.assertEqual(3, self.pills("[data-badge]", badges))
-        kinds = '<i data-kind="tag">1</i><i data-kind="tag">2</i><i data-kind="tag">3</i>'
-        self.assertEqual(3, self.pills('[data-kind="tag"]', kinds))
-        self.assertEqual(3, self.pills("[data-kind=tag]", kinds))
-        self.assertEqual(3, self.pills("i[data-kind='tag']", kinds))
-        self.assertEqual(0, self.pills('[data-kind="x"]', kinds.replace("tag", "y")))
-        self.assertEqual(0, self.pills("[data-missing]", badges))
-
-    def test_sibling_combinators_match_the_subject_only(self):
-        self.assertEqual(3, self.pills(".absent + .tag", TAGS))
-        self.assertEqual(3, self.pills(".absent ~ .tag", TAGS))
-
-    def test_a_pseudo_element_subject_matches_nothing(self):
-        self.assertEqual(0, self.pills(".tag::before", TAGS))
-        self.assertEqual(0, self.pills(".tag:after", TAGS))
-        self.assertEqual(3, self.pills(".tag:hover", TAGS))
-
-    def test_tags_ids_and_classes_together(self):
-        self.assertEqual(3, self.pills("span.tag", TAGS))
-        self.assertEqual(0, self.pills("div.tag", TAGS))
-        self.assertEqual(0, self.pills(".tag.big", TAGS))
-        self.assertEqual(3, self.pills("#a, #b, #c", "<i id=a>1</i><i id=b>2</i><i id=c>3</i>"))
-
-    def test_buttons_stay_exempt(self):
-        self.assertEqual(0, self.pills("button", "<button>1</button>" * 3))
-        self.assertEqual(0, self.pills("[data-badge]", "<i data-badge role=button>1</i>" * 3))
-        self.assertEqual(0, self.pills(".row .tag", "<div class=row>" + "<span class='tag btn'>1</span>" * 3 + "</div>"))
-
-    def test_unreadable_selectors_match_nothing(self):
-        self.assertEqual(0, self.pills('[class*="tag"]', TAGS))
-        self.assertEqual(0, self.pills("&.tag", TAGS))
 
 
 class CustomPropertyTests(Asserts):
@@ -383,20 +380,26 @@ class CustomPropertyTests(Asserts):
         self.assertNoHit("purple-gradient", page(".a{--Tone:#7c3aed;background:linear-gradient(var(--tone),#fff)}"))
         self.assertHit("purple-gradient", page(".a{--tone:#7c3aed;BACKGROUND:linear-gradient(var(--tone),#fff)}"))
 
-    def test_chains_resolve(self):
-        css = ":root{--a:var(--b);--b:var(--c);--c:#7c3aed}.x{background:linear-gradient(var(--a),#fff)}"
-        self.assertHit("purple-gradient", page(css))
+    def test_a_chain_is_not_read(self):
+        for css in (":root{--a:var(--b);--b:#00aa00} .x{--b:#6600ff;background:linear-gradient(var(--a),#fff)}",
+                    ":root{--a:var(--b);--b:#7c3aed}.x{background:linear-gradient(var(--a),#fff)}",
+                    ":root{--a:var(--b);--b:var(--c);--c:#7c3aed}.x{background:linear-gradient(var(--a),#fff)}",
+                    ".x{--a:var(--b);--b:#7c3aed;background:linear-gradient(var(--a),#fff)}"):
+            self.assertNoHit("purple-gradient", page(css))
 
     def test_a_cycle_ends_without_a_hit_or_an_error(self):
-        css = ".x{--a:var(--b);--b:var(--a);background:linear-gradient(var(--a),#fff)}"
-        self.assertNoHit("purple-gradient", page(css))
-        self.assertNoHit("purple-gradient", page(":root{--a:var(--a)}.x{background:linear-gradient(var(--a),#fff)}"))
+        for css in (".x{--a:var(--b);--b:var(--a);background:linear-gradient(var(--a),#fff)}",
+                    ":root{--a:var(--a)}.x{background:linear-gradient(var(--a),#fff)}",
+                    ".x{--a:var(--a,#6600ff);background:linear-gradient(var(--a),#fff)}"):
+            self.assertNoHit("purple-gradient", page(css))
 
-    def test_the_fallback_applies_when_the_variable_is_unknown(self):
-        css = ".card{--tone:#7c3aed}.other{background:linear-gradient(var(--tone,#0b6e4f),#fff)}"
-        self.assertNoHit("purple-gradient", page(css))
-        self.assertHit("purple-gradient", page(".x{background:linear-gradient(var(--none,#7c3aed),#fff)}"))
-        self.assertHit("purple-gradient", page(".x{background:linear-gradient(var(--a,var(--b,#7c3aed)),#fff)}"))
+    def test_the_fallback_is_never_used(self):
+        for css in (".card{--tone:#7c3aed}.other{background:linear-gradient(var(--tone,#0b6e4f),#fff)}",
+                    ".x{background:linear-gradient(var(--none,#7c3aed),#fff)}",
+                    ".x{background:linear-gradient(var(--a,var(--b,#7c3aed)),#fff)}",
+                    ".x{background:linear-gradient(var(--a, rgb(124,58,237)),#fff)}"):
+            self.assertNoHit("purple-gradient", page(css))
+        self.assertHit("purple-gradient", page(".x{--a:#7c3aed;background:linear-gradient(var(--a,#0b6e4f),#fff)}"))
 
     def test_the_declaring_rule_resolves_its_own_variable(self):
         css = ".card{--tone:#7c3aed;background:linear-gradient(var(--tone),#fff)}"
@@ -409,10 +412,16 @@ class CustomPropertyTests(Asserts):
         self.assertNoHit("purple-gradient", page(css))
 
     def test_html_and_body_rules_also_supply_variables(self):
-        for subject in ("html", "body", ":root"):
+        for subject in ("html", "body", ":root", "html.dark", "body:not(.x)"):
             css = subject + "{--tone:#7c3aed}.x{background:linear-gradient(var(--tone),#fff)}"
             self.assertHit("purple-gradient", page(css))
-        self.assertNoHit("purple-gradient", page(".card{--tone:#7c3aed}.x{background:linear-gradient(var(--tone),#fff)}"))
+        for subject in (".card", "body .card", "html::before"):
+            css = subject + "{--tone:#7c3aed}.x{background:linear-gradient(var(--tone),#fff)}"
+            self.assertNoHit("purple-gradient", page(css))
+
+    def test_a_very_long_declared_value_is_left_as_var(self):
+        css = ".a{--v:" + "#7c3aed," * 200 + "#7c3aed;background:linear-gradient(var(--v),#fff)}"
+        self.assertNoHit("purple-gradient", page(css))
 
 
 class FontShorthandTests(Asserts):
@@ -428,7 +437,11 @@ class FontShorthandTests(Asserts):
         for value in ("large Inter", "Inter", "menu"):
             self.assertNoHit("default-sans", page("body{font:%s}" % value))
 
-    def test_a_long_value_is_skipped(self):
+    def test_a_long_fallback_list_still_gives_the_hit(self):
+        fallbacks = ",".join("Fallback%d" % number for number in range(50))
+        self.assertHit("default-sans", page("body{font:16px Arial," + fallbacks + "}"))
+        self.assertHit("default-sans", page("body{font:16px/1.5 Arial," + fallbacks * 20 + "}"))
+        self.assertNoHit("default-sans", page("body{font:16px Georgia,Arial," + fallbacks + "}"))
         self.assertNoHit("default-sans", page("body{font:16px " + "x" * 600 + ",Inter}"))
 
 
@@ -443,12 +456,11 @@ class KeywordCaseTests(Asserts):
         self.assertHit("equal-feature-tiles", page("a{GRID-TEMPLATE-COLUMNS:REPEAT(3,1FR)}"))
         self.assertHit("default-sans", page("body{FONT-FAMILY:INTER}"))
         self.assertHit("default-sans", page("body{FONT:16PX/1.5 ARIAL}"))
-        self.assertHit("pill-badge-row", page(".tag{BORDER-RADIUS:999PX}", TAGS))
-        self.assertHit("pill-badge-row", page(".tag{border-radius:100VMAX}", TAGS))
+        self.assertEqual(3, ids(page("".join(".c%d{BORDER-RADIUS:16PX;%s}" % (n, SHADOW.upper()) for n in range(3))))[
+            "uniform-rounded-cards"]["count"])
         self.assertHit("purple-gradient", page(".a{--c:#7C3AED;background:LINEAR-GRADIENT(VAR(--c),#FFF)}"))
 
     def test_uppercase_class_names_stay_case_sensitive(self):
-        self.assertEqual({}, ids(page(".Tag{border-radius:999px}", TAGS)))
         self.assertEqual({}, ids(page(".a{--Tone:#7c3aed}.a{background:linear-gradient(var(--TONE),#fff)}")))
 
 
@@ -456,9 +468,6 @@ class RadiusTests(Asserts):
     def cards(self, *values):
         sheet = "".join(".c%d{border-radius:%s;%s}" % (index, value, SHADOW) for index, value in enumerate(values))
         return ids(page(sheet)).get("uniform-rounded-cards", {}).get("count", 0)
-
-    def pills(self, value, count=3):
-        return ids(page(".tag{border-radius:%s}" % value, TAGS[:count * len("<span class=tag>1</span>")]))
 
     def test_mixed_zero_or_percent_components_are_not_cards(self):
         self.assertEqual(0, self.cards("16px 0", "16px 0", "16px 0"))
@@ -478,34 +487,31 @@ class RadiusTests(Asserts):
         self.assertEqual(0, self.cards("16px / 40px", "16px / 40px", "16px / 40px"))
         self.assertEqual(0, self.cards("16px / 1 / 2", "16px / 1 / 2", "16px / 1 / 2"))
 
-    def test_pill_needs_every_component_at_its_threshold(self):
-        self.assertNotIn("pill-badge-row", self.pills("999px 0"))
-        self.assertNotIn("pill-badge-row", self.pills("999px 50%"))
-        self.assertNotIn("pill-badge-row", self.pills("50%"))
-        self.assertNotIn("pill-badge-row", self.pills("0"))
-        self.assertNotIn("pill-badge-row", self.pills("998px"))
-        self.assertNotIn("pill-badge-row", self.pills("999px / 20px"))
-        self.assertIn("pill-badge-row", self.pills("999px"))
-        self.assertIn("pill-badge-row", self.pills("9999px 9999px"))
-        self.assertIn("pill-badge-row", self.pills("999px 999px 999px 999px / 999px"))
-        self.assertIn("pill-badge-row", self.pills("50em"))
+    def test_viewport_units_are_not_lengths(self):
+        self.assertIsNone(slop_scan.radius("16vmax"))
+        self.assertEqual(0, self.cards("16vmax", "16vmax", "16vmax"))
+        self.assertEqual([(16.0, "px")] * 8, slop_scan.radius("16px"))
 
 
 class EmojiTests(Asserts):
     def test_default_emoji_hit_in_a_button_or_heading(self):
-        for glyph in (chr(0x23F0), chr(0x2728), ROCKET, HEART + VS16, chr(0x2705), chr(0x26A1), chr(0x2B50), chr(0x1F000)):
+        for glyph in (chr(0x23F0), chr(0x2728), ROCKET, HEART + VS16, chr(0x2705), chr(0x26A1), chr(0x2B50), chr(0x1F004),
+                      chr(0x231B), chr(0x267F), FIRE, chr(0x1F1E6), chr(0x1F9FF), chr(0x1FAF6)):
             self.assertHit("emoji-ui", page(body="<button>%s Go</button>" % glyph))
             self.assertHit("emoji-ui", page(body="<h2>Go %s</h2>" % glyph))
 
     def test_plain_text_glyphs_do_not_hit(self):
         for glyph in (chr(0x2715), chr(0x2630), CHECK, chr(0x2605), chr(0x2192), chr(0xA9), HEART, chr(0x2B06),
-                      chr(0x25B6), chr(0x2026)):
+                      chr(0x25B6), chr(0x2026), chr(0x1F100), chr(0x1F700), chr(0x1F000), chr(0x1F0A0), chr(0x1F200),
+                      chr(0x1F900), chr(0x1FB00), chr(0x1F321), chr(0x1F6C6)):
             self.assertNoHit("emoji-ui", page(body="<button>%s Go</button><h2>%s Title</h2>" % (glyph, glyph)))
 
     def test_a_bare_heart_hits_only_with_the_variation_selector(self):
         self.assertNoHit("emoji-ui", page(body="<h2>" + HEART + "</h2>"))
         self.assertHit("emoji-ui", page(body="<h2>" + HEART + VS16 + "</h2>"))
         self.assertHit("emoji-ui", page(body="<h2>" + CHECK + VS16 + "</h2>"))
+        self.assertHit("emoji-ui", page(body="<h2>" + chr(0x1F100) + VS16 + "</h2>"))
+        self.assertNoHit("emoji-ui", page(body="<h2>" + VS16 + "</h2>x"))
 
 
 class AllowAndClusterTests(unittest.TestCase):
@@ -560,7 +566,7 @@ class TimeBoundTests(unittest.TestCase):
 
     def test_many_unmatched_reviewer_start_markers_finish(self):
         for opening in ("<!-- reviewer:start -->", "<!-- hifi-reviewer:css:start -->", "<aside data-hifi-reviewer-shell>"):
-            self.assertIn("default-sans", self.hits(opening * 20_000 + page("body{font-family:Inter}")), opening)
+            self.assertEqual(set(), self.hits(opening * 20_000 + page("body{font-family:Inter}")), opening)
         for opening in ("<style ", "<aside ", "<style data-hifi-reviewer-css "):
             self.hits(opening * 20_000 + page("body{font-family:Inter}"))
 
@@ -576,9 +582,31 @@ class TimeBoundTests(unittest.TestCase):
         css = "@font-face{src:url(data:font/woff2;base64," + "AAAA" * 750_000 + ")}body{font-family:Inter}"
         self.assertEqual({"default-sans"}, self.hits(page(css)))
 
-    def test_many_pill_rules_on_many_elements_finish(self):
-        sheet = "".join(".a%d{border-radius:999px}" % number for number in range(4000))
-        self.assertEqual({"pill-badge-row"}, self.hits(page(sheet, "<i class=a1></i>" * 4000)))
+    def test_a_huge_compound_and_many_elements_finish(self):
+        css = ".x" * 32000 + "{border-radius:16px;box-shadow:0 1px 2px #000}"
+        self.assertEqual(set(), self.hits(page(css)))
+        self.assertEqual(set(), self.hits(page(css, "<i class=x></i>" * 32000)))
+        for selector in ("p" + "[a]" * 20_000, "p" + ":not(" * 20_000, "p" + "\\" * 20_000, "p" + ".a b" * 20_000,
+                         "p" + '"' * 20_000):
+            self.hits(page(selector + "{font-family:Inter}"))
+        self.assertEqual({"default-sans"}, self.hits(page(("a b " * 20_000) + ",p{font-family:Inter}")))
+
+    def test_many_rules_with_many_subjects_finish(self):
+        sheet = "".join("body .a%d,p .b%d{font-family:Inter}" % (number, number) for number in range(20_000))
+        self.assertEqual(set(), self.hits(page(sheet)))
+        sheet = "".join("a%d,p{font-family:Inter}" % number for number in range(20_000))
+        self.assertEqual({"default-sans"}, self.hits(page(sheet)))
+
+    def test_var_cannot_multiply_a_long_value(self):
+        sheet = ".a{--v:" + "x" * 100_000 + ";background:" + "var(--v)" * 20_000 + "}"
+        self.assertEqual(set(), self.hits(page(sheet)))
+
+    def test_long_numbers_finish(self):
+        for css in ("a{border-radius:" + "9" * 100_000 + "px}", "a{box-shadow:0 0 " + "9" * 100_000 + "px #7c3aed}",
+                    "a{background:linear-gradient(hsl(" + "9" * 100_000 + " 50% 50%),#fff)}",
+                    "body{font:" + "1 " * 100_000 + "x}"):
+            self.hits(page(css))
+        self.assertEqual({"default-sans"}, self.hits(page("body{font:" + "9" * 100_000 + "px Arial}")))
 
     def test_many_root_variables_and_rules_finish(self):
         sheet = ":root{" + "".join("--v%d:1;" % number for number in range(20_000)) + "}"
@@ -626,6 +654,31 @@ class NeverCrashTests(TempRootCase):
         self.assertEqual("", result.stdout)
         self.assertEqual(1, len(result.stderr.strip().splitlines()), result.stderr)
         self.assertNotIn("Traceback", result.stderr)
+
+    def test_an_internal_error_exits_two_with_one_line(self):
+        page_path = self.write("docs/p.html", page())
+        for error in (RuntimeError("boom"), RecursionError(), TypeError("x"), MemoryError()):
+            with mock.patch.object(slop_scan, "scan_html", side_effect=error):
+                code, out, err = self.scan("--page", page_path)
+            self.assertEqual((2, ""), (code, out))
+            self.assertEqual("slop scan blocked: internal error: %s\n" % type(error).__name__, err)
+
+    def test_out_of_range_and_huge_numbers_are_no_color_and_no_error(self):
+        for css in ("a{background:linear-gradient(hsl(270 100000000000000000000% 50%),#fff)}",
+                    "a{background:linear-gradient(hsl(270 50% 100000000000000000000%),#fff)}",
+                    "a{background:linear-gradient(hsl(270 150% 50%),#fff)}",
+                    "a{background:linear-gradient(hsl(270 -5% 50%),#fff)}",
+                    "a{background:linear-gradient(hsl(1e5 50% 50%),#fff)}",
+                    "a{background:linear-gradient(hsl(" + "9" * 400 + " 50% 50%),#fff)}",
+                    "a{box-shadow:0 0 1e999px #7c3aed}", "a{box-shadow:0 0 " + "9" * 400 + "px #7c3aed}",
+                    "a{border-radius:1e999px}", "a{font:1e999px Arial}"):
+            code, out, err = self.scan_text(page(css))
+            self.assertEqual((0, ""), (code, err), css)
+            self.assertEqual([], json.loads(out)["pages"][0]["hits"], css)
+        self.assertEqual([], slop_scan.colors("hsl(270 100000000000000000000% 50%)"))
+        self.assertEqual(1, len(slop_scan.colors("rgb(99999999999999999999 0 0)")))
+        self.assertEqual(1, len(slop_scan.colors("rgb(-5 0 300)")))
+        self.assertEqual(1, len(slop_scan.colors("hsl(270 100% 50%)")))
 
     def test_odd_inputs_never_raise(self):
         for html in ("", "<", "<style>", "<style></style>", "<div style=>", "<a style='x'>", "<h1>\x00</h1>",
@@ -677,6 +730,11 @@ class CommandTests(TempRootCase):
             self.assertEqual((2, ""), (code, out), bad)
             self.assertEqual(1, len(err.strip().splitlines()), bad)
         self.assertEqual(2, run("--repo-root", str(self.root))[0])
+
+    def test_the_removed_pill_pattern_is_an_unknown_id(self):
+        code, out, err = self.scan("--page", self.cluster, "--allow", "pill-badge-row")
+        self.assertEqual((2, ""), (code, out))
+        self.assertEqual("slop scan blocked: unknown pattern id: pill-badge-row\n", err)
 
     def test_linked_pages_are_rejected(self):
         link = self.root / "docs" / "link.html"
