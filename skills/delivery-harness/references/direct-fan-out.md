@@ -18,6 +18,8 @@ When one fails, keep one writer or route the work large. When one stops holding 
 
 Ask once per round for the bundle: sibling writers, one worktree and local branch per writer, local commits, and local integration into the work branch. An owner instruction to run the work in parallel or with several agents is that grant. It covers every part and every merge of the round. It never covers push, worktree removal or branch deletion.
 
+The work branch follows the ordinary branch rule and exists before launch. A writer branch is a runtime allocation, as in a managed wave: name it from the work branch and the part ID, check that the name is unused, and keep it local.
+
 ## Launch
 
 1. List the parts in the existing Epic or task record: ID, outcome, write scope, focused verifier. Create no other record.
@@ -31,9 +33,9 @@ Observed capacity bounds the number of parts. There is no fixed number.
 
 When a writer returns, the parent acts at once. It does not wait for the other parts or for the owner.
 
-1. Run `python "<delivery-harness-skill-root>/scripts/worktree_fanout.py" merge-check --repo-root <root> --base <sha> --head <branch> --worktree <worktree> --scope <claim>` from the work branch. Repeat `--scope` for each claim; add `--deny <claim>` for a path the writer must not touch. The check compares against `HEAD` of `<root>`.
+1. Run `python "<delivery-harness-skill-root>/scripts/worktree_fanout.py" merge-check --repo-root <root> --base <sha> --head <branch> --worktree <worktree> --scope <claim>` from the work branch. Repeat `--scope` for each claim; add `--deny <claim>` for a path the writer must not touch. The check compares against `HEAD` of `<root>` and writes nothing there.
 2. `mergeable: true` and a PASS in the writer's verifier output: run the printed merge command on the work branch, then rerun that part's focused verifier on the new head.
-3. `mergeable: false`: merge nothing, leave the worktree as it is, and keep the other parts running. Send the same writer back for `worktree_dirty`, `out_of_scope`, `denied_path`, `whitespace_error` or a failed verifier. `merge_conflict` means two scopes met in one file. The parent resolves it on the work branch when both sides only add, such as two new tests in one file; otherwise that writer redoes the part on the new head after the other parts have merged.
+3. `mergeable: false`: merge nothing, leave the worktree as it is, and keep the other parts running. Send the same writer back for `worktree_dirty`, `out_of_scope`, `denied_path`, `whitespace_error` or a failed verifier. `integration_checkout_dirty` and `untracked_collision` are the parent's own checkout: commit the tracked change, and ask the owner before moving or deleting an untracked or ignored file. `merge_conflict` means two scopes met in one file. The parent resolves it on the work branch when both sides only add, such as two new tests in one file; otherwise that writer redoes the part on the new head after the other parts have merged.
 4. A verifier that fails after the merge is repaired forward on the work branch by the same writer. Never reset the branch.
 
 This merge puts the part on the work branch. It is not a review PASS and not a landing on a protected branch.

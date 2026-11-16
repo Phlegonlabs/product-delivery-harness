@@ -2062,7 +2062,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for content in (skill, managed_owner, source_owner):
             self.assertIn("never add a fixed prefix", content.lower())
         self.assertIn("does not own shared state", adapters)
-        self.assertIn("ask before branch creation", skill.lower())
+        self.assertIn("ask before creating that branch", skill.lower())
         self.assertNotIn("- '**'", ci)
         self.assertNotIn("push:", ci)
         self.assertNotIn("- development", ci)
