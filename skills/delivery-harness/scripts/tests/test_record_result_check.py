@@ -7,6 +7,7 @@ import contextlib
 import copy
 import io
 import json
+import shlex
 import sys
 import tempfile
 import unittest
@@ -259,6 +260,21 @@ class RecordWorkerResultCheckTests(CheckCli):
         self.assertEqual(0, code, err)
         self.assertEqual("worker_failed", json.loads(out)["phase"])
         self.assertEqual("failed", load_run(self.run_path)["graph_state"]["node_states"]["N-M1"]["phase"])
+
+
+class DocumentedCheckTests(unittest.TestCase):
+    def test_record_results_card_commands_parse_with_the_real_parser(self) -> None:
+        cards = (SCRIPTS_DIR.parent / "references/stages/stage-cards.md").read_text(encoding="utf-8")
+        card = cards.split("## Card 5: Record Results", 1)[1].split("## Card 6", 1)[0]
+        lines = [line.strip() for line in card.splitlines()
+                 if line.strip().startswith("python ") and "/harness_transition.py" in line]
+        parsed = [harness_transition.build_parser().parse_args(shlex.split(line)[2:]) for line in lines]
+        checks = [args for args in parsed if getattr(args, "check", False)]
+        self.assertEqual(["record-worker-result"], [args.command for args in checks])
+        index = parsed.index(checks[0])
+        self.assertEqual("record-worker-result", parsed[index + 1].command)
+        self.assertFalse(parsed[index + 1].check)
+        self.assertIn("never to record as a worker failure", card)
 
 
 if __name__ == "__main__":
