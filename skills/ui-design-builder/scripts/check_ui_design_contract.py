@@ -1240,7 +1240,8 @@ class _HiFiSurfaceParser(HTMLParser):
 
 
 def _hifi_state_href(page: str, endpoint: dict[str, str]) -> str:
-    return page + "#hifi-state=" + quote(endpoint["surface"], safe="") + "/" + quote(endpoint["state"], safe="")
+    # Match the reviewer's encodeURIComponent, including its unescaped punctuation.
+    return page + "#hifi-state=" + quote(endpoint["surface"], safe="!'()*") + "/" + quote(endpoint["state"], safe="!'()*")
 
 
 class _HiFiProductControls(HTMLParser):
@@ -1522,7 +1523,7 @@ def _validate_hifi_html(
         def _record_url(self, tag: str, name: str, value: str) -> None:
             if (tag == "a" and name == "href" and local_pages is not None
                 and value.split("#", 1)[0] in local_pages
-                and re.fullmatch(r"[^#]+#hifi-state=[A-Za-z0-9_%.-]+/[A-Za-z0-9_%.-]+", value)):
+                and re.fullmatch(r"[^#]+#hifi-state=[A-Za-z0-9_%~.!*'()-]+/[A-Za-z0-9_%~.!*'()-]+", value)):
                 return
             if tag == "a" and name == "href" and local_pages is not None and (value in local_pages or ("index.html" in local_pages and value in {"index.html#overview", "index.html#design-tokens"})):
                 return

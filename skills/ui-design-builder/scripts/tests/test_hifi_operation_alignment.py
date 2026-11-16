@@ -1,5 +1,6 @@
 """PRD operations retain observable proof when HiFi accepts more product forms."""
 import copy
+from html import escape
 import json
 import re
 from pathlib import Path
@@ -243,6 +244,22 @@ class NotApplicableStateTests(unittest.TestCase):
 
 
 class CrossPageStateTests(unittest.TestCase):
+    def test_state_link_encoding_matches_the_reviewer_for_punctuation_and_unicode(self):
+        state = "saved (now)!*'~ / 已存"
+        href = checker._hifi_state_href("details.html", {"surface": "UI-002", "state": state})
+        self.assertEqual("details.html#hifi-state=UI-002/saved%20(now)!*'~%20%2F%20%E5%B7%B2%E5%AD%98", href)
+        with tempfile.TemporaryDirectory() as temporary:
+            path, manifest, _ = contract_tests.materialize_hifi_bundle(Path(temporary))
+            page_surfaces = [{k: v for k, v in manifest['surfaces'][0].items() if k != 'page'}]
+            legacy = '<script id="ui-hifi-manifest" type="application/json">' + json.dumps({
+                'schema': 'ui-hifi/1', 'surfaces': page_surfaces}) + '</script>'
+            html = checker.HIFI_MANIFEST_RE.sub(lambda _: legacy, path.read_text(encoding='utf-8'))
+            html = html.replace('data-navigation-id="next" href="details.html"',
+                                'data-navigation-id="next" href="' + escape(href, quote=True) + '"')
+            findings = []
+            checker._validate_hifi_html(html, findings, local_pages={'index.html', 'details.html'})
+            self.assertEqual([], findings)
+
     def test_cross_page_state_requires_every_anchor_to_name_the_exact_state(self):
         for href, tag, passes in (("details.html#hifi-state=UI-002/updated", "a", True),
                                   ("details.html", "a", False),
@@ -378,6 +395,23 @@ class OperationBrowserTests(unittest.TestCase):
                     expected, navigation = checker._interaction_expectations(capture.read_package(package).manifest)
                     self.assertEqual(expected[:4], [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
                     self.assertEqual(navigation[:4], output["navigation"])
+
+    def test_cross_page_state_supports_encoded_state_names(self):
+        state = "saved (now)!*'~ / 已存"
+        actions = copy.deepcopy(matrix_tests.INTERACTIONS)
+        actions[0].update(kind='state', destination={'surface': 'UI-002', 'state': state})
+        href = checker._hifi_state_href('details.html', actions[0]['destination'])
+        def edit_manifest(manifest):
+            manifest.update(interactions=actions)
+            manifest['surfaces'][1]['states'][-1] = state
+        def edit_page(html):
+            html = html.replace('href="details.html"', 'href="'+escape(href, quote=True)+'"')
+            return html.replace('data-hifi-state-view="error"', 'data-hifi-state-view="'+escape(state, quote=True)+'"')
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = matrix_tests.build_package(root, manifest_edit=edit_manifest, page_edit=edit_page)
+            code, text = self.run_main(self.playwright(), root, package, '--out', 'evidence', '--only', 'UI-001')
+            self.assertEqual(0, code, text)
 
     def test_repeated_rows_activate_the_first_visible_instance(self):
         for wrong, passes in ((False, True), (True, False)):

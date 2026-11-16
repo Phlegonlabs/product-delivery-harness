@@ -76,11 +76,13 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 ## Acceptance evidence
 
 - R10: all ten adoption rows name concrete evidence-package edits or unchanged fields. The package's 52 file hashes and PRD hash stayed unchanged.
-- Required checks: skill spec and changed-file pyflakes passed. Markdown anchor tests passed. Documentation weight increased by 766 words.
+- Required checks: skill spec and changed-file pyflakes passed. Markdown anchor tests passed. Documentation weight increased by 790 words.
 - Regression runs: UI suite 629 tests, exit 0, two Windows POSIX skips; Product Definition suite 467 tests, exit 0; golden path one test, exit 0.
 - Read-only package run: `--only UI-001,UI-004`, exit 1. All 48 screen cases and reviewer measurements passed; 150 of 216 interactions passed.
 - The 66 package interaction failures need adoption: 30 hidden/unmarked controls, 12 missing cross-page state links and 24 equal-endpoint state attempts.
-- The candidate's exact-head matrix result is retained at `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-alignment-fb0c2a53f419494daa967cb17a2a2b13/full-matrix/summary.txt`. Read that result before making an acceptance claim.
+- The full matrix command was not run. A preliminary Harness suite was cancelled after 687 seconds in Windows installer fixtures; its processes exited. No installed skills changed.
+- Final commands, exit codes and exact-head observations are retained under `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-alignment-fb0c2a53f419494daa967cb17a2a2b13/verification.md`.
+- R2 follow-up: seven state-focused tests passed, exit 0, including encoded Unicode and punctuation across two pages. Wrong links and equal-endpoint state actions still fail.
 
 - R6 follow-up: compiler suite passed 240 tests, exit 0, with two Windows platform skips. Both exact runtimes pass; altered runtime bytes fail.
 
@@ -103,6 +105,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: R2 follow-up aligns static state-link encoding with the reviewer's encodeURIComponent, including punctuation, slashes and non-ASCII state names.
 
 - 2026-11-16: R10 records per-requirement consumer edits and the unchanged-package diagnostic result. No consumer adoption, version bump or publication occurred.
 
@@ -161,9 +165,9 @@ Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operat
 Stage and skill: source maintenance; R1–R10 implementation and adoption note
 Inputs consumed (path + hash or revision): released main 9abe4b9e (v0.83.1); specification 92cab19b; unchanged consumer package and PRD identities above
 Approvals in force (gate, owner, date, candidate): owner 「Harness 工具落差走 A」 2026-11-16; this thread may implement and commit locally only
-Done and verified (command, exit code): focused checks and regression runs above; read-only consumer diagnostic exit 1; exact-head matrix result at the Acceptance evidence path
-Remaining: independent read-only review of the exact head; separately authorized release and consumer adoption
+Done and verified (command, exit code): focused checks and regression runs above; read-only consumer diagnostic exit 1; full matrix not run; final verification ledger at the Acceptance evidence path
+Remaining: full matrix verification; independent read-only review of the exact head; separately authorized release and consumer adoption
 Blocked / waiting (gate name or owner decision): consumer adoption remains pending with 66 diagnostic failures; push, PR, tag, version and installation actions are not authorized
-Next action (one command or one owner decision): reviewer reads the exact head and its matrix summary
+Next action (one command or one owner decision): reviewer reads the exact head and its verification ledger
 Next owner (skill or human): independent read-only reviewer
 ```
