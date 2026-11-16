@@ -12,6 +12,9 @@ import unittest
 
 SCRIPTS = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS))
+TESTS = Path(__file__).resolve().parent
+if str(TESTS) not in sys.path:
+    sys.path.insert(0, str(TESTS))
 
 import check_ui_contract  # noqa: E402
 import harness_transition  # noqa: E402
@@ -83,6 +86,51 @@ class DocumentedCommandTests(unittest.TestCase):
                     if f"/{script}" in value]
         self.assertTrue(examples, f"Missing executable {script} example in {reference}")
         return examples
+
+    def test_plan_width_examples_parse_and_documented_codes_match_the_script(self):
+        import plan_width
+        from manifest_fixtures import graph_node, mission, task, valid_plan
+
+        stage = (SCRIPTS.parent / "references/stages/managed-delivery.md").read_text(encoding="utf-8")
+        cards = (SCRIPTS.parent / "references/stages/stage-cards.md").read_text(encoding="utf-8")
+        inline = re.findall(r"`(python [^`]*plan_width\.py[^`]*)`", stage)
+        fenced = [line.strip() for line in cards.splitlines()
+                  if line.strip().startswith("python ") and "/plan_width.py" in line]
+        self.assertEqual(1, len(inline))
+        self.assertEqual(1, len(fenced))
+        for command in inline + fenced:
+            argv = shlex.split(command)
+            parsed = plan_width.build_parser().parse_args(argv[2:])
+            self.assertEqual(Path("<PLAN.md>"), parsed.plan)
+            self.assertFalse(parsed.json)
+
+        plan = valid_plan()
+        plan["missions"] = [
+            mission(f"M{index}", f"REQ-{index:03d}", f"src/{chr(96 + index)}/**",
+                    [task(f"M{index}", 1, f"REQ-{index:03d}", f"src/{chr(96 + index)}/one.py")])
+            for index in range(1, 6)
+        ]
+        for item in plan["missions"][2:]:
+            item["serialized_resources"] = ["db:primary"]
+        outcomes = ["pass", "retryable_failure", "blocked", "contract_gap"]
+        plan["graph"] = {
+            "entry_nodes": ["N-M1", "N-M2", "N-M4", "N-M5"],
+            "nodes": [graph_node(f"N-M{index}", "mission", f"M{index}", "runtime_worker", outcomes)
+                      for index in range(1, 6)],
+            "edges": [{
+                "id": "E-M1-M3", "kind": "dependency", "from": "N-M1", "to": "N-M3",
+                "on_outcomes": ["pass"], "max_traversals": None,
+            }],
+        }
+        plan["max_parallel_workers"] = 2
+        emitted = {finding["code"] for finding in plan_width.measure(plan)["findings"]}
+        documented = set(re.findall(
+            r"`([a-z_]+)`", re.search(r"findings \(([^)]*)\)", stage).group(1)))
+        self.assertEqual(
+            {"chain_without_conflict", "same_level_conflict",
+             "shared_exclusive_resource", "budget_below_width"},
+            emitted)
+        self.assertEqual(emitted, documented)
 
     def test_documented_review_skip_parses_without_state_mutation(self):
         examples = self.commands("verification-gates.md", "harness_transition.py")

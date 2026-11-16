@@ -46,7 +46,7 @@ Apply this only to large plan-backed work:
 
 1. Proactively inspect the current-session native tool surface, permission boundary, completion channel, worker slots, isolation, Git state, shared resources, host version, and loaded Harness version before the first launch. Include the Environment Preflight from `### 3. Pass Plan Readiness` in this inspection.
 2. Record observed capability independently from authorization. Missing authorization must never make an available driver disappear. Observe every advertised current driver before dispatch; unrelated surfaces need no inventory. A visual reviewer attaches a real browser and records its actual inspection. Parent-session access, a role label or a CLI flag does not prove that reviewer's capability.
-3. Do not cap `max_parallel_workers` at a small fixed number. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
+3. Do not cap `max_parallel_workers` at a small fixed number; leave the seeded 8 alone unless the owner or a real runtime limit asks for less. The effective budget is the minimum of configured maximum, observed slots, isolation capacity, and the dependency-ready conflict-free frontier.
 4. Before selection, record `observed.captured_at`, live Git facts, and `integration.batch_base_sha`. A green validator with empty `dispatchable_nodes` and `deferred_nodes` reasons `parent_state_unreconciled` or `batch_base_missing` means the live snapshot is incomplete; these are dispatch-time reasons, not an empty graph.
 5. Enable scheduler fan-out only when at least two dependency-ready, nonconflicting write missions have isolated workspaces and exact authorization. Never run parallel writers in `shared_checkout`.
 6. If no delegated driver is usable, only nodes without a mandatory delegate may use `sequential_parent` under `references/execution-state-model.md`. Required frontend and independent review nodes stay blocked until an eligible bound executor is available.
@@ -99,6 +99,8 @@ Apply the direct route's self-review handoff before managed readiness.
 
 Require frozen or explicitly `UNVALIDATED` inputs, concrete scope, a passed Mission Cohesion Gate, feature-batch missions with small fixed overhead and one bounded worker slice per task, one atomic commit boundary per executable task, a verifier for every mission, known conflicts, exact action authorization, and an executable provider for every runtime-worker node. Reject readiness when unrelated features are bundled, one task needs a catch-all commit, or a single-task mission has no Mission Cohesion Gate reason. Record each planned review point and the reason for each beyond one review plus one re-check. Executability covers the whole graph, not just the next node; each node's `allowed_providers` must include a host this delivery actually uses. An unavailable provider is a blocking readiness gap unless the user explicitly accepts deferral to another host. See `references/graph-orchestration.md`.
 
+Before marking readiness, run `python "<delivery-harness-skill-root>/scripts/plan_width.py" --plan <PLAN.md>` and read the report: parallel width, dependency levels, critical path, findings (`chain_without_conflict`, `same_level_conflict`, `shared_exclusive_resource`, `budget_below_width`), and conditional missions (route-only repairs that take no level and count toward no width). For each finding, fix the PLAN or write the one-line reason it stays in the PLAN's existing human notes. The tool reports; it adds no readiness field, gate, or approval. Width 1 is correct for a real chain; the planner can say why.
+
 Apply `references/gitignore-contract.md`'s task ownership and `write_scope` gate when applicable.
 
 #### Environment Preflight
@@ -107,7 +109,7 @@ Before the parent records `plan_readiness: ready`, it runs one bounded environme
 
 - Toolchain versions on PATH against the pins in `stack-decisions.md` (Node, Python, package manager, mobile SDK when declared).
 - The plan's declared verifier commands run once at the base as a baseline (install, typecheck, test), with exit codes.
-- Browser automation when the plan declares `ui_surfaces` or a `visual` lens: launch the pinned browser once and load one product route or a blank page. Record the console error policy the browser applies, for example which CSP directives it logs at error level. This lets the reviewer separate tooling noise from product defects.
+- Browser automation when the plan declares `ui_surfaces` or a `visual` lens: launch the pinned browser once and load one product route or a blank page. Record the console error policy the browser applies, for example which CSP directives it logs at error level, separating tooling noise from product defects.
 - The reviewer route reachable, with its observed caps (time, turns, bytes).
 - The worker driver observed with its slots.
 
@@ -121,10 +123,9 @@ After the version gate, run `python "<delivery-harness-skill-root>/scripts/harne
 
 New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
 
-Follow the verification ladder, Review Topology, finding triage and re-check scope in `references/verification-gates.md`; the author's focused verifier evidence gates each re-check reservation. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Under the `mvp` profile, Final UI Acceptance is part of the one combined review, and no separate visual node is planned. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
+Follow the verification ladder, Review Topology, finding triage and re-check scope in `references/verification-gates.md`; the author's focused verifier evidence gates each re-check reservation. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Under the `mvp` profile, Final UI Acceptance is part of the one combined review. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
 
-Host verifiers run fresh and serially per runner, with source/Git guards and exact execution evidence.
-Keep requests and results outside the reviewed checkout. There is no verifier result cache.
+Host verifiers run fresh and serially per runner; keep requests and results outside the reviewed checkout.
 Browser, migration, mutable-environment and network checks retain their separate routes and action authorization.
 UI artifacts under `docs/goal/evidence/` use lowercase SHA-256 and bind to the integration head.
 
