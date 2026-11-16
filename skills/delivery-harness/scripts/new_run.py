@@ -197,7 +197,7 @@ def build_run(plan: dict[str, Any], *, run_id: str, branch: str) -> dict[str, An
             "worker_runtime": "parent",
             "workspace_mode": "parent_managed_worktree",
             "completion_channel": "agent_result",
-            "max_parallel_workers": 1,
+            "max_parallel_workers": 8,
             "runtime_adapter": {
                 "provider": "generic",
                 "available_drivers": ["sequential_parent"],

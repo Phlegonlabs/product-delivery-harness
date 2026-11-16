@@ -259,6 +259,17 @@ class NewRunTests(unittest.TestCase):
             run["integration"]["coordination_paths"],
         )
 
+    def test_seeds_a_parallel_budget_of_eight_in_both_places(self) -> None:
+        self.assertEqual(8, self.plan["max_parallel_workers"])
+
+        run = new_run.build_run(self.plan, run_id="RUN-seed", branch="refs/heads/test-run")
+
+        self.assertEqual(8, run["runtime_capabilities"]["max_parallel_workers"])
+        # Observed slots stay at their placeholder 1 until the parent records
+        # an observation; only the configured budget seeds at 8.
+        self.assertEqual(1, run["observed"]["runtime"]["available_worker_slots"])
+        self.assertEqual(1, run["observed"]["runtime"]["isolation_capacity"])
+
     def test_generated_run_grants_nothing(self) -> None:
         run = load_run(self.generate())
 

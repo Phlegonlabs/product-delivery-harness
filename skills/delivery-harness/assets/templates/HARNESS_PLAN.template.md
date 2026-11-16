@@ -16,7 +16,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
-    "max_parallel_workers": 1,
+    "max_parallel_workers": 8,
     "branch_policy": {
       "protocol": "main-preview/1",
       "kind": "ordinary",
