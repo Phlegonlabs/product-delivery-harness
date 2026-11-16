@@ -1,6 +1,6 @@
 # 前端框架參考（Reference only）
 
-狀態：Reference only · 核對日期：2026-09-25 · 本文件只供比較，不自動採用、不安裝、不改變現有流程。所有外部參照都是可選建議；採納後才由專案決策與驗收約束。
+狀態：Reference only · 核對日期：2026-09-25（圖表與資料表：2026-11-15） · 本文件只供比較，不自動採用、不安裝、不改變現有流程。所有外部參照都是可選建議；採納後才由專案決策與驗收約束。
 
 ## PRD 應先回答的問題
 
@@ -71,6 +71,34 @@ Auth 是另一層決策。官方 framework 說明目前指出 framework mode 尚
 
 條件式起點：React SPA 可先比較 Vite＋Router＋Query；需要 SSR/server functions 再比較 Start 與其他 React framework；資料工作台按需要加 Table／Virtual／Form；local-first 或 AI 能力各自驗證 DB／AI。離線寫入、同步與撤權義務另見 [Data](data-storage.md)／[Architecture](architecture.md)，不由 client collection 套件自動完成。UI foundation 與樣式仍見 [Components](components-icons.md) 和 [CSS](css-styling.md)，完整組合見 [Architecture](architecture.md)。
 
+## 圖表與資料表
+
+2026-11-15 增補。Dashboard 與資料列表是標準頁面型態，PRD 也會帶圖表責任。指標、單位、時間範圍與空／錯誤狀態由 PRD 定義；函式庫只負責繪製。TanStack Charts 已列在上方 TanStack 目錄，本節比較其他候選。
+
+### 圖表
+
+| 候選 | 繪製方式 | 與 React 的關係 | 可及性：專案要補的 | 體積與 SSR | 授權 |
+| --- | --- | --- | --- | --- | --- |
+| [Recharts](https://recharts.github.io/) | SVG（README：native SVG） | React 元件，以 D3 計算；3.10.1（2026-07-25），peer 支援 React 16.8–19。[shadcn/ui 的 chart 元件](https://ui.shadcn.com/docs/components/chart)標明以 Recharts 製作，現行文件使用 Recharts v3 | shadcn 範例在圖表上加 `accessibilityLayer`；標題、文字替代、資料表替代與非顏色區分仍由專案提供 | 相依含 redux toolkit 與 victory-vendor；體積與 SSR 行為未實測 | MIT |
+| [visx](https://airbnb.io/visx) | SVG（官方範例以 `<svg>` 組成） | 低階元件，D3 負責計算、React 負責 DOM；v4.0.0（2026-06-11），需 React 18 或 19；按 `@visx/*` 套件分裝 | 只給積木，軸、標籤、鍵盤與文字替代都由專案組裝 | 可只裝用到的套件；體積與 SSR 未實測 | MIT；最後 push 2026-06-22，距查核日約五個月 |
+| [Apache ECharts](https://echarts.apache.org/) | Canvas 或 SVG，handbook 有「Canvas vs. SVG」說明 | 與框架無關；6.1.0（2026-05-19）；React 整合要另選 wrapper，本輪未核對 | `aria` 預設關閉，需 `aria.show: true`，並手動 `echarts.use(AriaComponent)` 才有效；其餘替代文字由專案提供 | 支援按需匯入元件；handbook 有 Server Side Rendering 章節，本輪未讀內文 | Apache-2.0 |
+
+shadcn/ui 的 chart 是複製進專案的元件碼，不是套件相依；採用要走已核准棧的元件來源決策，見 [Components](components-icons.md)。
+
+### 資料表
+
+| 候選 | 定位 | 專案要補的 | 授權與費用 |
+| --- | --- | --- | --- |
+| [TanStack Table](https://tanstack.com/table/latest) | headless：核心與框架無關，有 React、Preact、Vue、Solid、Svelte、Angular、Ember、Lit、Alpine 等綁定；`@tanstack/react-table` 9.3.1（2026-10-12），peer 需 React 18 以上。README 列排序、篩選、分組、聚合、列選取，並稱可虛擬化、利於 server-side | 標記、樣式、鍵盤操作與可及性、server 分頁與狀態；不附視覺 UI | MIT |
+| [AG Grid](https://ag-grid.com/) | 完整封裝的資料格；`ag-grid-community` 與 `ag-grid-enterprise` 36.3.0（2026-11-04）。支援 React、Angular、Vue 與原生 JavaScript | 套用主題、本地化與可及性驗收；Enterprise 功能要先確認授權 | Community：MIT，含正式環境。Enterprise：商業 EULA |
+
+AG Grid 依官方[授權與功能比較](https://ag-grid.com/react-data-grid/community-vs-enterprise/)：
+
+- Community：列與欄設定、排序、篩選、分頁、自訂 cell 渲染、主題與 CSS、ARIA 與鍵盤支援、欄與列虛擬化。
+- Enterprise：Server-Side Row Model、Excel 匯出、樞紐與聚合、範圍選取、Integrated Charts、Master/Detail、列分組、剪貼簿、tool panel、自訂 context menu 與 sidebar。
+- 費用：Enterprise 按開發者與部署計價，永久授權含一年支援與更新（金額見[定價頁](https://ag-grid.com/license-pricing/)，本文不抄錄）。本機可不帶授權碼測試，會出現浮水印與 console 錯誤；正式環境需授權碼。官方提供 30 天試用授權。
+- Integrated Charts 在沒有 Enterprise Bundle 時只含 Community 圖表。
+
 ## Tailwind CSS 與元件／icon 分離
 
 Tailwind CSS 是可選樣式候選。Tailwind 是樣式層，不是應用框架；按鈕、表單元件與 icon 是另一層決策。Next.js 與 Astro 的官方文件選單都出現 Tailwind 相關項目，但安裝與版本正文未收錄，因此 Tailwind v3/v4 相容性、CSS 入口、PostCSS、設計 tokens、暗色模式與 purge 行為全部標記為待驗證。不要從元件庫的樣式推導出整個專案必須使用 Tailwind，也不要把 icon 授權與框架授權混在一起。
@@ -107,9 +135,11 @@ Tailwind CSS 是可選樣式候選。Tailwind 是樣式層，不是應用框架�
 
 Nuxt 渲染頁本次僅有官方搜尋摘要，直接抓取 markdown 失敗；其餘基本定位已補查。Tailwind、元件與 icon 的細節見 [元件與圖示](components-icons.md)。React、Next.js 與 Tailwind 相關版本相容性必須在採納前重跑版本檢查。
 
+圖表與資料表（2026-11-15）：Recharts 官方可及性頁、visx 官方站與 TanStack Table 官方文件頁為前端渲染，本輪未能讀取，內容改取自 GitHub README、npm registry 與 shadcn/ui 文件。Recharts 的 `accessibilityLayer` 實際提供哪些鍵盤與螢幕閱讀器行為、三個圖表庫的體積與 SSR 行為、ECharts 的 React wrapper、AG Grid 的可及性驗收範圍，都待驗證。
+
 ## 來源
 
-[React：從零建置](https://react.dev/learn/build-a-react-app-from-scratch)、[React：安裝](https://react.dev/learn/installation)、[React：Quick Start](https://react.dev/learn)、[React：加入既有專案](https://react.dev/learn/add-react-to-an-existing-project)、[Next.js Docs](https://nextjs.org/docs)、[Astro islands](https://docs.astro.build/en/concepts/islands/)、[Nuxt introduction](https://nuxt.com/docs/4.x/guide/concepts/rendering)、[SvelteKit introduction](https://svelte.dev/docs/kit/introduction)。
+[React：從零建置](https://react.dev/learn/build-a-react-app-from-scratch)、[React：安裝](https://react.dev/learn/installation)、[React：Quick Start](https://react.dev/learn)、[React：加入既有專案](https://react.dev/learn/add-react-to-an-existing-project)、[Next.js Docs](https://nextjs.org/docs)、[Astro islands](https://docs.astro.build/en/concepts/islands/)、[Nuxt introduction](https://nuxt.com/docs/4.x/guide/concepts/rendering)、[SvelteKit introduction](https://svelte.dev/docs/kit/introduction)。圖表與資料表：[Recharts](https://recharts.github.io/)、[visx](https://airbnb.io/visx)、[Apache ECharts](https://echarts.apache.org/)、[shadcn/ui Chart](https://ui.shadcn.com/docs/components/chart)、[TanStack Table](https://tanstack.com/table/latest)、[AG Grid 授權與定價](https://ag-grid.com/license-pricing/)、[AG Grid Community vs. Enterprise](https://ag-grid.com/react-data-grid/community-vs-enterprise/)。
 
 ## 樣式與圖示候選
 

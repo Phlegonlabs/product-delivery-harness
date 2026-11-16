@@ -167,6 +167,16 @@ Reference only · 查閱日期：2026-09-25
 
 2026-10-02：TanStack 的 [Start 及官方 library 導覽](https://tanstack.com/start/latest) 支持 18 項 library 與 Starter／Builder 的目錄觀察。各項細節、成熟度與安裝入口直接連在 frontend 矩陣，採納時逐項回查；不將一項已核對的能力擴大成整套已驗證。另見 [React Router framework mode](https://reactrouter.com/start/framework/installation)。
 
+2026-11-15 增補（`frontend.md` 圖表與資料表）：Recharts、visx、TanStack Table 的官方站為前端渲染頁，內容讀自 GitHub README 與 npm registry；ECharts 讀自 handbook；AG Grid 讀自官方授權、定價與功能比較頁。
+
+- [官方來源：recharts.github.io — ](https://recharts.github.io/)
+- [官方來源：airbnb.io — visx](https://airbnb.io/visx)
+- [官方來源：echarts.apache.org — ](https://echarts.apache.org/)
+- [官方來源：echarts.apache.org — handbook/en/best-practices/aria/](https://echarts.apache.org/handbook/en/best-practices/aria/)
+- [官方來源：ui.shadcn.com — docs/components/chart](https://ui.shadcn.com/docs/components/chart)
+- [官方來源：tanstack.com — table/latest](https://tanstack.com/table/latest)
+- [官方來源：ag-grid.com — license-pricing/](https://ag-grid.com/license-pricing/)
+- [官方來源：ag-grid.com — react-data-grid/community-vs-enterprise/](https://ag-grid.com/react-data-grid/community-vs-enterprise/)
 - [官方來源：docs.astro.build — en/concepts/islands/](https://docs.astro.build/en/concepts/islands/)
 - [官方來源：nextjs.org — docs](https://nextjs.org/docs)
 - [官方來源：nuxt.com — docs/4.x/guide/concepts/rendering](https://nuxt.com/docs/4.x/guide/concepts/rendering)
