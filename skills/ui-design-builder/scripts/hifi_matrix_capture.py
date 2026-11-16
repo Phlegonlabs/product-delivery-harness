@@ -259,7 +259,9 @@ async function start(request) {
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
       const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
         ? el.getAttribute('aria-controls') : null;
-      if (id || opener) window.__pdhFocus({ control: id || null, opener });
+      const supporting = el && el.closest && el.closest('[data-ui-surface]')
+        ? el.getAttribute('data-control-for') : null;
+      if (id || opener || supporting) window.__pdhFocus({ control: id || null, opener, supporting });
     }, true);
   });
   page = await context.newPage();

@@ -419,13 +419,18 @@ class OperationBrowserTests(unittest.TestCase):
             driver.stop()
 
     def test_opener_exemption_does_not_allow_unrelated_product_focus(self):
-        driver = self.driver('<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
-            '<div id="editor" hidden><button data-control-id="save" '
-            'onclick="this.textContent += \' saved\'; document.querySelector(\'[data-control-id=thief]\').focus()">Save</button>'
-            '<button data-control-id="thief">Other</button></div>')
-        reply = self.attempt(driver)
-        self.assertEqual([], reply["result"]["problems"], reply)
-        self.assertFalse(reply["result"]["focusCorrect"], reply)
+        for field in ('<button id="thief" data-control-id="thief">Other</button>',
+                      '<textarea id="thief" data-control-for="save"></textarea>'):
+            driver = self.driver('<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
+                '<div id="editor" hidden><button data-control-id="save" '
+                'onclick="this.textContent += \' saved\'; document.getElementById(\'thief\').focus()">Save</button>'
+                + field + '</div>')
+            for trigger in ("click", "keyboard"):
+                with self.subTest(field=field, trigger=trigger):
+                    reply = self.attempt(driver, trigger=trigger)
+                    self.assertEqual([], reply["result"]["problems"], reply)
+                    self.assertFalse(reply["result"]["focusCorrect"], reply)
+            driver.stop()
 
     def test_zoom_halves_query_container_width_and_preserves_rendered_width(self):
         driver = self.driver()

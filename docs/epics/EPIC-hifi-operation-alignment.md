@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: consolidated review repair 4/5 verified locally; targeted recheck pending
+Status: consolidated review repair 5/5 verified locally; targeted recheck pending
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -77,11 +77,17 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ### Consolidated repair of reviewed b0dab02a
 
+- F5 (R5/R6): All 30 operation-alignment tests and 11 product-contract tests pass (exit 0), including supporting-textarea focus theft for click and keyboard and valid opener sequences.
 - F4 (R1): The focus-handler negative browser test and five feedback contract/browser tests pass (exit 0); unchanged feedback hashes still reject focus-only mutations.
 - F3 (R7): test_hifi_product_contract.py: 11 tests, exit 0; all 11 roles and inline widgets rejected on terminal surfaces. Terminal and Supporting focused tests: exit 0.
 - F2 (R3): test_hifi_operation_alignment.py -k NotApplicable -v: 2 tests, exit 0; complete and partial legacy n/a markers accepted; missing real cases rejected.
 - F1 (R5): test_hifi_operation_alignment.py -k Supporting -v: 5 tests, exit 0; all four action types and button/link roles rejected.
 The independent read-only review of `b0dab02a` returned FAIL with F1–F5. This repair does not claim reviewer acceptance.
+
+The final candidate's command ledger and full-matrix summary live under
+`C:/Users/mps19/AppData/Local/Temp/pdh-hifi-review-repair-68dd091926f845bda566656c34cd24a2/`.
+Use `commands.jsonl` for command exits and `full-matrix/summary.txt` for the clean candidate SHA and each matrix step.
+The handoff report records the final results without changing that tested SHA.
 
 ### Initial implementation evidence
 
@@ -115,6 +121,8 @@ The independent read-only review of `b0dab02a` returned FAIL with F1–F5. This 
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: F5 (R5/R6) repair: Record supporting-field focus and reject theft outside the opener and target sequence.
 
 - 2026-11-16: F4 (R1) repair: Focus and settle feedback controls before the activation baseline.
 
@@ -180,12 +188,12 @@ The focused tests use the existing fixtures. A separate helper module would spli
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; consolidated F1–F5 repair, through F4
+Stage and skill: source maintenance; consolidated F1–F5 repair, through F5
 Inputs consumed (path + hash or revision): released main 9abe4b9e (v0.83.1); specification 92cab19b; unchanged consumer package and PRD identities above
 Approvals in force (gate, owner, date, candidate): owner authorizes the consolidated F1–F5 repair and local atomic commits; no delegation or publication
-Done and verified (command, exit code): through F4; The focus-handler negative browser test and five feedback contract/browser tests pass (exit 0); unchanged feedback hashes still reject focus-only mutations.
-Remaining: F5–F5; required regressions; longer-timeout matrix; targeted exact-head recheck
+Done and verified (command, exit code): through F5; All 30 operation-alignment tests and 11 product-contract tests pass (exit 0), including supporting-textarea focus theft for click and keyboard and valid opener sequences.
+Remaining: targeted exact-head recheck; consumer adoption and publication need their own owner decisions
 Blocked / waiting (gate name or owner decision): targeted recheck pending; consumer adoption and publication remain separate
-Next action (one command or one owner decision): repair F5
-Next owner (skill or human): this source-maintenance writer, then the independent read-only reviewer
+Next action (one command or one owner decision): use the final command ledger and matrix summary to recheck F1–F5 on their recorded candidate SHA
+Next owner (skill or human): independent read-only reviewer after the writer completes final candidate verification
 ```
