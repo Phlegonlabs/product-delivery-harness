@@ -18,6 +18,7 @@ if str(TESTS) not in sys.path:
 
 import check_ui_contract  # noqa: E402
 import harness_transition  # noqa: E402
+import worktree_fanout  # noqa: E402
 
 
 class DocumentedCommandTests(unittest.TestCase):
@@ -131,6 +132,23 @@ class DocumentedCommandTests(unittest.TestCase):
              "shared_exclusive_resource", "budget_below_width"},
             emitted)
         self.assertEqual(emitted, documented)
+
+    def test_direct_fan_out_commands_parse_and_route_is_linked(self):
+        examples = self.commands("direct-fan-out.md", "worktree_fanout.py")
+        self.assertEqual(2, len(examples))
+        scopes, merge_check = (
+            worktree_fanout.build_parser().parse_args(parts[2:]) for parts in examples
+        )
+        self.assertEqual("scopes", scopes.command)
+        self.assertEqual(2, len(scopes.part))
+        self.assertEqual("merge-check", merge_check.command)
+        self.assertEqual("<root>", merge_check.repo_root)
+        self.assertEqual("<sha>", merge_check.base)
+        self.assertEqual("<branch>", merge_check.head)
+        self.assertEqual(["<claim>"], merge_check.scope)
+        self.assertEqual("<worktree>", merge_check.worktree)
+        skill = (SCRIPTS.parent / "SKILL.md").read_text(encoding="utf-8")
+        self.assertIn("(references/direct-fan-out.md)", skill)
 
     def test_documented_review_skip_parses_without_state_mutation(self):
         examples = self.commands("verification-gates.md", "harness_transition.py")

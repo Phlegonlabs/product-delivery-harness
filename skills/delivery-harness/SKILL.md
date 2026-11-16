@@ -1,6 +1,6 @@
 ---
 name: delivery-harness
-description: "Use only when the user explicitly requests delivery-harness or a requested skill workflow requires it. Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer and one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Use agent-configured executors through observed tools or explicitly bound bridges."
+description: "Use only when the user explicitly requests delivery-harness or a requested skill workflow requires it. Route engineering work through planning, authorization, execution, verification and integration. Use direct delivery for one writer or a Direct Fan-Out with one verification sequence; use PLAN-v6/RUN-v11 for durable coordination, isolated integration or a bounded correction graph. Use agent-configured executors through observed tools or explicitly bound bridges."
 ---
 
 # Delivery Harness
@@ -30,19 +30,17 @@ Use PLAN/RUN only when coordination requires it. Preserve upstream ownership:
 
 ## Project Size Gate
 
-Before loading task-specific tooling, run one bounded parent-only scope scan.
-
-Classify work as `small` when one writer can own one bounded outcome in one checkout and verify it with one coherent local sequence. That writer may be the required delegated specialist. A high file count, language count, test duration, or reasoning difficulty does not make work `large` by itself.
+Classify work as `small` when one writer can own one bounded outcome in one checkout and verify it with one coherent local sequence; that writer may be the required delegated specialist. `small` also covers a few independent outcomes in different files ([Direct Fan-Out](references/direct-fan-out.md)). A high file count, language count, test duration, or reasoning difficulty does not make work `large` by itself.
 
 Classify work as `large` only when at least one condition is true:
 
-- two or more independently writable missions need separate ownership or integration;
+- a mission needs another mission's integrated output;
+- a shared contract must be frozen, reviewed and integrated before dependents start;
 - execution needs durable cross-session or cross-host handoff;
-- mission heads must integrate into one candidate;
 - a migration, destructive operation, or correction loop needs a durable bounded graph; or
 - the user explicitly requests managed Harness orchestration.
 
-Planning preference may choose the stricter route, but it cannot override a `large` classification or any safety boundary.
+Planning preference may choose the stricter route, but cannot override a `large` classification or any safety boundary.
 
 ```text
 System Review And Route (parent-only, read-only)
@@ -50,7 +48,7 @@ System Review And Route (parent-only, read-only)
   large -> planner -> PLAN v6 + RUN v11 -> readiness -> managed execution
 ```
 
-Small work creates no PLAN/RUN files. Resolve executors from agent configuration. If scope grows, preserve evidence and plan the remainder. The Sequential Parent Route in `execution-state-model.md` represents one mission at a time under the pinned managed protocol. Preserve required independent reviews.
+Small work creates no PLAN/RUN files. If scope grows, preserve evidence and plan the remainder. The Sequential Parent Route runs one mission at a time (`execution-state-model.md`). Preserve required independent reviews.
 
 ### System Review And Route
 
@@ -107,7 +105,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 
 1. Inspect the bounded component and relevant instructions.
    Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task.
-2. For a `product-definition-builder` package, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer resolved under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance. When feature files exist, render the acceptance register (`scripts/render_delivery_acceptance.py`) and record its hash before implementing.
+2. For a `product-definition-builder` package, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer or a [Direct Fan-Out](references/direct-fan-out.md), under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance. When feature files exist, render the acceptance register (`scripts/render_delivery_acceptance.py`) and record its hash before implementing.
 3. Probe the toolchain, browser and reviewer route once (a failed row is an `environment` block), then run focused checks selected from changed files, security tests included.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
