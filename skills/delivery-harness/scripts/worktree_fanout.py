@@ -5,15 +5,18 @@
 ``merge-check`` decides whether one writer's branch can merge back now and
 names exact reason codes when it cannot. Both subcommands are reports: they
 never merge, commit, check out, fetch, push, or write a file in the
-repository.
+repository. The trial merge writes its objects to a temporary directory, and
+status reads take no index lock.
 """
 
 from __future__ import annotations
 
 import argparse
 import itertools
+import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -25,7 +28,7 @@ from harness_core import (
     scope_overlap,
     validate_scope_claim,
 )
-from harness_git import GitMetadataError, run_git
+from harness_git import GitMetadataError, git_argv, git_environment, run_git
 
 
 class GitCommandError(RuntimeError):
@@ -128,7 +131,8 @@ def _porcelain_status(root: Path, *, tracked_only: bool = False) -> list[str]:
     arguments = ["status", "--porcelain"]
     if tracked_only:
         arguments.append("--untracked-files=no")
-    result = run_git(root, *arguments)
+    # Without this, status may rewrite the index to refresh its stat cache.
+    result = run_git(root, *arguments, environment={**os.environ, "GIT_OPTIONAL_LOCKS": "0"})
     if result.returncode != 0:
         raise GitCommandError(f"cannot read status in {root}: {result.stderr.strip()}")
     return [line for line in result.stdout.splitlines() if line.strip()]
@@ -141,8 +145,52 @@ def _head_commit(root: Path) -> str:
     return result.stdout.strip()
 
 
+def _objects_directory(root: Path) -> str:
+    result = run_git(root, "rev-parse", "--path-format=absolute", "--git-path", "objects")
+    if result.returncode != 0:
+        raise GitCommandError(f"cannot locate the object directory: {result.stderr.strip()}")
+    return result.stdout.strip()
+
+
 def _merge_tree(root: Path, into: str, head: str) -> subprocess.CompletedProcess[str]:
-    return run_git(root, "merge-tree", "--write-tree", into, head)
+    """Trial-merge without touching the repository.
+
+    ``merge-tree --write-tree`` writes the merged trees and blobs. Point Git at
+    a throwaway object directory, with the real one as a read-only alternate,
+    so nothing lands in the repository's object database.
+    """
+
+    with tempfile.TemporaryDirectory(prefix="fanout-merge-") as scratch:
+        environment = git_environment()
+        environment["GIT_OBJECT_DIRECTORY"] = scratch
+        environment["GIT_ALTERNATE_OBJECT_DIRECTORIES"] = _objects_directory(root)
+        return subprocess.run(
+            git_argv("merge-tree", "--write-tree", into, head),
+            cwd=root,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="surrogateescape",
+            timeout=120,
+            env=environment,
+        )
+
+
+def _untracked_collisions(root: Path, paths: list[str]) -> list[str]:
+    """Changed paths that exist in the checkout as untracked or ignored files.
+
+    A merge would refuse to overwrite an untracked file and, by default,
+    silently replaces an ignored one.
+    """
+
+    found: set[str] = set()
+    for start in range(0, len(paths), 200):
+        chunk = [f":(literal){path}" for path in paths[start : start + 200]]
+        result = run_git(root, "ls-files", "--others", "-z", "--", *chunk)
+        if result.returncode != 0:
+            raise GitCommandError(f"cannot list untracked files: {result.stderr.strip()}")
+        found.update(item for item in result.stdout.split("\0") if item)
+    return sorted(found)
 
 
 _MERGE_TREE_UNAVAILABLE_MESSAGE = (
@@ -227,12 +275,14 @@ def build_merge_report(
                 [f"worktree HEAD is {worktree_head}, --head resolves to {head}"],
             )
 
-    if into == _head_commit(repo_root):
-        tracked_changes = _porcelain_status(repo_root, tracked_only=True)
-        if tracked_changes:
-            note("integration_checkout_dirty", tracked_changes)
+    tracked_changes = _porcelain_status(repo_root, tracked_only=True)
+    if tracked_changes:
+        note("integration_checkout_dirty", tracked_changes)
 
     paths = _changed_paths(repo_root, base, head)
+    collisions = _untracked_collisions(repo_root, paths)
+    if collisions:
+        note("untracked_collision", collisions)
     outside = []
     denied = []
     parent_owned = []
@@ -270,7 +320,9 @@ def build_merge_report(
         "into": into,
         "commits": commits,
         "changed_paths": paths,
-        "merge_command": f"git merge --no-ff --no-edit {head}" if mergeable else None,
+        "merge_command": (
+            f"git merge --no-ff --no-edit --no-overwrite-ignore {head}" if mergeable else None
+        ),
     }
 
 
@@ -301,7 +353,8 @@ def _run_merge_check(parser: argparse.ArgumentParser, args: argparse.Namespace) 
     try:
         base = _resolve_commit(repo_root, args.base)
         head = _resolve_commit(repo_root, args.head)
-        into = _resolve_commit(repo_root, args.into)
+        # The printed command merges into this checkout, so check against its HEAD.
+        into = _head_commit(repo_root)
         report = build_merge_report(
             repo_root=repo_root,
             base=base,
@@ -350,9 +403,6 @@ def build_parser() -> argparse.ArgumentParser:
     )
     merge_parser.add_argument(
         "--deny", action="append", default=[], metavar="<claim>", help="claim the worker must not touch"
-    )
-    merge_parser.add_argument(
-        "--into", default="HEAD", help="integration target ref (default: HEAD of --repo-root)"
     )
     merge_parser.add_argument(
         "--worktree", default=None, help="worker worktree path for dirty and HEAD checks"

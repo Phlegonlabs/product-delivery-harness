@@ -98,7 +98,6 @@ def run_merge_check(
     head: str,
     scopes: list[str],
     deny: list[str] = (),
-    into: str | None = None,
     worktree: Path | None = None,
 ) -> tuple[int, dict]:
     argv = [
@@ -114,8 +113,6 @@ def run_merge_check(
         argv += ["--scope", scope]
     for claim in deny:
         argv += ["--deny", claim]
-    if into is not None:
-        argv += ["--into", str(into)]
     if worktree is not None:
         argv += ["--worktree", str(worktree)]
     return call_run(argv)
@@ -288,7 +285,10 @@ class MergeCheckTests(unittest.TestCase):
             self.assertEqual(base, report["into"])
             self.assertEqual(1, report["commits"])
             self.assertEqual(["src/feature.py"], report["changed_paths"])
-            self.assertEqual(f"git merge --no-ff --no-edit {head}", report["merge_command"])
+            self.assertEqual(
+                f"git merge --no-ff --no-edit --no-overwrite-ignore {head}",
+                report["merge_command"],
+            )
             merged = subprocess.run(
                 ["git", "merge", "--no-ff", "--no-edit", head],
                 cwd=integration,
@@ -328,11 +328,62 @@ class MergeCheckTests(unittest.TestCase):
             _git(integration, "rm", "-rf", "--quiet", ".")
             _write(integration, "o.txt", "orphan\n")
             orphan = _commit_all(integration, "orphan")
-            _git(integration, "checkout", "--quiet", "integration")
-            code, report = run_merge_check(integration, base, "worker-1", ["src/**"], into=orphan)
+            code, report = run_merge_check(integration, base, "worker-1", ["src/**"])
             self.assertEqual(1, code)
+            self.assertEqual(orphan, report["into"])
             self.assertIn("into_missing_base", report["reasons"])
             self.assertNotIn("integration_checkout_dirty", report["reasons"])
+
+    def test_the_check_always_targets_the_checkout_head(self):
+        with tempfile.TemporaryDirectory() as temp:
+            integration, worker, base = _worker_fanout(temp)
+            _commit_worker_file(worker, "seed.txt", "worker edit\n")
+            _write(integration, "seed.txt", "integration edit\n")
+            moved = _commit_all(integration, "integration moved on")
+            code, report = run_merge_check(integration, base, "worker-1", ["seed.txt"])
+            self.assertEqual(1, code)
+            self.assertEqual(moved, report["into"])
+            self.assertEqual(["merge_conflict"], report["reasons"])
+            self.assertEqual(
+                2,
+                call_run_expecting_usage(
+                    self,
+                    ["merge-check", "--repo-root", str(integration), "--base", base,
+                     "--head", "worker-1", "--scope", "seed.txt", "--into", base],
+                ),
+            )
+
+    def test_untracked_file_at_an_incoming_path_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            integration, worker, base = _worker_fanout(temp)
+            _commit_worker_file(worker, "src/feature.py", "feature\n")
+            _write(integration, "src/feature.py", "local notes the owner never committed\n")
+            code, report = run_merge_check(integration, base, "worker-1", ["src/**"])
+            self.assertEqual(1, code)
+            self.assertEqual(["untracked_collision"], report["reasons"])
+            self.assertEqual(["src/feature.py"], report["details"]["untracked_collision"])
+            self.assertIsNone(report["merge_command"])
+
+    def test_ignored_file_at_an_incoming_path_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            integration = Path(temp) / "integration"
+            worker = Path(temp) / "worker"
+            integration.mkdir(parents=True)
+            _init_repository(integration)
+            _write(integration, ".gitignore", "local/\n")
+            base = _commit_all(integration, "base")
+            _git(integration, "worktree", "add", "-b", "worker-1", str(worker), base)
+            _write(worker, "local/data.json", "{}\n")
+            _git(worker, "add", "--force", "local/data.json")
+            _git(worker, "commit", "-qm", "worker adds a path the checkout ignores")
+            _write(integration, "local/data.json", '{"owner": "private"}\n')
+            code, report = run_merge_check(integration, base, "worker-1", ["local/**"])
+            self.assertEqual(1, code)
+            self.assertEqual(["untracked_collision"], report["reasons"])
+            self.assertEqual(
+                '{"owner": "private"}\n',
+                (integration / "local/data.json").read_text(encoding="utf-8"),
+            )
 
     def test_worktree_dirty_is_reported(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -482,12 +533,19 @@ class MergeCheckTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             integration, worker, base = _worker_fanout(temp)
             _commit_worker_file(worker, "src/feature.py", "feature\n")
+            # A real merge of two diverged heads needs a new tree object.
+            _write(integration, "docs/note.md", "note\n")
+            _commit_all(integration, "integration moved on")
+            objects = Path(_git(integration, "rev-parse", "--path-format=absolute", "--git-path", "objects"))
+            index = Path(_git(integration, "rev-parse", "--path-format=absolute", "--git-path", "index"))
 
-            def snapshot(root: Path) -> tuple[str, str, str]:
+            def snapshot(root: Path) -> tuple:
                 return (
                     _git(root, "status", "--porcelain"),
                     _git(root, "rev-parse", "HEAD"),
                     _git(root, "for-each-ref", "refs/heads", "--format=%(refname) %(objectname)"),
+                    sorted(path.relative_to(objects).as_posix() for path in objects.rglob("*") if path.is_file()),
+                    index.read_bytes(),
                 )
 
             before = (snapshot(integration), snapshot(worker))
