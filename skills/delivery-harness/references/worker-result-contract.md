@@ -102,7 +102,7 @@ Missing or stale required evidence blocks acceptance.
 
 A passing mission lists every executable, non-superseded task in `task_results`. List commits in actual Git order. Every SHA appears exactly once in the mission `commits` list and under exactly one task result; the order of each task's commit list must match that mission sequence. The final commit must equal `head_sha`.
 
-A task commit may touch any path in its mission's write scope that some task of the mission lists. A task's `write_scope` is a planning hint for where that task writes, not a boundary. A task commit still fails on a task or mission deny scope, a parent-owned file, a path outside the mission write scope, or a mission path no task lists, such as the delivery-acceptance register.
+A task commit may touch any path in its mission's write scope that some task of the mission lists or a RUN scope amendment adds. A task's `write_scope` is a planning hint for where that task writes, not a boundary. A task commit still fails on a task or mission deny scope, a parent-owned file, a path outside the mission write scope, or a mission path neither covers, such as the delivery-acceptance register.
 
 The parent records this payload with the matching graph node result, independently observed head/diff/ancestry, and retained verifier execution files through `harness_transition.py ... record-worker-result`. The transition revalidates all of them under the RUN lock before changing canonical state.
 
