@@ -55,6 +55,8 @@ Record only observed results in `ui-output/3` and assemble `ui-evidence/3` as de
 
 ### Render fingerprint carry-forward
 
+Under the `zoom-200` stress axis, the canvas uses `zoom: 2` and half the target's CSS inline size. Its rendered width stays at the target. Container queries therefore see the reduced width. Base and reset observations keep their nominal widths.
+
 A case's `render fingerprint` is the lowercase SHA-256 over two browser measurements of that surface × state × target: the DOM geometry probe output (product-surface element rects, scroll versus client size, horizontal overflow), a computed-style digest of the product surface, and the identity of every rendered media input (image sources and srcsets, video posters, SVG fill and stroke, CSS background, mask and border images). A probe that could not cover every element records the fingerprint as incomplete, and an incomplete fingerprint never carries.
 
 After a repair, observe again every case whose fingerprint differs from the one recorded under the last PASS receipt. A case with an equal fingerprint may carry forward into the new receipt with its original capture and verdict, whatever its page bytes. The receipt records each carried row's source receipt, source page SHA-256 and fingerprint; the defect ledger names each carried row's source receipt and page SHA-256.
@@ -66,10 +68,6 @@ A fingerprint shows a case renders as it did when judged. It cannot prove text r
 Before the consolidated Visual Approval, follow `stages/ui-design.md#workflow` step 8: link the complete HiFi candidate and affected `ui-design.md` scope at final repository paths on the task branch, never `.ui-staging` paths. Tool-only output, a hidden panel, a screenshot, or a plain path cannot replace the links; a changed candidate reopens the affected decision.
 
 ## Token specimen completeness
-
-Under the `zoom-200` stress axis, the canvas uses `zoom: 2` and half the target's CSS inline size. Its rendered width stays at the target. Container queries therefore see the reduced width. Base and reset observations keep their nominal widths.
-
-States ending in `:n/a` need no product state marker or state/target variant. Overview still records a non-link with its reason.
 
 For tokens, the `sourceValue`, `specimenValue` and `displayValue` triple records the raw custom-property value. Also record `sourceComputedValue` and `specimenComputedValue`: nonempty, equal browser-computed values of `previewProperty`. Normalize the source token through a probe on its source page with the same element, inherited/root font, containing-block dimensions, constraints and responsive target as the specimen, and read the applied property on the actual specimen separately. Preserve both forms: `#243447` may render as `rgb(36, 52, 71)`, `1.5rem` as `24px`, and `normal` as `400`. Never compare raw token text with the applied property or substitute a second custom-property read for applied-value evidence. Shared groups agree on both forms across pages. Component and pattern records keep the three value fields.
 
@@ -130,6 +128,8 @@ Include exactly the platforms present in Approved target `stackSemantics.platfor
 
 ### Connected HiFi Package
 
+States ending in `:n/a` need no product state marker or state/target variant. Overview still records a non-link with its reason.
+
 Each connected HiFi page must pass the generic self-contained surface check: no active external resources, network or executable APIs, remote forms, base/meta refresh navigation, CSS imports, or external scripts. Each schema-2 page contains exactly one CSP meta, first in its head, with this exact policy:
 
 `default-src 'none'; base-uri 'none'; connect-src 'none'; form-action 'none'; frame-src 'none'; object-src 'none'; navigate-to 'self'; img-src data:; media-src data:; font-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'`
@@ -146,7 +146,7 @@ Every typed `copy` has `kind: static | dynamic`, a nonempty `role` and `source`,
 
 Each surface has exactly `id`, `page`, `route`, `states`, `responsive`, `navigation`, and `controls`. `page` names the entry or a listed child; the other fields keep the schema-1 surface/DOM contract. Every page renders exactly its assigned product surfaces, with one container per surface across the package, and the complete surface set equals the approved scope. Navigation/control IDs bind actual interactive elements inside that surface via `data-navigation-id` or `data-control-id`.
 
-Each interaction has exactly `id`, `source`, `control`, `kind`, and `destination`. Both endpoints are `{ "surface": "UI-001", "state": "ready" }` and exist in the approved scope. IDs are unique. `kind: "navigate"` binds a real anchor whose `href` exactly equals the destination surface's page filename; `kind: "state"` changes to a different declared endpoint, including overlays. Across pages, every control instance must be an anchor to <page>#hifi-state=<encoded surface>/<encoded state>. Every page is reachable from index.html through product navigation, and every declared and rendered operation control has an interaction. Supporting fields and ID-free openers use the exemptions below. Derive transitions from the approved PRD UI Surface Contract and its operations; discrepancies return upstream rather than inventing a journey.
+Each interaction has exactly `id`, `source`, `control`, `kind`, and `destination`. Both endpoints are `{ "surface": "UI-001", "state": "ready" }` and exist in the approved scope. IDs are unique. `kind: "navigate"` binds a real anchor whose `href` exactly equals the destination surface's page filename; `kind: "state"` changes to a different declared endpoint, including overlays. Across pages, every control instance must be an anchor to `<page>#hifi-state=<encoded surface>/<encoded state>`. Every page is reachable from index.html through product navigation, and every declared and rendered operation control has an interaction. Supporting fields and ID-free openers use the exemptions below. Derive transitions from the approved PRD UI Surface Contract and its operations; discrepancies return upstream rather than inventing a journey.
 
 For `ui-design/2` and `ui-design/3`, each interaction ID equals its PRD operation ID. Match its source surface/state, control and destination exactly. `presentation: page` maps to `kind: navigate`. Other presentations map to `feedback` for equal endpoints and `state` for different endpoints. Legacy packages keep their original operation join.
 
