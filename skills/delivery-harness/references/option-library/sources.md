@@ -105,6 +105,10 @@ Reference only · 查閱日期：2026-09-25
 
 2026-10-02 增補：[React Aria](https://react-aria.adobe.com/getting-started)、[Mantine](https://mantine.dev/getting-started/)、[Nuxt UI](https://ui.nuxt.com/)、[shadcn-svelte](https://www.shadcn-svelte.com/docs/installation)。新項目只核對基本定位與官方入口；實際 peer dependencies、授權、樣式、SSR 與 framework 版本在採納時驗證。
 
+2026-11-15 增補：[Ark UI repository](https://github.com/chakra-ui/ark)（README 的框架與授權；官方站為前端渲染頁，本輪未讀其內文）與 [shadcn MCP server](https://ui.shadcn.com/docs/mcp)。套件版本讀自 npm registry。
+
+- [官方來源：github.com — chakra-ui/ark](https://github.com/chakra-ui/ark)
+- [官方來源：ui.shadcn.com — docs/mcp](https://ui.shadcn.com/docs/mcp)
 - [官方來源：21st.dev — ](https://21st.dev/)
 - [官方來源：ant.design — docs/react/introduce/](https://ant.design/docs/react/introduce/)
 - [官方來源：base-ui.com — react/overview/about](https://base-ui.com/react/overview/about)
