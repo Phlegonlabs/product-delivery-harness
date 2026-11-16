@@ -14,6 +14,10 @@ INTERACTIVE_ROLES = frozenset({
     "button", "link", "menuitem", "tab", "checkbox", "radio", "switch", "slider",
     "spinbutton", "textbox", "combobox",
 })
+ACTIVATION_HANDLERS = frozenset({
+    "onclick", "onkeydown", "onkeyup", "onkeypress", "onpointerdown", "onpointerup",
+    "onmousedown", "onmouseup", "ontouchstart", "ontouchend",
+})
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
@@ -24,10 +28,12 @@ TOKEN_PREVIEW_PROPERTIES = {
 
 def is_product_control(tag, attrs):
     """Share native, ARIA and directly authored widget discovery across HiFi checks."""
-    return (tag in {"a", "button", "input", "select", "textarea"}
-            or bool(INTERACTIVE_ROLES.intersection((attrs.get("role") or "").casefold().split()))
-            or ("tabindex" in attrs and any(key.startswith("on") and isinstance(value, str) and value.strip()
-                                         for key, value in attrs.items())))
+    if (tag in {"a", "button", "input", "select", "textarea"}
+            or INTERACTIVE_ROLES.intersection((attrs.get("role") or "").casefold().split())):
+        return True
+    tabindex = (attrs.get("tabindex") or "").strip()
+    return bool(re.fullmatch(r"\+?[0-9]+|-0+", tabindex)) and any(
+        isinstance(attrs.get(handler), str) and attrs[handler].strip() for handler in ACTIVATION_HANDLERS)
 
 
 class ReviewerParser(HTMLParser):

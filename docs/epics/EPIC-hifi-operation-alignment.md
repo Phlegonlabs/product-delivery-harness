@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: consolidated review repair 5/5 verified locally; targeted recheck pending
+Status: N1 (R7) repaired locally; scoped re-review pending; F1–F5 resolved on reviewed ce5837da
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -75,6 +75,17 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+### Isolated N1 repair of reviewed ce5837da
+
+- The owner reports F1–F5 resolved on exact head `ce5837da`; N1 is the remaining classifier finding.
+- Working-tree checks: `test_hifi_product_contract.py` passes 13 tests; `test_hifi_operation_alignment.py` passes 30 tests; both exit 0.
+- Passive heading animation and focus handlers pass at `tabindex="-1"` and `tabindex="0"`.
+- Ten activation handlers still need operation IDs on reachable custom controls; checkbox roles remain controls even at negative tabindex.
+- Final candidate commands, exits, hashes and platform skips are recorded under `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-n1-repair-20261116-a5c81e6b/`.
+- Use its `verification.md`, `commands.jsonl` and `final-candidate.json` for the scoped re-review candidate and results.
+- The earlier full matrix passed on `ce5837da`; it is historical evidence, not a fresh run for N1.
+- The owner requests affected checks for N1 and no third full matrix unless those checks fail.
+
 ### Consolidated repair of reviewed b0dab02a
 
 - F5 (R5/R6): All 30 operation-alignment tests and 11 product-contract tests pass (exit 0), including supporting-textarea focus theft for click and keyboard and valid opener sequences.
@@ -121,6 +132,8 @@ The handoff report records the final results without changing that tested SHA.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: N1 (R7) repair: require reachable activation handlers for custom-control discovery; preserve passive focus targets and native/ARIA controls.
 
 - 2026-11-16: F5 (R5/R6) repair: Record supporting-field focus and reject theft outside the opener and target sequence.
 
@@ -188,12 +201,12 @@ The focused tests use the existing fixtures. A separate helper module would spli
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; consolidated F1–F5 repair, through F5
-Inputs consumed (path + hash or revision): released main 9abe4b9e (v0.83.1); specification 92cab19b; unchanged consumer package and PRD identities above
-Approvals in force (gate, owner, date, candidate): owner authorizes the consolidated F1–F5 repair and local atomic commits; no delegation or publication
-Done and verified (command, exit code): through F5; All 30 operation-alignment tests and 11 product-contract tests pass (exit 0), including supporting-textarea focus theft for click and keyboard and valid opener sequences.
-Remaining: targeted exact-head recheck; consumer adoption and publication need their own owner decisions
-Blocked / waiting (gate name or owner decision): targeted recheck pending; consumer adoption and publication remain separate
-Next action (one command or one owner decision): use the final command ledger and matrix summary to recheck F1–F5 on their recorded candidate SHA
-Next owner (skill or human): independent read-only reviewer after the writer completes final candidate verification
+Stage and skill: source maintenance; isolated N1 repair attributed to R7
+Inputs consumed (path + hash or revision): reviewed ce5837da; owner reports F1–F5 resolved and N1 blocking; released main 9abe4b9e; specification 92cab19b
+Approvals in force (gate, owner, date, candidate): owner authorizes one local N1 repair commit and affected checks; no delegation, publication, installation or version bump
+Done and verified (command, exit code): working-tree product-contract 13 tests and operation-alignment 30 tests, exit 0; final candidate commands and exits are in the N1 evidence directory above
+Remaining: scoped exact-head N1 re-review; consumer adoption and publication need their own owner decisions
+Blocked / waiting (gate name or owner decision): N1 scoped re-review pending; F1–F5 resolved on ce5837da
+Next action (one command or one owner decision): re-review N1 on the SHA recorded in the N1 final-candidate.json and verification.md
+Next owner (skill or human): independent read-only reviewer after the writer completes the affected checks
 ```

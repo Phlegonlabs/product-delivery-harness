@@ -41,12 +41,55 @@ class HiFiProductContractTests(unittest.TestCase):
         passive = markup.replace('<a ', '<p ').replace('</a>', '</p>')
         roles = ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
                  'slider', 'spinbutton', 'textbox', 'combobox')
-        for attributes in tuple(f'role="{role}" tabindex="0" aria-checked="false"' for role in roles) + ('tabindex="0" onclick="this.dataset.changed=true"',):
+        for attributes in tuple(f'role="{role}" tabindex="0" aria-checked="false"' for role in roles) + (
+                'tabindex="0" onclick="this.dataset.changed=true"',
+                'role="checkbox" tabindex="-1" onclick="this.dataset.changed=true"'):
             with self.subTest(attributes=attributes):
                 widget = passive.replace('<p ', '<p ' + attributes + ' ', 1)
                 findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
                 self.assertIn('renders a product control', '\n'.join(findings))
         self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+
+    def test_passive_focus_targets_remain_valid_on_terminal_surfaces(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        inventory['surfaces'][0]['items'][0]['copy'].update(
+            text='Receipt', role='heading', source='Owner receipt heading')
+        for attributes in ('tabindex="-1" onanimationend="this.classList.remove(\'entering\')"',
+                           'tabindex="-1" onfocus="this.classList.remove(\'entering\')"',
+                           'tabindex="0" onanimationend="this.classList.remove(\'entering\')"',
+                           'tabindex="0" onfocus="this.classList.remove(\'entering\')"'):
+            with self.subTest(attributes=attributes):
+                passive = markup.replace('<a ', '<h2 ' + attributes + ' ').replace('>Home</a>', '>Receipt</h2>')
+                self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+                parser = ui._HiFiProductControls()
+                parser.feed(passive)
+                parser.close()
+                self.assertEqual([], parser.errors)
+                self.assertFalse(parser.controls)
+
+    def test_handler_discovery_requires_activation_and_user_reachability(self):
+        handlers = ('onclick', 'onkeydown', 'onkeyup', 'onkeypress', 'onpointerdown', 'onpointerup',
+                    'onmousedown', 'onmouseup', 'ontouchstart', 'ontouchend')
+        for handler in handlers:
+            for tabindex, expected in (('0', True), ('2', True), ('+0', True), ('-0', True),
+                                       ('-1', False), ('invalid', False), ('1_0', False), ('0.5', False),
+                                       ('', False), (None, False)):
+                with self.subTest(handler=handler, tabindex=tabindex):
+                    binding = '' if tabindex is None else f'tabindex="{tabindex}"'
+                    parser = ui._HiFiProductControls()
+                    parser.feed(f'<main data-ui-surface="UI-001"><p {binding} {handler}="activate()">Action</p></main>')
+                    parser.close()
+                    self.assertEqual(expected, 'needs a navigation/control ID' in '\n'.join(parser.errors))
+        for markup in ('<button onclick="activate()">Action</button>',
+                       '<input onkeydown="activate()">', '<a href="details.html" onclick="activate()">Action</a>'):
+            parser = ui._HiFiProductControls()
+            parser.feed('<main data-ui-surface="UI-001">' + markup + '</main>')
+            parser.close()
+            self.assertIn('needs a navigation/control ID', '\n'.join(parser.errors))
 
     def test_all_interactive_roles_use_the_same_control_discovery(self):
         for role in ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
