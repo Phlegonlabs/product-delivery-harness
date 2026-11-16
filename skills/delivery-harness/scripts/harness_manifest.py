@@ -4436,6 +4436,41 @@ def preintegration_review_errors(
     return errors
 
 
+SCOPE_AMENDMENT_KEYS = {"id", "mission_id", "paths", "reason", "recorded_at"}
+
+
+def _scope_amendment_errors(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
+    """Check the optional run.scope_amendments rows written by amend-scope."""
+
+    errors: list[str] = []
+    if "scope_amendments" not in run:
+        return errors
+    rows = run["scope_amendments"]
+    if not isinstance(rows, list):
+        return ["run.scope_amendments: must be a list"]
+    mission_ids = {
+        mission.get("id")
+        for mission in plan.get("missions", [])
+        if isinstance(mission, dict)
+    }
+    for index, row in enumerate(rows):
+        path = f"run.scope_amendments[{index}]"
+        if not _keys(errors, path, row, SCOPE_AMENDMENT_KEYS):
+            continue
+        if row["id"] != f"SA-{index + 1:03d}":
+            _add(errors, f"{path}.id", f"must equal SA-{index + 1:03d}")
+        if row["mission_id"] not in mission_ids:
+            _add(errors, f"{path}.mission_id", "must name a PLAN mission")
+        for key in ("reason", "recorded_at"):
+            if not _nonempty_string(row[key]):
+                _add(errors, f"{path}.{key}", "must be a non-empty string")
+        claims = _validate_scope_list(errors, f"{path}.paths", row["paths"], nonempty=True)
+        for claim in claims:
+            if parent_owned_path(claim):
+                _add(errors, f"{path}.paths", f"parent-owned claim {claim!r}")
+    return errors
+
+
 def validate_run(
     plan: dict[str, Any],
     run: dict[str, Any],
@@ -4491,9 +4526,11 @@ def validate_run(
         "ui_impact_summary",
         "launch_records",
         "role_binding_updates",
+        "scope_amendments",
     }
     if not _keys(errors, "run", run, run_keys, optional_run_keys):
         return sorted(errors)
+    errors.extend(_scope_amendment_errors(plan, run))
     if branch_policy_required(run):
         errors.extend(validate_branch_policy_shape(plan, run=run))
     # The 0.55.0 shape checks skip only a pin that parses below 0.55.0; a
