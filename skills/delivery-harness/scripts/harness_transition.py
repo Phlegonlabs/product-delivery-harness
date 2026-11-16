@@ -46,6 +46,7 @@ from harness_graph import (
     repair_scope_entry,
 )
 from harness_manifest import (
+    _security_not_applicable_scope_errors,
     _verifier_owners,
     INTERRUPTED_REVIEW_RECEIPT,
     ManifestError,
@@ -4882,6 +4883,37 @@ def _amend_scope(
         refusal = _amend_scope_refusal(plan, run, mission, path)
         if refusal is not None:
             raise ManifestError(f"amend-scope refused: {refusal}")
+    # Admission rules that read a mission's scope must see the scope as it
+    # would be after this amendment. One that only the amendment trips needs
+    # the review or authoring gates a PLAN revision adds.
+    before = copy.deepcopy(plan)
+    after = copy.deepcopy(plan)
+    for candidate, extra in ((before, []), (after, list(args.path))):
+        for item in candidate.get("missions", []):
+            if isinstance(item, dict):
+                item["write_scope"] = effective_write_scope(item, run) + (
+                    extra if item.get("id") == args.mission_id else []
+                )
+    if set(_security_not_applicable_scope_errors(after)) - set(
+        _security_not_applicable_scope_errors(before)
+    ):
+        raise ManifestError(
+            "amend-scope refused: the path is not documentation-only and the PLAN "
+            "security review is not_applicable"
+        )
+
+    def authors_ui(candidate: dict[str, Any]) -> bool:
+        return any(
+            mission_has_ui_authoring_action(candidate, item)
+            for item in candidate.get("missions", [])
+            if isinstance(item, dict) and item.get("id") == args.mission_id
+        )
+
+    if authors_ui(after) and not authors_ui(before):
+        raise ManifestError(
+            f"amend-scope refused: the path would make mission {args.mission_id!r} "
+            "a UI authoring mission"
+        )
     amendments = run.setdefault("scope_amendments", [])
     amendments.append(
         {

@@ -184,6 +184,53 @@ class AmendScopeIntegratedOverlapTests(unittest.TestCase):
             harness_transition._amend_scope(plan, run, args)
 
 
+class AmendScopeAdmissionTests(unittest.TestCase):
+    """An amendment may not slip past a gate that reads the mission scope."""
+
+    def amend(self, plan: dict, *paths: str) -> dict:
+        run = mf.valid_run(plan)
+        mf.authorize_execution(run, ["M1", "M2"])
+        args = argparse.Namespace(mission_id="M1", path=list(paths), reason="needed")
+        harness_transition._amend_scope(plan, run, args)
+        return run
+
+    def docs_only_plan(self) -> dict:
+        plan = mf.valid_plan()
+        plan["security_review"] = {
+            "status": "not_applicable",
+            "reason": "documentation-only change",
+        }
+        return plan
+
+    def test_executable_path_is_refused_under_a_docs_only_security_exemption(self) -> None:
+        with self.assertRaisesRegex(Exception, "security review is not_applicable"):
+            self.amend(self.docs_only_plan(), "src/server.py")
+
+    def test_documentation_path_is_accepted_under_the_exemption(self) -> None:
+        run = self.amend(self.docs_only_plan(), "docs/notes/extra.md")
+        self.assertEqual(["docs/notes/extra.md"], run["scope_amendments"][0]["paths"])
+
+    def test_executable_path_is_accepted_when_security_review_is_required(self) -> None:
+        run = self.amend(mf.valid_plan(), "src/shared/server.py")
+        self.assertEqual(["src/shared/server.py"], run["scope_amendments"][0]["paths"])
+
+    def test_ui_source_path_is_refused_for_a_non_ui_mission(self) -> None:
+        for path in ("wireframes.html", "docs/design/ui-design.md"):
+            with self.subTest(path=path), self.assertRaisesRegex(
+                Exception, "a UI authoring mission"
+            ):
+                self.amend(mf.valid_plan(), path)
+
+    def test_a_refused_amendment_records_nothing(self) -> None:
+        plan = mf.valid_plan()
+        run = mf.valid_run(plan)
+        mf.authorize_execution(run, ["M1", "M2"])
+        args = argparse.Namespace(mission_id="M1", path=["wireframes.html"], reason="x")
+        with self.assertRaises(Exception):
+            harness_transition._amend_scope(plan, run, args)
+        self.assertNotIn("scope_amendments", run)
+
+
 class AmendedWorkerResultTests(unittest.TestCase):
     """The mission-level scope check reads the effective write scope."""
 
