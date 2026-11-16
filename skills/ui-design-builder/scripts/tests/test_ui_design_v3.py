@@ -258,7 +258,7 @@ class UiDesignV3Tests(unittest.TestCase):
                     ui.write_text(text, encoding="utf-8")
                     self.assertIn(expected, "\n".join(preflight(ui, root, prd, hifi)))
 
-    def test_studies_need_three_rendered_directions_by_one_self_checking_author(self):
+    def test_studies_allow_one_author_per_study_with_matching_self_check(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             ui, prd, hifi = v3_publication(root)
@@ -270,8 +270,6 @@ class UiDesignV3Tests(unittest.TestCase):
                     "Direction comparison requires exactly 1 directions"),
                 "other checker": (base.replace(f"{STUDY_AUTHOR} | pass |", "independent reviewer | pass |", 1),
                                   "self-check must be made by its own author"),
-                "split authors": (base.replace(rows[0], rows[0].replace(STUDY_AUTHOR, "second author")),
-                                  "one frontend author"),
                 "failed self-check": (base.replace(f"{STUDY_AUTHOR} | pass |", f"{STUDY_AUTHOR} | blocked |", 1),
                                       "self-check must be pass"),
                 "missing study": (base.replace(rows[0] + "\n", ""), "exactly the compared directions"),
@@ -282,6 +280,12 @@ class UiDesignV3Tests(unittest.TestCase):
                 with self.subTest(label):
                     ui.write_text(text, encoding="utf-8")
                     self.assertIn(expected, "\n".join(preflight(ui, root, prd, hifi)))
+            split = base
+            for number in (1, 2, 3):
+                author = f"frontend_worker author-{number}"
+                split = split.replace(f"{STUDY_AUTHOR} | {STUDY_AUTHOR}", f"{author} | {author}", 1)
+            ui.write_text(split, encoding="utf-8")
+            self.assertEqual([], preflight(ui, root, prd, hifi))
             ui.write_text(base, encoding="utf-8")
             study = root / "docs/design/directions/round-1/vd-02.html"
             study.write_text(study.read_text(encoding="utf-8") + "<!-- edited -->", encoding="utf-8")

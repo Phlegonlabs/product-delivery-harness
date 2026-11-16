@@ -55,16 +55,16 @@ class PreDeliverySelfReviewTests(unittest.TestCase):
     def test_every_readme_routes_initial_review_and_scoped_work(self):
         obligations = {
             "README.md": ("headless or scoped enhancement or maintenance", "Initial UI requires design",
-                          "One author self-review of the whole package", "same author checks and repairs rendered studies before owner selection",
+                          "One author self-review of the whole package", "study's author checks and repairs its rendered study before owner selection",
                           "After completeness preflight, the same author self-reviews and repairs before independent review"),
             "README.zh-TW.md": ("無 UI，或限域增強或維護", "初次 UI 交付須先完成設計",
-                                "作者自查整套文件一次", "原作者先檢查並修復已渲染的研究，再交 owner 選擇",
+                                "作者自查整套文件一次", "各研究的作者先檢查並修復自己已渲染的研究，再交 owner 選擇",
                                 "完整性 preflight 後，原作者先自查及修復，再交獨立 review"),
             "README.zh-CN.md": ("无 UI，或限域增强或维护", "初次 UI 交付须先完成设计",
-                                "作者自查整套文件一次", "原作者先检查并修复已渲染的研究，再交 owner 选择",
+                                "作者自查整套文件一次", "各研究的作者先检查并修复自己已渲染的研究，再交 owner 选择",
                                 "完整性 preflight 后，原作者先自查及修复，再交独立 review"),
             "README.es.md": ("sin UI o mejora o mantenimiento acotado", "La entrega inicial con UI requiere diseño",
-                             "Una autorrevisión del paquete completo", "mismo autor comprueba y repara los estudios renderizados antes de la selección del owner",
+                             "Una autorrevisión del paquete completo", "autor de cada estudio comprueba y repara su estudio renderizado antes de la selección del owner",
                              "Tras el preflight de completitud, el mismo autor revisa y repara antes de la revisión independiente"),
         }
         for name, (label, *checks) in obligations.items():

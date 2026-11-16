@@ -4,7 +4,7 @@ Use this reference when the harness runs multiple missions, delegates to workers
 
 ## System Review And Route Comes First
 
-Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage defined in `execution-state-model.md`. Small work never reaches this reference. A large route enters the existing PLAN-v6/RUN-v11 graph; a no-agent large route uses the parent-owned `sequential_parent` path below, one mission at a time.
+Before reading this runtime/worktree procedure, the parent completes the read-only `System Review And Route` stage defined in `execution-state-model.md`. Small work never reaches this reference; a [Direct Fan-Out](direct-fan-out.md)'s writers still follow its isolated-worktree rules. A large route enters the existing PLAN-v6/RUN-v11 graph; a no-agent large route uses the parent-owned `sequential_parent` path below, one mission at a time.
 
 ## Describe Capabilities, Not Product Labels
 
@@ -60,7 +60,7 @@ Workers must not edit the parent-owned `PLAN.md` or `RUN.md`, expand their own s
 
 ### Shared checkout
 
-Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate) or parallel read-only analysis. It is not an eligible workspace for plan-backed mission writes, including `sequential_parent`.
+Reserve `shared_checkout` for genuinely small direct work (see the Project Size Gate) or parallel read-only analysis; every [Direct Fan-Out](direct-fan-out.md) writer gets an isolated worktree. It is not an eligible workspace for plan-backed mission writes, including `sequential_parent`.
 
 - Do not assign a plan-backed write lease in this checkout. Read-only inspection may run concurrently when it does not mutate shared state.
 - Parallel read-only workers may inspect the same checkout if they do not run mutating generators, formatters, services, or tests with shared state.
@@ -146,7 +146,7 @@ Prefer structured result data returned directly to the parent. Use temporary `do
 
 ## Batch Integration
 
-Integrate selected missions serially, one at a time. A mission integrates as soon as the gates `verification-gates.md#review-topology` requires for its `review_policy` pass; it does not wait for the rest of the wave. `merge_rank` and mission-ID order break ties between missions that become ready at the same moment.
+Integrate selected missions serially, one at a time. A mission integrates as soon as the gates `verification-gates.md#review-topology` requires for its `review_policy` pass; it does not wait for the rest of the wave. Under an `integrate_locally` grant, the parent integrates without asking again. `merge_rank` and mission-ID order break ties between missions that become ready at the same moment.
 
 1. Receive the worker result through the declared completion channel.
 2. Run `record-worker-result` with the node result, worker result, and retained verifier results. It reads the bound worktree and verifies its branch, head, dirty state, ancestry, changed files, denied and parent-owned paths, resource claims, commits, and verifier evidence before one atomic RUN update.

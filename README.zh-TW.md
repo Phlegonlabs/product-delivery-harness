@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.82.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.83.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -121,7 +121,7 @@ flowchart LR
 
 以下流程規則只適用於你明確呼叫的 skill 工作。
 
-Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即可完成的工作走 direct。可獨立寫入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，細 task 各自保留 atomic commit。owner 選擇 `Delivery profile: mvp` 時，小型專案或一週 MVP 走壓縮路線：stack 與產品批准一次合併呼叫、必要頁面才做 HiFi、一次合併交付 review 併入 Final UI Acceptance，owner gate 最多四個；證據、安全與資料保護規則不變。
+Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即可完成的工作走 direct；幾個互不依賴、檔案不重疊的部分走 [Direct Fan-Out](skills/delivery-harness/references/direct-fan-out.md)：每位 writer 一個 worktree，merge check 一通過就合回工作分支。互相依賴的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，細 task 各自保留 atomic commit。owner 選擇 `Delivery profile: mvp` 時，小型專案或一週 MVP 走壓縮路線：stack 與產品批准一次合併呼叫、必要頁面才做 HiFi、一次合併交付 review 併入 Final UI Acceptance，owner gate 最多四個；證據、安全與資料保護規則不變。
 
 - [進場與交接](skills/delivery-harness/references/governance/task-and-handoff.md)：檢查目前指令與來源；未知的 loaded identity 維持未知。目前 Epic 就是 `docs/DOCUMENTS.md` 的 `Current Epic:` 行所指的那份；索引只留一列 `docs/epics/`，各 Epic 的狀態寫在自己的檔案。初始化會從 `PROJECT_GITATTRIBUTES.template` 建立缺少的 `.gitattributes`，讓雜湊綁定的檔案逐位元組保存（[gitattributes 契約](skills/delivery-harness/references/gitattributes-contract.md)）；`configure_project_context.py --check` 不寫入任何檔案，回報 attribute 缺口、每個過時 `AGENTS.md` 段落的 diff，加上 `--documents` 時也回報 `docs/DOCUMENTS.md` 的偏差。managed run 從 inspector 的 `Next` 區塊恢復；停滯的 `running` RUN 先要 owner 決定，自主執行從已簽署的 launch brief 開始。
 - [分工](skills/delivery-harness/references/delegation-contract.md)：agent 設定與 AGENTS 決定 executor、model、effort 與 fallback。每個 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 與 review packet 在啟動前先依路線的時間、turn 與 byte 上限切好大小。期限已到卻沒有 verdict，視為環境受阻，改以較小的 scoped 呼叫重新分派。變動邊界的設計與 review 依 [architecture method](skills/delivery-harness/references/architecture-method.md) 進行。
@@ -135,7 +135,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 | 階段 | 預設 review 與停止條件 |
 | --- | --- |
 | Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更；之後再做一次獨立唯讀 PRD review 與一次定向複查，owner 依十題 review 指南決定。其後的缺陷走隔離修復加 scoped review。 |
-| 方向 | 新視覺範圍先建立 9–12 張截圖的參考板，由 owner 確認。原作者先檢查並修復已渲染的研究，再交 owner 選擇；檢查包含 `slop_scan.py` 與對照參考板的比對頁。三個研究，由 owner 選定。 |
+| 方向 | 新視覺範圍先建立 9–12 張截圖的參考板，由 owner 確認。各研究的作者先檢查並修復自己已渲染的研究，再交 owner 選擇；檢查包含 `slop_scan.py` 與對照參考板的比對頁。三個研究，主機有容量時由不同作者同時撰寫，由 owner 選定。 |
 | HiFi | 先做靜態，再加動效。完整性 preflight 後，原作者先自查及修復，再交獨立 review；自查包含 `slop_scan.py`，以及用 `capture_sheet.py` 把選定方向和候選稿並排的比對頁。Impeccable `critique` **與** `audit` 完成，且四捨五入的 H1–H9 總平均 **至少 85**、每項 **至少 80** 後，才取得 Visual Approval。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），另加一次定向複查。之後每個剩餘缺陷各成一筆有界修復，只對其修復差異做 scoped review。 |
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
@@ -199,6 +199,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.83.0** — 互不依賴的工作現在同時進行。小型工作裡有幾個互不依賴、檔案不重疊的部分時，不必再在「一位 writer」和「完整 PLAN/RUN」之間二選一：Direct Fan-Out 讓每個部分有自己的 writer 和 worktree，writer 一完成，只要 `worktree_fanout.py merge-check` 通過，parent 就立刻合回工作分支。檢查項目是：worktree 乾淨、base 正確、改動都在該部分的 scope 內、沒有改 PLAN/RUN、沒有空白錯誤、試合併沒有衝突。檢查不過就不合併，並說明原因。`worktree_fanout.py scopes` 在派工前確認各部分的寫入範圍不重疊。規模判斷也跟著改：missions 互相依賴，或工作必須跨 session 延續，才算 large；光是有兩個可寫的部分不算。managed run 方面，`plan_width.py` 在 readiness 前報告 PLAN 的並行寬度、依賴層級和關鍵路徑，並指出三種情況：一個 mission 等待另一個，但兩者沒有共用檔案或資源；三個以上 mission 宣告同一個獨占資源，例如同一個固定的 dev-server port；並行上限低於寬度。它只報告，不增加 gate。依賴邊現在的意思是一個 mission 要用另一個的產出；合併順序和 review 順序都不是依賴。PLAN 範本和 `new_run.py` 的並行上限預設從 1 改為 8。UI 設計裡，每個 direction study 可以有自己的作者，主機有容量時三個 study 同時撰寫。checker 不再要求所有 study 同一位作者，但仍要求每個 study 由自己的作者自查。HiFi 仍由一位作者負責。研究任務和 review 波次的各個讀者同時派出。
+
 - **0.82.0** — 動效在技術棧決策裡有了位置，多了兩條路線，也有了生成素材的做法。技術棧決策可以加一列選填的 `motion`：從 `CSS/WAAPI`、`Motion`、`GSAP`、`Three.js`、`Lottie`、`Rive` 選出的上限，和其他層一起核准。UI 設計在上限內選效果，不必再為了 expressive 動效退回 Product Definition。沒有這一列的專案沿用舊規則。`MM-*` 紀錄現在可以把 `Lottie` 或 `Rive` 寫成路線。它們和 Three.js 一樣不能在封閉的 HiFi 頁面裡執行，所以 HiFi 顯示近似版本，而實作的第一個切片現在要用 `capture_sheet.py` 把近似版本和真實 library 的畫面並排。View Transitions API 和 CSS scroll-driven animations 不需要 stack 項目，只能當漸進增強。`motion-and-media-routing.md` 新增 Higgsfield MCP 這類生成 provider 的影片與 3D 模型做法：靜態階段通過後才生成、用同一張圖當首尾畫面做無縫循環、去掉音軌、保留該圖當 poster，並記錄模型、job id、輸入圖的雜湊和花掉的額度。它也寫明不要生成介面本身的操作影片。選項目錄新增圖表（Recharts、visx、ECharts）、資料表（TanStack Table、AG Grid）、附逐瀏覽器支援表的平台動效、dotLottie、四個動效元件來源、原生動效（Reanimated、React Native Skia、SwiftUI、Compose）和 Ark UI，並把「GSAP 授權待確認」換成 Standard License 的條款。沒有任何關卡、核准或門檻改變，已核准的專案全部照舊有效。UI checker 接受這兩條新路線，所以 bundle 位元組有變，consumer 需要重新 pin 五技能 contract。
 
 - **0.81.0** — UI 設計改成以圖為準，並對著圖自我檢查。新視覺範圍先建立參考板：9 到 12 張實際頁面截圖（`mvp` 最少 5 張），涵蓋版面、間距、字體、色彩、控制項和動效。Owner 在一頁上確認，`visual_inputs.py` 把每張截圖列進作者的任務，所以 prompt 只指向截圖，不再用文字描述風格。Owner 已連接的參考 MCP 或瀏覽器工具可以用來找候選和截圖；agent 仍然不得自行安裝或連接。Frontend brief 多了四行：照截圖做、以 99% direction match 為目標、品質優先於速度、禁用清單。HiFi 先做靜態再加動效，動效參考要先寫好時間筆記才能動手。作者自檢多了兩支腳本。`slop_scan.py` 讀取研究或 HiFi 頁面，同一頁出現三種以上預設樣式時標記為 cluster；單一樣式交給作者判斷。`capture_sheet.py` 產生一張自包含頁面，可以排出參考板，或把選定方向和 HiFi 候選稿並排；Visual Approval 的連結會附上這張比對頁。作者記錄自評的 direction match；lead grader 先給自己的分數再看作者的，相差 15 分以上就告知作者。這個數字只做校準，不是關卡。Owner 的意見記成指出元素、屬性和期望結果的列；沒有指出這兩者的意見，回覆做了什麼，不猜測修法。評分紀錄寫明作者和評審的模型；agent policy 有得選時，lead grader 用不同模型家族。審查預算、85/80 門檻和所有 checker 都沒有變。Bundle 位元組有變，consumer 需要重新 pin 五技能 contract。
@@ -206,7 +208,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.80.0** — 產品的第一次交付可以直接落 `main`、直接上 production。架構文件在 `## Release Targets` 的 `Release source policy: main-preview/1` 旁寫一行 `Initial delivery: production-first/1`，每個 surface 就可以只宣告 production target，`release_targets.py` 不再要求配對的 `-dev` target。`check_deployment.py` 讀取 Branch Promotion 記錄的 `Delivery kind`：標記架構下的 `initial_delivery`，development 欄位、development 列和 preview 各行填固定字串 `n/a — initial delivery: production is the first deployed environment`；`enhancement` 不論有無標記都照舊要求 development target、欄位和 preview 驗收，記錄與架構不一致即為 finding。promotion 契約對這第一次交付略過 preview 驗收，改以 main SHA 的 production 部署與 smoke 作為部署驗證；initial delivery 需要部署環境的驗收場景改以 production smoke 執行，受既有 production 限制，無法 production-safe 的場景由 owner 記錄原因降級，不得改標籤。`check_delivery_acceptance.py` 分成兩個階段：落 main 前，required 且 `environment: production` 的場景若為 `blocked` 就列入 `production_smoke_deferred` 而不算失敗；production 部署後以 `--production-smoke-complete --candidate-sha <main SHA>` 再跑，這些場景必須全部 pass。沒有標記的套件和所有 enhancement 仍保留 development target 和 preview 驗收；只有驗收 gate 的 deferral 適用於所有交付種類。bundle 新增契約標記，故提升 minor 版本。
 
 - **0.79.1** — 0.79.0 PR 經 Codex review 後的補丁。`hifi_matrix_capture.py` 對產品控制項不可見或焦點沒有單獨落在控制項上的互動改記 FAIL，不再出現 `focusCorrect: false` 卻 PASS 的列；reviewer pass 改點擊帶 surface 條件的狀態控制項，同一頁兩個 surface 共用 `ready` 等狀態時不再誤報「reviewer control missing」。frozen package 的 join 會把 PRD 宣告的 `docs/product/features` 目錄傳給 Product Definition checker，核准後改動 scenario 會以 feature 檔 digest 不符擋下 readiness，與 CLI 行為一致。bundle 位元組改變，consumer 需重 pin 五技能契約。
-
-- **0.79.0** — 整套 review 第二輪。0.78.0 那次審查留下的十項在此版落地。RUN 裡權限最高的幾個改動現在都有守衛的 transition：`harness_transition.py record-grant`、`open-run`、`close-run`、`record-runtime` 會取鎖、帶著 owner 的原話、從 RUN 填入 run_id 與 plan revision 和 digest、寫入前驗證整個 pair，並拒絕 `push`；`lease-worker --packet-out` 直接從已租用的 RUN 渲染並檢查 worker goal 封包大小，Card 4 因此拿掉獨立的渲染與檢查步驟。`build_verifier_request.py --layer mission_integration` 產生 integration verifier 的 request，builder 與兩個 validator 現在共用同一個 `verifier_context`。`promotion_readback.py pre` 與 `post` 以唯讀方式證明 main 的前狀態、祖先關係與 tree 相等；README 以 `post` 的 JSON 作為 tree 相等的證明。`hifi_matrix_capture.py` 會點擊並以鍵盤觸發 manifest 的每個互動、量測 reviewer 列、用 `--color-scheme dark` 跑完整基礎矩陣、用 `--intermediate` 寫出中間寬度的輸出，並新增 `reflow-320` 軸。`parity_capture.py --hifi-package` 透過 reviewer 控制項比對 ui-hifi/2 套件，route map 用 `PARITY_ROUTE_MAP.template.json`。consumer 會察覺的變化，在 0.79.0 pin 之後：eval policy 為 `not_required` 的 managed PLAN 仍須凍結 delivery-acceptance source、宣告 acceptance 與 closeout gate 及 pass-only 鏈；system-conformance 的 `target_comparison` 必須引用凍結的已核准 HiFi。pin 在 0.79.0 之前的 run 維持現行行為。bundle 新增契約，因此升 minor 版本。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

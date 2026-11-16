@@ -32,7 +32,7 @@ Use `../../product-definition-builder/references/prd-refinement.md` for findings
 
 ## UI Structure And Direction Self-Review
 
-The `frontend-design` author reviews each proposed direction before asking the owner to select it. Here “UI” means the PRD-to-design translation and representative direction studies; it does not add a Wireframe stage.
+Each study's `frontend-design` author reviews its own study before the owner selects among the round's directions. Here “UI” means the PRD-to-design translation and representative direction studies; it does not add a Wireframe stage.
 
 - Follow the approved page purposes, navigation, operations and entry/return paths, states, copy/data responsibilities and responsive targets through the representative primary and stress cases.
 - Inspect the rendered studies on the applicable platforms. Check hierarchy, grouping, density, readability, control treatment, accessibility and motion intent against the brief and inspected references. Let scripted geometry and console checks find overlap, clipping and errors; read the studies for the judgment calls.

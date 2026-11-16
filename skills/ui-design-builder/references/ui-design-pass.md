@@ -42,7 +42,7 @@ For administration, include the required work areas and their responsibilities, 
 
 Choose composition, hierarchy, grouping, typography, imagery and motion freely within the approved constraints. A hero, introduction, feature group or CTA is a design choice when it serves the page purpose; do not impose a universal section sequence. Use the existing Page-purpose mapping to distinguish fixed requirements from design freedom.
 
-Produce three materially different visual directions by default, with inspected reference lessons and the same representative primary and stress cases. Show applicable motion and reduced-motion treatment. If the owner explicitly requested one direction, or the delivery profile is `mvp`, produce one. Present comparable studies and wait for the owner's selection before creating the full connected HiFi HTML package; under mvp, present the one study with the HiFi.
+Produce three materially different visual directions by default, with inspected reference lessons and the same representative primary and stress cases. Show applicable motion and reduced-motion treatment. If the owner explicitly requested one direction, or the delivery profile is `mvp`, produce one. When your task names `direction <k> of <n>`, you own one study of the set: write only that study file, and do not read the other authors' studies. Present comparable studies and wait for the owner's selection before creating the full connected HiFi HTML package; under mvp, present the one study with the HiFi.
 
 Match the quality and feel of the board as closely as possible; aim for a 99% direction match. The first render that works is not the finish. Quality over speed: ask blocking questions before starting, then build without check-ins.
 
@@ -81,11 +81,11 @@ If proactive reference research introduces a structural option, route the produc
 
 Record the studies in `### Direction comparison` under Style Integration, with inspected screenshot paths/hashes and a concrete rationale for each row. Tie each rationale to the Design Brief's page-purpose/profile, type/density/headline, motion and reference lessons; do not substitute generic style labels. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
 
-Before asking the owner to select a direction, the author completes the UI structure/direction self-review in `../../delivery-harness/references/pre-delivery-self-review.md`. Inspect the representative studies, their required operations and primary/stress cases, repair defects and retain the result against the current candidate identities in the existing task record. That review includes the `slop_scan.py` run, the board comparison sheet and the author's direction match estimate. An owner-selected mix or changed study needs an affected recheck.
+Before the owner selects a direction, each study's author completes the UI structure/direction self-review in `../../delivery-harness/references/pre-delivery-self-review.md` for that study. Inspect the study's representative cases and required operations, repair defects and retain the result against the current candidate identities in the existing task record. That review includes the `slop_scan.py` run, the board comparison sheet and the author's direction match estimate. An owner-selected mix or changed study needs an affected recheck.
 
 ## Frontend Design Style Integration
 
-Load `frontend-design` and use its brief-first, subject-grounded design process. It owns the direction, page theme, and connected HiFi design-reference HTML across every surface. Taste skills such as `design-taste-frontend` or `gpt-taste` may supplement an approved direction; they never replace `frontend-design` as the author or select a competing direction. Do not run Impeccable build/refine commands or another visual author in parallel.
+Load `frontend-design` and use its brief-first, subject-grounded design process. It owns the direction, page theme, and connected HiFi design-reference HTML across every surface. Taste skills such as `design-taste-frontend` or `gpt-taste` may supplement an approved direction; they never replace `frontend-design` as the author or select a competing direction. Two authors never write the same candidate: a direction study is one candidate, and the connected HiFi package is one candidate. Do not run Impeccable build/refine commands or another visual author on the same candidate in parallel. Separate direction studies are separate candidates and may be authored at the same time.
 
 For each direction, record:
 
@@ -126,7 +126,7 @@ Every `motion` or `image + motion` intent records its design-projection effect e
 
 ## Journey Map
 
-After direction selection and before the connected HiFi, the `frontend-design` author maps the 2–5 core journeys from the PRD `## User Journeys` as flow diagrams in the selected direction, as [Workflow](stages/ui-design.md#workflow) step 4 states. A node is a PRD page, state or control; an arrow is a PRD operation or navigation. The map is one page, `journeys.html`, assembled alone under `--mode direction`. It is planning evidence for the owner's confirmation: not the HiFi, not a product surface and not an approval. It adds no page, route, state, control, copy or journey beyond the PRD, and a missing step returns to `product-definition-builder`.
+After direction selection and before the connected HiFi, the HiFi author maps the 2–5 core journeys from the PRD `## User Journeys` as flow diagrams in the selected direction, as [Workflow](stages/ui-design.md#workflow) step 4 states. A node is a PRD page, state or control; an arrow is a PRD operation or navigation. The map is one page, `journeys.html`, assembled alone under `--mode direction`. It is planning evidence for the owner's confirmation: not the HiFi, not a product surface and not an approval. It adds no page, route, state, control, copy or journey beyond the PRD, and a missing step returns to `product-definition-builder`.
 
 ## Connected HiFi Reference
 

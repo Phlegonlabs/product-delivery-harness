@@ -16,7 +16,7 @@ This neutral headless example remains unmarked. Do not rewrite frozen RUNs or ea
     "plan_id": "PLAN-<stable-id>",
     "revision": 1,
     "objective": "<one measurable outcome and stopping condition>",
-    "max_parallel_workers": 1,
+    "max_parallel_workers": 8,
     "branch_policy": {
       "protocol": "main-preview/1",
       "kind": "ordinary",
@@ -466,7 +466,7 @@ Direct work runs the acceptance CLI without these artifacts.
 
 Implementation may start only after static validation passes, RUN records `plan_readiness: "ready"`, and required actions have explicit user authorization. Readiness never grants authorization.
 
-Before marking readiness, reject any mission that bundles unrelated features, whose tasks hide multiple commit-sized deliverables, or whose only cohesion is a shared file or serialized resource. Also reject a single-task mission that records no Mission Cohesion Gate reason. Every executable task must map to its own authorized atomic commit before the next task begins.
+Before marking readiness, reject any mission that bundles unrelated features, whose tasks hide multiple commit-sized deliverables, or whose only cohesion is a shared file or serialized resource. Also reject a single-task mission that records no Mission Cohesion Gate reason. Run `scripts/plan_width.py --plan docs/goal/PLAN.md` on the draft; for each finding, fix the PLAN or record the one-line reason it stays in the PLAN's existing human notes. Every executable task must map to its own authorized atomic commit before the next task begins.
 
 The readiness review confirms the environment preflight in `stages/managed-delivery.md#3-pass-plan-readiness` before the parent records `plan_readiness: "ready"`. Its rows cover toolchain versions against `stack-decisions.md`, baseline verifier runs at the base, and the observed reviewer route and worker driver. When the plan has UI, the rows also cover the pinned browser console policy. The review names the Epic or task record that holds the probe results.
 

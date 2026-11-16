@@ -70,6 +70,7 @@ Pass the Mission Cohesion Gate for every mission. Require one verifier per missi
 
 ```text
 python "<delivery-harness-skill-root>/scripts/configure_project_context.py" --root <root> --check --require-resolved
+python "<delivery-harness-skill-root>/scripts/plan_width.py" --plan <PLAN.md>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> record-observation
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-grant --action <action> --expires-when <boundary> --source <owner words>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-runtime --provider <provider> --driver <driver> --route-caps <route>=<cap>=<n>

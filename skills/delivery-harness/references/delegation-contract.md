@@ -27,7 +27,7 @@ The parent owns every launch, result reconciliation, canonical coordination reco
 
 ## Resolve Roles Before Direct Or Managed Work
 
-Agent policy designates the executor for UI authoring, implementation and repairs; this skill does not select an agent type. The actual author reads the complete pinned `frontend-design` and applicable project design skills in its own context before editing. UI research remains read-only and may have multiple sibling researchers while one frontend author owns the candidate.
+Agent policy designates the executor for UI authoring, implementation and repairs; this skill does not select an agent type. The actual author reads the complete pinned `frontend-design` and applicable project design skills in its own context before editing. UI research remains read-only and may have multiple sibling researchers; one frontend author owns each candidate, and separate direction studies may have separate authors.
 
 Every frontend dispatch packet carries an explicit maximum-creativity brief. It directs the writer to pursue the most distinctive, high-craft visual concept the frozen PRD allows — ambitious hierarchy, typography, composition and motion rather than a generic template or a mechanical section recipe. The PRD bounds pages, operations, states and copy; it does not cap creative ambition. The brief also carries four lines:
 
