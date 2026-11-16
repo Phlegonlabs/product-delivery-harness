@@ -27,7 +27,7 @@ def call_run(argv: list[str]) -> tuple[int, dict]:
 
     buffer = io.StringIO()
     with contextlib.redirect_stdout(buffer):
-        code = worktree_fanout.run(argv)
+        code = worktree_fanout.main(argv)
     return code, json.loads(buffer.getvalue())
 
 
@@ -36,7 +36,7 @@ def call_run_expecting_usage(test: unittest.TestCase, argv: list[str]) -> int:
 
     with contextlib.redirect_stderr(io.StringIO()):
         with test.assertRaises(SystemExit) as captured:
-            worktree_fanout.run(argv)
+            worktree_fanout.main(argv)
     code = captured.exception.code
     assert isinstance(code, int)
     return code
