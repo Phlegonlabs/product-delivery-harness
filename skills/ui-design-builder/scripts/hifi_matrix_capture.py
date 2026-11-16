@@ -116,7 +116,14 @@ const packageVersion = () => {
 
 const SET_CANVAS_WIDTH = px => {
   const canvas = document.querySelector('[data-hifi-canvas]');
-  if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
+  if (canvas.style.zoom === '2') {
+    const target = canvas.dataset.hifiTarget;
+    const widths = JSON.parse(canvas.dataset.hifiTargetWidths || '{}');
+    const nominal = px || widths[target] || Number(target);
+    if (!Number.isFinite(nominal) || nominal <= 0) throw Error('zoom target has no numeric width');
+    canvas.style.setProperty('width', nominal / 2 + 'px');
+  } else if (px) canvas.style.setProperty('width', px + 'px');
+  else canvas.style.removeProperty('width');
 };
 
 const SETTLE = async ({ cap, margin }) => {
@@ -179,6 +186,7 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
   const box = surface.getBoundingClientRect();
   const geometry = {
     canvasWidth: round(origin.width), canvasHeight: round(origin.height),
+    containerInlineSize: round(parseFloat(getComputedStyle(canvas).width)),
     surface: { x: round(box.left - origin.left), y: round(box.top - origin.top), width: round(box.width), height: round(box.height) },
     scrollWidth: surface.scrollWidth, clientWidth: surface.clientWidth,
     scrollHeight: surface.scrollHeight, clientHeight: surface.clientHeight,
@@ -471,10 +479,7 @@ async function runCase(request) {
     }
   }
   if (problems.length) return { problems, settle: null, probe: null };
-  await page.evaluate(px => {
-    const canvas = document.querySelector('[data-hifi-canvas]');
-    if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
-  }, request.widthPx || null);
+  await page.evaluate(SET_CANVAS_WIDTH, request.widthPx || null);
   const settle = await page.evaluate(SETTLE, { cap: request.settleCapMs, margin: request.marginMs });
   const probe = await page.evaluate(PROBE, {
     surfaceId: request.surface, state: request.state, limit: 400, reportLimit: 10, props: STYLE_PROPS,
@@ -503,13 +508,14 @@ async function axis(request) {
     forcedColors: name === 'forced-colors' ? 'active' : 'none',
   });
   await page.evaluate(zoom => {
-    for (const surface of document.querySelectorAll('[data-ui-surface]')) {
-      if (zoom) surface.style.setProperty('zoom', '2'); else surface.style.removeProperty('zoom');
-    }
     // a reflow case leaves its inline width behind; the next pass must meet the declared widths again
     const canvas = document.querySelector('[data-hifi-canvas]');
-    if (canvas) canvas.style.removeProperty('width');
+    if (canvas) {
+      canvas.style.removeProperty('width');
+      if (zoom) canvas.style.setProperty('zoom', '2'); else canvas.style.removeProperty('zoom');
+    }
   }, name === 'zoom-200');
+  await page.evaluate(SET_CANVAS_WIDTH, null);
   return {};
 }
 

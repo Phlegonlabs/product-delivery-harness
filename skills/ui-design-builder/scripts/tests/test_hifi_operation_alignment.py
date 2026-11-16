@@ -336,6 +336,19 @@ class OperationBrowserTests(unittest.TestCase):
         self.assertEqual([], reply["result"]["problems"], reply)
         self.assertFalse(reply["result"]["focusCorrect"], reply)
 
+    def test_zoom_halves_query_container_width_and_preserves_rendered_width(self):
+        driver = self.driver()
+        driver.call("open", page="details.html", timeoutMs=2000)
+        for axis, target, inline in (("none", "390", 390), ("zoom-200", "390", 195),
+                                     ("zoom-200", "1200", 600), ("none", "1200", 1200)):
+            driver.call("axis", name=axis)
+            reply = driver.call("case", surface="UI-002", state="ready", target=target,
+                                timeoutMs=2000, settleCapMs=0, marginMs=0)
+            self.assertEqual([], reply["result"]["problems"], reply)
+            geometry = reply["result"]["probe"]["geometry"]
+            self.assertEqual(inline, geometry["containerInlineSize"])
+            self.assertEqual(int(target), geometry["canvasWidth"])
+
     def test_cross_page_state_observes_the_arrival_page_and_state(self):
         actions = copy.deepcopy(matrix_tests.INTERACTIONS)
         actions[0].update(kind="state", destination={"surface": "UI-002", "state": "error"})
