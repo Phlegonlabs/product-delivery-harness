@@ -1496,6 +1496,8 @@ def _validate_hifi_html(
             ) is None:
                 _add(problems, f"Connected HiFi reference is missing surface coverage for {surface_id}")
             for state in surface.get("states", []) if isinstance(surface, dict) else []:
+                if isinstance(state, str) and state.endswith(":n/a"):
+                    continue
                 if re.search(rf"data-state=[\"']{re.escape(str(state))}[\"']", html, re.IGNORECASE) is None:
                     _add(problems, f"Connected HiFi reference is missing state coverage for {surface_id}/{state}")
         responsive = scope.get("responsive", {})
@@ -1607,13 +1609,15 @@ def _validate_hifi_html(
             expected_targets = {str(item) for item in expected_responsive.get("targets", [])} if isinstance(expected_responsive, dict) else set()
             if container["route"] != {expected.get("route")}:
                 _add(problems, f"Connected HiFi DOM route binding is wrong for {surface_id}")
-            if container["states"] != {str(item) for item in expected.get("states", [])}:
+            applicable_states = {str(item) for item in expected.get("states", []) if not str(item).endswith(":n/a")}
+            if container["states"] != applicable_states:
                 _add(problems, f"Connected HiFi DOM state coverage is wrong for {surface_id}")
             if container["targets"] != expected_targets:
                 _add(problems, f"Connected HiFi DOM responsive target coverage is wrong for {surface_id}")
             expected_cases = {
                 (str(state), str(target))
                 for state in expected.get("states", [])
+                if not str(state).endswith(":n/a")
                 for target in (
                     expected_responsive.get("targets", [])
                     if isinstance(expected_responsive, dict)

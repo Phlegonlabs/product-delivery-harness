@@ -16,6 +16,8 @@ Each page loads once. For every applicable case the tool clicks the target and s
 
 ## Outputs
 
+States ending in `:n/a` need no product marker or state/target case. Overview still records their reason.
+
 - `ui-output.json`: `ui-output/3`, check `hifi-browser`, tool `playwright`, method `sandboxed-offline-browser`. Matrix, results, transcript and an execution block with real timestamps, versions and path plus SHA-256 for the subject, every page, the sidecar and every capture. `review_evidence.py` builds the receipt from it.
 - `matrix-capture.json`: `hifi-matrix-capture/1`. Per case: `renderFingerprint`, `fingerprintIncomplete`, `geometry`, `durationMs`, `startedAt`, `finishedAt`, `settle`, `capture`, `carriedFrom`, reasons. Result rows in `ui-output/3` are closed, so these live here.
 - `<surface>-<state>-<target>-<hash>.png`: the canvas. `<hash>` is the first 10 hex characters of SHA-256 over the case tuple.

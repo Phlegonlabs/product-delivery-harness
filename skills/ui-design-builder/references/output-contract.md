@@ -67,6 +67,8 @@ Before the consolidated Visual Approval, follow `stages/ui-design.md#workflow` s
 
 ## Token specimen completeness
 
+States ending in `:n/a` need no product state marker or state/target variant. Overview still records a non-link with its reason.
+
 For tokens, the `sourceValue`, `specimenValue` and `displayValue` triple records the raw custom-property value. Also record `sourceComputedValue` and `specimenComputedValue`: nonempty, equal browser-computed values of `previewProperty`. Normalize the source token through a probe on its source page with the same element, inherited/root font, containing-block dimensions, constraints and responsive target as the specimen, and read the applied property on the actual specimen separately. Preserve both forms: `#243447` may render as `rgb(36, 52, 71)`, `1.5rem` as `24px`, and `normal` as `400`. Never compare raw token text with the applied property or substitute a second custom-property read for applied-value evidence. Shared groups agree on both forms across pages. Component and pattern records keep the three value fields.
 
 Every declared and used product token needs a named purpose, its source value and a visible specimen applying that value. A list of CSS variables alone does not prove reusable values were tokenized or component states designed.

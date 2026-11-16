@@ -1,6 +1,7 @@
 """PRD operations retain observable proof when HiFi accepts more product forms."""
 import copy
 import json
+import re
 from pathlib import Path
 import shutil
 import sys
@@ -10,6 +11,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_ui_design_contract as checker
 import hifi_matrix_capture as capture
+import hifi_review_fixture
 import test_hifi_matrix_capture as matrix_tests
 import test_ui_design_contract as contract_tests
 from operation_coverage import hifi_coverage_findings
@@ -75,6 +77,24 @@ class FeedbackContractTests(unittest.TestCase):
                 broken = copy.deepcopy(output)
                 broken["interactions"][2]["observed"] = bad
                 self.assertTrue(checker._bundle_transcript_findings(broken, manifest))
+
+
+class NotApplicableStateTests(unittest.TestCase):
+    def test_na_state_needs_no_product_marker_or_case_but_real_state_does(self):
+        for state, passes in (("permission:n/a", True), ("permission", False)):
+            with self.subTest(state=state), tempfile.TemporaryDirectory() as temporary:
+                path, manifest, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+                manifest["surfaces"][0]["states"].append(state)
+                write_manifest(path, manifest)
+                html = re.sub(r'<!-- reviewer:start -->[\s\S]*?<!-- reviewer:end -->',
+                    lambda _: '<!-- reviewer:start -->' + hifi_review_fixture.shell(manifest) + '<!-- reviewer:end -->',
+                    path.read_text(encoding="utf-8"))
+                path.write_text(html, encoding="utf-8")
+                findings = []
+                checker._validate_hifi_surface(path, findings, scope)
+                self.assertEqual(passes, not findings, findings)
+                cases = checker._evidence_matrix(scope)["cases"]
+                self.assertEqual(passes, not any(row["state"] == state for row in cases))
 
 
 class CrossPageStateTests(unittest.TestCase):
