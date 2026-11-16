@@ -1,6 +1,6 @@
 # UI compiler evidence scope
 
-Status: the checker patch and its runtime successor are merged for release 0.83.1; that release replaces the development install.
+Status: released as 0.83.1 on 2026-11-16 (PR #186, `main` `cacd22ba`, tag `v0.83.1`), installed, and adopted by twenty consumer repositories.
 
 AgentKiosk's approved Shop talk package exposed two checker mismatches. Declared
 `:n/a` states entered the expected capture matrix, and intermediate-width receipts
@@ -61,3 +61,9 @@ Source `aedd503f2010b470ec2addaf3783cf8839e229b9` passed all nine local matrix s
 Official `install.sh` exited0. Backup: `20261115-174211`. Installed0.80.0 development bundle: `2c375baacf578268ca0732b1a6ae83d71a96e85131706294069be354fb632e5e`. Consumer bindings pass. Other four core skill trees equal their backups. Local UI tests retain two POSIX-only skips on Windows.
 
 Evidence is in AgentKiosk worktree `docs/design/evidence/r4-shoptalk-20261113/compiler-state-visibility-001/`; all raw matrix logs remain in `C:/Users/mps19/AppData/Local/Temp/agentkiosk-state-visibility-399t8wzb/matrix/`. This later documentation commit changes no installed source identity. On 2026-11-16 the owner chose to land this branch as 0.83.1 so that installing a release after 0.83.0 keeps these fixes; the merge onto `main` `33501412` had one conflict, the `Current Epic:` line, and the design-system (239) and UI (605) suites pass on the merged tree with browser tests required. The separate0.81 checkout is unchanged. Next: changed-page verification of the annotated Shop talk successor, then pair and preview completion.
+
+Released, installed and rolled out on 2026-11-16. PR #186 merged into `main` as `cacd22ba`; `promotion_readback.py post` reports PASS with the main tree equal to the candidate; annotated tag `v0.83.1` points at `cacd22ba`. Official `install.sh` exited 0 with no process running from the skills root; backup `20261116-041703` holds the development bundle it replaced; installed five-skill contract `ba059a530aded6f33c5d20b43c1eed3b922ed1308c7f995c98b8752015d881fb`. The install also carries the 0.81.0 to 0.83.0 rules, so the AgentKiosk and jolvex rounds that were in flight now run 0.83.1 scripts; neither round was re-pinned.
+
+Consumer rollout: twenty repositories adopted 0.83.1, one GLM-5.3 Flash writer each, parent-checked for scope, pins, removed rows and bindings. Seventeen mains are pushed and read back: agent-bridge, agentcommercehq, ai-call-screener, cloudflare-switch, clouldflare-bifu, dilution-radar, excalidraw-personal, gangster, hardwareprices, hk-car-direct, mark-six-3d, paper-workbench, phlegon-web, social-auto-reply, tenbagger-radar, ticketradar, worker-manager. Local only by design: codex-router, ziwei-doushu. Committed and not pushed: agentic-commons-site, whose pre-push hook runs a site build while the disk had about 2 GB free. Not adopted: jolvex-platform and agentkiosk (rounds in flight), hk-car-care (owner pins, a live session, and a 4.6 GB tree that the free disk could not hold as a worktree). Baselines were left as they were in phlegon-web and agentic-commons-site, where product documents had changed since the last refresh.
+
+Next owner: human. Open: free disk space, then push agentic-commons-site; adopt jolvex-platform, agentkiosk and hk-car-care when their rounds allow.

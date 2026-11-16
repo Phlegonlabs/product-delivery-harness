@@ -1,6 +1,6 @@
 # EPIC-parallel-delivery: independent work runs at the same time, and a finished worktree merges back when its check passes
 
-Status: published as 0.83.0 on 2026-11-16 (PR #184, `main` `4771b2f4`, tag `v0.83.0`); not installed, consumers not re-pinned
+Status: published as 0.83.0 on 2026-11-16 (PR #184, `main` `4771b2f4`, tag `v0.83.0`); installed and rolled out to consumers the same day inside 0.83.1
 Design workflow: enhancement
 UI impact: none (delivery routing rules, two read-only scripts, a seed value, UI design authoring rules and one checker rule; no product UI).
 
@@ -96,8 +96,8 @@ Re-check: eight of ten dispositions resolved. Two remained and were repaired in 
 - At `ba4a1db7`, after the repairs: the affected modules pass (`test_worktree_fanout`, `test_plan_width`, `test_skill_contract`, `test_documented_commands`, `test_cli_utf8_output`, the docs and governance tests, `test_new_run`), with pyflakes over all four script trees, `prepare_release.py --check` and the candidate diff check. The full matrix was not rerun on the repaired head; CI on the pull request is that run.
 - CI on the final head `cd6874b9`: all 14 jobs pass, including the required `validate`. That is the full run for the repaired head.
 - Published: PR #184 merged into `main` as `4771b2f4`. `promotion_readback.py post` reports PASS with the main tree equal to the candidate tree `00dd3dbc`. Annotated tag `v0.83.0` points at `4771b2f4`.
-- Not installed. At 03:14 local time on 2026-11-16 a HiFi matrix capture of the jolvex full-site redesign round was running from the shared installation, which is 0.80.0 and is the bundle that round pins. Replacing the bundle under a running round is not a quiescent boundary, so the install waits for the owner.
-- Remaining: `./install.sh` at a quiescent boundary, then consumer re-pin.
+- 0.83.0 itself was never installed. The shared installation turned out to be a development bundle with fixes that 0.83.0 lacked, so those fixes were released as 0.83.1 and that release was installed and rolled out. [EPIC-ui-compiler-evidence](EPIC-ui-compiler-evidence.md) holds the install and rollout record.
+- Remaining for this Epic: nothing. Parallel HiFi page authoring stays deferred.
 - Removed on the owner's instruction: every merged worker branch and worktree of this round and the two before it, `parallel-delivery`, `parallel-delivery-repair`, the local `ui-motion-and-libraries` and `ui-reference-driven-design`, and the remote `ui-motion-and-libraries`. Kept: `fix/agentkiosk-ui-compiler-contract`, which holds six unmerged commits and is checked out by another session.
 
 ## Handoff
@@ -109,8 +109,8 @@ Inputs consumed (path + hash or revision): main 9b72801d; task/parallel-delivery
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): not run; this source repository omits the consumer template sections by design, and no Harness skill workflow was invoked
 Approvals in force (gate, owner, date, candidate): owner instruction 2026-11-16 to push, open the PR to main, tag v0.83.0 and remove the branches; owner instruction the same day to install and update this record
 Done and verified (command, exit code): CI on cd6874b9 (14 jobs, pass); promotion_readback.py post (PASS, tree equal); tag v0.83.0 read back at 4771b2f4
-Remaining: ./install.sh; consumer re-pin
-Blocked / waiting (gate name or owner decision): install waits for a quiescent boundary; a jolvex HiFi round was running from the installed 0.80.0 bundle
-Next action (one command or one owner decision): owner says when the jolvex round may move to 0.83.0, or to install now
+Remaining: none for this Epic
+Blocked / waiting (gate name or owner decision): none
+Next action (one command or one owner decision): none; the install and rollout record is in EPIC-ui-compiler-evidence.md
 Next owner (skill or human): human
 ```
