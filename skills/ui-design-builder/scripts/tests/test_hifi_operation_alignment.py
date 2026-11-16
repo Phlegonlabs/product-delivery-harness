@@ -87,6 +87,31 @@ class FeedbackContractTests(unittest.TestCase):
                 self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
 
 
+class SupportingFieldTests(unittest.TestCase):
+    def test_supporting_field_needs_a_real_control_in_its_own_surface(self):
+        for attribute, passes in (('data-control-for="refresh"', True),
+                                  ('data-control-for="missing"', False), ('', False)):
+            with self.subTest(attribute=attribute), tempfile.TemporaryDirectory() as temporary:
+                path, _, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+                # Exercise an additional supporting field without declaring an operation.
+                html = path.read_text(encoding="utf-8").replace('</main>', '<input class="product-input" '
+                    'data-specimen-variant="default" data-specimen-state="default" '+attribute+' value="Draft"></main>', 1)
+                path.write_text(html, encoding="utf-8")
+                findings = []
+                checker._validate_hifi_surface(path, findings, scope)
+                self.assertEqual(passes, not findings, findings)
+
+    def test_other_surface_or_non_field_cannot_use_supporting_attribute(self):
+        for html in ('<main data-ui-surface="UI-001"><input data-control-for="save"></main>'
+                     '<main data-ui-surface="UI-002"><button data-control-id="save">Save</button></main>',
+                     '<main data-ui-surface="UI-001"><button data-control-for="save">Unbound</button>'
+                     '<button data-control-id="save">Save</button></main>'):
+            parser = checker._HiFiProductControls()
+            parser.feed(html)
+            parser.close()
+            self.assertTrue(parser.errors)
+
+
 class NotApplicableStateTests(unittest.TestCase):
     def test_na_state_needs_no_product_marker_or_case_but_real_state_does(self):
         for state, passes in (("permission:n/a", True), ("permission", False)):

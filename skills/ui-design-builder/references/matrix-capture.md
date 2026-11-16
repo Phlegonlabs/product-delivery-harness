@@ -57,6 +57,8 @@ Rows are written as measured. `validate_output` applies the checker's own review
 
 ## Carrying
 
+Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.
+
 Repeated control IDs may appear on multiple rows. The driver activates the first visible instance and records the visible count in `observed.instances`. Every navigate instance remains an anchor to its declared page. A missing or entirely hidden control still fails.
 
 The fingerprint also covers the canvas's own paint and every visible element inside the canvas outside the product surface, because the screenshot covers the whole canvas. A case is carried when its render fingerprint equals the earlier one (both complete), the earlier result was PASS, the new observation is clean and the earlier capture still matches its hash. Page bytes are not the test: a token edit that leaves a case's geometry and computed styles unchanged still carries (`output-contract.md#render-fingerprint-carry-forward`). Console, geometry and fingerprint are always fresh; only the screenshot is skipped. `carriedFrom` names the source capture, the source output (path and SHA-256) and the earlier page SHA-256 for the defect ledger.

@@ -1250,6 +1250,7 @@ class _HiFiProductControls(HTMLParser):
         super().__init__()
         self.stack: list[tuple[str, str | None]] = []
         self.controls: dict[tuple[str, str], list[dict[str, str | None]]] = {}
+        self.supporting_fields: list[tuple[str, str]] = []
         self.errors: list[str] = []
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
@@ -1260,9 +1261,12 @@ class _HiFiProductControls(HTMLParser):
         interactive = tag in {"a", "button", "select", "textarea", "input"} or values.get("role") in {"tab", "button", "link", "menuitem"}
         if surface and interactive:
             control = values.get("data-navigation-id") or values.get("data-control-id")
-            if not control:
+            supporting = values.get("data-control-for") if tag in {"input", "select", "textarea"} else None
+            if supporting:
+                self.supporting_fields.append((surface, supporting))
+            if not control and not supporting:
                 self.errors.append(f"HiFi product control in {surface} needs a navigation/control ID")
-            else:
+            elif control:
                 self.controls.setdefault((surface, control), []).append(dict(values, tag=tag))
         if tag == "a" and values.get("target") not in {None, "", "_self"}:
             self.errors.append("HiFi links must stay in the current review page")
@@ -1272,6 +1276,12 @@ class _HiFiProductControls(HTMLParser):
             if self.stack[index][0] == tag:
                 del self.stack[index:]
                 break
+
+    def close(self) -> None:
+        super().close()
+        for surface, control in self.supporting_fields:
+            if (surface, control) not in self.controls:
+                self.errors.append(f"HiFi supporting field in {surface} names an unknown control: {control}")
 
 
 def _hifi_bundle_documents(path: Path, html: str, manifest: dict[str, Any]) -> dict[str, str]:
