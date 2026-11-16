@@ -1,6 +1,6 @@
 # UI compiler evidence scope
 
-Status: the checker patch is installed; its reviewed runtime successor is integrated for full verification.
+Status: the checker patch and its runtime successor are merged for release 0.83.1; that release replaces the development install.
 
 AgentKiosk's approved Shop talk package exposed two checker mismatches. Declared
 `:n/a` states entered the expected capture matrix, and intermediate-width receipts
@@ -60,4 +60,4 @@ Source `aedd503f2010b470ec2addaf3783cf8839e229b9` passed all nine local matrix s
 
 Official `install.sh` exited0. Backup: `20261115-174211`. Installed0.80.0 development bundle: `2c375baacf578268ca0732b1a6ae83d71a96e85131706294069be354fb632e5e`. Consumer bindings pass. Other four core skill trees equal their backups. Local UI tests retain two POSIX-only skips on Windows.
 
-Evidence is in AgentKiosk worktree `docs/design/evidence/r4-shoptalk-20261113/compiler-state-visibility-001/`; all raw matrix logs remain in `C:/Users/mps19/AppData/Local/Temp/agentkiosk-state-visibility-399t8wzb/matrix/`. This later documentation commit changes no installed source identity. No push, tag, release or main landing occurred. The separate0.81 checkout is unchanged. Next: changed-page verification of the annotated Shop talk successor, then pair and preview completion.
+Evidence is in AgentKiosk worktree `docs/design/evidence/r4-shoptalk-20261113/compiler-state-visibility-001/`; all raw matrix logs remain in `C:/Users/mps19/AppData/Local/Temp/agentkiosk-state-visibility-399t8wzb/matrix/`. This later documentation commit changes no installed source identity. On 2026-11-16 the owner chose to land this branch as 0.83.1 so that installing a release after 0.83.0 keeps these fixes; the merge onto `main` `33501412` had one conflict, the `Current Epic:` line, and the design-system (239) and UI (605) suites pass on the merged tree with browser tests required. The separate0.81 checkout is unchanged. Next: changed-page verification of the annotated Shop talk successor, then pair and preview completion.
