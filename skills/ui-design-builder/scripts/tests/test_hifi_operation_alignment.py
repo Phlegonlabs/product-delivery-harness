@@ -378,6 +378,16 @@ class OperationBrowserTests(unittest.TestCase):
                 self.assertEqual(passes, change["beforeSha256"] != change["afterSha256"])
                 driver.stop()
 
+    def test_focus_handler_attribute_changes_do_not_prove_feedback(self):
+        driver = self.driver('<button data-control-id="save" onfocus="this.dataset.focused=\'true\'">Save</button>')
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                reply = self.attempt(driver, trigger=trigger)
+                self.assertIn("feedback did not change the source surface", reply["result"]["problems"])
+                change = reply["result"]["observed"]["change"]
+                self.assertEqual(change["beforeSha256"], change["afterSha256"])
+                self.assertTrue(reply["result"]["focusCorrect"])
+
     def test_same_endpoint_state_still_fails_even_when_the_control_changes_text(self):
         driver = self.driver('<button data-control-id="save" onclick="this.textContent += \' changed\'">Save</button>')
         reply = self.attempt(driver, kind="state")

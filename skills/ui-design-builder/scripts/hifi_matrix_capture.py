@@ -402,14 +402,18 @@ async function interact(request) {
       visible = await handle.isVisible();
       let pressedFocused = null;
       let before = null;
-      if (request.trigger === 'keyboard') {
+      if (request.trigger === 'keyboard' || request.kind === 'feedback') {
         await handle.focus({ timeout });
         pressedFocused = await handle.evaluate(el => el === document.activeElement);
+      }
+      if (request.kind === 'feedback') {
+        await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
+        before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
+      }
+      if (request.trigger === 'keyboard') {
         const tag = await handle.evaluate(el => el.tagName.toLowerCase());
-        if (request.kind === 'feedback') before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
         await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
       } else {
-        if (request.kind === 'feedback') before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
         await handle.click({ timeout });
       }
       if (request.kind === 'feedback') {
