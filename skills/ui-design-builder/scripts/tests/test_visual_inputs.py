@@ -1,8 +1,11 @@
 """Visual handoff assembly uses synthetic sources, not product acceptance proof."""
 
 import hashlib
+import io
 import json
+import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -333,6 +336,150 @@ Decision: not_required
             self.write(preview, rendered + "modified")
             with self.assertRaisesRegex(ValueError, "stale or modified"):
                 build_visual_inputs(self.root, self.ui, "implementation")
+
+    def link_directory(self, link, target):
+        """Symlinks need a privilege on Windows; fall back to a junction."""
+        link.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            os.symlink(target, link, target_is_directory=True)
+        except OSError:
+            if os.name != "nt":
+                raise
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                           check=True, capture_output=True, timeout=15)
+
+    def unlink_directory(self, link):
+        """A directory symlink is removed with unlink; a Windows junction with rmdir."""
+        if os.name != "nt" and os.path.islink(link):
+            os.unlink(link)
+        else:
+            os.rmdir(link)
+
+    def board(self, *names, round_id="R1"):
+        folder = "docs/design/directions/" + round_id + "/references/"
+        for name in names:
+            self.write(folder + name, b"capture " + round_id.encode() + b" " + name.encode())
+        return [folder + name for name in sorted(names)]
+
+    def test_reference_board_follows_the_round_of_the_direction_ids(self):
+        first = self.board("a.png", round_id="R1")
+        second = self.board("b.png", round_id="R2")
+        text = self.contract(selected="VD-R2-01 editorial", studies=True).replace("VD-R1-", "VD-R2-")
+        self.write(self.ui, text)
+        for stage in ("direction", "hifi"):
+            with self.subTest(stage=stage):
+                line = next(row for row in build_visual_inputs(self.root, self.ui, stage).splitlines()
+                            if row.startswith("- Reference board: "))
+                self.assertEqual("- Reference board: " + self.binding(second[0]), line)
+        # During exploration the studies may span rounds; every referenced round is listed.
+        mixed = self.contract(selected="pending", studies=True).replace("VD-R1-02", "VD-R2-02")
+        self.write(self.ui, mixed)
+        line = next(row for row in build_visual_inputs(self.root, self.ui, "direction").splitlines()
+                    if row.startswith("- Reference board: "))
+        self.assertEqual("- Reference board: " + "; ".join(self.binding(path) for path in first + second), line)
+
+    def test_unreadable_reference_folder_is_an_error_not_an_empty_board(self):
+        self.board("a.png")
+        self.contract(studies=True)
+        with mock.patch.object(visual_inputs.os, "scandir", side_effect=PermissionError("denied")):
+            with self.assertRaises(PermissionError):
+                build_visual_inputs(self.root, self.ui, "hifi")
+
+    def test_reference_folder_with_unreadable_metadata_is_an_error_and_the_cli_exits_two(self):
+        self.board("a.png")
+        self.contract(studies=True)
+        folder = (self.root / "docs/design/directions/R1/references").resolve()
+        real_stat = Path.stat
+
+        def denied(path, *args, **kwargs):
+            if Path(path) == folder:
+                raise PermissionError(13, "metadata denied", str(path))
+            return real_stat(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "stat", denied):
+            with self.assertRaises(PermissionError):
+                build_visual_inputs(self.root, self.ui, "hifi")
+            with self.assertRaises(SystemExit) as stopped, mock.patch.object(sys, "stderr", io.StringIO()) as stderr:
+                visual_inputs.main(["--repo-root", str(self.root), "--ui-design", self.ui, "--stage", "hifi"])
+        self.assertEqual(2, stopped.exception.code)
+        self.assertIn("visual inputs blocked", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
+
+    def test_reference_board_lists_captures_in_sorted_order_with_hashes(self):
+        paths = self.board("b-hero.png", "a-nav.png", "sub/c-detail.jpg")
+        self.write("docs/design/directions/R2/references/other-round.png", b"later round")
+        for stage, target in (("direction", False), ("hifi", False)):
+            with self.subTest(stage=stage):
+                self.contract(studies=True, target=target)
+                packet = build_visual_inputs(self.root, self.ui, stage)
+                line = next(row for row in packet.splitlines() if row.startswith("- Reference board: "))
+                self.assertEqual("- Reference board: " + "; ".join(self.binding(path) for path in sorted(paths)), line)
+                self.assertNotIn("other-round.png", packet)
+                self.assertEqual(packet, build_visual_inputs(self.root, self.ui, stage))
+
+    def test_reference_board_round_comes_from_the_direction_ids_even_when_pending(self):
+        paths = self.board("a.png")
+        text = self.contract(selected="pending", studies=True)
+        for source in (self.screen, self.other, self.study, self.other_study):
+            text = text.replace(self.binding(source), "pending")
+        self.write(self.ui, text)
+        packet = build_visual_inputs(self.root, self.ui, "direction")
+        self.assertIn("- Reference board: " + self.binding(paths[0]), packet)
+
+    def test_missing_or_empty_reference_board_is_not_an_error(self):
+        self.contract(studies=True)
+        for stage in ("direction", "hifi"):
+            with self.subTest(layout="missing", stage=stage):
+                self.assertIn("- Reference board: none recorded", build_visual_inputs(self.root, self.ui, stage))
+        (self.root / "docs/design/directions/R1/references/empty").mkdir(parents=True)
+        for stage in ("direction", "hifi"):
+            with self.subTest(layout="empty", stage=stage):
+                self.assertIn("- Reference board: none recorded", build_visual_inputs(self.root, self.ui, stage))
+
+    def test_reference_board_rejects_linked_entries_and_non_folders(self):
+        self.contract(studies=True)
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "stray.png").write_bytes(b"outside the repository")
+        self.board("a.png")
+        self.link_directory(self.root / "docs/design/directions/R1/references/linked", outside.name)
+        with self.assertRaisesRegex(ValueError, "links or reparse points"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+        self.assertTrue((Path(outside.name) / "stray.png").is_file())
+        self.unlink_directory(self.root / "docs/design/directions/R1/references/linked")
+        shutil.rmtree(self.root / "docs/design/directions/R1/references")
+        self.write("docs/design/directions/R1/references", "not a folder")
+        with self.assertRaisesRegex(ValueError, "must be a folder"):
+            build_visual_inputs(self.root, self.ui, "direction")
+
+    def test_linked_reference_folder_is_rejected(self):
+        self.contract(studies=True)
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "stray.png").write_bytes(b"outside the repository")
+        self.link_directory(self.root / "docs/design/directions/R1/references", outside.name)
+        with self.assertRaisesRegex(ValueError, "links or reparse points"):
+            build_visual_inputs(self.root, self.ui, "hifi")
+        self.unlink_directory(self.root / "docs/design/directions/R1/references")
+
+    def test_implementation_stage_ignores_the_reference_board(self):
+        self.board("a.png")
+        self.contract(target=True, hifi=True)
+        packet = build_visual_inputs(self.root, self.ui, "implementation")
+        self.assertNotIn("Reference board", packet)
+        self.assertNotIn("references/a.png", packet)
+
+    def test_reference_board_cli_matches_the_function_and_writes_nothing(self):
+        self.board("a.png")
+        self.contract(studies=True)
+        before = {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()}
+        result = subprocess.run([sys.executable, "-B", str(SCRIPTS / "visual_inputs.py"),
+                                 "--repo-root", str(self.root), "--ui-design", self.ui,
+                                 "--stage", "hifi"], capture_output=True, text=True,
+                                encoding="utf-8", timeout=15)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(build_visual_inputs(self.root, self.ui, "hifi"), result.stdout)
+        self.assertEqual(before, {str(path): path.read_bytes() for path in self.root.rglob("*") if path.is_file()})
 
 
 if __name__ == "__main__":

@@ -86,8 +86,10 @@ class NativeStackStylingTests(unittest.TestCase):
     def test_template_and_required_layers_include_styling_approach(self) -> None:
         layers = [layer.casefold() for layer in template_layers()]
         self.assertIn("styling approach", layers)
+        # The template also shows the optional motion row; the checker never requires it.
+        self.assertIn("motion", layers)
         self.assertEqual(
-            sorted(layers),
+            sorted(layer for layer in layers if layer != "motion"),
             sorted(check_product_package.STACK_SECTION_LAYERS[SECTION]),
         )
 

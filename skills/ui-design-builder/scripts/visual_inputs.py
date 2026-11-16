@@ -6,7 +6,10 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 from pathlib import Path
+import re
+import stat
 import subprocess
 import sys
 
@@ -20,6 +23,39 @@ def _identity(root: Path, relative: str) -> dict[str, str]:
     if not path.is_file() or path.stat().st_size > MAX_BYTES:
         raise ValueError("visual source is missing or exceeds the read limit")
     return {"path": relative, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()}
+
+
+ROUND_RE = re.compile(r"^VD-(R[0-9]+)-[0-9]+")
+
+
+def _reference_board(root: Path, rounds: set[str]) -> list[dict[str, str]]:
+    """List capture files under each round's references folder; read-only, links rejected."""
+    base = Path(root).resolve()
+    found = []
+    for name in sorted(rounds):
+        folder = safe_path(base, f"docs/design/directions/{name}/references")
+        try:
+            # Path.exists() and is_dir() hide permission errors; only a missing folder means no board.
+            is_folder = stat.S_ISDIR(folder.stat().st_mode)
+        except FileNotFoundError:
+            continue
+        if not is_folder:
+            raise ValueError("reference board must be a folder: docs/design/directions/" + name + "/references")
+        def unreadable(error: OSError) -> None:
+            # os.walk skips a folder it cannot list; that would report an empty board.
+            raise error
+
+        for current, dirs, files in os.walk(folder, onerror=unreadable):
+            for entry in dirs + files:
+                relative = (Path(current) / entry).relative_to(base).as_posix()
+                path = safe_path(base, relative)
+                if entry in files:
+                    digest = hashlib.sha256()
+                    with path.open("rb") as handle:
+                        for chunk in iter(lambda: handle.read(1 << 20), b""):
+                            digest.update(chunk)
+                    found.append({"path": relative, "sha256": digest.hexdigest()})
+    return sorted(found, key=lambda item: item["path"])
 
 
 def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: str | None = None) -> str:
@@ -75,12 +111,14 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
 
     studies = []
     pending = []
+    rounds = set()
     study_section = contract._section(style, "### Direction studies") or ""
     for row in contract._table_rows(study_section):
         if len(row) != 5 or row[0] == "Direction":
             continue
         if stage != "direction" and row[0] != selected_id:
             continue
+        rounds.update(ROUND_RE.findall(row[0]))
         if stage == "direction" and row[1].casefold() in {"pending", "draft"}:
             pending.append(row[0] + " study")
             continue
@@ -100,6 +138,7 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
             continue
         if stage != "direction" and row[0] != selected_id:
             continue
+        rounds.update(ROUND_RE.findall(row[0]))
         if stage == "direction" and row[6].casefold() in {"pending", "draft"}:
             pending.append(row[0] + " capture")
             continue
@@ -160,6 +199,8 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
     def label(binding):
         return binding["path"] + " @ sha256:" + binding["sha256"]
 
+    board = _reference_board(root, rounds) if stage != "implementation" else []
+
     rows = ["Visual inputs:", "- Stage: " + stage,
             "- Authority: " + label(authority),
             "- Product context: " + ("current maintenance files; retained design bindings are historical provenance"
@@ -175,6 +216,8 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
             "- Studies to inspect: " + ("; ".join(label(item) for item in studies) or "pending or not applicable to the retained package"),
             "- Screens to inspect: " + ("; ".join(label(item) for item in screens) or "pending direction studies"),
             "- Pending exploration inputs: " + ("; ".join(pending) or "none"),
+            *(["- Reference board: " + ("; ".join(label(item) for item in board) or "none recorded")]
+              if stage != "implementation" else []),
             "- Fonts: read Style Integration, Candidate theme and Platform rules; inspect bound study and HiFi font declarations, weights and language fallbacks.",
             "- Assets: read Motion And Media Intent and every bound study/HiFi page; use its approved inline images, icons, media and font bytes.",
             "- Visual features: read the Design Brief, selected direction rationale and Candidate theme; retain their concrete composition, typography, material and motion choices.",

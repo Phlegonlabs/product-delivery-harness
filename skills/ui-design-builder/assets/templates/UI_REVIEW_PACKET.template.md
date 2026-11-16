@@ -18,6 +18,9 @@ Frozen inputs (path @ sha256):
 - HiFi pages: <every manifest page path @ sha256:hash>
 - Selected direction: <VD-* and its study path @ sha256:hash>
 - Journey map: <docs/design/directions/<round>/journeys.html @ sha256:hash>
+- Comparison sheet: <path @ sha256:hash>
+- Slop scan output: <path @ sha256:hash>
+- Models: <author provider/model; this reviewer's provider/model>
 - Impeccable authorization: <where the explicit workflow authorization is recorded; Impeccable operator only>
 
 Read:
@@ -44,6 +47,7 @@ Scoped re-review only:
 
 Return:
 - Verdict: <PASS | FAIL | BLOCKED>
+- Direction match: <0-100 per pair or journey, recorded before reading the author's number; lead grader only>
 - Candidate SHA-256: <the reviewed candidate>
 - Findings: <each with its capture path @ sha256:hash; blocking findings apart from non-blocking notes>
 - ui-output/3: <path @ sha256:hash>

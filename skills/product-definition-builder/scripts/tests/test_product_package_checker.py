@@ -1834,6 +1834,48 @@ Security scope: executable
         self.assertTrue(any("component foundation" in item for item in problems))
         self.assertTrue(any("styling approach" in item for item in problems))
 
+    def test_optional_motion_layer_row_is_accepted_and_never_required(self) -> None:
+        motion_row = (
+            "| Motion | CSS/WAAPI, Motion | Approved | Owner decision | "
+            "Landing demonstration needs a ceiling | Motion adds a bundle |\n"
+        )
+        with_motion = valid_stack().replace(
+            "| Testing | Vitest and Playwright |", motion_row + "| Testing | Vitest and Playwright |"
+        )
+        self.assertIn(motion_row, with_motion)
+        self.assertEqual(self.validate(stack=with_motion), self.validate(stack=valid_stack()))
+        # A stack decision without the row stays valid, with and without the row under full approval.
+        self.assertNotIn("| Motion |", valid_stack())
+        for stack in (valid_stack(), with_motion):
+            prd, architecture, strict = strictize_approved_package(valid_prd(), valid_architecture(), stack)
+            self.assertEqual([], check_product_package.validate_texts(
+                *finalize_approval_digests(prd, architecture, strict),
+                require_filled=True, require_approved=True,
+            ))
+        self.assertFalse(
+            any("motion" in item.casefold() for item in self.validate(stack=valid_stack()))
+        )
+
+    def test_motion_layer_row_follows_the_normal_row_rules(self) -> None:
+        motion_row = (
+            "| Motion | CSS/WAAPI | Approved | Owner decision | Functional feedback only | None |\n"
+        )
+        doubled = valid_stack().replace(
+            "| Testing | Vitest and Playwright |",
+            motion_row + motion_row + "| Testing | Vitest and Playwright |",
+        )
+        self.assertTrue(
+            any("duplicate layer 'Motion'" in item for item in self.validate(stack=doubled))
+        )
+        provisional = valid_stack().replace(
+            "| Testing | Vitest and Playwright |",
+            motion_row.replace("| Approved |", "| Recommended |")
+            + "| Testing | Vitest and Playwright |",
+        )
+        self.assertTrue(
+            any("'Motion' remains 'Recommended'" in item for item in self.validate(stack=provisional))
+        )
+
     def test_stack_layer_table_requires_all_six_columns(self) -> None:
         stack = valid_stack().replace(
             "| Layer | Selection | Status | Authority / evidence | Why It Fits | Constraint / follow-up |",
@@ -1997,6 +2039,17 @@ Security scope: executable
         self.assertEqual([], self.validate(**self.hybrid_native_package(
             "ios", "native", ("TestFlight", "App Store"),
         )))
+
+    def test_mobile_decision_accepts_the_optional_motion_row_under_the_normal_row_rules(self) -> None:
+        package = self.hybrid_native_package("ios", "native", ("TestFlight", "App Store"))
+        motion_row = "| Motion | SwiftUI animations | Approved | Owner decision | Fits iOS | None |\n"
+        self.assertTrue(package["stack"].endswith("| None |\n"))
+        with_motion = dict(package, stack=package["stack"] + motion_row)
+        self.assertEqual([], self.validate(**with_motion))
+        doubled = dict(package, stack=package["stack"] + motion_row + motion_row)
+        self.assertTrue(any("duplicate layer 'Motion'" in item for item in self.validate(**doubled)))
+        recommended = dict(package, stack=package["stack"] + motion_row.replace("| Approved |", "| Recommended |"))
+        self.assertTrue(any("'Motion' remains 'Recommended'" in item for item in self.validate(**recommended)))
 
     def test_hybrid_ui_surfaces_bind_web_and_linux_desktop_contracts(self) -> None:
         package = self.hybrid_native_package("linux", "desktop", ("Flathub beta", "Flathub"))

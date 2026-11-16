@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 LIBRARY = ROOT / "skills/delivery-harness/references/option-library"
 SELECTION = ROOT / "skills/delivery-harness/references/reference-selection.md"
+STACK_SELECTION = ROOT / "skills/product-definition-builder/references/frontend-stack-selection.md"
 
 DOMAIN_FILES = {
     "ai-agentic.md",
@@ -75,7 +76,9 @@ class ReferenceLibraryTests(unittest.TestCase):
                 resolved = (path.parent / target).resolve()
                 self.assertTrue(resolved.exists(), (path, target))
                 self.assertTrue(
-                    resolved.is_relative_to(LIBRARY) or resolved == SELECTION,
+                    resolved.is_relative_to(LIBRARY)
+                    or resolved == SELECTION
+                    or resolved == STACK_SELECTION,
                     (path, target),
                 )
 
@@ -158,7 +161,7 @@ class ReferenceLibraryTests(unittest.TestCase):
             "Only visual and motion decisions within the approved stack belong here",
             "`frontend-design` remains mandatory",
             "Taste/GPT Taste stays optional",
-            "CSS/WAAPI, Motion, GSAP and Three.js routes",
+            "motion follows the routes and the stack rule in",
         ):
             self.assertIn(phrase, ui)
 

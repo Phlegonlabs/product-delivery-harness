@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-initial-delivery-production-first](epics/EPIC-initial-delivery-production-first.md)
+Current Epic: [EPIC-ui-motion-and-libraries](epics/EPIC-ui-motion-and-libraries.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |

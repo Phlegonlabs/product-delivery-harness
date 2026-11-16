@@ -39,7 +39,7 @@ For an explicit hero request, record the product message, primary action, conten
 
 ## Motion And Platform Proof
 
-Recommend where motion helps orientation, feedback or the requested expression. Name the trigger, behavior, end state, interruption/replay rules, performance constraint and reduced-motion alternative. Web may use CSS/WAAPI or the justified Motion, GSAP or Three.js routes; iOS/Android and cross-platform clients use their approved native/framework tools. Do not select native dependencies from a CSS gallery.
+Recommend where motion helps orientation, feedback or the requested expression. Name the trigger, behavior, end state, interruption/replay rules, performance constraint and reduced-motion alternative. Web may use CSS/WAAPI or the justified Motion, GSAP, Three.js, Lottie or Rive routes; iOS/Android and cross-platform clients use their approved native/framework tools. Do not select native dependencies from a CSS gallery.
 
 In HiFi, demonstrate deterministic effects in the HTML projection and record their normal/reduced-motion observations. A generated asset required by a `motion` or `image + motion` intent needs an authorized provider, completed output and review in that motion evidence; a deferred placeholder is not complete. Image-only assets use the existing connected-HiFi and H6 human review of authorization, output identity and usage constraints, rather than motion receipts. Follow `motion-and-media-routing.md` and the Required motion evidence contract.
 

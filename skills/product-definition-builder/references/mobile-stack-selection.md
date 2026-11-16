@@ -43,6 +43,10 @@ Never compare `native iOS vs Flutter vs React Native vs Expo` as though they sit
 
 Expo is a workflow and toolchain *within* React Native, not a separate framework competing with it — the same way Astro-vs-bare-Vite is a choice within the web frontend layer model, not a rival to it. React Native's own documentation calls Expo "a production-grade React Native Framework" and recommends starting a new React Native app with it. Treat "React Native" and "Expo" as two layers of one decision, never as two peers on a shortlist.
 
+## Motion Layer
+
+A mobile or desktop decision may add the optional `motion` row that [Frontend Stack Selection](frontend-stack-selection.md#motion-layer) defines. It names the platform animation framework that the approved client stack provides, such as React Native Reanimated, SwiftUI animations or Jetpack Compose animation. When the owner wants illustrated or character animation, it also names `Lottie` or `Rive`. Web motion libraries are not a default on native surfaces. A decision without the row stays valid.
+
 ## Collect Decision Evidence
 
 Score or describe these inputs before selecting a stack:

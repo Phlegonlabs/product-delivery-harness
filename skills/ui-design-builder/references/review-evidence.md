@@ -39,6 +39,8 @@ In a repair re-review, diff each recaptured case against its capture under the l
 
 Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect every case there, and a scan with zero findings is still not evidence.
 
+The comparison sheet and the `slop_scan.py` output are author-produced inputs to the wave. The grading record cites each by path and SHA-256. They are not receipts and carry no verdict.
+
 ## Frontend Design Usage
 
 Record the `### Frontend Design Usage` table in `ui-design.md`. The source path is a retained repository snapshot of the actually observed `frontend-design` `SKILL.md` with `name: frontend-design`. Every stage's Skill SHA-256 equals this snapshot hash. The validator checks the snapshot bytes and current artifact bindings; it cannot prove that an agent truly used the skill. Use repair-1, repair-2 for actual design repairs with their resulting artifact and applied decisions. Current direction/hifi rows bind the exact current candidates, not a convenient other file; a legacy package may retain its historical `wireframe` row. Record only work actually performed. Human direction and final Visual Approval stay in their dedicated sections of ui-design.md.

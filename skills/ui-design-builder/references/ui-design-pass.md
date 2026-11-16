@@ -33,16 +33,20 @@ The pass may choose hierarchy, grouping, section rhythm, composition, typography
 
 ## Direction Authoring Prompt
 
-Use this prompt with the approved source paths and the existing Design Brief. Read requirements from those sources; do not copy per-page contracts into another table.
+Use this prompt with the approved source paths, the existing Design Brief and the reference board captures. It follows the frontend brief in [Parent-Owned Delegation](../../delivery-harness/references/delegation-contract.md#resolve-roles-before-direct-or-managed-work). The prompt carries requirements and points at captures; it does not describe a visual style. Read requirements from the sources; do not copy per-page contracts into another table.
 
 ```text
-Read the approved PRD UI Surface Contract, architecture, stack decisions and UI Design Brief at [source paths]. Derive the exact page/surface count and affected UI IDs from the PRD. For each page, satisfy its purpose, content and data responsibilities, required controls and operations, routes, states, responsive targets and sourced copy. Preserve unaffected pages in an enhancement.
+Open every capture on the reference board at [board path] before designing, then read the approved PRD UI Surface Contract, architecture, stack decisions and UI Design Brief at [source paths]. The captures and the Brief set the quality bar. Derive the exact page/surface count and affected UI IDs from the PRD. For each page, satisfy its purpose, content and data responsibilities, required controls and operations, routes, states, responsive targets and sourced copy. Preserve unaffected pages in an enhancement.
 
 For administration, include the required work areas and their responsibilities, data fields, filters, actions and permissions. For charts, honor the declared metric, source, units, time range and loading/empty/error behavior. For agent workflows, show the required inputs, execution progress, human decisions, results, failures and recovery. Use the approved frontend/backend and service boundaries; do not invent endpoints or product capabilities. Report missing product decisions upstream.
 
 Choose composition, hierarchy, grouping, typography, imagery and motion freely within the approved constraints. A hero, introduction, feature group or CTA is a design choice when it serves the page purpose; do not impose a universal section sequence. Use the existing Page-purpose mapping to distinguish fixed requirements from design freedom.
 
 Produce three materially different visual directions by default, with inspected reference lessons and the same representative primary and stress cases. Show applicable motion and reduced-motion treatment. If the owner explicitly requested one direction, or the delivery profile is `mvp`, produce one. Present comparable studies and wait for the owner's selection before creating the full connected HiFi HTML package; under mvp, present the one study with the HiFi.
+
+Match the quality and feel of the board as closely as possible; aim for a 99% direction match. The first render that works is not the finish. Quality over speed: ask blocking questions before starting, then build without check-ins.
+
+Avoid the Design Brief's avoid rules and the default patterns `slop_scan.py --list` names, unless a direction calls for one.
 ```
 
 ## Cheap Completeness Check
@@ -65,9 +69,11 @@ Use the existing Design Brief to connect the page-purpose/profile mapping, typog
 
 When the owner explicitly instructs a single recommendation, produce one product-specific direction and record it as the intake's `Direction mode: one recommended direction` with that owner's `Decision owner` and `Decided on`; this applies to `ui-design/3` and `ui-design/2` alike. Otherwise a new package gets exactly three materially different directions over the same approved surfaces, states and responsive targets. Continuing uncertainty or silence never converts into that instruction. An enhancement keeps its package's contract and retains the accepted direction for unchanged scope: a `ui-design/3` package keeps its approved round's hash-bound studies and selection, and no enhancement restarts direction selection. Never substitute a fixed catalog of style names.
 
-Present the complete direction set to the human owner. End the turn and wait for `approve`, `select`, `mix`, or `reject`; even a one-direction set needs explicit approval, except under `Delivery profile: mvp` ([Workflow](stages/ui-design.md#workflow)). A mix or modification produces one revised study of the selected direction, with any requested variants inside it, and one more owner decision. A rejection starts a complete new set. Do not create the connected HiFi reference or invoke a generation provider before a direction is selected.
+Present the complete direction set to the human owner. End the turn and wait for `approve`, `select`, `mix`, or `reject`; even a one-direction set needs explicit approval, except under `Delivery profile: mvp` ([Workflow](stages/ui-design.md#workflow)). A mix or modification produces one revised study of the selected direction, with any requested variants inside it, and one more owner decision. Record the requested changes as [Owner Feedback](#owner-feedback) rows. A rejection starts a complete new set. Do not create the connected HiFi reference or invoke a generation provider before a direction is selected.
 
 Before this selection, render bounded representative studies for every direction: a frequent primary task and a stress case using dense data, long content, or an approved alternate state. A one-screen product may show two content scenarios in the same approved state; do not invent a state or rewrite frozen copy. Use the same surface, state, target, scenario, and content basis across directions. Cover each in-scope platform. Compare composition, hierarchy, density, typography, and control treatment; changing only an accent color is not a distinct direction.
+
+Design changes are cheapest in the studies, so mix and modify at this stage. Settle layout before adding a study's motion option ([Composition Before Motion](motion-and-media-routing.md#composition-before-motion)).
 
 Where useful, a study may play a bounded local deterministic motion option within the existing MM scope, and with its normal/reduced-motion behavior visible. This makes a design choice easier to judge; it is not Required motion evidence, native proof, or permission to call a generation provider. Full connected HiFi remains the source of final motion evidence on the selected route, and provider calls remain after direction selection with exact authorization. For a landing or portfolio region with a proposed or selected `expressive` row, at least one direction plays that motion live; a static frame cannot stand in for it.
 
@@ -75,7 +81,7 @@ If proactive reference research introduces a structural option, route the produc
 
 Record the studies in `### Direction comparison` under Style Integration, with inspected screenshot paths/hashes and a concrete rationale for each row. Tie each rationale to the Design Brief's page-purpose/profile, type/density/headline, motion and reference lessons; do not substitute generic style labels. Keep their authorized files under `docs/design/directions/<round>/`. These studies are selection evidence, not the connected HiFi target or production UI. The owner selects from the recorded direction IDs. This uses the existing direction gate, not another approval step. Screenshot hashes prove identity, not aesthetic quality or honest inspection.
 
-Before asking the owner to select a direction, the author completes the UI structure/direction self-review in `../../delivery-harness/references/pre-delivery-self-review.md`. Inspect the representative studies, their required operations and primary/stress cases, repair defects and retain the result against the current candidate identities in the existing task record. An owner-selected mix or changed study needs an affected recheck.
+Before asking the owner to select a direction, the author completes the UI structure/direction self-review in `../../delivery-harness/references/pre-delivery-self-review.md`. Inspect the representative studies, their required operations and primary/stress cases, repair defects and retain the result against the current candidate identities in the existing task record. That review includes the `slop_scan.py` run, the board comparison sheet and the author's direction match estimate. An owner-selected mix or changed study needs an affected recheck.
 
 ## Frontend Design Style Integration
 
@@ -110,9 +116,9 @@ Set `Review medium: HTML projection only`. Studies and HiFi review native appear
 
 ## Motion And Generated Media
 
-Consume the approved Motion and Media Intent rows without re-asking them. Use `motion-and-media-routing.md` to select the lowest applicable route (CSS/WAAPI, Motion, GSAP or Three.js) for the selected direction and final HiFi.
+Consume the approved Motion and Media Intent rows without re-asking them. Use [Implementation Routing](motion-and-media-routing.md#implementation-routing-after-direction-selection) to select the lowest applicable route, under its stack rule, for the selected direction and final HiFi.
 
-After direction selection, an installed Higgsfield MCP or another owner-approved generation provider may create an approved generated or curated motion asset only after exact provider/action authorization. Record provider capability, prompt, output identity, usage constraints, placement, fallback, and review result. When intake authorized a provider for an MM row, generate its asset after direction selection so the HiFi shows the actual result. Without that authorization, keep the typed static placeholder and name the gap in the handoff. Generated output cannot add copy, controls, states, routes, or claims.
+After direction selection, an installed Higgsfield MCP or another owner-approved generation provider may create an approved generated or curated motion asset only after exact provider/action authorization. Follow [Generated Clips And Models](motion-and-media-routing.md#generated-clips-and-models) and record provider capability and the listed output fields. When intake authorized a provider for an MM row, generate its asset after direction selection so the HiFi shows the actual result. Without that authorization, keep the typed static placeholder and name the gap in the handoff. Generated output cannot add copy, controls, states, routes, or claims.
 
 Required deterministic functional UI motion may run locally in the HiFi HTML with its normal and reduced-motion behavior. A generated video or cinematic asset has a static poster/fallback even when the generated output is present.
 
@@ -138,7 +144,7 @@ The file calls no live backend, credential, identity provider, or unapproved gen
 
 ## HiFi Author Self-Review
 
-After the connected package passes the cheap completeness check, apply `../../delivery-harness/references/pre-delivery-self-review.md#hifi-self-review`. The same `frontend-design` author runs the matrix driver (`<ui-design-builder-skill-root>/scripts/hifi_matrix_capture.py`), fixes its geometry FAILs and console errors, and reads renders for the pages it changed, under the Browser And Human Visual Approval restrictions below, before the independent review. Link existing browser, copy, motion and grading evidence rather than creating a second specification. Missing visual evidence stays blocked or unvalidated. This self-review does not replace or reset the following independent diagnostic and repair budget.
+After the connected package passes the cheap completeness check, apply `../../delivery-harness/references/pre-delivery-self-review.md#hifi-self-review`. The same `frontend-design` author runs the matrix driver (`<ui-design-builder-skill-root>/scripts/hifi_matrix_capture.py`), fixes its geometry FAILs and console errors, and reads renders for the pages it changed, under the Browser And Human Visual Approval restrictions below, before the independent review. The same self-review runs `slop_scan.py` on the HiFi pages and records a direction match estimate per pair or journey from a `capture_sheet.py` sheet of study captures next to HiFi captures. The estimate is the author's own, is checked by the lead grader in the existing wave ([Direction Match](ui-grading-rubric.md#direction-match)), and adds no gate. Link existing browser, copy, motion and grading evidence rather than creating a second specification. Missing visual evidence stays blocked or unvalidated. This self-review does not replace or reset the following independent diagnostic and repair budget.
 
 ## Impeccable Quality Review And PRD-Bound Grading
 
@@ -160,7 +166,14 @@ HiFi surface evidence keeps method `sandboxed-offline-browser`. New packages req
 
 Request Visual Approval as [Workflow](stages/ui-design.md#workflow) step 8 states: send one user-visible response with verified absolute Markdown links to the complete current schema-2 HiFi entry, every manifest-listed sibling page and the affected `ui-design.md` handoff, at final repository paths on the task branch. Do not collect approval on `.ui-staging` paths. Name what the owner should review and ask explicitly for Visual Approval. A preview or panel open cannot replace the response or links; if any page or preview cannot be opened, report that blockage instead of approval readiness.
 
-Wait for the owner's explicit decision. Record it as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. The checker rejects an approval dated before the newest HiFi, Impeccable, grading or motion receipt; a repaired candidate needs a new owner decision. When the owner already reviewed the earlier candidate, present the repair diff and its changed pages; the owner may decide on that diff. Approval proves visual-direction conformance, not representative-user usability or production readiness. Acceptance with follow-ups is `approved` when every required check already passes; the open non-blocking ledger rows become Epic follow-ups and the round closes ([Owner Acceptance Closes The Round](review-workflow.md#owner-acceptance-closes-the-round)).
+Wait for the owner's explicit decision. Record it as `approved`, `revision_requested`, or `blocked` in `ui-design.md`, with the decision owner and date. Record a `revision_requested` change list as [Owner Feedback](#owner-feedback) rows. The checker rejects an approval dated before the newest HiFi, Impeccable, grading or motion receipt; a repaired candidate needs a new owner decision. When the owner already reviewed the earlier candidate, present the repair diff and its changed pages; the owner may decide on that diff. Approval proves visual-direction conformance, not representative-user usability or production readiness. Acceptance with follow-ups is `approved` when every required check already passes; the open non-blocking ledger rows become Epic follow-ups and the round closes ([Owner Acceptance Closes The Round](review-workflow.md#owner-acceptance-closes-the-round)).
+
+## Owner Feedback
+
+- Record each requested change as a row: page, state and target; element or region; property (for example color, size, spacing, order); expected result. Direction-stage changes go in the task record. HiFi changes go in the existing defect ledger.
+- An annotated screenshot is valid input. Save it under the round's evidence folder and cite its path and SHA-256.
+- When feedback names no element or property ("it feels off"), do not guess a repair. Reply with a short description of what was built on that page — layout, type roles, colors, spacing — and ask which part to change.
+- This uses the existing decision turns. It adds none.
 
 ## Retention And Design System Need Gate
 

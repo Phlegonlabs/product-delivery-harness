@@ -26,6 +26,7 @@ Overflow requires a smaller scoped assignment or complete named source reads; ne
 
 - Stage, approved Product/Stack sources, UI contract path/hash and exact assigned surfaces, states and targets.
 - Selected direction, its retained study HTML and screen captures, plus the current approved HiFi target when implementation requires it. For a UI mission, the assigned journey's approved HiFi pages (repository path + SHA-256) and the journey map page are the primary input, alongside the mission's PRD/UI/TEST IDs; the PRD and architecture answer only what the design does not show.
+- For `direction` and `hifi`, the reference board: every capture under `docs/design/directions/<round>/references/`, each with path and SHA-256. The helper prints `Reference board: none recorded` when the folder is missing or empty. An enhancement that keeps the approved direction has no board.
 - Font declarations, weights, language coverage and fallbacks from Style Integration, Platform rules and the bound study/HiFi sources.
 - Approved image, icon, font and media locations or inline source identities from Motion And Media Intent and the bound studies/complete HiFi package.
 - Concrete visual features from the existing Design Brief, selected-direction rationale and Candidate theme.
@@ -44,7 +45,7 @@ An explicit unused/not-required asset remains so; a missing required asset is a 
 Design-reference repairs use the design stage; production UI repairs use implementation and the existing defect ledger.
 Do not change a retained actor's model silently when moving between design and implementation.
 
-Before editing, the author opens the named sources and inspects the actual captures with available image/browser tools.
+Before editing, the author opens the named sources and inspects the actual captures, including every reference board capture, with available image/browser tools.
 Reading HTML text alone is not visual inspection. Missing inspection capability blocks the dependent visual work.
 The author reports what was actually inspected and any missing input; the parent does not backfill that evidence.
 Keep full-tree skill pins, current-source checks, 85/80 thresholds, necessary browser/native/motion evidence and existing repair limits.

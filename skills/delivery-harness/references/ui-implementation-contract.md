@@ -35,6 +35,16 @@ For initial UI and enhancements, reconcile explicit hero/motion requests with th
 
 For a native/desktop platform whose approved Platform rules say `Native proof: required before expansion`, implement and verify the representative primary and stress cases first. Use the approved stack and native UI-test tooling or labeled manual native captures to check text scaling, control geometry, navigation, keyboard/safe-area behavior, and feedback; verify any approved haptics on a device that supports them. Record exact-head results in the existing UI evidence matrix before expanding to the remaining screens. HTML studies and HiFi projections cannot satisfy this checkpoint. Missing platform capability stays unvalidated; it never becomes an assumed PASS. This checkpoint also applies in target-conformance mode, and the final full matrix remains required.
 
+## Motion Approximation Comparison
+
+A row marked `HiFi approximation — <library> verified in first implementation slice` hands the real behavior to implementation ([HiFi Embedding Limits](../../ui-design-builder/references/motion-and-media-routing.md#hifi-embedding-limits)). For each such row, the first implementation slice captures the real library's trigger frame and end-state frame at the row's representative target. It then builds a comparison sheet with the HiFi approximation's frames beside the implementation's frames:
+
+```text
+python "<ui-design-builder-skill-root>/scripts/capture_sheet.py" --repo-root . --title <text> --row <label> <image> [<image> ...] [--row ...] --out <html>
+```
+
+Record the sheet in the existing Harness UI evidence. The existing Final UI Acceptance judges it. A difference beyond the approved target's tolerance routes to `ui-design-builder` like any motion change. This adds no gate.
+
 ## System-Conformance Mode
 
 1. Read both design-system files with the product and UI design sources.

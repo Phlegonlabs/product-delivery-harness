@@ -59,7 +59,7 @@ Tailwind CSS 是 utility-class 樣式的可選候選；官方正文確認可組�
 | [React Bits](https://www.reactbits.dev/get-started/index) | 可挑選的 React 文字、背景、卡片與互動效果 | 屬元件／程式來源；先查所選版本、license、依賴及效能，再決定是否重用 |
 | [Anime.js](https://animejs.com/) | 自訂 timeline、scroll、SVG、path 或拖曳動效 | 屬動畫引擎；與 CSS/WAAPI、Motion、GSAP 比較，按需要選用 |
 
-參考收集採手動網站搜尋：owner 分享案例 URL／截图、想學的部分和適用頁面；有 Visit Website 或原站連結時，直接檢查原站。動效附短錄影或可操作頁面。沒有觀察到的狀態標成未檢查；不從搜尋摘要、作品縮圖或 prompt 宣稱完成視覺驗證。本流程不安裝或連接這些參考網站的 MCP。
+參考收集以手動網站搜尋為主：owner 分享案例 URL／截图、想學的部分和適用頁面；有 Visit Website 或原站連結時，直接檢查原站。動效附短錄影或可操作頁面。沒有觀察到的狀態標成未檢查；不從搜尋摘要、作品縮圖或 prompt 宣稱完成視覺驗證。owner 已連接的參考 MCP（例如 Inspo、Awwwards）或瀏覽器工具（例如 agent-browser）可用來找候選案例與擷取頁面、錄影；agent 不自行安裝或連接，需要時詢問 owner。工具找到的結果只是候選，須檢查實際頁面、視窗與狀態並擷取後才成為 `REF-*`。
 
 將實際觀察寫進既有 Design Brief 的 `REF-*`，再提出有頁面範圍的 `RP-*` 原則，沿用原有確認步驟。搜尋、靈感、程式碼重用與依賴安裝分開處理；所選素材／元件的 license、成本、來源、版本與修改責任必須確認。網站類型或案例外觀不會選定元件、CSS、框架或 PRD 範圍。
 

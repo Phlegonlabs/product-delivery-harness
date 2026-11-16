@@ -1,0 +1,199 @@
+"""capture_sheet.py builds a self-contained image sheet from synthetic PNG bytes."""
+
+import base64
+import hashlib
+import json
+import os
+from pathlib import Path
+import re
+import struct
+import subprocess
+import sys
+import tempfile
+import unittest
+import zlib
+
+SCRIPTS = Path(__file__).resolve().parents[1]
+SCRIPT = SCRIPTS / "capture_sheet.py"
+
+
+def png(red):
+    """A valid 2x2 PNG in one colour, so each test image has distinct bytes."""
+    def chunk(kind, body):
+        return struct.pack(">I", len(body)) + kind + body + struct.pack(">I", zlib.crc32(kind + body))
+    raw = b"".join(b"\x00" + bytes([red, 0, 0]) * 2 for _ in range(2))
+    return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 2, 2, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+class CaptureSheetTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name).resolve()
+        self.images = {}
+        for index, name in enumerate(("a.png", "b.png", "c.png")):
+            self.images[name] = self.write("refs/" + name, png(40 + index))
+        self.write("refs/photo.jpg", b"\xff\xd8\xff synthetic jpeg")
+
+    def write(self, relative, data):
+        path = self.root / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        return hashlib.sha256(data).hexdigest()
+
+    def run_sheet(self, *args, out="sheet.html", title="Reference board"):
+        return subprocess.run([sys.executable, "-B", str(SCRIPT), "--repo-root", str(self.root),
+                               "--title", title, *args, "--out", out],
+                              capture_output=True, text=True, encoding="utf-8", timeout=30)
+
+    def link_directory(self, link, target):
+        """Symlinks need a privilege on Windows; fall back to a junction. Removed after the test."""
+        try:
+            link.symlink_to(target, target_is_directory=True)
+        except OSError:
+            if sys.platform != "win32":
+                raise
+            subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)],
+                           check=True, capture_output=True, timeout=15)
+        # A POSIX directory symlink is removed with unlink; Windows links and junctions with rmdir.
+        self.addCleanup(os.unlink if os.name != "nt" and link.is_symlink() else os.rmdir, link)
+
+    def page(self, out="sheet.html"):
+        return (self.root / out).read_text(encoding="utf-8")
+
+    def test_board_and_comparison_rows_keep_order_and_hashes(self):
+        result = self.run_sheet("--row", "Home", "refs/b.png", "--row", "Detail", "refs/a.png", "refs/c.png",
+                                "--columns", "Selected direction", "HiFi candidate")
+        self.assertEqual(0, result.returncode, result.stderr)
+        report = json.loads(result.stdout)
+        text = self.page()
+        self.assertEqual("capture-sheet/1", report["schema"])
+        self.assertEqual(["Home", "Detail"], [row["label"] for row in report["rows"]])
+        self.assertEqual([[("refs/b.png", self.images["b.png"])],
+                          [("refs/a.png", self.images["a.png"]), ("refs/c.png", self.images["c.png"])]],
+                         [[(i["path"], i["sha256"]) for i in row["images"]] for row in report["rows"]])
+        self.assertEqual({"path": "sheet.html", "sha256": hashlib.sha256((self.root / "sheet.html").read_bytes()).hexdigest()},
+                         report["out"])
+        for digest in self.images.values():
+            self.assertIn("sha256:" + digest, text)
+        for first, second in (("Home", "Detail"), ("refs/a.png", "refs/c.png"), ("Selected direction", "HiFi candidate")):
+            self.assertLess(text.index(first), text.index(second))
+        self.assertLess(text.index("refs/b.png"), text.index("refs/a.png"))
+        self.assertEqual(3, text.count("<img "))
+        embedded = [hashlib.sha256(base64.b64decode(payload)).hexdigest()
+                    for payload in re.findall(r'src="data:image/png;base64,([A-Za-z0-9+/=]+)"', text)]
+        self.assertEqual([self.images["b.png"], self.images["a.png"], self.images["c.png"]], embedded)
+
+    def test_column_headings_appear_once_per_image_position(self):
+        result = self.run_sheet("--row", "Detail", "refs/a.png", "refs/c.png", "--columns", "Target", "Candidate")
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = self.page()
+        self.assertEqual(1, text.count("<b>Target</b>"))
+        self.assertEqual(1, text.count("<b>Candidate</b>"))
+
+    def test_labels_titles_and_columns_are_escaped(self):
+        result = self.run_sheet("--row", '<img src=x onerror=1>&"', "refs/a.png", "--columns", "<b>col</b>",
+                                title='</title><script>x</script>&"')
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = self.page()
+        escaped = "&lt;/title&gt;&lt;script&gt;x&lt;/script&gt;&amp;&quot;"
+        self.assertIn("<title>" + escaped + "</title>", text)
+        self.assertIn("<h1>" + escaped + "</h1>", text)
+        self.assertNotIn("<script", text)
+        self.assertNotIn("<img src=x", text)
+        self.assertIn("&lt;img src=x onerror=1&gt;&amp;&quot;", text)
+        self.assertIn("&lt;b&gt;col&lt;/b&gt;", text)
+
+    def test_output_is_self_contained(self):
+        result = self.run_sheet("--row", "Home", "refs/a.png", "--row", "Photo", "refs/photo.jpg")
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = self.page()
+        bare = re.sub(r"data:image/[a-z]+;base64,[A-Za-z0-9+/=]+", "data:", text)
+        self.assertEqual(2, text.count("data:image/"))
+        self.assertIn("data:image/jpeg;base64,", text)
+        self.assertNotRegex(bare.lower(), r"https?:|//|@import|url\(|<script|<link|src=\"(?!data:)")
+        self.assertIn("default-src 'none'; img-src data:; style-src 'unsafe-inline'", text)
+        self.assertIn("prefers-color-scheme:dark", text)
+        self.assertIn("img{display:block;max-width:100%;height:auto", text)
+        self.assertNotIn("object-fit:cover", text)
+
+    def test_board_entries_share_a_grid_and_comparisons_keep_their_own_width(self):
+        result = self.run_sheet("--row", "One", "refs/a.png", "--row", "Two", "refs/b.png",
+                                "--row", "Pair", "refs/a.png", "refs/c.png", "--row", "Three", "refs/c.png")
+        self.assertEqual(0, result.returncode, result.stderr)
+        text = self.page()
+        self.assertEqual(2, text.count('<div class="board">'))
+        first_board = text.split('<div class="board">')[1]
+        self.assertIn("<h2>One</h2>", first_board)
+        self.assertIn("<h2>Two</h2>", first_board)
+        self.assertNotIn("<h2>Three</h2>", first_board.split('<section class="pair">')[0])
+        self.assertEqual(1, text.count('<div class="shots" style="--n:2">'))
+        self.assertEqual(text.count("<div"), text.count("</div>"))
+        self.assertEqual(text.count("<section"), text.count("</section>"))
+
+    def test_overwrite_is_refused_until_requested(self):
+        args = ("--row", "Home", "refs/a.png")
+        self.assertEqual(0, self.run_sheet(*args).returncode)
+        first = (self.root / "sheet.html").read_bytes()
+        refused = self.run_sheet("--row", "Home", "refs/b.png")
+        self.assertEqual(2, refused.returncode)
+        self.assertIn("--overwrite", refused.stderr)
+        self.assertEqual(first, (self.root / "sheet.html").read_bytes())
+        self.assertEqual(0, self.run_sheet("--row", "Home", "refs/b.png", "--overwrite").returncode)
+        self.assertNotEqual(first, (self.root / "sheet.html").read_bytes())
+
+    def test_bad_paths_exit_two_with_one_line(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        stray = Path(outside.name) / "stray.png"
+        stray.write_bytes(png(1))
+        self.write("refs/notes.txt", b"not an image")
+        cases = {
+            "escape": (("--row", "Home", "../outside.png"), "sheet.html"),
+            "absolute escape": (("--row", "Home", str(stray)), "sheet.html"),
+            "missing": (("--row", "Home", "refs/none.png"), "sheet.html"),
+            "extension": (("--row", "Home", "refs/notes.txt"), "sheet.html"),
+            "label only": (("--row", "Home"), "sheet.html"),
+            "output escape": (("--row", "Home", "refs/a.png"), "../sheet.html"),
+            "too many images": (("--row", "Home", "refs/a.png", "refs/b.png", "--columns", "Only"), "sheet.html"),
+        }
+        for name, (args, out) in cases.items():
+            with self.subTest(name):
+                result = self.run_sheet(*args, out=out)
+                self.assertEqual(2, result.returncode, result.stderr)
+                self.assertEqual(1, len(result.stderr.strip().splitlines()), result.stderr)
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertFalse((self.root / "sheet.html").exists())
+
+    def test_linked_image_is_rejected(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "stray.png").write_bytes(png(2))
+        self.link_directory(self.root / "linked", outside.name)
+        result = self.run_sheet("--row", "Home", "linked/stray.png")
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("links or reparse points", result.stderr)
+
+    def test_output_under_a_linked_folder_is_rejected_even_with_overwrite(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        existing = Path(outside.name) / "sheet.html"
+        existing.write_bytes(b"outside the repository")
+        self.link_directory(self.root / "out", outside.name)
+        result = self.run_sheet("--row", "Home", "refs/a.png", "--overwrite", out="out/sheet.html")
+        self.assertEqual(2, result.returncode, result.stderr)
+        self.assertIn("links or reparse points", result.stderr)
+        self.assertEqual(b"outside the repository", existing.read_bytes())
+
+    def test_output_is_deterministic(self):
+        args = ("--row", "Home", "refs/a.png", "refs/b.png", "--columns", "Target", "Candidate")
+        first = self.run_sheet(*args, out="one.html")
+        second = self.run_sheet(*args, out="two.html")
+        self.assertEqual((self.root / "one.html").read_bytes(), (self.root / "two.html").read_bytes())
+        self.assertEqual(json.loads(first.stdout)["rows"], json.loads(second.stdout)["rows"])
+        self.assertEqual(json.loads(first.stdout)["out"]["sha256"], json.loads(second.stdout)["out"]["sha256"])
+
+
+if __name__ == "__main__":
+    unittest.main()

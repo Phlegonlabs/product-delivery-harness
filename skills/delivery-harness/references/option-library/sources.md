@@ -6,6 +6,8 @@ Reference only · 查閱日期：2026-09-25
 
 2026-11-01 增補 compliance-jurisdiction.md 的官方來源，其餘條目的查閱日期不變。
 
+2026-11-15 增補 motion.md、frontend.md 與 components-icons.md 的官方來源，各自標明查閱日期，其餘條目的查閱日期不變。
+
 此處按領域列出最終稿引用的官方來源。連結支持其附近的能力敘述，不能擴大成整個產品已驗證。適配、成本、遷移與情境組合是研究判斷。
 
 本次以官方文件為主；沒有把搜尋排行當推薦順序。數值配額、價格、license、SDK/框架支援與帳號權限採用時再核對。
@@ -103,6 +105,11 @@ Reference only · 查閱日期：2026-09-25
 
 2026-10-02 增補：[React Aria](https://react-aria.adobe.com/getting-started)、[Mantine](https://mantine.dev/getting-started/)、[Nuxt UI](https://ui.nuxt.com/)、[shadcn-svelte](https://www.shadcn-svelte.com/docs/installation)。新項目只核對基本定位與官方入口；實際 peer dependencies、授權、樣式、SSR 與 framework 版本在採納時驗證。
 
+2026-11-15 增補：[Ark UI repository](https://github.com/chakra-ui/ark)（README 的框架與授權；官方站為前端渲染頁，本輪未讀其內文）與 [shadcn MCP server](https://ui.shadcn.com/docs/mcp)。套件版本讀自 npm registry。
+
+- [官方來源：github.com — chakra-ui/ark](https://github.com/chakra-ui/ark)
+- [官方來源：ark-ui.com — ](https://ark-ui.com/)（2026-11-15；前端渲染頁，本輪未讀其內文）
+- [官方來源：ui.shadcn.com — docs/mcp](https://ui.shadcn.com/docs/mcp)
 - [官方來源：21st.dev — ](https://21st.dev/)
 - [官方來源：ant.design — docs/react/introduce/](https://ant.design/docs/react/introduce/)
 - [官方來源：base-ui.com — react/overview/about](https://base-ui.com/react/overview/about)
@@ -165,6 +172,17 @@ Reference only · 查閱日期：2026-09-25
 
 2026-10-02：TanStack 的 [Start 及官方 library 導覽](https://tanstack.com/start/latest) 支持 18 項 library 與 Starter／Builder 的目錄觀察。各項細節、成熟度與安裝入口直接連在 frontend 矩陣，採納時逐項回查；不將一項已核對的能力擴大成整套已驗證。另見 [React Router framework mode](https://reactrouter.com/start/framework/installation)。
 
+2026-11-15 增補（`frontend.md` 圖表與資料表）：Recharts、visx、TanStack Table 的官方站為前端渲染頁，內容讀自 GitHub README 與 npm registry；ECharts 讀自 handbook；AG Grid 讀自官方授權、定價與功能比較頁。
+
+- [官方來源：recharts.github.io — ](https://recharts.github.io/)
+- [官方來源：airbnb.io — visx](https://airbnb.io/visx)
+- [官方來源：echarts.apache.org — ](https://echarts.apache.org/)
+- [官方來源：echarts.apache.org — handbook/en/best-practices/aria/](https://echarts.apache.org/handbook/en/best-practices/aria/)
+- [官方來源：ui.shadcn.com — docs/components/chart](https://ui.shadcn.com/docs/components/chart)
+- [官方來源：tanstack.com — table/latest](https://tanstack.com/table/latest)
+- [官方來源：ag-grid.com — ](https://ag-grid.com/)（2026-11-15）
+- [官方來源：ag-grid.com — license-pricing/](https://ag-grid.com/license-pricing/)
+- [官方來源：ag-grid.com — react-data-grid/community-vs-enterprise/](https://ag-grid.com/react-data-grid/community-vs-enterprise/)
 - [官方來源：docs.astro.build — en/concepts/islands/](https://docs.astro.build/en/concepts/islands/)
 - [官方來源：nextjs.org — docs](https://nextjs.org/docs)
 - [官方來源：nuxt.com — docs/4.x/guide/concepts/rendering](https://nuxt.com/docs/4.x/guide/concepts/rendering)
@@ -196,6 +214,32 @@ Reference only · 查閱日期：2026-09-25
 - [官方來源：motion.dev — docs/react-accessibility](https://motion.dev/docs/react-accessibility)
 - [官方來源：r3f.docs.pmnd.rs — getting-started/introduction](https://r3f.docs.pmnd.rs/getting-started/introduction)
 - [官方來源：rive.app — docs/runtimes](https://rive.app/docs/runtimes)
+
+2026-11-15 增補（`motion.md`）：平台動效、dotLottie、Rive、GSAP 授權、動效元件來源與原生動效。瀏覽器版本讀自 browser-compat-data 8.1.9，Baseline 讀自 web-features 3.46.0；套件版本與 peer 讀自 npm registry，repository 的授權、最後 commit 與 release 讀自 GitHub。未取得的內容列在 `motion.md` 的「待驗證」。
+
+- [官方來源：developer.mozilla.org — en-US/docs/Web/API/View_Transition_API](https://developer.mozilla.org/en-US/docs/Web/API/View_Transition_API)
+- [官方來源：developer.mozilla.org — en-US/docs/Web/CSS/CSS_scroll-driven_animations](https://developer.mozilla.org/en-US/docs/Web/CSS/CSS_scroll-driven_animations)
+- [官方來源：github.com — mdn/browser-compat-data](https://github.com/mdn/browser-compat-data)
+- [官方來源：github.com — web-platform-dx/web-features](https://github.com/web-platform-dx/web-features)
+- [官方來源：dotlottie.io — ](https://dotlottie.io/)
+- [官方來源：github.com — LottieFiles/dotlottie-web](https://github.com/LottieFiles/dotlottie-web)
+- [官方來源：github.com — rive-app/rive-wasm](https://github.com/rive-app/rive-wasm)
+- [官方來源：gsap.com — standard-license/](https://gsap.com/standard-license/)
+- [官方來源：webflow.com — blog/gsap-becomes-free](https://webflow.com/blog/gsap-becomes-free)
+- [官方來源：magicui.design — docs](https://magicui.design/docs)
+- [官方來源：ui.aceternity.com — docs](https://ui.aceternity.com/docs)（2026-11-15）
+- [官方來源：ui.aceternity.com — pricing](https://ui.aceternity.com/pricing)
+- [官方來源：ui.aceternity.com — licence](https://ui.aceternity.com/licence)
+- [官方來源：motion-primitives.com — ](https://motion-primitives.com/)
+- [官方來源：github.com — ibelick/motion-primitives](https://github.com/ibelick/motion-primitives)
+- [官方來源：animate-ui.com — docs](https://animate-ui.com/docs)
+- [官方來源：github.com — imskyleen/animate-ui](https://github.com/imskyleen/animate-ui)
+- [官方來源：docs.swmansion.com — react-native-reanimated/docs/fundamentals/getting-started/](https://docs.swmansion.com/react-native-reanimated/docs/fundamentals/getting-started/)
+- [官方來源：docs.swmansion.com — react-native-reanimated/docs/guides/compatibility/](https://docs.swmansion.com/react-native-reanimated/docs/guides/compatibility/)
+- [官方來源：shopify.github.io — react-native-skia/](https://shopify.github.io/react-native-skia/)
+- [官方來源：developer.apple.com — documentation/swiftui/animations](https://developer.apple.com/documentation/swiftui/animations)
+- [官方來源：developer.android.com — develop/ui/compose/animation/introduction](https://developer.android.com/develop/ui/compose/animation/introduction)
+- [官方來源：developer.android.com — jetpack/androidx/releases/compose-animation](https://developer.android.com/jetpack/androidx/releases/compose-animation)
 
 ## [operations.md](operations.md)
 

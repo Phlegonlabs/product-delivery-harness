@@ -41,7 +41,7 @@ Motion direction: [not_required / functional_only / expressive] — [owner or ac
 
 | Intent ID | UI scope / region | Treatment | Purpose | Trigger | Draft prompt | Source | Static / reduced-motion fallback | Generation route | Status | Generation status |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| MM-001 | UI-001 / hero | image + motion | [purpose] | [trigger] | [draft prompt] | [owner decision or source] | [fallback] | [none / existing asset / CSS-WAAPI / Motion / GSAP / Three.js / native-framework / authorized provider] | [approved / deferred] | deferred |
+| MM-001 | UI-001 / hero | image + motion | [purpose] | [trigger] | [draft prompt] | [owner decision or source] | [fallback] | [none / existing asset / CSS-WAAPI / Motion / GSAP / Three.js / Lottie / Rive / native-framework / authorized provider] | [approved / deferred] | deferred |
 
 ### Frontend Design Usage
 
@@ -98,7 +98,7 @@ Connected HiFi reference: [repo-relative path @ sha256:<lowercase sha256>]
 
 ## HiFi Review
 
-[Grading summary: grader count and lenses, medians and disputed dimensions, defect ledger path, and the repair/re-review outcome or the blocked owner decision]
+[Grading summary: grader count and lenses, medians and disputed dimensions, defect ledger path, author and grader provider/models, author and lead grader direction match, and the repair/re-review outcome or the blocked owner decision]
 
 Impeccable critique: PASS — evidence=[repo-relative evidence path] @ sha256:[lowercase sha256]
 

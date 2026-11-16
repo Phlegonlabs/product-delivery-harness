@@ -1,6 +1,6 @@
 # Components, Buttons & Icons Reference
 
-狀態：Reference only · 核對日期：2026-09-25
+狀態：Reference only · 核對日期：2026-09-25（Ark UI、元件來源工具：2026-11-15）
 本文件根據官方來源與研究複核整理。所有元件、registry 與 icon 都是候選；採納、安裝或更換不在本文件授權範圍內。
 
 ## 分層與 PRD 問題
@@ -23,6 +23,7 @@ PRD 未隨附，採用前確認：要覆蓋哪些 surface？React／Next、SSR�
 | Base UI | React、要 headless、進階邊界處理與持續維護 | 非 React、要企業 SLA 或未驗證版本 | 對齊 WAI-ARIA；補 focus 視覺、contrast、screen-reader 測試 | MIT 與商用允許在源文有記載；無 SLA 表示支援成本自擔 |
 | shadcn/ui | React 團隊要擁有並客製元件碼 | 要自動上游更新、零維護或非 React | 程式碼入庫、版本、授權審查、樣式 token 統一 | 減少黑箱包裝；專案負責漂移與安全修補 |
 | [React Aria](https://react-aria.adobe.com/getting-started) | React、自有視覺系統、需要可及性互動基礎 | 要直接取得整套品牌樣式，或非 React | 自建樣式、tokens、複合控制項；驗證 focus、鍵盤、i18n 與所選 framework | 不附預設樣式；客製與專案驗收仍有成本 |
+| [Ark UI](https://ark-ui.com/) | 要同一套 headless 行為跨 React、Solid、Vue、Svelte 共用 | 單一框架且已有健康的 Radix、Base UI 或 React Aria；要整套預設樣式 | 官方 repository 稱以 Zag.js 狀態機為核心，不附預設樣式；官方支援 React、Solid、Vue、Svelte。自建樣式、tokens，驗證 focus、鍵盤與 screen reader | MIT（`chakra-ui/ark`，最後 push 2026-11-15）。各框架套件版本不同步：react、vue、solid 為 5.40.0，svelte 為 5.25.1（2026-11-15 查），要逐包核對 |
 | [Mantine](https://mantine.dev/getting-started/) | React App／dashboard、要一套元件與主題工具 | 現有 DS 健康，或需大幅覆寫每個控制項 | 核對 provider、樣式入口、SSR、主題、版本及框架 guide | 較快形成一致 UI；套件 API 與升級仍由專案維護 |
 | [Nuxt UI](https://ui.nuxt.com/) | 已選 Nuxt／Vue 的產品 UI | React 專案，或未確認 Vue／Nuxt 整合 | 核對版本、UI primitives、樣式／tokens 與 SSR | 留在所選 Vue 生態；不能當 React 套件直接換用 |
 | [shadcn-svelte](https://www.shadcn-svelte.com/docs/installation) | 已選 Svelte／SvelteKit、要擁有元件程式碼 | React 專案，或不願维护複製碼 | 核對 Svelte、primitives、樣式、SSR 和更新方式 | 入庫程式碼可改；更新、授權與品質由專案承擔 |
@@ -35,7 +36,13 @@ PRD 未隨附，採用前確認：要覆蓋哪些 surface？React／Next、SSR�
 
 2026-10-02 增補：React Aria、Mantine、Nuxt UI 與 shadcn-svelte 是按 framework 比較的候選。shadcn/ui 可依已確認的版本使用 Base UI 或 Radix primitives；同一控制項先選一套基礎，不混裝兩套。Mantine、Ant Design、MUI 等完整 suite 與 headless/owned-source 路線的主要取捨是現成覆蓋、品牌自由度和維護責任，沒有預設勝出者。
 
-[React Bits](https://www.reactbits.dev/get-started/index) 是文字、背景、卡片等創意動效元件來源，放在 [Motion](motion.md) 比較；它不能因為外觀好看而取代 form/dialog/menu 的基礎語意、完整狀態或可及性驗收。
+[React Bits](https://www.reactbits.dev/get-started/index) 是文字、背景、卡片等創意動效元件來源，放在 [Motion](motion.md) 比較。Magic UI、Aceternity UI、Motion Primitives 與 Animate UI 同屬複製元件碼的動效來源，也在 Motion 比較。它們都不能因為外觀好看而取代 form/dialog/menu 的基礎語意、完整狀態或可及性驗收。
+
+圖表與資料表（Recharts、visx、ECharts、TanStack Table、AG Grid）見 [Frontend](frontend.md#圖表與資料表)。MUI X 的資料表與圖表另有 Pro／Premium 層。
+
+## 元件來源工具
+
+已由 owner 接上的元件 registry 工具或 MCP，例如官方 [shadcn MCP server](https://ui.shadcn.com/docs/mcp)（官方文件：讓 AI 助理瀏覽、搜尋並從 registry 安裝元件），可以用來瀏覽與比較元件。把元件安裝或複製進專案是相依與程式碼動作，要有已核准棧的元件來源決策；工具已連線不代表授權。Agent 不自行安裝或連接這類工具。
 
 ## Buttons
 
@@ -59,7 +66,7 @@ Tailwind 與任何 icon 都不是預設。樣式層比較見 [CSS 方案](css-st
 
 ## 待驗證與採納紀錄
 
-未解問題：Ant、21st.dev、Lucide、Phosphor、Chakra 目前版本、Tailwind 版本、MUI X tier 功能、Base UI／shadcn 最新 React 相容性、所有 icon 與平台資產授權。採用時把候選寫回 PRD、stack decisions、frontend、wireframe、sources 與測試文件；沒有寫回的候選不生效，也不觸發安裝。
+未解問題：Ant、21st.dev、Lucide、Phosphor、Chakra 目前版本、Tailwind 版本、MUI X tier 功能、Base UI／shadcn 最新 React 相容性、所有 icon 與平台資產授權、Ark UI 官方站內文（本輪只讀其 repository）。採用時把候選寫回 PRD、stack decisions、frontend、wireframe、sources 與測試文件；沒有寫回的候選不生效，也不觸發安裝。
 
 ## 補查摘要與搜尋步驟
 
