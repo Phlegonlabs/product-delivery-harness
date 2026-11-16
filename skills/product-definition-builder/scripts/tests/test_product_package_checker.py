@@ -2040,6 +2040,17 @@ Security scope: executable
             "ios", "native", ("TestFlight", "App Store"),
         )))
 
+    def test_mobile_decision_accepts_the_optional_motion_row_under_the_normal_row_rules(self) -> None:
+        package = self.hybrid_native_package("ios", "native", ("TestFlight", "App Store"))
+        motion_row = "| Motion | SwiftUI animations | Approved | Owner decision | Fits iOS | None |\n"
+        self.assertTrue(package["stack"].endswith("| None |\n"))
+        with_motion = dict(package, stack=package["stack"] + motion_row)
+        self.assertEqual([], self.validate(**with_motion))
+        doubled = dict(package, stack=package["stack"] + motion_row + motion_row)
+        self.assertTrue(any("duplicate layer 'Motion'" in item for item in self.validate(**doubled)))
+        recommended = dict(package, stack=package["stack"] + motion_row.replace("| Approved |", "| Recommended |"))
+        self.assertTrue(any("'Motion' remains 'Recommended'" in item for item in self.validate(**recommended)))
+
     def test_hybrid_ui_surfaces_bind_web_and_linux_desktop_contracts(self) -> None:
         package = self.hybrid_native_package("linux", "desktop", ("Flathub beta", "Flathub"))
         self.assertEqual([], self.validate(**package))
