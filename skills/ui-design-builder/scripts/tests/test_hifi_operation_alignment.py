@@ -44,6 +44,13 @@ def passive_component_specs(html, page, removed):
 
 
 class FeedbackContractTests(unittest.TestCase):
+    def test_only_can_diagnose_unchanged_pages_before_feedback_adoption(self):
+        package = matrix_tests.InteractionTests().package(matrix_tests.INTERACTIONS + [{
+            "id": "legacy-feedback", "kind": "state", "control": "save",
+            "source": {"surface": "UI-002", "state": "ready"},
+            "destination": {"surface": "UI-002", "state": "ready"}}])
+        self.assertEqual(["UI-001-to-details"], [a["id"] for a in capture.interaction_plan(package, {"UI-001"})])
+
     def test_operation_kind_depends_on_presentation_and_endpoints(self):
         operation = {"id": "save", "trigger": "Save", "control": "save", "sourceState": "ready",
                      "destination": {"surface": "UI-001", "state": "ready"}, "presentation": "feedback"}
@@ -301,6 +308,11 @@ class OperationBrowserTests(unittest.TestCase):
                 change = reply["result"]["observed"]["change"]
                 self.assertEqual(passes, change["beforeSha256"] != change["afterSha256"])
                 driver.stop()
+
+    def test_same_endpoint_state_still_fails_even_when_the_control_changes_text(self):
+        driver = self.driver('<button data-control-id="save" onclick="this.textContent += \' changed\'">Save</button>')
+        reply = self.attempt(driver, kind="state")
+        self.assertIn('state interaction needs a different destination state', reply["result"]["problems"])
 
     def test_openers_reveal_menu_and_nested_disclosures_in_order(self):
         save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'

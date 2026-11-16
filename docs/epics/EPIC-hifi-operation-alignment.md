@@ -95,6 +95,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Change Log
 
+- 2026-11-16: R1 follow-up preserves diagnostic `--only` runs during feedback adoption. Selected equal-endpoint state attempts still fail in Chromium.
+
 - 2026-11-16: R9 aligns connected-HiFi and stage rules, groups interaction instructions and leaves README histories and version unchanged.
 
 - 2026-11-16: R8 zooms the query container at half inline size and retains the nominal rendered width.

@@ -317,6 +317,8 @@ const FEEDBACK_SNAPSHOT = surfaceId => {
 
 async function interact(request) {
   const problems = [];
+  if (request.kind === 'state' && request.surface === request.destination.surface && request.state === request.destination.state)
+    return { problems: ['state interaction needs a different destination state'], visible: false, focusCorrect: false };
   const timeout = request.timeoutMs;
   if (currentPage !== request.page) {
     try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
@@ -1050,8 +1052,6 @@ def interaction_plan(package, only=None):
         source_row = surfaces[action["source"]["surface"]]
         if kind == "feedback" and action["source"] != action["destination"]:
             raise UsageError(f"feedback interaction {ident} must keep its source surface and state")
-        if kind == "state" and action["source"] == action["destination"]:
-            raise UsageError(f"state interaction {ident} needs a different destination state")
         plan.append({"id": ident, "kind": kind, "control": control, "source": action["source"],
                      "destination": action["destination"], "page": source_row["page"],
                      "destinationPage": surfaces[action["destination"]["surface"]]["page"],
