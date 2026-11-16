@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-ui-reference-driven-design](epics/EPIC-ui-reference-driven-design.md)
+Current Epic: [EPIC-ui-motion-and-libraries](epics/EPIC-ui-motion-and-libraries.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
