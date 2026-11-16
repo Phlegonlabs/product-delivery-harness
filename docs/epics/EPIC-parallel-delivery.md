@@ -77,6 +77,8 @@ One protected read-only review (GPT-6.1 Sol, high) in three scoped calls at `849
 
 Found by the parent on a real PLAN: a review that routes to a gate on `pass` did not order the mission behind the gate. Repaired in the same batch.
 
+Pull request 184: the Codex review found that `merge-check` compared only the endpoint diff, so a parent-owned or denied file changed in one commit and restored in a later one passed. Scope checks now cover every path any incoming commit touched.
+
 Re-check: eight of ten dispositions resolved. Two remained and were repaired in isolation with focused tests, without another review: a local file blocking an incoming directory, and mission ordering that walked through a conditional repair mission.
 
 ## Change Log
@@ -85,6 +87,7 @@ Re-check: eight of ten dispositions resolved. Two remained and were repaired in 
 | --- | --- |
 | 2026-11-16 | Round opened, six parts merged, version set to 0.83.0 |
 | 2026-11-16 | Review, consolidated repair, re-check, two isolated repairs |
+| 2026-11-16 | Pushed, PR 184 opened, one Codex finding repaired |
 
 ## Results And Remaining Work
 
