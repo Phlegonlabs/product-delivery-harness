@@ -1,0 +1,6 @@
+interface:
+  display_name: "Logo Studio"
+  short_description: "Research-led logo design with a wide sketch stage and stress tests"
+  default_prompt: "Use $logo-studio to design this product's logo from a brief, a wide sketch sheet and stress-tested concepts."
+policy:
+  allow_implicit_invocation: false
