@@ -111,8 +111,9 @@ def shared_subject_conflict(tree: source.SourceTree, surface: dict[str, Any], no
     state (the surface's own data-keep/data-bases/data-base/data-first rule),
     every data-on and data-live-on list contains the exact state, any
     data-responsive-target equals the row target, and nothing on the path is
-    statically hidden. This mirrors the product runtime's own state-family
-    logic; nothing else about visibility is inferred.
+    statically hidden. A descendant's own data-in/data-on controller may
+    replace its initial hidden flag; data-live-on cannot. The surface and
+    uncontrolled ancestors must remain visible. Playback still needs a browser.
     """
     attrs = surface["map"]
     keep = (attrs.get("data-keep") or "").split()
@@ -124,7 +125,8 @@ def shared_subject_conflict(tree: source.SourceTree, surface: dict[str, Any], no
     path = tree.ancestors(node) + [node]
     for item in path[path.index(surface):]:
         found = item["map"]
-        if "hidden" in found:
+        controlled = item is not surface and ("data-in" in found or "data-on" in found)
+        if "hidden" in found and not controlled:
             return "its source path is statically hidden"
         if "data-in" in found and effective not in (found.get("data-in") or "").split():
             return 'data-in="%s" does not include the effective state' % found["data-in"]

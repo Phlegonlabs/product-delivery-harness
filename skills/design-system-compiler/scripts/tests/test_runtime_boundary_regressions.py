@@ -72,6 +72,35 @@ class SharedPathTests(unittest.TestCase):
             with self.subTest(wrapper=wrapper):
                 self.assertEqual([], self.copies(wrapper=wrapper))
 
+    def test_initial_hidden_flag_follows_its_own_state_controller(self):
+        for wrapper in ['hidden data-in="summary"', 'hidden data-on="summary"',
+                        'hidden data-in="summary partial" data-on="summary"']:
+            with self.subTest(wrapper=wrapper):
+                self.assertEqual(1, len(self.copies('data-first="running"', wrapper)))
+
+    def test_hidden_exceptions_do_not_spread_to_other_nodes_or_constraints(self):
+        for wrapper in ['hidden', 'hidden data-live-on="summary"', 'hidden data-in',
+                        'hidden data-on', 'hidden data-in="running"',
+                        'hidden data-in="summary" data-on="running"',
+                        'hidden data-in="summary" data-live-on="running"',
+                        'hidden data-in="summary" data-responsive-target="768"',
+                        'hidden><div data-in="summary"',
+                        'data-in="summary"><div hidden']:
+            with self.subTest(wrapper=wrapper):
+                self.assertEqual([], self.copies(wrapper=wrapper))
+        self.assertEqual([], self.copies('hidden data-in="summary"', 'data-in="summary"'))
+
+    def test_nested_state_controllers_preserve_effective_state_and_ambiguity(self):
+        wrapper = 'hidden data-in="summary partial"><div hidden data-in="summary"'
+        self.assertEqual(1, len(self.copies('data-first="running"', wrapper)))
+        self.assertEqual([], self.copies('data-keep="summary" data-base="running"', wrapper))
+        subject = '<span class="subject" data-specimen-variant="default" data-specimen-state="default"></span>'
+        tree = source.SourceTree('<main data-ui-surface="UI-001"><div hidden data-in="summary">'
+                                 + subject * 2 + '</div></main>')
+        spec = {'selector': '.subject', 'variant': 'default', 'state': 'default'}
+        copies = runtime.scoped_copies(tree, spec, 'UI-001', 'summary', ['390', '768'])
+        self.assertEqual({'390': 2, '768': 2}, {key: len(value) for key, value in copies.items()})
+
 
 if __name__ == '__main__':
     unittest.main()

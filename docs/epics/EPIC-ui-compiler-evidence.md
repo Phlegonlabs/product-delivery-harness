@@ -49,6 +49,11 @@ explain the shared-subject and script-classification contract. Source behavior
 is unchanged from the reviewed proposal. Git's initial CRLF conversion was
 normalized back to the reviewed bytes before testing.
 
+## State-controlled hidden successor
+
+The annotated count subject exposed one remaining resolver error. The product opens on running and keeps summary wrappers hidden until its own state controller runs.
+The scoped repair accepts an initial hidden flag only on a descendant with its own matching data-in or data-on controller. Hidden surfaces, uncontrolled hidden ancestors, data-live-on-only flags, conflicting states, targets and duplicate subjects still fail. Product source bytes stay unchanged. Static and browser regressions cover nested controllers, effective state, normal/reduced playback and Replay/Stop. Verification and independent review remain pending at this source edit.
+
 ## Handoff
 
 Runtime source `59f219d9a439faaffd15089124123d98896ed72e` passed all nine full-matrix steps and protected exact-source integration review. Official `install.sh` exited0 and retained backup `20261115-165810`. Installed contract: `6f4b236ddc2a42278e42aac18b2f878cbfc5859caccf65993da78d96ad37d36d`. AgentKiosk's updated binding check exits0. Evidence: its `compiler-runtime-adoption-001/`; full raw matrix logs remain at `C:/Users/mps19/AppData/Local/Temp/agentkiosk-compiler-parent-fix-xnv5dadm/matrix-59f219d9/`.

@@ -395,6 +395,35 @@ class RuntimeBrowserTests(unittest.TestCase):
         self.assertEqual("settled", out["stopReplay"][-1], out["stopReplay"])
         self.assertEqual(["ready"], out["stopReplayStates"])
 
+    def test_shared_initially_hidden_subject_uses_unchanged_product_state_logic(self):
+        self.require()
+        ready = fixture._view("ready", "390").replace('data-hifi-state-view="ready"', 'data-in="ready" hidden')
+        ready = ready.replace(' data-responsive-target="390"', '')
+        views = ready + ''.join(fixture._view("running", width) for width in ("390", "768"))
+        sync = ('(function(){const s=document.querySelector("[data-ui-surface]");'
+                'const block=s.querySelector("[data-in]");'
+                'window.__bootStates=[s.getAttribute("data-hifi-state"),block.hidden];'
+                'block.hidden=!block.getAttribute("data-in").split(" ").includes(s.getAttribute("data-hifi-state"));'
+                'window.__bootStates.push(block.hidden);})();')
+        script = sync + fixture.PRODUCT_SCRIPT.replace('[data-hifi-state-view="ready"] .kiln', '[data-in="ready"] .kiln')
+        path = self.folder / "shared-initially-hidden.html"
+        path.write_text(fixture.render(fixture.pages(script, views=views), fixture.registry(script)), encoding="utf-8")
+        for reduced in (False, True):
+            runner = BOOT.replace('height: 800}}', 'height: 800}, reducedMotion: "reduce"}') if reduced else BOOT
+            if reduced:
+                runner = runner.replace('["settled", "invalid"]', '["reduced", "invalid"]')
+            out = self.run_node(runner, {"items": [{"name": "hidden", "url": path.resolve().as_uri()}]})["hidden"]
+            self.assertEqual(([], [], []), (out["errors"], out["requests"], out["popups"]))
+            expected = "reduced" if reduced else "settled"
+            for key in ("kiln-rise", "belt-step"):
+                self.assertEqual(expected, out[key]["phase"][-1], out[key])
+            for key in ("replay", "stopReplay"):
+                self.assertEqual(expected, out[key][-1], out[key])
+            self.assertEqual(["ready", True, False], out["kiln-rise"]["states"])
+            self.assertEqual(["running", True, True], out["belt-step"]["states"])
+            self.assertEqual(["ready", True, False], out["replayStates"])
+            self.assertEqual(["ready", True, False], out["stopReplayStates"])
+
 
 if __name__ == "__main__":
     unittest.main()
