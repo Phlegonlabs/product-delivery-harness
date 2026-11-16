@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.83.1-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.83.2-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -201,6 +201,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.83.2** — 独立 skills 新增 Logo Studio。`logo-studio` 从品牌简报开始设计或重做产品 logo：先看同行的标志，再画至少 36 个黑白草图，分四类，单纯首字母的草图最多占九分之一；每个草图按五项测试评分，把三至五个构思精修成只含路径的 SVG，然后做压力测试：16 像素、单色、app 图标，以及产品里实际出现的位置。原则文件引用 Chermayeff & Geismar & Haviv 的三项标准和 Apple、Android 的图标指引，核查日期 2026-11-16。标志由 owner 选定；这个 skill 不批准任何东西、不做商标检索、不替换线上资产。它和其他独立 skills 一样须另行向宿主注册，`install.sh` 仍然只安装五个核心 skills。
+
 - **0.83.1** — 修补版，把 UI compiler 证据的修正正式放进 main。这些修正自 2026-11-15 起以开发版安装的方式在使用，0.83.0 没有包含。`check_ui_design_contract.py` 不再把套件声明为 `n/a` 的状态算进 compiler 的预期截图矩阵；中间宽度的收据也不必重复已在核准宽度量过的 reviewer 数值，但仍需要 typed output、当前的来源绑定、浏览器记录、交互与区间覆盖。`design-system-compiler` 方面：source-runtime plate 可以使用唯一标注的共用 subject，只要它的 surface、state、target 与该行一致；选定的状态会在产品脚本执行前绑定；只排除 reviewer 面板位置上那一段确切可辨识的 design-token 填充脚本，相同内容的产品脚本仍会绑定；被自己声明的初始状态隐藏的 subject 可以解析，没有控制器的隐藏路径仍然失败。0.83.0 的规则没有任何变动。
 
 - **0.83.0** — 互不依赖的工作现在同时进行。小型工作里有几个互不依赖、文件不重叠的部分时，不必再在“一位 writer”和“完整 PLAN/RUN”之间二选一：Direct Fan-Out 让每个部分有自己的 writer 和 worktree，writer 一完成，只要 `worktree_fanout.py merge-check` 通过，parent 就立刻合回工作分支。检查项目是：worktree 干净、base 正确、改动都在该部分的 scope 内、没有改 PLAN/RUN、没有空白错误、试合并没有冲突。检查不过就不合并，并说明原因。`worktree_fanout.py scopes` 在派工前确认各部分的写入范围不重叠。规模判断也跟着改：missions 互相依赖，或工作必须跨 session 延续，才算 large；光是有两个可写的部分不算。managed run 方面，`plan_width.py` 在 readiness 前报告 PLAN 的并行宽度、依赖层级和关键路径，并指出三种情况：一个 mission 等待另一个，但两者没有共用文件或资源；三个以上 mission 声明同一个独占资源，例如同一个固定的 dev-server port；并行上限低于宽度。它只报告，不增加 gate。依赖边现在的意思是一个 mission 要用另一个的产出；合并顺序和 review 顺序都不是依赖。PLAN 模板和 `new_run.py` 的并行上限默认从 1 改为 8。UI 设计里，每个 direction study 可以有自己的作者，主机有容量时三个 study 同时撰写。checker 不再要求所有 study 同一位作者，但仍要求每个 study 由自己的作者自查。HiFi 仍由一位作者负责。研究任务和 review 波次的各个读者同时派出。
@@ -208,7 +210,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.82.0** — 动效在技术栈决策里有了位置，多了两条路线，也有了生成素材的做法。技术栈决策可以加一行选填的 `motion`：从 `CSS/WAAPI`、`Motion`、`GSAP`、`Three.js`、`Lottie`、`Rive` 选出的上限，和其他层一起批准。UI 设计在上限内选效果，不必再为了 expressive 动效退回 Product Definition。没有这一行的项目沿用旧规则。`MM-*` 记录现在可以把 `Lottie` 或 `Rive` 写成路线。它们和 Three.js 一样不能在封闭的 HiFi 页面里运行，所以 HiFi 显示近似版本，而实现的第一个切片现在要用 `capture_sheet.py` 把近似版本和真实 library 的画面并排。View Transitions API 和 CSS scroll-driven animations 不需要 stack 条目，只能当渐进增强。`motion-and-media-routing.md` 新增 Higgsfield MCP 这类生成 provider 的视频与 3D 模型做法：静态阶段通过后才生成、用同一张图当首尾画面做无缝循环、去掉音轨、保留该图当 poster，并记录模型、job id、输入图的哈希和花掉的额度。它也写明不要生成界面本身的操作视频。选项目录新增图表（Recharts、visx、ECharts）、数据表（TanStack Table、AG Grid）、附逐浏览器支持表的平台动效、dotLottie、四个动效组件来源、原生动效（Reanimated、React Native Skia、SwiftUI、Compose）和 Ark UI，并把“GSAP 授权待确认”换成 Standard License 的条款。没有任何关卡、批准或门槛改变，已批准的项目全部照旧有效。UI checker 接受这两条新路线，所以 bundle 字节有变，consumer 需要重新 pin 五技能 contract。
 
 - **0.81.0** — UI 设计改成以图为准，并对着图自我检查。新视觉范围先建立参考板：9 到 12 张实际页面截图（`mvp` 最少 5 张），涵盖版面、间距、字体、色彩、控件和动效。Owner 在一页上确认，`visual_inputs.py` 把每张截图列进作者的任务，所以 prompt 只指向截图，不再用文字描述风格。Owner 已连接的参考 MCP 或浏览器工具可以用来找候选和截图；agent 仍然不得自行安装或连接。Frontend brief 多了四行：照截图做、以 99% direction match 为目标、质量优先于速度、禁用清单。HiFi 先做静态再加动效，动效参考要先写好时间笔记才能动手。作者自查多了两个脚本。`slop_scan.py` 读取研究或 HiFi 页面，同一页出现三种以上默认样式时标记为 cluster；单一样式交给作者判断。`capture_sheet.py` 生成一张自包含页面，可以排出参考板，或把选定方向和 HiFi 候选稿并排；Visual Approval 的链接会附上这张比对页。作者记录自评的 direction match；lead grader 先给自己的分数再看作者的，相差 15 分以上就告知作者。这个数字只做校准，不是关卡。Owner 的意见记成指出元素、属性和期望结果的行；没有指出这两者的意见，回复做了什么，不猜测修法。评分记录写明作者和评审的模型；agent policy 有得选时，lead grader 用不同模型家族。审查预算、85/80 门槛和所有 checker 都没有变。Bundle 字节有变，consumer 需要重新 pin 五技能 contract。
-
-- **0.80.0** — 产品的第一次交付可以直接落 `main`、直接上 production。架构文档在 `## Release Targets` 的 `Release source policy: main-preview/1` 旁写一行 `Initial delivery: production-first/1`，每个 surface 就可以只声明 production target，`release_targets.py` 不再要求配对的 `-dev` target。`check_deployment.py` 读取 Branch Promotion 记录的 `Delivery kind`：标记架构下的 `initial_delivery`，development 单元格、development 行和 preview 各行填固定字符串 `n/a — initial delivery: production is the first deployed environment`；`enhancement` 无论有无标记都照旧要求 development target、单元格和 preview 验收，记录与架构不一致即为 finding。promotion 契约对这第一次交付跳过 preview 验收，改以 main SHA 的 production 部署与 smoke 作为部署验证；initial delivery 需要部署环境的验收场景改以 production smoke 执行，受既有 production 约束，无法 production-safe 的场景由 owner 记录原因降级，不得改标签。`check_delivery_acceptance.py` 分成两个阶段：落 main 前，required 且 `environment: production` 的场景若为 `blocked` 就列入 `production_smoke_deferred` 而不算失败；production 部署后以 `--production-smoke-complete --candidate-sha <main SHA>` 再跑，这些场景必须全部 pass。没有标记的包和所有 enhancement 仍保留 development target 和 preview 验收；只有验收 gate 的 deferral 适用于所有交付种类。bundle 新增契约标记，故提升 minor 版本。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
