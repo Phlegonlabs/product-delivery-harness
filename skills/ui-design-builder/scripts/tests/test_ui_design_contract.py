@@ -1098,7 +1098,7 @@ class UiDesignContractTests(unittest.TestCase):
                 "ui-design: MM-001 motion requires an implementation or media route, not none"])
 
     def test_code_motion_routes_need_no_media_asset(self):
-        for route in ("Motion", "Three.js", "GSAP"):
+        for route in ("Motion", "Three.js", "GSAP", "Lottie", "Rive", "native-framework"):
             with self.subTest(route=route), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp)
                 product, _, _, wireframe, hifi, _ = materialize_publication(
@@ -1107,6 +1107,18 @@ class UiDesignContractTests(unittest.TestCase):
                     prd_path=product, wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
                     require_wireframe_approved=True, require_visual_approved=True)
                 self.assertEqual(problems, [])
+
+    def test_unknown_motion_route_still_needs_a_provider_asset(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            product, _, _, wireframe, hifi, _ = materialize_publication(
+                root, required=False, motion_route="Spline")
+            problems = checker.validate(root / "docs/design/ui-design.md", repo_root=root,
+                prd_path=product, wireframes_path=wireframe, hifi_path=hifi, require_filled=True,
+                require_wireframe_approved=True, require_visual_approved=True)
+            self.assertEqual(list(dict.fromkeys(problems)), [
+                f"ui-design: MM-001 {mode} motion evidence: generated or existing media requires a completed asset identity and review"
+                for mode in ("normal", "reduced")])
 
     def test_media_routes_accept_authorized_assets_and_reject_wrong_actions(self):
         for route, provider, action, passes in (

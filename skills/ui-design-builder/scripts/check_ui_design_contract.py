@@ -166,7 +166,7 @@ NON_HUMAN_OWNERS = {
 VALID_TREATMENTS = {"none", "image", "motion", "image + motion"}
 MANDATED_CSP_TEXT = "Unrecognized Content-Security-Policy directive 'navigate-to'."
 # Code-only motion routes need no generated or reused media asset.
-CODE_MOTION_ROUTES = {"css-waapi", "motion", "gsap", "three.js", "native-framework"}
+CODE_MOTION_ROUTES = {"css-waapi", "motion", "gsap", "three.js", "lottie", "rive", "native-framework"}
 VALID_MOTION_STATUSES = {"approved", "deferred"}
 VALID_MOTION_DIRECTIONS = {"not_required", "functional_only", "expressive"}
 VALID_WIREFRAME_DECISIONS = {"draft", "approved", "revision_requested", "blocked"}
