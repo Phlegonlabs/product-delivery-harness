@@ -307,6 +307,40 @@ class PlanWidthTests(unittest.TestCase):
         self.assertEqual([], result["conditional_missions"])
         self.assertEqual(1, result["width"])
 
+    def test_a_repair_missions_prerequisites_do_not_order_planned_missions(self) -> None:
+        def looped(first_edge: tuple[str, str]) -> dict[str, object]:
+            plan = valid_plan()
+            plan["missions"] = [scoped_mission(f"M{index}", f"src/m{index}/**") for index in range(1, 5)]
+            bare_graph(plan, ["M1", "M2", "M3", "M4"])
+            for name in ("N-REVIEW", "N-GATE"):
+                gate = dict(plan["graph"]["nodes"][0])
+                gate.update(id=name, kind="verifier", ref=name)
+                plan["graph"]["nodes"].append(gate)
+            passed = dependency_edge("N-REVIEW", "N-GATE")
+            passed.update(kind="route", max_traversals=2)
+            fix = dependency_edge("N-REVIEW", "N-M4")
+            fix.update(kind="route", on_outcomes=["fix_required"], max_traversals=1)
+            recheck = dependency_edge("N-M4", "N-REVIEW")
+            recheck.update(kind="route", max_traversals=1)
+            plan["graph"]["edges"] = [
+                dependency_edge("N-M1", "N-REVIEW"),
+                passed,
+                dependency_edge("N-GATE", "N-M2"),
+                dependency_edge(*first_edge),
+                fix,
+                dependency_edge("N-M3", "N-M4"),
+                recheck,
+            ]
+            return plan
+
+        result = json_result(looped(("N-M1", "N-M3")))
+        self.assertEqual(["M4"], result["conditional_missions"])
+        self.assertEqual([["M1"], ["M2", "M3"]], result["levels"])
+        self.assertEqual(2, result["width"])
+
+        result = json_result(looped(("N-M2", "N-M3")))
+        self.assertEqual([["M1"], ["M2"], ["M3"]], result["levels"])
+
     def test_conflict_free_independent_missions_report_no_findings(self) -> None:
         plan = valid_plan()
         detach_mission_edges(plan)

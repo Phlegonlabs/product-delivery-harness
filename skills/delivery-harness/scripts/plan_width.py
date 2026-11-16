@@ -142,13 +142,15 @@ def _reject_dependency_cycle(incoming: dict[str, list[str]]) -> None:
 
 
 def _immediate_dependencies(
-    incoming: dict[str, list[str]], node_refs: dict[str, str]
+    incoming: dict[str, list[str]], node_refs: dict[str, str], skipped: set[str]
 ) -> dict[str, set[str]]:
     """The missions each mission directly waits for.
 
     Walking backward from a mission node stops at the first mission node on
     each path, so an edge through any number of review or gate nodes still
-    counts while a longer chain through another mission does not.
+    counts while a longer chain through another mission does not. The walk
+    never enters a ``skipped`` node: what a conditional repair waits for is not
+    something the planned missions behind its review wait for.
     """
 
     nodes_by_mission: dict[str, list[str]] = {}
@@ -161,7 +163,7 @@ def _immediate_dependencies(
         while frontier:
             node_id = frontier.pop()
             for source in incoming.get(node_id, []):
-                if source in visited:
+                if source in visited or source in skipped:
                     continue
                 visited.add(source)
                 ref = node_refs.get(source)
@@ -359,12 +361,15 @@ def measure(plan: dict[str, Any]) -> dict[str, Any]:
     _reject_dependency_cycle(_incoming_edges(plan, pass_routes=False))
     conditional = _conditional_missions(plan, node_refs)
     missions = {key: value for key, value in every_mission.items() if key not in conditional}
+    conditional_nodes = {node for node, ref in node_refs.items() if ref in conditional}
     node_refs = {node: ref for node, ref in node_refs.items() if ref in missions}
     first_node: dict[str, str] = {}
     for node_id in sorted(node_refs):
         first_node.setdefault(node_refs[node_id], node_id)
     mission_ids = sorted(missions)
-    immediate = _immediate_dependencies(_incoming_edges(plan, pass_routes=True), node_refs)
+    immediate = _immediate_dependencies(
+        _incoming_edges(plan, pass_routes=True), node_refs, conditional_nodes
+    )
     levels = _mission_levels(immediate, mission_ids)
     level_groups = _level_groups(levels, mission_ids)
     dependency_width = max((len(group) for group in level_groups), default=0)
