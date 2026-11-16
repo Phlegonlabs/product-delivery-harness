@@ -75,6 +75,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+- R6 follow-up: compiler suite passed 240 tests, exit 0, with two Windows platform skips. Both exact runtimes pass; altered runtime bytes fail.
+
 - R9: test_markdown_anchor_links.py: 3 tests, exit 0; docs_weight.py --baseline 9abe4b9e: exit 0, +744 words.
 
 - R8: test_hifi_operation_alignment.py -k zoom: Chromium test, exit 0; inline widths 195/600 render at 390/1200, then reset.
@@ -94,6 +96,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: R6 follow-up adds the disclosure runtime to the compiler's exact allowlist and retains the previous runtime. Modified runtimes still fail.
 
 - 2026-11-16: R1 follow-up preserves diagnostic `--only` runs during feedback adoption. Selected equal-endpoint state attempts still fail in Chromium.
 
