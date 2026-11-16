@@ -2349,9 +2349,11 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
             observations_valid = False
             continue
         observed = row.get("observed", {})
-        if not isinstance(observed, dict) or set(observed) - {"change"}:
+        if not isinstance(observed, dict) or set(observed) - {"change", "instances"}:
             observations_valid = False
         else:
+            if "instances" in observed and (type(observed["instances"]) is not int or observed["instances"] < 1):
+                observations_valid = False
             change = observed.get("change")
             if "change" in observed or row.get("id") in feedback_ids:
                 if (not isinstance(change, dict) or set(change) != {"beforeSha256", "afterSha256"}

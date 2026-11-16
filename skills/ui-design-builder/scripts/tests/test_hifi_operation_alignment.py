@@ -78,6 +78,14 @@ class FeedbackContractTests(unittest.TestCase):
                 broken["interactions"][2]["observed"] = bad
                 self.assertTrue(checker._bundle_transcript_findings(broken, manifest))
 
+    def test_instance_count_is_optional_but_must_be_a_positive_integer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, manifest, _ = contract_tests.materialize_hifi_bundle(Path(temporary))
+            for count, passes in ((3, True), (0, False), (True, False), ("3", False)):
+                output = contract_tests.bundle_output(manifest)
+                output["interactions"][0]["observed"] = {"instances": count}
+                self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
+
 
 class NotApplicableStateTests(unittest.TestCase):
     def test_na_state_needs_no_product_marker_or_case_but_real_state_does(self):
@@ -144,12 +152,12 @@ class OperationBrowserTests(unittest.TestCase):
         driver.start()
         return driver
 
-    def attempt(self, driver, control="save", kind="feedback", destination=None, page="details.html", **extra):
+    def attempt(self, driver, control="save", kind="feedback", destination=None, page="details.html", destination_page=None, **extra):
         driver.call("open", page=page, timeoutMs=2000)
         return driver.call("interact", page=page, interaction="operation", surface="UI-002", state="ready",
                            target="390", control=control, kind=kind,
                            destination=destination or {"surface": "UI-002", "state": "ready"},
-                           destinationPage=page, trigger="click", timeoutMs=2000, **extra)
+                           destinationPage=destination_page or page, trigger="click", timeoutMs=2000, **extra)
 
     def test_feedback_requires_product_change_and_ignores_focus_alone(self):
         for handler, passes in (("this.textContent += ' saved'", True),
@@ -179,8 +187,23 @@ class OperationBrowserTests(unittest.TestCase):
                 if passes:
                     self.assertEqual(4, len(output["navigation"]))
                     expected, navigation = checker._interaction_expectations(capture.read_package(package).manifest)
-                    self.assertEqual(expected[:4], output["interactions"])
+                    self.assertEqual(expected[:4], [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
                     self.assertEqual(navigation[:4], output["navigation"])
+
+    def test_repeated_rows_activate_the_first_visible_instance(self):
+        for wrong, passes in ((False, True), (True, False)):
+            with self.subTest(wrong=wrong):
+                extra = ''.join('<a data-navigation-id="rows" href="' +
+                    ('details.html' if wrong and index == 2 else 'index.html') + '">Row</a>' for index in range(3))
+                driver = self.driver('<a data-navigation-id="rows" href="index.html" hidden>Hidden row</a>' + extra)
+                reply = self.attempt(driver, control="rows", kind="navigate",
+                                     destination={"surface": "UI-001", "state": "ready"}, destination_page="index.html")
+                self.assertEqual(passes, not reply["result"]["problems"], reply)
+                self.assertEqual(3, reply["result"]["observed"]["instances"])
+                if passes:
+                    self.assertTrue(reply["result"]["focusCorrect"])
+                    self.assertEqual("index.html", reply["result"]["arrivedTo"])
+                driver.stop()
 
 
 if __name__ == "__main__":

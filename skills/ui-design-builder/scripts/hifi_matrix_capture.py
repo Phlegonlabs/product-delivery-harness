@@ -340,15 +340,22 @@ async function interact(request) {
   let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
   if (!problems.length) {
     const surface = '[data-ui-surface=' + quote(request.surface) + ']';
+    const attached = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + '],'
+      + surface + ' [data-control-id=' + quote(request.control) + ']');
     const product = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + ']:visible,'
       + surface + ' [data-control-id=' + quote(request.control) + ']:visible');
-    if (await product.count() !== 1) problems.push('product control is missing or not unique: ' + request.control);
+    const instances = await product.count();
+    observed = { instances };
+    if (instances < 1) problems.push('product control is missing or hidden: ' + request.control);
     else {
       const handle = product.first();
+      if (request.kind === 'navigate' && !await attached.evaluateAll((list, href) =>
+          list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), request.destinationPage))
+        return { problems: ['navigate controls must link to the declared page'], visible: false, focusCorrect: false, observed };
       if (request.kind === 'state' && request.page !== request.destinationPage) {
         const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
           + '/' + encodeURIComponent(request.destination.state);
-        if (!await product.evaluateAll((list, href) => list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), href))
+        if (!await attached.evaluateAll((list, href) => list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), href))
           return { problems: ['cross-page state controls must link to the declared page and state'], visible: false, focusCorrect: false };
       }
       visible = await handle.isVisible();
@@ -373,7 +380,7 @@ async function interact(request) {
           }, { surfaceId: request.surface, before }, { timeout: Math.min(timeout, 2000) });
         } catch (_) { problems.push('feedback did not change the source surface'); }
         const after = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
-        if (before && after) observed = { change: { beforeSha256: sha(before), afterSha256: sha(after) } };
+        if (before && after) observed.change = { beforeSha256: sha(before), afterSha256: sha(after) };
       }
       try {
         await page.waitForFunction(([surface, state]) => {
