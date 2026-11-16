@@ -194,8 +194,11 @@ class PlanWidthTests(unittest.TestCase):
         code, stdout, _ = run_tool(plan)
         self.assertEqual(0, code)
         result = json_result(plan)
-        self.assertEqual([["M1", "M3", "M4"], ["M2"]], result["levels"])
+        self.assertEqual([["M1", "M3"], ["M2"]], result["levels"])
+        self.assertEqual(["M4"], result["conditional_missions"])
+        self.assertEqual(3, result["missions"])
         self.assertEqual(2, result["width"])
+        self.assertIn("conditional (route-only, not counted): M4", stdout)
         self.assertTrue(
             any(
                 finding["code"] == "chain_without_conflict"
@@ -208,8 +211,7 @@ class PlanWidthTests(unittest.TestCase):
             [
                 finding
                 for finding in result["findings"]
-                if finding["code"] == "chain_without_conflict"
-                and "M4" in finding["missions"]
+                if "M4" in finding["missions"]
             ],
         )
 
@@ -255,6 +257,7 @@ class PlanWidthTests(unittest.TestCase):
                 "plan_id",
                 "revision",
                 "missions",
+                "conditional_missions",
                 "configured_max_parallel_workers",
                 "levels",
                 "dependency_width",

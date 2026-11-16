@@ -90,6 +90,22 @@ def _node_refs(plan: dict[str, Any], missions: dict[str, dict[str, Any]]) -> dic
     }
 
 
+def _conditional_missions(plan: dict[str, Any], node_refs: dict[str, str]) -> set[str]:
+    """Missions a run reaches only through a route edge, such as a repair.
+
+    They run when a review asks for them, not as part of the planned waves,
+    so they take no level and count toward no width.
+    """
+
+    routed: set[str] = set()
+    depended: set[str] = set()
+    for edge in plan["graph"]["edges"]:
+        if not isinstance(edge, dict) or edge.get("to") not in node_refs:
+            continue
+        (depended if edge.get("kind") == "dependency" else routed).add(node_refs[edge["to"]])
+    return routed - depended
+
+
 def _immediate_dependencies(
     incoming: dict[str, list[str]], node_refs: dict[str, str]
 ) -> dict[str, set[str]]:
@@ -294,9 +310,13 @@ def _findings(
 
 def measure(plan: dict[str, Any]) -> dict[str, Any]:
     _readable_plan(plan)
-    missions = _missions(plan)
+    every_mission = _missions(plan)
+    node_refs = _node_refs(plan, every_mission)
+    conditional = _conditional_missions(plan, node_refs)
+    missions = {key: value for key, value in every_mission.items() if key not in conditional}
+    node_refs = {node: ref for node, ref in node_refs.items() if ref in missions}
     mission_ids = sorted(missions)
-    immediate = _immediate_dependencies(_incoming_dependencies(plan), _node_refs(plan, missions))
+    immediate = _immediate_dependencies(_incoming_dependencies(plan), node_refs)
     levels = _mission_levels(immediate, mission_ids)
     level_groups = _level_groups(levels, mission_ids)
     dependency_width = max((len(group) for group in level_groups), default=0)
@@ -307,6 +327,7 @@ def measure(plan: dict[str, Any]) -> dict[str, Any]:
         "plan_id": plan.get("plan_id"),
         "revision": plan.get("revision"),
         "missions": len(missions),
+        "conditional_missions": sorted(conditional),
         "configured_max_parallel_workers": plan["max_parallel_workers"],
         "levels": level_groups,
         "dependency_width": dependency_width,
@@ -326,6 +347,11 @@ def report(result: dict[str, Any]) -> str:
     lines.append(
         "critical path: " + (" -> ".join(result["critical_path"]) or "none")
     )
+    if result["conditional_missions"]:
+        lines.append(
+            "conditional (route-only, not counted): "
+            + ", ".join(result["conditional_missions"])
+        )
     if result["findings"]:
         for finding in result["findings"]:
             joined = ", ".join(finding["missions"])
