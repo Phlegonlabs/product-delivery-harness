@@ -121,9 +121,9 @@ After the version gate, run `python "<delivery-harness-skill-root>/scripts/harne
 
 ### 5. Verify Local-First
 
-New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
+New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See [Changed-File Selection](../verification-gates.md#changed-file-selection-and-exact-execution-reuse) for mode, source/Git guards, and evidence requirements.
 
-Follow the verification ladder, Review Topology, finding triage and re-check scope in `references/verification-gates.md`; the author's focused verifier evidence gates each re-check reservation. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Under the `mvp` profile, Final UI Acceptance is part of the one combined review. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
+Follow the [Verification Ladder](../verification-gates.md#verification-ladder) and the [Review Topology](../verification-gates.md#review-topology), which owns finding triage and re-check scope; the author's focused verifier evidence gates each re-check reservation. Retain [Final UI Acceptance](../verification-gates.md#final-ui-acceptance) on the unchanged candidate without another reviewer dispatch. Under the `mvp` profile, Final UI Acceptance is part of the one combined review. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
 
 Host verifiers run fresh and serially per runner; keep requests and results outside the reviewed checkout.
 Browser, migration, mutable-environment and network checks retain their separate routes and action authorization.
