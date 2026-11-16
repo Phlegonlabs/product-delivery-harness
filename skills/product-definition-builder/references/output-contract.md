@@ -747,8 +747,11 @@ Use this section for every product with a browser frontend.
 | Styling approach | [Tailwind CSS / CSS Modules / modern vanilla CSS / another exact choice] | | | | |
 | Build tool | [e.g. Vite, or framework-managed] | | | | |
 | Routing and data | [Approach] | | | | |
+| Motion | [Optional. A set from `CSS/WAAPI`, `Motion`, `GSAP`, `Three.js`, `Lottie`, `Rive`, or omit the row] | | | | |
 | Testing | [Unit, component, end-to-end, accessibility] | | | | |
 | BDD runner | [Runner for `features/*.feature`, such as cucumber-js, Cucumber-JVM, Reqnroll or a platform BDD runner] | | | | |
+
+The optional `motion` row is a ceiling for UI design, not a requirement. [Motion Layer](frontend-stack-selection.md#motion-layer) defines it. A package without the row stays valid.
 
 ### Rendering and Route Strategy
 | Route Group | Rendering | Data Source | Cache / Freshness | Auth Boundary | Rationale |
@@ -780,8 +783,11 @@ A product may add this section in a later revision after Frontend Technology Dec
 | Push and native modules | [Approach or n/a] | | | | |
 | Backend/API integration | [Approach] | | | | |
 | Distribution mechanism | [Store/test track, signing/build service, installer/update feed] | | | | |
+| Motion | [Optional. The platform animation framework, plus `Lottie` or `Rive` when wanted, or omit the row] | | | | |
 | Testing | [Unit and UI automation per platform] | | | | |
 | BDD runner | [Runner for `features/*.feature`, such as cucumber-js, Cucumber-JVM, Reqnroll or a platform BDD runner] | | | | |
+
+See [Motion Layer](mobile-stack-selection.md#motion-layer) for the optional `motion` row.
 
 Compatibility checked on: [YYYY-MM-DD] — official sources: [Direct links]
 

@@ -187,6 +187,21 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         self.assertIn("Cloudflare Workers with Static Assets", guide)
         self.assertIn("## Official Sources to Recheck", guide)
 
+    def test_motion_layer_is_an_optional_ceiling_not_a_requirement(self) -> None:
+        frontend = self.read("references/frontend-stack-selection.md")
+        mobile = self.read("references/mobile-stack-selection.md")
+        contract = self.read("references/output-contract.md")
+
+        section = frontend.split("## Motion Layer", 1)[1].split("\n## ", 1)[0]
+        for entry in ("`CSS/WAAPI`", "`Motion`", "`GSAP`", "`Three.js`", "`Lottie`", "`Rive`"):
+            self.assertIn(entry, section)
+        self.assertIn("The ceiling is not a requirement.", section)
+        self.assertIn("A stack decision without a `motion` row is valid.", section)
+        self.assertIn("It adds no checkpoint and no turn.", section)
+        self.assertIn("frontend-stack-selection.md#motion-layer", mobile)
+        self.assertIn("## Motion Layer", mobile)
+        self.assertEqual(2, contract.count("| Motion | [Optional."))
+
     def test_output_contract_requires_decision_and_verification(self) -> None:
         contract = self.read("references/output-contract.md")
 

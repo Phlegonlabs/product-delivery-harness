@@ -19,6 +19,7 @@ Never compare `Cloudflare vs Astro vs Vite vs React` as though they solve the sa
 | Component foundation | Where do accessible primitives and reusable controls come from? | shadcn/ui-style owned source, headless primitives (Base UI, Radix Primitives) plus custom components, packaged component suite, fully custom |
 | Styling approach | How are styles authored and scoped? | Tailwind CSS utilities, CSS Modules, vanilla modern CSS (cascade layers, container queries), component-library-managed styles |
 | Build tool | What provides development, transforms, and production builds? | Vite, framework-managed Vite |
+| Motion (optional; row label `motion`) | Which motion technologies may UI design choose within? | `CSS/WAAPI`, `Motion`, `GSAP`, `Three.js`, `Lottie`, `Rive` — see [Motion Layer](#motion-layer) |
 | Supporting choices | How are product concerns implemented? | Routing/data loading, state, forms, styling, components, tests |
 
 Astro is a framework and uses Vite as part of its toolchain. React is a UI library and can be used inside Astro islands, with Vite in a custom SPA, or through a React framework. Cloudflare is the hosting/runtime target for any of those valid combinations.
@@ -64,6 +65,21 @@ React's official guidance recommends starting new React apps with a framework an
 
 For an unresolved React framework or routing/data choice, compare TanStack Start, React Router framework mode, Next.js, or a deliberate Vite SPA using the optional [frontend catalog](../../delivery-harness/references/option-library/frontend.md). TanStack Start owns the server/build layer around Router; Query, Table, Virtual, Form and the other TanStack modules remain separate need-based choices. Start's RC label is a dated observation, not a blanket production recommendation. Recheck current official maturity, security advisories, hosting adapter and actual peer dependencies before recommending it. Use the [architecture catalog](../../delivery-harness/references/option-library/architecture.md) for complete stack compositions; keep deployment, backend/data/auth, component foundation and styling as separate approved layers.
 
+## Motion Layer
+
+The optional `motion` layer records a ceiling. It lists the motion technologies that UI design may route effects to without reopening the stack. UI design still decides which page gets which effect.
+
+- The row label is `motion`. Its selection is a set drawn from `CSS/WAAPI`, `Motion`, `GSAP`, `Three.js`, `Lottie` and `Rive`.
+- `CSS/WAAPI` is always available. It includes the View Transitions API and CSS scroll-driven animations, which add no dependency.
+- The ceiling is not a requirement. Listing `GSAP` lets UI design route an approved effect to GSAP. It does not oblige the product to animate.
+- When the product has a UI, ask one question at the Stack Decision Checkpoint: does the owner want the option of expressive motion (landing, portfolio, product demonstration, 3D), or only functional feedback? The owner approves the answer with the rest of the stack. It adds no checkpoint and no turn.
+- Recommend from the product. A dashboard or internal tool gets `CSS/WAAPI`. A product whose landing page should carry a demonstration gets `CSS/WAAPI, Motion`.
+- Add `GSAP` for scroll-driven storytelling, `Three.js` for a 3D product region, and `Lottie` or `Rive` for illustrated or character animation.
+- Each entry beyond `CSS/WAAPI` is a dependency with a bundle, license and maintenance cost. Record why it fits, as for any layer. Compare candidates in the optional [motion catalog](../../delivery-harness/references/option-library/motion.md). The catalog authorizes no install.
+- The layer is optional and not retroactive. A stack decision without a `motion` row is valid. For that package, a motion library is usable only when the approved stack already names it. Otherwise the choice returns upstream.
+
+Native surfaces follow [Mobile Stack Selection](mobile-stack-selection.md#motion-layer).
+
 ## Browser Extension Stacks
 
 When the product surface is a browser extension, the same layer separation and approval discipline apply to browser targets, extension bundler, UI framework, component/styling approach, and testing. Use the v1 browser set resolved in the interview; do not silently default the target.
@@ -106,7 +122,7 @@ Platform-specific rule sets for these targets are not yet authored in this guide
 1. Classify every route group by audience, content, interactivity, rendering, auth, freshness, and caching.
 2. Eliminate options that cannot satisfy a hard constraint or whose current deployment support is unverified.
 3. Choose the simplest coherent stack that covers the dominant route groups without unnecessary client JavaScript or custom infrastructure.
-4. Assemble two or three coherent stack bundles from the surviving layers. Each bundle names every applicable layer, fit, tradeoffs, ownership/maintenance cost, constraints, and revisit trigger. Do not offer disconnected framework, CSS, and component menus that could produce an incoherent combination.
+4. Assemble two or three coherent stack bundles from the surviving layers. Each bundle names every applicable layer (the optional `motion` layer when the owner wants expressive motion), fit, tradeoffs, ownership/maintenance cost, constraints, and revisit trigger. Do not offer disconnected framework, CSS, and component menus that could produce an incoherent combination.
 5. Do not treat a build tool or package manager as a production runtime; keep production language/runtime separate from build and dependency tooling.
 6. Verify current platform, framework, component and styling documentation; record direct sources and the check date.
 
