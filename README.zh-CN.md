@@ -121,7 +121,7 @@ flowchart LR
 
 以下流程规则只适用于你明确调用的 skill 工作。
 
-Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct。可独立写入的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。owner 选择 `Delivery profile: mvp` 时，小型项目或一周 MVP 走压缩路线：stack 与产品批准一次合并调用、必要页面才做 HiFi、一次合并交付 review 并入 Final UI Acceptance，owner gate 最多四个；证据、安全与数据保护规则不变。
+Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即可完成的工作走 direct；几个互不依赖、文件不重叠的部分走 [Direct Fan-Out](skills/delivery-harness/references/direct-fan-out.md)：每位 writer 一个 worktree，merge check 一通过就合回工作分支。互相依赖的 missions、持久交接或有界 correction graph 使用 PLAN/RUN。Mission 是功能批次，细 task 各自保留 atomic commit。owner 选择 `Delivery profile: mvp` 时，小型项目或一周 MVP 走压缩路线：stack 与产品批准一次合并调用、必要页面才做 HiFi、一次合并交付 review 并入 Final UI Acceptance，owner gate 最多四个；证据、安全与数据保护规则不变。
 
 - [进场与交接](skills/delivery-harness/references/governance/task-and-handoff.md)：检查当前指令与来源；未知的 loaded identity 维持未知。当前 Epic 就是 `docs/DOCUMENTS.md` 的 `Current Epic:` 行所指的那份；索引只保留一行 `docs/epics/`，各 Epic 的状态写在自己的文件里。初始化会从 `PROJECT_GITATTRIBUTES.template` 创建缺少的 `.gitattributes`，让哈希绑定的文件逐字节保存（[gitattributes 契约](skills/delivery-harness/references/gitattributes-contract.md)）；`configure_project_context.py --check` 不写入任何文件，报告 attribute 缺口、每个过时 `AGENTS.md` 段落的 diff，加上 `--documents` 时也报告 `docs/DOCUMENTS.md` 的偏差。managed run 从 inspector 的 `Next` 区块恢复；停滞的 `running` RUN 先要 owner 决定，自主执行从已签署的 launch brief 开始。
 - [分工](skills/delivery-harness/references/delegation-contract.md)：agent 设置与 AGENTS 决定 executor、model、effort 与 fallback。每个 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 与 review packet 在启动前先按路线的时间、turn 与 byte 上限切好大小。期限已到却没有 verdict，视为环境受阻，改以较小的 scoped 调用重新分派。变动边界的设计与 review 按 [architecture method](skills/delivery-harness/references/architecture-method.md) 进行。
@@ -135,7 +135,7 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
 | Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。其后的缺陷走隔离修复加 scoped review。 |
-| 方向 | 新视觉范围先建立 9–12 张截图的参考板，由 owner 确认。原作者先检查并修复已渲染的研究，再交 owner 选择；检查包含 `slop_scan.py` 与对照参考板的比对页。三个研究，由 owner 选定。 |
+| 方向 | 新视觉范围先建立 9–12 张截图的参考板，由 owner 确认。各研究的作者先检查并修复自己已渲染的研究，再交 owner 选择；检查包含 `slop_scan.py` 与对照参考板的比对页。三个研究，主机有容量时由不同作者同时撰写，由 owner 选定。 |
 | HiFi | 先做静态，再加动效。完整性 preflight 后，原作者先自查及修复，再交独立 review；自查包含 `slop_scan.py`，以及用 `capture_sheet.py` 把选定方向和候选稿并排的比对页。Impeccable `critique` **与** `audit` 完成，且四舍五入的 H1–H9 总平均 **至少 85**、每项 **至少 80** 后，才取得 Visual Approval。 |
 | 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），另加一次定向复查。之后每个剩余缺陷各成一笔有界修复，只对其修复差异做 scoped review。 |
 | Release | 一个 owner 指令可指定多个准确 release 动作。Archive-only A 与 tree 相同的 server main S 按下列规则继承已验证证据；tree 不同就是新候选。 |
