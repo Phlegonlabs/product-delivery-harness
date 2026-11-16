@@ -1,6 +1,7 @@
 """Visual handoff assembly uses synthetic sources, not product acceptance proof."""
 
 import hashlib
+import io
 import json
 import os
 from pathlib import Path
@@ -383,6 +384,26 @@ Decision: not_required
         with mock.patch.object(visual_inputs.os, "scandir", side_effect=PermissionError("denied")):
             with self.assertRaises(PermissionError):
                 build_visual_inputs(self.root, self.ui, "hifi")
+
+    def test_reference_folder_with_unreadable_metadata_is_an_error_and_the_cli_exits_two(self):
+        self.board("a.png")
+        self.contract(studies=True)
+        folder = (self.root / "docs/design/directions/R1/references").resolve()
+        real_stat = Path.stat
+
+        def denied(path, *args, **kwargs):
+            if Path(path) == folder:
+                raise PermissionError(13, "metadata denied", str(path))
+            return real_stat(path, *args, **kwargs)
+
+        with mock.patch.object(Path, "stat", denied):
+            with self.assertRaises(PermissionError):
+                build_visual_inputs(self.root, self.ui, "hifi")
+            with self.assertRaises(SystemExit) as stopped, mock.patch.object(sys, "stderr", io.StringIO()) as stderr:
+                visual_inputs.main(["--repo-root", str(self.root), "--ui-design", self.ui, "--stage", "hifi"])
+        self.assertEqual(2, stopped.exception.code)
+        self.assertIn("visual inputs blocked", stderr.getvalue())
+        self.assertNotIn("Traceback", stderr.getvalue())
 
     def test_reference_board_lists_captures_in_sorted_order_with_hashes(self):
         paths = self.board("b-hero.png", "a-nav.png", "sub/c-detail.jpg")

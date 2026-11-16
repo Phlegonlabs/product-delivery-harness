@@ -9,6 +9,7 @@ import json
 import os
 from pathlib import Path
 import re
+import stat
 import subprocess
 import sys
 
@@ -33,9 +34,12 @@ def _reference_board(root: Path, rounds: set[str]) -> list[dict[str, str]]:
     found = []
     for name in sorted(rounds):
         folder = safe_path(base, f"docs/design/directions/{name}/references")
-        if not folder.exists():
+        try:
+            # Path.exists() and is_dir() hide permission errors; only a missing folder means no board.
+            is_folder = stat.S_ISDIR(folder.stat().st_mode)
+        except FileNotFoundError:
             continue
-        if not folder.is_dir():
+        if not is_folder:
             raise ValueError("reference board must be a folder: docs/design/directions/" + name + "/references")
         def unreadable(error: OSError) -> None:
             # os.walk skips a folder it cannot list; that would report an empty board.
