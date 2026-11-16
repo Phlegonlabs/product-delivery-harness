@@ -10,4 +10,4 @@ Use the host's current tool descriptions and local help first, and authoritative
 
 Models and role routing stay with the host unless the user explicitly selects supported options. Prefer events or cursor waits to polling. Test browser access inside the actual reviewer. Keep graph state, exact authorization, leases and Git verification in the Harness parent; native cached completion never substitutes for current evidence.
 
-The two-way project-size gate keeps small work direct. There is no cross-host preflight, no bridged process, and no declared fallback that grants another host. Ineligible work is blocked on provider mismatch rather than probing or launching the other runtime.
+The two-way project-size gate keeps small work direct; small work may fan out into sibling writers (`direct-fan-out.md`). There is no cross-host preflight, no bridged process, and no declared fallback that grants another host. Ineligible work is blocked on provider mismatch rather than probing or launching the other runtime.
