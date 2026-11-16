@@ -532,7 +532,8 @@ def scan_html(html: str, allow: set[str]) -> dict:
                 budget -= len(targets) * sum(map(len, chains))
                 for index in targets:
                     tag, attrs, _ = page.elements[index]
-                    if (inline is not None or any(matches(chain, index, page.elements) for chain in chains))                             and not exempt(tag, attrs):
+                    if not exempt(tag, attrs) and (
+                            inline is not None or any(matches(chain, index, page.elements) for chain in chains)):
                         pills[index] = label
             if corners and inline is None and all(unit in UNIT_PX and 12 <= size * UNIT_PX[unit] <= 28
                                                   for size, unit in corners) and (
