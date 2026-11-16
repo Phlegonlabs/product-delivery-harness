@@ -2,8 +2,8 @@
 
 ui-design/2 keeps its original meaning. A ui-design/3 package ships the
 design-system Markdown/JSON/HTML package unless an mvp-profile package records
-``not_required`` with its reason, records rendered direction studies by
-one author (three by default, one only by explicit owner choice), and adds an
+``not_required`` with its reason, records rendered direction studies
+(three by default, one only by explicit owner choice), and adds an
 observed intermediate-width HiFi receipt when approved web intervals exist.
 """
 
@@ -67,7 +67,6 @@ def direction_study_rows(rows: list[list[str]], compared: set[str]) -> tuple[lis
     studies: list[dict[str, str]] = []
     seen: set[str] = set()
     rounds: set[str] = set()
-    authors: set[str] = set()
     for direction, study, author, checked_by, result in rows:
         if direction in seen:
             problems.append("Direction studies must list each direction once")
@@ -80,7 +79,6 @@ def direction_study_rows(rows: list[list[str]], compared: set[str]) -> tuple[lis
         else:
             rounds.add(match.group("round"))
             studies.append({"path": match.group("path"), "sha256": match.group("sha256"), "direction": direction})
-        authors.add(author)
         if checked_by != author:
             problems.append(f"Direction studies {direction} self-check must be made by its own author")
         if result.casefold() != "pass":
@@ -90,8 +88,6 @@ def direction_study_rows(rows: list[list[str]], compared: set[str]) -> tuple[lis
         problems.append("Direction studies must cover exactly the compared directions")
     if len(rounds) > 1:
         problems.append("Direction studies must share one docs/design/directions/<round>/ folder")
-    if len(authors) > 1:
-        problems.append("Direction studies must be authored and self-checked by one frontend author")
     if len({item["sha256"] for item in studies}) != len(studies) or len({item["path"] for item in studies}) != len(studies):
         problems.append("Direction studies must be distinct rendered files")
     return studies, problems
