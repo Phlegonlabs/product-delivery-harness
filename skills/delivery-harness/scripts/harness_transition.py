@@ -5122,10 +5122,16 @@ def build_parser() -> argparse.ArgumentParser:
     record_node.add_argument("--evidence", action="append", default=[])
     record_node.add_argument("--blocker", action="append", default=[])
     record_node.add_argument("--verifier-result", action="append", type=Path, default=[])
+    record_node.add_argument(
+        "--check", action="store_true", help="validate only; write nothing"
+    )
     worker_result = subparsers.add_parser("record-worker-result")
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
+    worker_result.add_argument(
+        "--check", action="store_true", help="validate only; write nothing"
+    )
     rejected = subparsers.add_parser("reject-worker-result")
     rejected.add_argument("--node-id", required=True)
     rejected.add_argument("--worker-id", required=True)
@@ -5394,6 +5400,8 @@ def _transition_under_lock(
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
+    if getattr(args, "check", False):
+        return None, [f"check passed: {args.command} would record this result; RUN unchanged"], False
     before_commit = None
     if args.command == "record-integration":
         from harness_integration_results import verify_integration_observation
