@@ -108,6 +108,7 @@ Reference only · 查閱日期：2026-09-25
 2026-11-15 增補：[Ark UI repository](https://github.com/chakra-ui/ark)（README 的框架與授權；官方站為前端渲染頁，本輪未讀其內文）與 [shadcn MCP server](https://ui.shadcn.com/docs/mcp)。套件版本讀自 npm registry。
 
 - [官方來源：github.com — chakra-ui/ark](https://github.com/chakra-ui/ark)
+- [官方來源：ark-ui.com — ](https://ark-ui.com/)（2026-11-15；前端渲染頁，本輪未讀其內文）
 - [官方來源：ui.shadcn.com — docs/mcp](https://ui.shadcn.com/docs/mcp)
 - [官方來源：21st.dev — ](https://21st.dev/)
 - [官方來源：ant.design — docs/react/introduce/](https://ant.design/docs/react/introduce/)
@@ -179,6 +180,7 @@ Reference only · 查閱日期：2026-09-25
 - [官方來源：echarts.apache.org — handbook/en/best-practices/aria/](https://echarts.apache.org/handbook/en/best-practices/aria/)
 - [官方來源：ui.shadcn.com — docs/components/chart](https://ui.shadcn.com/docs/components/chart)
 - [官方來源：tanstack.com — table/latest](https://tanstack.com/table/latest)
+- [官方來源：ag-grid.com — ](https://ag-grid.com/)（2026-11-15）
 - [官方來源：ag-grid.com — license-pricing/](https://ag-grid.com/license-pricing/)
 - [官方來源：ag-grid.com — react-data-grid/community-vs-enterprise/](https://ag-grid.com/react-data-grid/community-vs-enterprise/)
 - [官方來源：docs.astro.build — en/concepts/islands/](https://docs.astro.build/en/concepts/islands/)
@@ -225,6 +227,7 @@ Reference only · 查閱日期：2026-09-25
 - [官方來源：gsap.com — standard-license/](https://gsap.com/standard-license/)
 - [官方來源：webflow.com — blog/gsap-becomes-free](https://webflow.com/blog/gsap-becomes-free)
 - [官方來源：magicui.design — docs](https://magicui.design/docs)
+- [官方來源：ui.aceternity.com — docs](https://ui.aceternity.com/docs)（2026-11-15）
 - [官方來源：ui.aceternity.com — pricing](https://ui.aceternity.com/pricing)
 - [官方來源：ui.aceternity.com — licence](https://ui.aceternity.com/licence)
 - [官方來源：motion-primitives.com — ](https://motion-primitives.com/)
