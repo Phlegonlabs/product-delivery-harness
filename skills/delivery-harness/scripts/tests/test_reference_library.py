@@ -5,6 +5,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[4]
 LIBRARY = ROOT / "skills/delivery-harness/references/option-library"
 SELECTION = ROOT / "skills/delivery-harness/references/reference-selection.md"
+STACK_SELECTION = ROOT / "skills/product-definition-builder/references/frontend-stack-selection.md"
 
 DOMAIN_FILES = {
     "ai-agentic.md",
@@ -75,7 +76,9 @@ class ReferenceLibraryTests(unittest.TestCase):
                 resolved = (path.parent / target).resolve()
                 self.assertTrue(resolved.exists(), (path, target))
                 self.assertTrue(
-                    resolved.is_relative_to(LIBRARY) or resolved == SELECTION,
+                    resolved.is_relative_to(LIBRARY)
+                    or resolved == SELECTION
+                    or resolved == STACK_SELECTION,
                     (path, target),
                 )
 
