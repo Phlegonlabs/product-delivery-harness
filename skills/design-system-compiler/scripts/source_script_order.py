@@ -13,8 +13,9 @@ siblings are the source ones. There is no eval, wrapper or body rewrite.
 
 The contract is a DOM-complete selected surface: every copied element exists
 before the first product script runs. It does not reproduce progressive
-parsing or `document.write`. Reviewer definitions and the connect call are
-plate infrastructure, not part of the product order. Data scripts and
+parsing or `document.write`. Reviewer definitions, the connect call and the
+recognized design-token output filler are plate infrastructure, not part of
+the product order. Data scripts and
 template contents stay intact and inert. External, module, async, defer,
 nomodule or attributed scripts, unsupported placement and the reserved slot
 type are findings. At runtime, missing or repeated markers, a thrown
@@ -63,7 +64,10 @@ def inventory(tree: source.SourceTree, surface: dict[str, Any], label: str) -> t
     retained = {item["index"]: (chain + [surface])[position + 1] for position, item in enumerate(chain) if item["tag"] != "html"}
     slots, problems = [], []
     for node in tree.nodes:
-        if node["tag"] != "script" or any(start <= node["start"] < end for start, end in reviewer):
+        skip = (node["tag"] != "script"
+                or any(start <= node["start"] < end for start, end in reviewer)
+                or source.reviewer_tokens_filler(tree, node))
+        if skip:
             continue
         ancestors = tree.ancestors(node)
         body = tree.html[node["start_end"]:node["inner_end"]]

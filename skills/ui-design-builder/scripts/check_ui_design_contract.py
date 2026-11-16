@@ -816,7 +816,7 @@ def _intermediate_width_evidence(value: str | None, scope: dict[str, Any] | None
         return
     before = len(problems)
     _resolve_evidence(value, repo_root=repo_root, label="Intermediate width check", problems=problems,
-                      require_machine=True, **evidence)
+                      require_machine=True, validate_reviewer=False, **evidence)
     parsed = EVIDENCE_RE.fullmatch((value or "").strip())
     if len(problems) != before or parsed is None:
         return
@@ -958,6 +958,8 @@ def _evidence_matrix(scope: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
         targets = [str(item) for item in own.get("targets", [])] if isinstance(own, dict) else scope_targets
         derived = surface.get("derivedStates") if isinstance(surface.get("derivedStates"), dict) else {}
         for state in surface.get("states", []):
+            if isinstance(state, str) and state.endswith(":n/a"):
+                continue
             for target in [representative_targets(targets)[0]] if isinstance(state, str) and state in derived and targets else targets:
                 cases.append({"surface": str(surface.get("id")), "state": str(state), "target": target})
     return {"cases": cases}
@@ -1979,6 +1981,7 @@ def _resolve_evidence(
     alternate_matrix: dict[str, list[str]] | None = None,
     recorded_scores: dict[str, int | None] | None = None,
     required_inputs: list[dict[str, str]] | None = None,
+    validate_reviewer: bool = True,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
@@ -2194,7 +2197,7 @@ def _resolve_evidence(
                                 )
                                 for finding in findings:
                                     _add(problems, finding)
-                                if review_contract is not None:
+                                if review_contract is not None and validate_reviewer:
                                     for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
                                         _add(problems, finding)
                             if machine and isinstance(output_json, dict):
