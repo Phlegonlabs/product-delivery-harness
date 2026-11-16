@@ -42,15 +42,21 @@ FOCUS = ("(function () { var hs = document.querySelectorAll('[data-hifi-canvas] 
 CLICKS = 'document.addEventListener("click", function () { window.__clicks = (window.__clicks || 0) + 1; });'
 INERT = '<script type="application/json" id="inert-data">{"kind": "inert"}</script>'
 TEMPLATE = "<template><script>window.__template = 1;</script></template>"
+# The one recognized reviewer design-token output filler: exact raw body, exempt only
+# attribute-free and directly inside the design-tokens panel section; the bytes are the
+# recognized helper body, the placement here is synthetic.
+FILLER_BODY = '(function(){var p=document.currentScript.parentElement;p.querySelectorAll(\'[data-hifi-spec]:not([data-hifi-spec=token])\').forEach(function(s){var o=s.querySelector("output"),c=s.querySelector("[data-hifi-specimen-content]");if(o&&c&&!o.textContent.trim())o.textContent=getComputedStyle(c).getPropertyValue(s.getAttribute("data-property")).trim();});})();'
+TOKENS_PANEL = ('<section data-hifi-panel="design-tokens" hidden aria-labelledby="dt-h"><script>'
+                + FILLER_BODY + '</script></section>')
 EXPECTED = [(RECORD, "before"), (RECORD, "surface"), (FOCUS, "surface"), (RECORD, "surface"), (fixture.PRODUCT_SCRIPT, "after"), (CLICKS, "after")]
 VIEWS = {(state, target): fixture._view(state, target) for state in ("ready", "running") for target in ("390", "768")}
 
 
-def ordered_pages(change=None, focus=FOCUS):
+def ordered_pages(change=None, focus=FOCUS, script=fixture.PRODUCT_SCRIPT):
     record = f"<script>{RECORD}</script>"
     views = (VIEWS["ready", "390"] + record + INERT + f"<script>{focus}</script>" + TEMPLATE + VIEWS["ready", "768"]
              + VIEWS["running", "390"] + record + VIEWS["running", "768"])
-    page = fixture.pages(views=views, scripts_after=f"<script>{CLICKS}</script>")["index.html"]
+    page = fixture.pages(script, views=views, scripts_after=f"<script>{CLICKS}</script>")["index.html"]
     page = page.replace("<main><div data-hifi-canvas", record + "<main><div data-hifi-canvas", 1)
     return {"index.html": change(page) if change else page}
 
@@ -123,6 +129,39 @@ class InventoryTests(unittest.TestCase):
         tree = showcase.SourceTree(page_set["index.html"])
         order, _ = script_order.inventory(tree, showcase.surface_node(tree, "UI-001"), "UI-001")
         self.assertEqual(6, len(order["slots"]))
+
+
+    def test_reviewer_token_filler_is_infrastructure_not_product(self):
+        page_set = ordered_pages(lambda p: p.replace("</main>", "</main>" + TOKENS_PANEL, 1))
+        self.assertEqual("", surface_findings(page_set))
+        tree = showcase.SourceTree(page_set["index.html"])
+        order, _ = script_order.inventory(tree, showcase.surface_node(tree, "UI-001"), "UI-001")
+        self.assertNotIn(hashlib.sha256(FILLER_BODY.encode()).hexdigest(), [slot["sha256"] for slot in order["slots"]])
+        scripts = showcase.product_scripts(page_set["index.html"], with_controls=True)
+        self.assertNotIn(FILLER_BODY, scripts)
+        self.assertIn(fixture.PRODUCT_SCRIPT, scripts)
+        cases = {
+            "other panel script": ('<section data-hifi-panel="design-tokens" hidden><script>void 0;</script></section>',
+                                   "has no retained source parent"),
+            "nested in panel": ('<section data-hifi-panel="design-tokens" hidden><div><script>' + FILLER_BODY
+                                + '</script></div></section>', "has no retained source parent"),
+            "changed body": ('<section data-hifi-panel="design-tokens" hidden><script>' + FILLER_BODY
+                             + ';</script></section>', "has no retained source parent"),
+            "attributed": ('<section data-hifi-panel="design-tokens" hidden><script id="tok">' + FILLER_BODY
+                           + '</script></section>', "unsupported attributes (id)"),
+            "another panel": ('<section data-hifi-panel="overview" hidden><script>' + FILLER_BODY
+                              + '</script></section>', "has no retained source parent"),
+        }
+        for label, (panel, expected) in cases.items():
+            with self.subTest(label):
+                page = ordered_pages(lambda p, panel=panel: p.replace("</main>", "</main>" + panel, 1))
+                self.assertIn(expected, surface_findings(page))
+        inside = lambda p: p.replace(INERT, INERT + "<script>" + FILLER_BODY + "</script>", 1)  # noqa: E731
+        product_page = ordered_pages(inside)
+        self.assertEqual("", surface_findings(product_page))
+        tree = showcase.SourceTree(product_page["index.html"])
+        order, _ = script_order.inventory(tree, showcase.surface_node(tree, "UI-001"), "UI-001")
+        self.assertIn(hashlib.sha256(FILLER_BODY.encode()).hexdigest(), [slot["sha256"] for slot in order["slots"]])
 
 
 class PlateTests(unittest.TestCase):

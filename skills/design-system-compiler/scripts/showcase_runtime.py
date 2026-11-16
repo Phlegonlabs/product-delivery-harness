@@ -2,7 +2,9 @@
 
 A source-runtime row binds one approved Motion And Media Intent with current
 normal and reduced-motion evidence, one hash-identified inline product script,
-and the specimen copy inside the exact manifest surface, state and target.
+and the specimen copy inside the exact manifest surface, state and target —
+in a state view, or as a uniquely annotated shared subject whose source path
+declares compatible state, target and visibility constraints.
 These checks prove source identity and association only. Playback is proven
 in a real browser by verify_runtime_motion.py; a resolved association or an
 API name in source text is never a playback PASS.
@@ -76,8 +78,13 @@ def reviewer_definitions(html: str) -> list[str]:
 
 def script_finding(html: str, digest: str) -> str | None:
     """Bind exactly one executable inline product script by its raw body hash."""
-    inline = source.SCRIPT_RE.findall(source.product_html(html))
-    product = [body for attrs, body in inline if source._executable(attrs, body) and not REVIEWER_CONNECT_RE.match(body)]
+    text = source.product_html(html)
+    matches = list(source.SCRIPT_RE.finditer(text))
+    inline = [match.groups() for match in matches]
+    tree = source.SourceTree(text)
+    filler_offsets = {node["start"] for node in tree.nodes if source.reviewer_tokens_filler(tree, node)}
+    product = [match.group(2) for match in matches if match.start() not in filler_offsets
+               and source._executable(*match.groups()) and not REVIEWER_CONNECT_RE.match(match.group(2))]
     matches = sum(_sha(body) == digest for body in product)
     if matches == 1:
         return None
@@ -85,6 +92,7 @@ def script_finding(html: str, digest: str) -> str | None:
         return "matches more than one inline product script"
     reviewer = [body for segment in source.RUNTIME_SEGMENT_RE.findall(html) for _, body in source.SCRIPT_RE.findall(segment)]
     reviewer += [body for _, body in inline if source.REVIEWER_CALL_RE.match(body) or REVIEWER_CONNECT_RE.match(body)]
+    reviewer += [match.group(2) for match in source.SCRIPT_RE.finditer(text) if match.start() in filler_offsets]
     if any(_sha(body) == digest for body in reviewer):
         return "names a reviewer script, not product source"
     return "matches no executable inline product script on its page"
@@ -94,9 +102,46 @@ def _nearest(tree: source.SourceTree, node: dict[str, Any], attribute: str) -> d
     return next((item for item in reversed(tree.ancestors(node) + [node]) if attribute in item["map"]), None)
 
 
+def shared_subject_conflict(tree: source.SourceTree, surface: dict[str, Any], node: dict[str, Any],
+                            state: str, target: str) -> str | None:
+    """Why a uniquely annotated shared subject is not eligible here, or None.
+
+    A shared subject has no state-view wrapper. Its source path inside the
+    surface must agree with the row: every data-in list contains the effective
+    state (the surface's own data-keep/data-bases/data-base/data-first rule),
+    every data-on and data-live-on list contains the exact state, any
+    data-responsive-target equals the row target, and nothing on the path is
+    statically hidden. A descendant's own data-in/data-on controller may
+    replace its initial hidden flag; data-live-on cannot. The surface and
+    uncontrolled ancestors must remain visible. Playback still needs a browser.
+    """
+    attrs = surface["map"]
+    keep = (attrs.get("data-keep") or "").split()
+    base = attrs.get("data-base") or attrs.get("data-first") or ""
+    bases = (attrs.get("data-bases") or "").split()
+    if (bases and state in bases) or (not bases and state not in keep):
+        base = state
+    effective = base if state in keep else state
+    path = tree.ancestors(node) + [node]
+    for item in path[path.index(surface):]:
+        found = item["map"]
+        controlled = item is not surface and ("data-in" in found or "data-on" in found)
+        if "hidden" in found and not controlled:
+            return "its source path is statically hidden"
+        if "data-in" in found and effective not in (found.get("data-in") or "").split():
+            return 'data-in="%s" does not include the effective state' % found["data-in"]
+        if "data-on" in found and state not in (found.get("data-on") or "").split():
+            return 'data-on="%s" does not include the state' % found["data-on"]
+        if "data-live-on" in found and state not in (found.get("data-live-on") or "").split():
+            return 'data-live-on="%s" does not include the state' % found["data-live-on"]
+        if "data-responsive-target" in found and found["data-responsive-target"] != target:
+            return 'data-responsive-target="%s" excludes target %s' % (found["data-responsive-target"], target)
+    return None
+
+
 def scoped_copies(tree: source.SourceTree, spec: dict[str, str], surface: str, state: str,
                   targets: list[str]) -> dict[str, list[dict[str, Any]]]:
-    """Specimen copies inside one surface and state view, per approved target."""
+    """Specimen copies inside one surface, state view or shared subject, per approved target."""
     copies: dict[str, list[dict[str, Any]]] = {target: [] for target in targets}
     for node in tree.nodes:
         if not (source.selector_matches(node, spec["selector"])
@@ -105,12 +150,18 @@ def scoped_copies(tree: source.SourceTree, spec: dict[str, str], surface: str, s
             continue
         owner = _nearest(tree, node, "data-ui-surface")
         view = _nearest(tree, node, "data-hifi-state-view")
-        if owner is None or owner["map"].get("data-ui-surface") != surface or owner is node \
-                or view is None or view["map"].get("data-hifi-state-view") != state:
+        if owner is None or owner["map"].get("data-ui-surface") != surface or owner is node:
             continue
-        only = view["map"].get("data-responsive-target")
+        if view is not None:
+            if view["map"].get("data-hifi-state-view") != state:
+                continue
+            only = view["map"].get("data-responsive-target")
+            for target in targets:
+                if only is None or only == target:
+                    copies[target].append(node)
+            continue
         for target in targets:
-            if only is None or only == target:
+            if shared_subject_conflict(tree, owner, node, state, target) is None:
                 copies[target].append(node)
     return copies
 

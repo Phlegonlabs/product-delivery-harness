@@ -11,7 +11,8 @@ so does reusing a tracked Animation after its end (one lifecycle per object).
 An effect stays relevant once it enters the subject; one retargeted in from outside is invalid.
 RUNTIME_BOOT follows the copied markup and precedes the source script loader
 (source_script_order), which runs every product script from its source slot:
-it selects the requested target and state view so product code starts there.
+it selects the requested target and state view and binds the surface's
+data-hifi-state so unchanged product code starts in the requested state.
 They never call product functions, fabricate observer entries or animate.
 RUNTIME_GALLERY remounts a plate as a fresh srcdoc realm for Replay, size and
 reduced-motion changes and accepts only current-generation plate messages.
@@ -423,7 +424,8 @@ RUNTIME_FRAME = r"""(() => {
     if (event.source !== parent || !data || typeof data !== "object" || data.type !== "ds-runtime-stop") return;
     if (data.id === config.id && data.generation === generation) halt();
   });
-  // RUNTIME_BOOT selects the target and state view after the copied markup and before the first product script.
+  // RUNTIME_BOOT selects the target and state view and binds the surface's data-hifi-state
+  // after the copied markup and before the first product script.
   document.addEventListener("ds-runtime-boot", () => {
     if (booted) return;
     booted = true;
@@ -449,6 +451,11 @@ RUNTIME_BOOT = r"""(() => {
   const target = typeof mount.target === "string" && config.targets.indexOf(mount.target) >= 0 ? mount.target : config.target;
   const canvas = document.querySelector("[data-hifi-canvas]");
   if (canvas) canvas.setAttribute("data-hifi-target", target);
+  // Bind the source state before any product script loads: the unchanged product
+  // code reads data-hifi-state (then its own data-first fallback) and applies its
+  // state-family visibility and state-entry classes from it.
+  const surface = document.querySelector("[data-ui-surface]");
+  if (surface) surface.setAttribute("data-hifi-state", config.state);
   for (const view of document.querySelectorAll("[data-hifi-state-view]")) {
     const only = view.getAttribute("data-responsive-target");
     view.hidden = view.getAttribute("data-hifi-state-view") !== config.state || (only !== null && only !== target);

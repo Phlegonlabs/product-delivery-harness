@@ -51,6 +51,8 @@ UI work also needs the exact external `frontend-design` and `impeccable` trees i
 | Scoped implementation or maintenance | `delivery-harness` | Direct work or managed PLAN/RUN; acceptance scenarios rendered from the PRD feature files; UI missions follow the approved journeys |
 | Released product with any discoverable surface | `growth-review` | Read-only per-surface growth review with routed follow-ups |
 
+Source-runtime plates also support uniquely annotated shared subjects whose surface, state and target constraints agree with the row. The selected state is bound before product scripts run. Only the exact recognized design-token filler in its reviewer-panel placement is excluded; identical product script occurrences remain bound and ambiguous specimens still fail. An initial hidden flag may follow its own declared state controller; uncontrolled hidden paths still fail.
+
 All five core skills and four standalone skills require an explicit request naming the skill, such as `$delivery-harness`. Continuing an already requested workflow is allowed. Ordinary tasks do not start Harness routing, document sync, Epic records or PLAN/RUN. Installation and existing project artifacts do not opt a task in. A requested skill retains its required checks and dependencies; a new top-level stage needs an explicit request. Codex metadata sets `allow_implicit_invocation: false`; other hosts follow the same instruction boundary.
 
 For relevant choices or adopted decisions needing context, use [reference selection](skills/delivery-harness/references/reference-selection.md) and the [optional catalog](skills/delivery-harness/references/option-library/README.md). Neither is a prerequisite or grants execution authority; existing decisions and approvals remain binding.

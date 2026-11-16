@@ -19,6 +19,7 @@ sys.path.append(str(TESTS))
 sys.path.append(str(TESTS.parents[2] / "ui-design-builder/scripts/tests"))
 
 import runtime_fixture as fixture  # noqa: E402
+from test_script_order_static import ordered_pages  # noqa: E402
 
 TIMEOUT = 240
 HELPERS = r"""
@@ -239,6 +240,42 @@ def negative_sources():
     }
 
 
+BOOT = HELPERS + r"""
+(async () => {
+  const browser = await chromium.launch();
+  const out = {};
+  try {
+    for (const item of cases.items) {
+      const context = await browser.newContext({viewport: {width: 1280, height: 800}});
+      try {
+        const page = await context.newPage();
+        const r = {};
+        watch(context, page, r);
+        await page.goto(item.url);
+        await page.waitForTimeout(800);
+        const {act, frame, wait, show} = tools(page);
+        for (const variant of ["kiln-rise", "belt-step"]) {
+          await show(variant);
+          r[variant] = {phase: await wait(variant, ["settled", "invalid"], 9000),
+                        states: await (await frame(variant)).evaluate(() => window.__bootStates || [])};
+        }
+        await show("kiln-rise");
+        await act("kiln-rise", "replay");
+        r.replay = await wait("kiln-rise", ["settled", "invalid"], 9000);
+        r.replayStates = await (await frame("kiln-rise")).evaluate(() => window.__bootStates || []);
+        await act("kiln-rise", "stop");
+        await show("kiln-rise");
+        await act("kiln-rise", "replay");
+        r.stopReplay = await wait("kiln-rise", ["settled", "invalid"], 9000);
+        r.stopReplayStates = await (await frame("kiln-rise")).evaluate(() => window.__bootStates || []);
+        out[item.name] = r;
+      } finally { await context.close(); }
+    }
+  } finally { console.log(JSON.stringify(out)); await browser.close(); }
+})().catch(error => { console.error(error); process.exit(1); });
+"""
+
+
 class RuntimeBrowserTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -337,6 +374,55 @@ class RuntimeBrowserTests(unittest.TestCase):
                 self.assertNotIn("settled", out[name]["seen"])
                 self.assertEqual([], out[name]["requests"])
         self.assertIn("source script error: Uncaught Error: kiln source failed", out["exception"]["status"])
+
+
+    def test_boot_binds_the_surface_state_before_any_product_script(self):
+        self.require()
+        script = ('(function () { var s = document.querySelector("[data-ui-surface]");'
+                  '(window.__bootStates = window.__bootStates || []).push(s.getAttribute("data-hifi-state") || null);})();'
+                  + fixture.PRODUCT_SCRIPT)
+        path = self.folder / "boot-state.html"
+        path.write_text(fixture.render(ordered_pages(script=script), fixture.registry(script)), encoding="utf-8")
+        url = path.resolve().as_uri()
+        out = self.run_node(BOOT, {"items": [{"name": "boot", "url": url}]})["boot"]
+        self.assertEqual(([], [], []), (out["errors"], out["requests"], out["popups"]))
+        self.assertEqual("settled", out["kiln-rise"]["phase"][-1], out["kiln-rise"])
+        self.assertEqual(["ready"], out["kiln-rise"]["states"], "the boot bound the state before the product script ran")
+        self.assertEqual("settled", out["belt-step"]["phase"][-1], out["belt-step"])
+        self.assertEqual(["running"], out["belt-step"]["states"])
+        self.assertEqual("settled", out["replay"][-1], out["replay"])
+        self.assertEqual(["ready"], out["replayStates"], "a replay remount binds the state again in its fresh realm")
+        self.assertEqual("settled", out["stopReplay"][-1], out["stopReplay"])
+        self.assertEqual(["ready"], out["stopReplayStates"])
+
+    def test_shared_initially_hidden_subject_uses_unchanged_product_state_logic(self):
+        self.require()
+        ready = fixture._view("ready", "390").replace('data-hifi-state-view="ready"', 'data-in="ready" hidden')
+        ready = ready.replace(' data-responsive-target="390"', '')
+        views = ready + ''.join(fixture._view("running", width) for width in ("390", "768"))
+        sync = ('(function(){const s=document.querySelector("[data-ui-surface]");'
+                'const block=s.querySelector("[data-in]");'
+                'window.__bootStates=[s.getAttribute("data-hifi-state"),block.hidden];'
+                'block.hidden=!block.getAttribute("data-in").split(" ").includes(s.getAttribute("data-hifi-state"));'
+                'window.__bootStates.push(block.hidden);})();')
+        script = sync + fixture.PRODUCT_SCRIPT.replace('[data-hifi-state-view="ready"] .kiln', '[data-in="ready"] .kiln')
+        path = self.folder / "shared-initially-hidden.html"
+        path.write_text(fixture.render(fixture.pages(script, views=views), fixture.registry(script)), encoding="utf-8")
+        for reduced in (False, True):
+            runner = BOOT.replace('height: 800}}', 'height: 800}, reducedMotion: "reduce"}') if reduced else BOOT
+            if reduced:
+                runner = runner.replace('["settled", "invalid"]', '["reduced", "invalid"]')
+            out = self.run_node(runner, {"items": [{"name": "hidden", "url": path.resolve().as_uri()}]})["hidden"]
+            self.assertEqual(([], [], []), (out["errors"], out["requests"], out["popups"]))
+            expected = "reduced" if reduced else "settled"
+            for key in ("kiln-rise", "belt-step"):
+                self.assertEqual(expected, out[key]["phase"][-1], out[key])
+            for key in ("replay", "stopReplay"):
+                self.assertEqual(expected, out[key][-1], out[key])
+            self.assertEqual(["ready", True, False], out["kiln-rise"]["states"])
+            self.assertEqual(["running", True, True], out["belt-step"]["states"])
+            self.assertEqual(["ready", True, False], out["replayStates"])
+            self.assertEqual(["ready", True, False], out["stopReplayStates"])
 
 
 if __name__ == "__main__":

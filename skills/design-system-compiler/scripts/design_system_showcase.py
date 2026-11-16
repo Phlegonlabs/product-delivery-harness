@@ -8,6 +8,7 @@ resolved to approved source is a finding, never a guessed sample.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from html import escape
@@ -23,6 +24,12 @@ SHOWCASE_SCHEMAS = (SHOWCASE_SCHEMA, "ds-showcase/2")
 SPECIMEN_ID_RE = re.compile(r"^[a-z0-9][a-z0-9-]{0,63}$")
 SELECTOR_RE = re.compile(r"^(?:[A-Za-z][\w-]*|\.[A-Za-z][\w-]*|#[A-Za-z][\w-]*)$")
 PAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.html$")
+# The one recognized reviewer helper (the design-token output filler) is exempt only with its
+# exact raw body hash and attribute-free placement directly in the design-tokens panel section,
+# outside every product surface and canvas. Any other body, attribute or placement stays a
+# product-side script and keeps the existing findings.
+REVIEWER_TOKENS_FILLER_SHA256 = "f1acb7e0c569d9097a138f0dec5411094ffff1be65831ba4f0487a7e0fe490b0"
+REVIEWER_TOKENS_PANEL = "design-tokens"
 CONTROL_STATES = ("default", "hover", "focus-visible", "active", "disabled")
 PSEUDO_STATES = ("hover", "focus", "focus-visible", "focus-within", "active")
 STATE_MODES = ("rendered", "pseudo", "not_applicable")
@@ -183,13 +190,41 @@ def container_rules(css: str) -> list[str]:
     return sorted({" ".join(item.split()) for item in re.findall(r"@container\b([^{}]*)\{", css)})
 
 
+def reviewer_tokens_filler(tree: SourceTree, node: dict[str, Any]) -> bool:
+    """True only for the recognized reviewer design-token output filler.
+
+    Both conditions are required: the exact raw body SHA-256 and attribute-free
+    inline placement whose direct parent is the design-tokens panel section,
+    outside every product surface and canvas. A changed body, any attribute,
+    another panel, nested placement or a product-surface copy is not exempt.
+    """
+    if node["tag"] != "script" or node["attrs"] or node["parent"] is None:
+        return False
+    body = tree.html[node["start_end"]:node["inner_end"]]
+    if hashlib.sha256(body.encode("utf-8")).hexdigest() != REVIEWER_TOKENS_FILLER_SHA256:
+        return False
+    parent = tree.nodes[node["parent"]]
+    if parent["tag"] != "section" or parent["map"].get("data-hifi-panel") != REVIEWER_TOKENS_PANEL:
+        return False
+    return not any("data-ui-surface" in item["map"] or "data-hifi-canvas" in item["map"]
+                   for item in tree.ancestors(node) + [node])
+
+
 def product_scripts(html: str, *, with_controls: bool) -> list[str]:
-    """Executable scripts for live surface plates, in source order."""
+    """Executable scripts for live surface plates, in source order.
+
+    The recognized reviewer design-token output filler is reviewer
+    infrastructure, not a product script; every other inline script stays.
+    """
     scripts = []
     if with_controls:
         for segment in RUNTIME_SEGMENT_RE.findall(html):
             scripts.extend(body for attrs, body in SCRIPT_RE.findall(segment) if _executable(attrs, body))
-        scripts.extend(body for attrs, body in SCRIPT_RE.findall(product_html(html)) if _executable(attrs, body))
+        text = product_html(html)
+        tree = SourceTree(text)
+        filler_offsets = {node["start"] for node in tree.nodes if reviewer_tokens_filler(tree, node)}
+        scripts.extend(match.group(2) for match in SCRIPT_RE.finditer(text)
+                       if match.start() not in filler_offsets and _executable(*match.groups()))
     return scripts
 
 
