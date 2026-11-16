@@ -80,6 +80,17 @@ def bare_graph(plan: dict[str, object], mission_ids: list[str]) -> None:
     }
 
 
+def dependency_edge(source: str, target: str) -> dict[str, object]:
+    return {
+        "id": f"E-{source}-{target}",
+        "kind": "dependency",
+        "from": source,
+        "to": target,
+        "on_outcomes": ["pass"],
+        "max_traversals": None,
+    }
+
+
 def diamond_plan() -> dict[str, object]:
     plan = valid_plan()
     plan["missions"] = [scoped_mission(f"M{index}", f"src/m{index}/**") for index in range(1, 5)]
@@ -198,7 +209,7 @@ class PlanWidthTests(unittest.TestCase):
         self.assertEqual(["M4"], result["conditional_missions"])
         self.assertEqual(3, result["missions"])
         self.assertEqual(2, result["width"])
-        self.assertIn("conditional (route-only, not counted): M4", stdout)
+        self.assertIn("conditional (repair route, not counted): M4", stdout)
         self.assertTrue(
             any(
                 finding["code"] == "chain_without_conflict"
@@ -214,6 +225,87 @@ class PlanWidthTests(unittest.TestCase):
                 if "M4" in finding["missions"]
             ],
         )
+
+    def test_route_gated_repair_with_a_prerequisite_stays_conditional(self) -> None:
+        plan = conditional_final_candidate_plan()
+        plan["graph"]["edges"].append(dependency_edge("N-M1", "N-M4"))
+        result = json_result(plan)
+        self.assertEqual(["M4"], result["conditional_missions"])
+        self.assertEqual([], [f for f in result["findings"] if "M4" in f["missions"]])
+
+    def test_equal_rank_ties_break_by_graph_node_like_the_selector(self) -> None:
+        plan = valid_plan()
+        plan["missions"] = [
+            scoped_mission("M1", "src/**"),
+            scoped_mission("M2", "src/m2/**"),
+            scoped_mission("M3", "src/m3/**"),
+        ]
+        for item in plan["missions"]:
+            item["priority"], item["merge_rank"] = 50, 10
+        bare_graph(plan, ["M1", "M2", "M3"])
+        for node, name in zip(plan["graph"]["nodes"], ("N-Z", "N-A", "N-B")):
+            node["id"] = name
+        plan["graph"]["entry_nodes"] = ["N-A", "N-B", "N-Z"]
+        result = json_result(plan)
+        self.assertEqual(2, result["width"])
+
+    def test_mission_without_a_graph_node_exits_two(self) -> None:
+        plan = valid_plan()
+        plan["missions"] = [scoped_mission("M1", "src/m1/**"), scoped_mission("M2", "src/m2/**")]
+        bare_graph(plan, ["M1"])
+        code, stdout, stderr = run_tool(plan)
+        self.assertEqual(2, code)
+        self.assertEqual("", stdout)
+        self.assertIn("no graph node for mission M2", stderr)
+
+    def test_cycle_through_non_mission_nodes_exits_two(self) -> None:
+        plan = valid_plan()
+        plan["missions"] = [scoped_mission("M1", "src/m1/**"), scoped_mission("M2", "src/m2/**")]
+        bare_graph(plan, ["M1", "M2"])
+        for name in ("N-R", "N-G"):
+            gate = dict(plan["graph"]["nodes"][0])
+            gate.update(id=name, kind="verifier", ref=name)
+            plan["graph"]["nodes"].append(gate)
+        plan["graph"]["edges"] = [
+            dependency_edge("N-R", "N-G"),
+            dependency_edge("N-G", "N-R"),
+            dependency_edge("N-G", "N-M2"),
+        ]
+        code, stdout, stderr = run_tool(plan)
+        self.assertEqual(2, code)
+        self.assertEqual("", stdout)
+        self.assertIn("dependency cycle through", stderr)
+        self.assertEqual(1, len(stderr.strip().splitlines()))
+
+    def test_mission_cycle_is_one_error_line_not_a_traceback(self) -> None:
+        plan = valid_plan()
+        plan["missions"] = [scoped_mission("M1", "src/m1/**"), scoped_mission("M2", "src/m2/**")]
+        bare_graph(plan, ["M1", "M2"])
+        plan["graph"]["edges"] = [dependency_edge("N-M1", "N-M2"), dependency_edge("N-M2", "N-M1")]
+        code, stdout, stderr = run_tool(plan)
+        self.assertEqual(2, code)
+        self.assertNotIn("Traceback", stderr)
+        self.assertEqual(1, len(stderr.strip().splitlines()))
+
+    def test_a_pass_route_through_a_gate_still_orders_missions(self) -> None:
+        plan = valid_plan()
+        plan["missions"] = [scoped_mission("M1", "src/m1/**"), scoped_mission("M2", "src/m2/**")]
+        bare_graph(plan, ["M1", "M2"])
+        for name in ("N-M1-REVIEW", "N-M1-GATE"):
+            gate = dict(plan["graph"]["nodes"][0])
+            gate.update(id=name, kind="verifier", ref=name)
+            plan["graph"]["nodes"].append(gate)
+        route = dependency_edge("N-M1-REVIEW", "N-M1-GATE")
+        route.update(kind="route", max_traversals=2)
+        plan["graph"]["edges"] = [
+            dependency_edge("N-M1", "N-M1-REVIEW"),
+            route,
+            dependency_edge("N-M1-GATE", "N-M2"),
+        ]
+        result = json_result(plan)
+        self.assertEqual([["M1"], ["M2"]], result["levels"])
+        self.assertEqual([], result["conditional_missions"])
+        self.assertEqual(1, result["width"])
 
     def test_conflict_free_independent_missions_report_no_findings(self) -> None:
         plan = valid_plan()

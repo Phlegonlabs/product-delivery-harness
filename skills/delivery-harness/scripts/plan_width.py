@@ -60,8 +60,14 @@ def _missions(plan: dict[str, Any]) -> dict[str, dict[str, Any]]:
     return missions
 
 
-def _incoming_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
-    """Reversed dependency adjacency. Route edges never form dependencies."""
+def _incoming_edges(plan: dict[str, Any], *, pass_routes: bool) -> dict[str, list[str]]:
+    """Reversed adjacency over dependency edges.
+
+    With ``pass_routes`` it also follows a route taken on ``pass``: a gate that
+    a review routes to on success, and the mission behind that gate, still wait
+    for the review. A route taken on another outcome is a repair path and
+    orders nothing.
+    """
     graph = plan["graph"]
     node_ids = {
         node["id"]
@@ -70,7 +76,16 @@ def _incoming_dependencies(plan: dict[str, Any]) -> dict[str, list[str]]:
     }
     incoming: dict[str, list[str]] = {node_id: [] for node_id in node_ids}
     for edge in graph["edges"]:
-        if not isinstance(edge, dict) or edge.get("kind") != "dependency":
+        if not isinstance(edge, dict):
+            continue
+        outcomes = edge.get("on_outcomes")
+        passing_route = (
+            pass_routes
+            and edge.get("kind") == "route"
+            and isinstance(outcomes, list)
+            and "pass" in outcomes
+        )
+        if edge.get("kind") != "dependency" and not passing_route:
             continue
         source, target = edge.get("from"), edge.get("to")
         if isinstance(source, str) and source in node_ids and target in node_ids:
@@ -91,19 +106,39 @@ def _node_refs(plan: dict[str, Any], missions: dict[str, dict[str, Any]]) -> dic
 
 
 def _conditional_missions(plan: dict[str, Any], node_refs: dict[str, str]) -> set[str]:
-    """Missions a run reaches only through a route edge, such as a repair.
+    """Missions a non-pass route activates, such as a repair after ``fix_required``.
 
     They run when a review asks for them, not as part of the planned waves,
     so they take no level and count toward no width.
     """
 
-    routed: set[str] = set()
-    depended: set[str] = set()
-    for edge in plan["graph"]["edges"]:
-        if not isinstance(edge, dict) or edge.get("to") not in node_refs:
-            continue
-        (depended if edge.get("kind") == "dependency" else routed).add(node_refs[edge["to"]])
-    return routed - depended
+    return {
+        node_refs[edge["to"]]
+        for edge in plan["graph"]["edges"]
+        if isinstance(edge, dict)
+        and edge.get("kind") == "route"
+        and edge.get("to") in node_refs
+        and "pass" not in (edge.get("on_outcomes") or [])
+    }
+
+
+def _reject_dependency_cycle(incoming: dict[str, list[str]]) -> None:
+    """A cycle among any nodes, mission or not, can never complete."""
+
+    remaining = {node_id: len(set(sources)) for node_id, sources in incoming.items()}
+    successors: dict[str, set[str]] = {node_id: set() for node_id in incoming}
+    for node_id, sources in incoming.items():
+        for source in sources:
+            successors[source].add(node_id)
+    ready = [node_id for node_id, count in remaining.items() if count == 0]
+    while ready:
+        for target in successors[ready.pop()]:
+            remaining[target] -= 1
+            if remaining[target] == 0:
+                ready.append(target)
+    stuck = sorted(node_id for node_id, count in remaining.items() if count)
+    if stuck:
+        raise PlanWidthError("PLAN: dependency cycle through " + ", ".join(stuck))
 
 
 def _immediate_dependencies(
@@ -166,16 +201,22 @@ def _level_groups(levels: dict[str, int], mission_ids: list[str]) -> list[list[s
     return [sorted(groups[level]) for level in sorted(groups)]
 
 
-def _selector_key(missions: dict[str, dict[str, Any]], mission_id: str) -> tuple[int, int, str]:
+def _selector_key(
+    missions: dict[str, dict[str, Any]], first_node: dict[str, str], mission_id: str
+) -> tuple[int, int, str]:
     mission = missions[mission_id]
-    return (-_index(mission.get("priority")), _index(mission.get("merge_rank")), mission_id)
+    return (
+        -_index(mission.get("priority")),
+        _index(mission.get("merge_rank")),
+        first_node[mission_id],
+    )
 
 
 def _runnable_set(
-    group: list[str], missions: dict[str, dict[str, Any]]
+    group: list[str], missions: dict[str, dict[str, Any]], first_node: dict[str, str]
 ) -> list[str]:
     chosen: list[str] = []
-    for mission_id in sorted(group, key=lambda item: _selector_key(missions, item)):
+    for mission_id in sorted(group, key=lambda item: _selector_key(missions, first_node, item)):
         if all(
             not mission_conflicts(missions[mission_id], missions[other])
             for other in chosen
@@ -312,16 +353,23 @@ def measure(plan: dict[str, Any]) -> dict[str, Any]:
     _readable_plan(plan)
     every_mission = _missions(plan)
     node_refs = _node_refs(plan, every_mission)
+    unplaced = sorted(set(every_mission) - set(node_refs.values()))
+    if unplaced:
+        raise PlanWidthError("PLAN: no graph node for mission " + ", ".join(unplaced))
+    _reject_dependency_cycle(_incoming_edges(plan, pass_routes=False))
     conditional = _conditional_missions(plan, node_refs)
     missions = {key: value for key, value in every_mission.items() if key not in conditional}
     node_refs = {node: ref for node, ref in node_refs.items() if ref in missions}
+    first_node: dict[str, str] = {}
+    for node_id in sorted(node_refs):
+        first_node.setdefault(node_refs[node_id], node_id)
     mission_ids = sorted(missions)
-    immediate = _immediate_dependencies(_incoming_dependencies(plan), node_refs)
+    immediate = _immediate_dependencies(_incoming_edges(plan, pass_routes=True), node_refs)
     levels = _mission_levels(immediate, mission_ids)
     level_groups = _level_groups(levels, mission_ids)
     dependency_width = max((len(group) for group in level_groups), default=0)
     width = max(
-        (len(_runnable_set(group, missions)) for group in level_groups), default=0
+        (len(_runnable_set(group, missions, first_node)) for group in level_groups), default=0
     )
     return {
         "plan_id": plan.get("plan_id"),
@@ -349,7 +397,7 @@ def report(result: dict[str, Any]) -> str:
     )
     if result["conditional_missions"]:
         lines.append(
-            "conditional (route-only, not counted): "
+            "conditional (repair route, not counted): "
             + ", ".join(result["conditional_missions"])
         )
     if result["findings"]:
@@ -376,11 +424,10 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
-        plan = _readable_plan(load_plan(args.plan))
+        result = measure(load_plan(args.plan))
     except (ManifestError, OSError, PlanWidthError) as exc:
         print(f"plan_width: {exc}", file=sys.stderr)
         return 2
-    result = measure(plan)
     if args.json:
         print(json.dumps(result, sort_keys=True, indent=2, ensure_ascii=False))
     else:
