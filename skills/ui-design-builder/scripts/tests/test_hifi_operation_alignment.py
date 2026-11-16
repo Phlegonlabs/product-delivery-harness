@@ -201,6 +201,35 @@ class OpenerContractTests(unittest.TestCase):
 
 
 class SupportingFieldTests(unittest.TestCase):
+    def test_action_input_types_cannot_be_supporting_fields(self):
+        for input_type in ("button", "submit", "reset", "image"):
+            with self.subTest(input_type=input_type):
+                parser = checker._HiFiProductControls()
+                parser.feed('<main data-ui-surface="UI-001"><button data-control-id="save">Save</button>'
+                    f'<input type="{input_type}" data-control-for="save" value="Delete"></main>')
+                parser.close()
+                self.assertIn("needs a navigation/control ID", "\n".join(parser.errors))
+
+    def test_button_or_link_roles_cannot_be_supporting_fields(self):
+        for role in ("button", "link", "BUTTON", "link button"):
+            for tag in ("input", "select", "textarea"):
+                with self.subTest(role=role, tag=tag):
+                    parser = checker._HiFiProductControls()
+                    parser.feed('<main data-ui-surface="UI-001"><button data-control-id="save">Save</button>'
+                        f'<{tag} role="{role}" data-control-for="save"></{tag}></main>')
+                    parser.close()
+                    self.assertIn("needs a navigation/control ID", "\n".join(parser.errors))
+
+    def test_data_entry_fields_keep_the_supporting_exemption(self):
+        for field in ('<input type="text">', '<input type="email">', '<input type="checkbox">',
+                      '<select></select>', '<textarea></textarea>'):
+            with self.subTest(field=field):
+                parser = checker._HiFiProductControls()
+                parser.feed('<main data-ui-surface="UI-001"><button data-control-id="save">Save</button>'
+                    + field.replace('>', ' data-control-for="save">', 1) + '</main>')
+                parser.close()
+                self.assertEqual([], parser.errors)
+
     def test_supporting_field_needs_a_real_control_in_its_own_surface(self):
         for attribute, passes in (('data-control-for="refresh"', True),
                                   ('data-control-for="missing"', False), ('', False)):

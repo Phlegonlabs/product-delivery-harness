@@ -156,6 +156,8 @@ State-link components use the reviewer's `encodeURIComponent` encoding, includin
 
 A supporting `input`, `select` or `textarea` may use `data-control-for="<control id>"` without its own ID or interaction. The named control must exist in the same product surface. A field with neither binding still fails. A button cannot use this exemption.
 
+The exemption covers data-entry fields only: input types `button`, `submit`, `reset`, `image` and fields with role `button` or `link` still require operation IDs.
+
 A surface may have an empty `navigation` or `controls` array. Both may be empty when its PRD operations declare `none — <reason>`. That surface renders no product control. A package with no operation controls may have an empty `interactions` array. States and responsive targets remain nonempty. Read-only components still have source-bound specimens.
 
 Native `button[data-product-disclosure]` uses the same live, distinct, same-surface panel rules as menus and tabs. It declares `aria-controls` and `aria-expanded`. A declared menu, tab or disclosure opener needs no product ID or interaction. An opener that retains an ID still needs its PRD-bound interaction.

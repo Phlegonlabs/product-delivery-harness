@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: R1–R10 implemented; focused checks passed; independent exact-head review pending
+Status: consolidated review repair 1/5 verified locally; targeted recheck pending
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -75,6 +75,13 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+### Consolidated repair of reviewed b0dab02a
+
+- F1 (R5): test_hifi_operation_alignment.py -k Supporting -v: 5 tests, exit 0; all four action types and button/link roles rejected.
+The independent read-only review of `b0dab02a` returned FAIL with F1–F5. This repair does not claim reviewer acceptance.
+
+### Initial implementation evidence
+
 - R10: all ten adoption rows name concrete evidence-package edits or unchanged fields. The package's 52 file hashes and PRD hash stayed unchanged.
 - Required checks: skill spec and changed-file pyflakes passed. Markdown anchor tests passed. Documentation weight increased by 790 words.
 - Regression runs: UI suite 629 tests, exit 0, two Windows POSIX skips; Product Definition suite 467 tests, exit 0; golden path one test, exit 0.
@@ -105,6 +112,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: F1 (R5) repair: restrict the supporting-field exemption to data-entry fields; action input types and button/link roles need operation IDs.
 
 - 2026-11-16: R2 follow-up aligns static state-link encoding with the reviewer's encodeURIComponent, including punctuation, slashes and non-ASCII state names.
 
@@ -162,12 +171,12 @@ The focused tests use the existing fixtures. A separate helper module would spli
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; R1–R10 implementation and adoption note
+Stage and skill: source maintenance; consolidated F1–F5 repair, through F1
 Inputs consumed (path + hash or revision): released main 9abe4b9e (v0.83.1); specification 92cab19b; unchanged consumer package and PRD identities above
-Approvals in force (gate, owner, date, candidate): owner 「Harness 工具落差走 A」 2026-11-16; this thread may implement and commit locally only
-Done and verified (command, exit code): focused checks and regression runs above; read-only consumer diagnostic exit 1; full matrix not run; final verification ledger at the Acceptance evidence path
-Remaining: full matrix verification; independent read-only review of the exact head; separately authorized release and consumer adoption
-Blocked / waiting (gate name or owner decision): consumer adoption remains pending with 66 diagnostic failures; push, PR, tag, version and installation actions are not authorized
-Next action (one command or one owner decision): reviewer reads the exact head and its verification ledger
-Next owner (skill or human): independent read-only reviewer
+Approvals in force (gate, owner, date, candidate): owner authorizes the consolidated F1–F5 repair and local atomic commits; no delegation or publication
+Done and verified (command, exit code): through F1; test_hifi_operation_alignment.py -k Supporting -v: 5 tests, exit 0; all four action types and button/link roles rejected.
+Remaining: F2–F5; required regressions; longer-timeout matrix; targeted exact-head recheck
+Blocked / waiting (gate name or owner decision): targeted recheck pending; consumer adoption and publication remain separate
+Next action (one command or one owner decision): repair F2
+Next owner (skill or human): this source-maintenance writer, then the independent read-only reviewer
 ```

@@ -1262,7 +1262,11 @@ class _HiFiProductControls(HTMLParser):
         interactive = tag in {"a", "button", "select", "textarea", "input"} or values.get("role") in {"tab", "button", "link", "menuitem"}
         if surface and interactive:
             control = values.get("data-navigation-id") or values.get("data-control-id")
-            supporting = values.get("data-control-for") if tag in {"input", "select", "textarea"} else None
+            data_entry = (tag in {"input", "select", "textarea"}
+                          and not (tag == "input" and (values.get("type") or "text").strip().casefold()
+                                   in {"button", "submit", "reset", "image"})
+                          and not {"button", "link"}.intersection((values.get("role") or "").casefold().split()))
+            supporting = values.get("data-control-for") if data_entry else None
             opener = tag == "button" and any(key in values for key in (
                 "data-product-menu", "data-product-tab", "data-product-disclosure"))
             if supporting:
