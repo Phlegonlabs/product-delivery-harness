@@ -13,6 +13,7 @@ import copy
 import hashlib
 import json
 import os
+import posixpath
 import subprocess
 import sys
 import tempfile
@@ -24,13 +25,16 @@ from typing import Any, Iterator
 from harness_core import (
     _normalized_branch,
     _nonempty_string,
+    effective_write_scope,
     extract_json_manifest_text,
     is_full_sha,
     mission_conflicts,
     parent_owned_path,
     plan_digest,
     path_in_scopes,
+    scope_overlap,
     validate_changed_path,
+    validate_scope_claim,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
 from harness_graph import (
@@ -42,6 +46,7 @@ from harness_graph import (
     repair_scope_entry,
 )
 from harness_manifest import (
+    _security_not_applicable_scope_errors,
     _verifier_owners,
     INTERRUPTED_REVIEW_RECEIPT,
     ManifestError,
@@ -64,6 +69,7 @@ from harness_worker_result_transition import (
     reject_worker_result,
     verify_worker_observation,
 )
+from validate_worker_result import _acceptance_register_paths
 from select_ready_nodes import (
     GraphSelectionError,
     _pending_scoped_repair,
@@ -278,8 +284,8 @@ def _require_observed_plan_identity(
 def _candidate_allowed_scopes(plan: dict[str, Any], run: dict[str, Any]) -> list[str]:
     scopes: list[str] = []
     for mission in plan.get("missions", []):
-        if isinstance(mission, dict) and isinstance(mission.get("write_scope"), list):
-            scopes.extend(item for item in mission["write_scope"] if isinstance(item, str))
+        if isinstance(mission, dict):
+            scopes.extend(effective_write_scope(mission, run))
     return sorted(set(scopes))
 
 
@@ -336,6 +342,7 @@ DISPATCH_COMMANDS = {
     "open-run",
     "close-run",
     "record-runtime",
+    "amend-scope",
 }
 @contextmanager
 def _run_transition_lock(path: Path) -> Iterator[None]:
@@ -2478,7 +2485,7 @@ def _render_worker_packet(
             )
             or "none"
         ),
-        "Write": ", ".join(str(item) for item in mission.get("write_scope", []) or []),
+        "Write": ", ".join(effective_write_scope(mission, run)),
         "Deny": (
             ", ".join(str(item) for item in mission.get("deny_scope", []) or [])
             + ", PLAN.md, RUN.md, frozen contracts, and unrelated files"
@@ -2658,8 +2665,10 @@ def _record_integration(plan: dict[str, Any], run: dict[str, Any], args: argpars
         ),
         None,
     )
-    integration_scopes = list(
-        mission_contract.get("write_scope", []) if isinstance(mission_contract, dict) else []
+    integration_scopes = (
+        effective_write_scope(mission_contract, run)
+        if isinstance(mission_contract, dict)
+        else []
     )
     _reject_unplanned_candidate_paths(
         plan, run, args.repo_root, integration_parent, args.integrated_sha,
@@ -4595,7 +4604,7 @@ def _record_reviewed_merge_chain(
         ):
             reviewed[worker["reviewed_sha"]] = missions[0]
     scopes = {
-        mission.get("id"): mission.get("write_scope", [])
+        mission.get("id"): effective_write_scope(mission, run)
         for mission in plan.get("missions", [])
         if isinstance(mission, dict)
     }
@@ -4777,6 +4786,143 @@ def _record_grant(
         "authorization_record",
         "recorded",
         [f"recorded {recorded}", args.source],
+    )
+
+
+def _amend_scope_refusal(
+    plan: dict[str, Any], run: dict[str, Any], mission: dict[str, Any], path: str
+) -> str | None:
+    """Return why one amendment path is refused, or None when it is allowed."""
+
+    problem = validate_scope_claim(path)
+    if problem is None and len(path) >= 2 and path[1] == ":":
+        problem = "must not contain a Windows drive"
+    if problem is not None:
+        return f"path {path!r} {problem}"
+    if parent_owned_path(path):
+        return f"path {path!r} is parent-owned"
+    integration = run.get("integration")
+    coordination = integration.get("coordination_paths") if isinstance(integration, dict) else None
+    if supported_coordination_path(path) or any(
+        isinstance(item, str) and scope_overlap(path, item, casefold=True)
+        for item in (coordination if isinstance(coordination, list) else [])
+    ):
+        return f"path {path!r} is a coordination path"
+    _, registers = _acceptance_register_paths(plan)
+    for register in registers:
+        evidence = posixpath.join(posixpath.dirname(register), "evidence") + "/**"
+        if scope_overlap(path, register, casefold=True) or scope_overlap(
+            path, evidence, casefold=True
+        ):
+            return f"path {path!r} is an acceptance-register path"
+    deny = mission.get("deny_scope")
+    if any(
+        isinstance(item, str) and scope_overlap(item, path)
+        for item in (deny if isinstance(deny, list) else [])
+    ):
+        return f"path {path!r} matches mission {mission.get('id')!r} deny_scope"
+    sources = plan.get("sources")
+    for source in sources if isinstance(sources, list) else []:
+        location = source.get("location") if isinstance(source, dict) else None
+        if (
+            source.get("status") in {"frozen", "delta_accepted"}
+            and isinstance(location, str)
+            and validate_scope_claim(location) is None
+            and scope_overlap(path, location, casefold=True)
+        ):
+            return f"path {path!r} is frozen PLAN source {location!r}"
+    states = run.get("mission_states", {})
+    for other in plan.get("missions", []):
+        if not isinstance(other, dict) or other.get("id") == mission.get("id"):
+            continue
+        state = states.get(other.get("id")) if isinstance(states, dict) else None
+        phase = state.get("phase") if isinstance(state, dict) else None
+        if phase == "integrated":
+            continue
+        if any(
+            scope_overlap(path, scope, casefold=True)
+            for scope in effective_write_scope(other, run)
+        ):
+            return (
+                f"path {path!r} overlaps the write scope of mission "
+                f"{other.get('id')!r} ({phase}), which is not integrated"
+            )
+    return None
+
+
+def _amend_scope(
+    plan: dict[str, Any], run: dict[str, Any], args: argparse.Namespace
+) -> None:
+    """Record a write-scope amendment for one mission without a PLAN revision."""
+
+    if run.get("status") != "running":
+        raise ManifestError("amend-scope refused: the RUN is not running")
+    mission = next(
+        (
+            item
+            for item in plan.get("missions", [])
+            if isinstance(item, dict) and item.get("id") == args.mission_id
+        ),
+        None,
+    )
+    if mission is None:
+        raise ManifestError(
+            f"amend-scope refused: mission {args.mission_id!r} is not in the PLAN"
+        )
+    state = run.get("mission_states", {}).get(args.mission_id)
+    phase = state.get("phase") if isinstance(state, dict) else None
+    if phase in {"integrated", "superseded"}:
+        raise ManifestError(
+            f"amend-scope refused: mission {args.mission_id!r} is {phase}"
+        )
+    if not _nonempty_string(args.reason):
+        raise ManifestError("amend-scope refused: --reason must be non-empty")
+    if len(set(args.path)) != len(args.path):
+        raise ManifestError("amend-scope refused: --path values must be unique")
+    for path in args.path:
+        refusal = _amend_scope_refusal(plan, run, mission, path)
+        if refusal is not None:
+            raise ManifestError(f"amend-scope refused: {refusal}")
+    # Admission rules that read a mission's scope must see the scope as it
+    # would be after this amendment. One that only the amendment trips needs
+    # the review or authoring gates a PLAN revision adds.
+    before = copy.deepcopy(plan)
+    after = copy.deepcopy(plan)
+    for candidate, extra in ((before, []), (after, list(args.path))):
+        for item in candidate.get("missions", []):
+            if isinstance(item, dict):
+                item["write_scope"] = effective_write_scope(item, run) + (
+                    extra if item.get("id") == args.mission_id else []
+                )
+    if set(_security_not_applicable_scope_errors(after)) - set(
+        _security_not_applicable_scope_errors(before)
+    ):
+        raise ManifestError(
+            "amend-scope refused: the path is not documentation-only and the PLAN "
+            "security review is not_applicable"
+        )
+
+    def authors_ui(candidate: dict[str, Any]) -> bool:
+        return any(
+            mission_has_ui_authoring_action(candidate, item)
+            for item in candidate.get("missions", [])
+            if isinstance(item, dict) and item.get("id") == args.mission_id
+        )
+
+    if authors_ui(after) and not authors_ui(before):
+        raise ManifestError(
+            f"amend-scope refused: the path would make mission {args.mission_id!r} "
+            "a UI authoring mission"
+        )
+    amendments = run.setdefault("scope_amendments", [])
+    amendments.append(
+        {
+            "id": f"SA-{len(amendments) + 1:03d}",
+            "mission_id": args.mission_id,
+            "paths": list(args.path),
+            "reason": args.reason,
+            "recorded_at": _now(),
+        }
     )
 
 
@@ -5122,10 +5268,16 @@ def build_parser() -> argparse.ArgumentParser:
     record_node.add_argument("--evidence", action="append", default=[])
     record_node.add_argument("--blocker", action="append", default=[])
     record_node.add_argument("--verifier-result", action="append", type=Path, default=[])
+    record_node.add_argument(
+        "--check", action="store_true", help="validate only; write nothing"
+    )
     worker_result = subparsers.add_parser("record-worker-result")
     worker_result.add_argument("--node-result", required=True, type=Path)
     worker_result.add_argument("--worker-result", type=Path)
     worker_result.add_argument("--verifier-result", action="append", type=Path, default=[])
+    worker_result.add_argument(
+        "--check", action="store_true", help="validate only; write nothing"
+    )
     rejected = subparsers.add_parser("reject-worker-result")
     rejected.add_argument("--node-id", required=True)
     rejected.add_argument("--worker-id", required=True)
@@ -5186,6 +5338,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="repeatable <route>=<cap>=<integer> or a JSON object",
     )
     runtime_parser.add_argument("--loaded-digest")
+    amend = subparsers.add_parser("amend-scope")
+    amend.add_argument("--mission-id", required=True)
+    amend.add_argument("--path", action="append", required=True)
+    amend.add_argument("--reason", required=True)
     parser.add_argument("--session-id")
     return parser
 
@@ -5320,6 +5476,8 @@ def _transition_under_lock(
         _close_run(plan, run, args)
     elif args.command == "record-runtime":
         _record_runtime(plan, run, args)
+    elif args.command == "amend-scope":
+        _amend_scope(plan, run, args)
     elif args.command != "watchdog":
         receipt = _record_review_attempt(plan, run, args)
     # A session holding the durable lock keeps it fresh through its own
@@ -5394,6 +5552,8 @@ def _transition_under_lock(
     observation = getattr(args, "worker_observation", None)
     if isinstance(observation, dict):
         verify_worker_observation(observation)
+    if getattr(args, "check", False):
+        return None, [f"check passed: {args.command} would record this result; RUN unchanged"], False
     before_commit = None
     if args.command == "record-integration":
         from harness_integration_results import verify_integration_observation

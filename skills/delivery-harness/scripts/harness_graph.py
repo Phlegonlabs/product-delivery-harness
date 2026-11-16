@@ -13,6 +13,7 @@ from harness_core import (
     _optional_string,
     _strings,
     _validate_scope_list,
+    effective_write_scope,
     is_full_sha,
     is_safe_model_token,
     scope_contains,
@@ -921,7 +922,7 @@ def reviewed_merge_chain_covers(
     if not isinstance(covered, list) or not covered or not set(covered) <= linked:
         return False
     scopes = {
-        mission.get("id"): mission.get("write_scope", [])
+        mission.get("id"): effective_write_scope(mission, run)
         for mission in plan.get("missions", [])
         if isinstance(mission, dict)
     }

@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from harness_core import (
     _normalized_branch,
     changed_files_digest,
+    effective_write_scope,
     validate_changed_path,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
@@ -1021,7 +1022,7 @@ def validate_worker_result_data(
             _issue(errors, "observed_diff_mismatch", "worker_result.changed_files", "must exactly match parent-observed changed files")
 
     if mission is not None:
-        write_scope = mission.get("write_scope", [])
+        write_scope = effective_write_scope(mission, run)
         deny_scope = mission.get("deny_scope", [])
         # With a delivery-acceptance gate, the mission scope lists the
         # register and evidence for the parent's commit only. A worker may
@@ -1036,6 +1037,10 @@ def validate_worker_result_data(
             for task in mission.get("tasks", [])
             if isinstance(task, dict) and not task.get("replaced_by")
         ]
+        # A RUN scope amendment grants its paths to the mission's tasks too.
+        task_scopes.append(
+            [scope for scope in write_scope if scope not in mission.get("write_scope", [])]
+        )
         for index, changed_path in enumerate(reported_paths):
             item_path = f"worker_result.changed_files[{index}]"
             if parent_owned_path(changed_path):
@@ -1224,21 +1229,33 @@ def validate_worker_result_data(
                             "task commit slice contains a parent-owned file",
                         )
                         continue
-                    deny_scope = task.get("deny_scope", [])
-                    write_scope = task.get("write_scope", [])
-                    if path_in_scopes(changed_path, deny_scope):
-                        _issue(
-                            errors,
-                            "task_denied_path",
-                            f"observed.task_changed_files.{task_id}[{index}]",
-                            "task commit slice is denied by the task scope",
-                        )
-                    elif not path_in_scopes(changed_path, write_scope):
+                    # A task commit may touch any path in the mission write
+                    # scope that some task of the mission lists or a RUN scope
+                    # amendment adds; the task's own write_scope is a planning
+                    # hint. A mission path neither covers (the acceptance
+                    # register) stays parent-only, even when a later commit
+                    # reverts it.
+                    mission_scope = effective_write_scope(mission, run)
+                    amended_scope = [
+                        scope for scope in mission_scope
+                        if scope not in mission.get("write_scope", [])
+                    ]
+                    item_path = f"observed.task_changed_files.{task_id}[{index}]"
+                    if path_in_scopes(changed_path, task.get("deny_scope", [])):
+                        _issue(errors, "task_denied_path", item_path, "task commit slice is denied by the task scope")
+                    elif path_in_scopes(changed_path, mission.get("deny_scope", [])):
+                        _issue(errors, "denied_path", item_path, "task commit slice is denied by the mission")
+                    elif not path_in_scopes(changed_path, mission_scope):
+                        _issue(errors, "scope_escape", item_path, "task commit slice is outside mission write scope")
+                    elif not path_in_scopes(changed_path, amended_scope) and not any(
+                        path_in_scopes(changed_path, other.get("write_scope", []))
+                        for other in executable_tasks.values()
+                    ):
                         _issue(
                             errors,
                             "task_scope_escape",
-                            f"observed.task_changed_files.{task_id}[{index}]",
-                            "task commit slice is outside the task write scope",
+                            item_path,
+                            "task commit slice is outside every task write scope of the mission",
                         )
         required_worker_verifiers = {
             verifier.get("id")

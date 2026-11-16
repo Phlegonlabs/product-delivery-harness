@@ -470,6 +470,8 @@ def _record_passing_result(
     worker_result: dict[str, Any],
     retained_results: list[dict[str, Any]],
     observation: dict[str, Any],
+    *,
+    check: bool = False,
 ) -> None:
     reported_identities = {
         (item.get("id"), item.get("evidence"))
@@ -521,7 +523,7 @@ def _record_passing_result(
         node = _mission_node(plan, node_result["node_id"])
         outcomes = set(node.get("allowed_outcomes", []))
         outcome = "retryable_failure" if "retryable_failure" in outcomes else "blocked"
-        if outcome not in outcomes:
+        if check or outcome not in outcomes:
             raise _validation_failure("worker result does not validate", issues)
         rejected = copy.deepcopy(node_result)
         rejected.update(
@@ -947,7 +949,13 @@ def record_worker_result(
             _load_json(path, "verifier_execution") for path in args.verifier_result
         ]
         _record_passing_result(
-            plan, run, node_result, worker_result, retained_results, observation
+            plan,
+            run,
+            node_result,
+            worker_result,
+            retained_results,
+            observation,
+            check=getattr(args, "check", False),
         )
         return _receipt(plan, run, node_result["node_id"], "record-worker-result")
 
