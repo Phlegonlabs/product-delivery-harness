@@ -51,8 +51,6 @@ normalized back to the reviewed bytes before testing.
 
 ## Handoff
 
-Base: `31edbcf4`, whose only change after `aa4df452` was the earlier adoption record.
-Next: run the full source matrix on the integrated commit, verify the integration
-identity, and use the official installer only after those checks pass. Then rebind
-AgentKiosk and resume its annotation, pair and preview work. No installed update,
-complete compilation or production acceptance is claimed yet.
+Runtime source `59f219d9a439faaffd15089124123d98896ed72e` passed all nine full-matrix steps and protected exact-source integration review. Official `install.sh` exited0 and retained backup `20261115-165810`. Installed contract: `6f4b236ddc2a42278e42aac18b2f878cbfc5859caccf65993da78d96ad37d36d`. AgentKiosk's updated binding check exits0. Evidence: its `compiler-runtime-adoption-001/`; full raw matrix logs remain at `C:/Users/mps19/AppData/Local/Temp/agentkiosk-compiler-parent-fix-xnv5dadm/matrix-59f219d9/`.
+
+This later documentation commit does not change the installed source identity. Source context omissions are intentional; no consumer snapshot exists. No push, main landing, tag or release occurred. The separate0.81 checkout stayed untouched. Next: AgentKiosk's source annotations, pair correction and actual preview verification. Full product compilation and production acceptance remain pending.
