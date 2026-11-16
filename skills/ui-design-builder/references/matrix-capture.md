@@ -57,6 +57,8 @@ Rows are written as measured. `validate_output` applies the checker's own review
 
 ## Carrying
 
+Empty navigation or control arrays create no interaction attempts. A PRD surface with `operations: none — <reason>` has both arrays empty and renders no product control. Its applicable state/target cases still run.
+
 For hidden attached controls, the driver opens declared menu, tab or disclosure panels from outermost to innermost. Openers may omit IDs and interactions. Each panel stays inside its opener's product surface and must become visible. `observed.openers` lists the clicked panel IDs. Focus may visit those openers, in order, then the operation control once; unrelated product focus still fails.
 
 Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.

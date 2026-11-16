@@ -26,6 +26,23 @@ def write_manifest(path, manifest):
         + json.dumps(manifest) + '</script>', html), encoding="utf-8")
 
 
+def passive_component_specs(html, page, removed):
+    """Remove retired control specimens and show the actual read-only status component."""
+    classes = {"next": "product-link", "refresh": "product-button", "filter": "product-input", "view": "product-select"}
+    def edit(match):
+        article = match.group()
+        if f'data-source-page="{page}"' not in article:
+            return article
+        if 'data-hifi-spec="component"' in article and any(f'data-source=".{classes[c]}"' in article for c in removed):
+            return ''
+        if 'data-hifi-spec="pattern"' in article:
+            component = article.replace('data-hifi-spec="pattern"', 'data-hifi-spec="component"')
+            component = component.replace('data-name="Feedback"', 'data-name="Status component"')
+            return component.replace('data-shared-group="feedback"', 'data-shared-group="status"') + article
+        return article
+    return re.sub(r'<article\b[^>]*data-hifi-spec="[^"]+"[^>]*>[\s\S]*?</article>', edit, html)
+
+
 class FeedbackContractTests(unittest.TestCase):
     def test_operation_kind_depends_on_presentation_and_endpoints(self):
         operation = {"id": "save", "trigger": "Save", "control": "save", "sourceState": "ready",
@@ -95,6 +112,58 @@ class FeedbackContractTests(unittest.TestCase):
                 output = contract_tests.bundle_output(manifest)
                 output["interactions"][0]["observed"] = {"openers": panels}
                 self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
+
+
+class TerminalSurfaceTests(unittest.TestCase):
+    def test_one_or_both_control_lists_may_be_empty_but_unwired_dom_still_fails(self):
+        for empty in (("navigation",), ("controls",), ("navigation", "controls")):
+            with self.subTest(empty=empty), tempfile.TemporaryDirectory() as temporary:
+                path, manifest, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+                row = manifest["surfaces"][1]
+                removed = {control for key in empty for control in row[key]}
+                for key in empty:
+                    row[key] = []
+                manifest["interactions"] = [a for a in manifest["interactions"]
+                    if not (a["source"]["surface"] == row["id"] and a["control"] in removed)]
+                child = path.parent / "details.html"
+                original = child.read_text(encoding="utf-8")
+                cleaned = original
+                for control in removed:
+                    cleaned = re.sub(r'<(a|button|select)\b[^>]*data-(?:navigation|control)-id="'
+                        + control + r'"[^>]*>[\s\S]*?</\1>', '', cleaned)
+                    cleaned = re.sub(r'<input\b[^>]*data-control-id="'+control+r'"[^>]*>', '', cleaned)
+                entry_original = path.read_text(encoding="utf-8")
+                for html, passes in ((cleaned, True), (original, False)):
+                    child.write_text(html, encoding="utf-8")
+                    manifest["pages"][0]["sha256"] = capture.sha256_bytes(child.read_bytes())
+                    entry = passive_component_specs(entry_original, "details.html", removed) if passes else entry_original
+                    path.write_text(entry, encoding="utf-8")
+                    write_manifest(path, manifest)
+                    findings = []
+                    checker._validate_hifi_surface(path, findings, scope)
+                    self.assertEqual(passes, not findings, findings)
+                    if not passes:
+                        self.assertIn("interactions must cover", "\n".join(findings))
+
+    def test_a_whole_package_can_have_no_interactions(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path, manifest, scope = contract_tests.materialize_hifi_bundle(root)
+            # Retain only the entry surface and its reviewer controls.
+            manifest.update(surfaces=manifest["surfaces"][:1], pages=[], interactions=[])
+            manifest["surfaces"][0].update(navigation=[], controls=[])
+            html = path.read_text(encoding="utf-8")
+            html = re.sub(r'<(a|button|select)\b[^>]*data-(?:navigation|control)-id="[^"]+"[^>]*>[\s\S]*?</\1>', '', html)
+            html = re.sub(r'<input\b[^>]*data-control-id="[^"]+"[^>]*>', '', html)
+            html = re.sub(r'<!-- reviewer:start -->[\s\S]*?<!-- reviewer:end -->', lambda _:
+                '<!-- reviewer:start -->' + hifi_review_fixture.shell(manifest, component_types=()) + '<!-- reviewer:end -->', html)
+            html = passive_component_specs(html, "index.html", set())
+            path.write_text(html, encoding="utf-8")
+            write_manifest(path, manifest)
+            findings = []
+            checker._validate_hifi_surface(path, findings, {"surfaces": scope["surfaces"][:1]})
+            self.assertEqual([], findings)
+            self.assertEqual([], checker._bundle_transcript_findings(contract_tests.bundle_output(manifest), manifest))
 
 
 class OpenerContractTests(unittest.TestCase):

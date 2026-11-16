@@ -1355,7 +1355,9 @@ def _validate_hifi_bundle(
             not surface["id"].strip()
             or not isinstance(surface.get("route"), str)
             or not surface["route"].strip()
-            or any(not isinstance(surface.get(key), list) or not surface[key] or any(not isinstance(value, str) or not value.strip() for value in surface[key]) for key in ("states", "navigation", "controls"))
+            or any(not isinstance(surface.get(key), list) or (key == "states" and not surface[key])
+                   or any(not isinstance(value, str) or not value.strip() for value in surface[key])
+                   for key in ("states", "navigation", "controls"))
             or not isinstance(responsive, dict)
             or set(responsive) != {"kind", "targets"}
             or responsive.get("kind") not in ("viewports", "sizeClasses")
@@ -1406,8 +1408,8 @@ def _validate_hifi_bundle(
     if problems:
         return
     interactions = manifest.get("interactions")
-    if not isinstance(interactions, list) or not interactions:
-        _add(problems, "HiFi bundle requires product interactions")
+    if not isinstance(interactions, list):
+        _add(problems, "HiFi bundle requires a product interactions array")
         return
     ids: set[str] = set()
     covered: set[tuple[str, str]] = set()
@@ -1591,7 +1593,8 @@ def _validate_hifi_html(
         if not isinstance(responsive, dict) or set(responsive) != {"kind", "targets"} or not isinstance(responsive.get("targets"), list):
             _add(problems, f"Connected HiFi manifest {surface_id} responsive is invalid")
         for key in ("navigation", "controls"):
-            if not isinstance(item.get(key), list) or not item[key] or any(not isinstance(value, str) or not value.strip() for value in item[key]):
+            if (not isinstance(item.get(key), list) or (local_pages is None and not item[key])
+                or any(not isinstance(value, str) or not value.strip() for value in item[key])):
                 _add(problems, f"Connected HiFi manifest {surface_id} {key} coverage must be non-empty strings")
         manifest_by_id[surface_id] = item
     if scope is not None:

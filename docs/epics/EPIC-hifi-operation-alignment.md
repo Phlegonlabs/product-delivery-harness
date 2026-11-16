@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: implementing R1–R10; through R6 verified locally
+Status: implementing R1–R10; through R7 verified locally
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -75,6 +75,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+- R7: test_hifi_operation_alignment.py -k Terminal: 2 tests, exit 0; test_hifi_product_contract.py: 9 tests, exit 0.
+
 - R6: test_hifi_operation_alignment.py: 18 tests, exit 0; test_reviewer_integration.py: 17 tests, exit 0.
 
 - R5: test_hifi_operation_alignment.py -k Supporting: 2 tests, exit 0, with unknown-control and cross-surface negative cases.
@@ -88,6 +90,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: R7 accepts empty operation lists and control-free packages; PRD none still rejects rendered product controls.
 
 - 2026-11-16: R6 adds live same-surface disclosures and ordered opener activation, with strict target focus and post-opening feedback proof.
 
@@ -107,12 +111,12 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; through R6
+Stage and skill: source maintenance; through R7
 Inputs consumed (path + hash or revision): main 9abe4b9e (v0.83.1); the jolvex-platform evidence paths above
 Approvals in force (gate, owner, date, candidate): owner 「Harness 工具落差走 A」 2026-11-16, relayed by the jolvex-platform Harness parent
-Done and verified (command, exit code): test_hifi_operation_alignment.py: 18 tests, exit 0; test_reviewer_integration.py: 17 tests, exit 0.
-Remaining: R7–R10; final verification; independent read-only review; separately authorized release
+Done and verified (command, exit code): test_hifi_operation_alignment.py -k Terminal: 2 tests, exit 0; test_hifi_product_contract.py: 9 tests, exit 0.
+Remaining: R8–R10; final verification; independent read-only review; separately authorized release
 Blocked / waiting (gate name or owner decision): none for implementation; publication and installation are not authorized
-Next action (one command or one owner decision): implement R7
+Next action (one command or one owner decision): implement R8
 Next owner (skill or human): this source-maintenance writer
 ```

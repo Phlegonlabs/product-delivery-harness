@@ -32,6 +32,19 @@ def documents(inventory, markup):
 
 
 class HiFiProductContractTests(unittest.TestCase):
+    def test_terminal_prd_surface_has_empty_lists_and_no_product_control(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        passive = markup.replace('<a ', '<p ').replace('</a>', '</p>')
+        self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+        self.assertIn('renders a product control', '\n'.join(hifi_prd_findings(product, manifest, documents(inventory, markup))))
+        manifest['surfaces'][0]['controls'] = ['home']
+        self.assertIn('has controls but PRD operations are none', '\n'.join(
+            hifi_prd_findings(product, manifest, documents(inventory, passive))))
+
     def test_direct_join_needs_no_wireframe(self):
         product, manifest, inventory, markup = fixture()
         self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, markup)))

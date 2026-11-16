@@ -7,7 +7,8 @@ from typing import Any, Mapping
 
 from check_wireframe_html import LOCALE_RE, validate_copy_item
 from prd_ui_contract import parse_prd_ui_contract
-from operation_coverage import hifi_coverage_findings
+from operation_coverage import hifi_coverage_findings, required_operations
+from hifi_reviewer import ReviewerParser
 
 
 UI_HIFI_COPY_RE = re.compile(
@@ -325,5 +326,22 @@ def hifi_prd_findings(
                 findings.append(f"HiFi {surface_id} viewport targets must exactly match PRD")
 
     findings.extend(hifi_coverage_findings(prd_text, manifest))
+    operations, operation_errors = required_operations(prd_text)
+    if not operation_errors:
+        terminal = set(prd_surfaces) - {row["surface"] for row in operations}
+        for surface_id in terminal:
+            actual = by_id.get(surface_id, {})
+            if actual.get("navigation", []) or actual.get("controls", []):
+                findings.append(f"HiFi {surface_id} has controls but PRD operations are none")
+        for html in documents.values():
+            parser = ReviewerParser()
+            parser.feed(html)
+            parser.close()
+            for tag, attrs, parents in parser.nodes:
+                surface_id = next((p["data-ui-surface"] for p in reversed(parents) if "data-ui-surface" in p), None)
+                if (surface_id in terminal and id(attrs) not in parser.inert_nodes
+                    and (tag in {"a", "button", "input", "select", "textarea"}
+                         or attrs.get("role") in {"tab", "button", "link", "menuitem"})):
+                    findings.append(f"HiFi {surface_id} renders a product control but PRD operations are none")
     findings.extend(hifi_copy_findings(prd_surfaces, manifest, documents))
     return findings
