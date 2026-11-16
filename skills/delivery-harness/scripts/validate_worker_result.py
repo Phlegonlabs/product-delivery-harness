@@ -1230,18 +1230,24 @@ def validate_worker_result_data(
                         )
                         continue
                     # A task commit may touch any path in the mission write
-                    # scope that some task of the mission lists; the task's
-                    # own write_scope is a planning hint. A mission path no
-                    # task lists (the acceptance register) stays parent-only,
-                    # even when a later commit reverts it.
+                    # scope that some task of the mission lists or a RUN scope
+                    # amendment adds; the task's own write_scope is a planning
+                    # hint. A mission path neither covers (the acceptance
+                    # register) stays parent-only, even when a later commit
+                    # reverts it.
+                    mission_scope = effective_write_scope(mission, run)
+                    amended_scope = [
+                        scope for scope in mission_scope
+                        if scope not in mission.get("write_scope", [])
+                    ]
                     item_path = f"observed.task_changed_files.{task_id}[{index}]"
                     if path_in_scopes(changed_path, task.get("deny_scope", [])):
                         _issue(errors, "task_denied_path", item_path, "task commit slice is denied by the task scope")
                     elif path_in_scopes(changed_path, mission.get("deny_scope", [])):
                         _issue(errors, "denied_path", item_path, "task commit slice is denied by the mission")
-                    elif not path_in_scopes(changed_path, mission.get("write_scope", [])):
+                    elif not path_in_scopes(changed_path, mission_scope):
                         _issue(errors, "scope_escape", item_path, "task commit slice is outside mission write scope")
-                    elif not any(
+                    elif not path_in_scopes(changed_path, amended_scope) and not any(
                         path_in_scopes(changed_path, other.get("write_scope", []))
                         for other in executable_tasks.values()
                     ):

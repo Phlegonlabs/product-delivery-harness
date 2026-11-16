@@ -38,8 +38,10 @@ def two_task_plan():
     return plan
 
 
-def validate(plan, t01_paths, *, reverse_tasks=False):
+def validate(plan, t01_paths, *, reverse_tasks=False, amendments=None):
     run = base.make_run(plan)
+    if amendments is not None:
+        run["scope_amendments"] = amendments
     run["task_states"][T02] = copy.deepcopy(run["task_states"][T01])
     result = base.make_result(plan)
     result["changed_files"] = list(CHANGED)
@@ -104,6 +106,22 @@ class TaskScopeHintTests(unittest.TestCase):
         self.plan["missions"][0]["write_scope"].append("docs/verification/**")
         errors = validate(self.plan, ["docs/verification/delivery-results.json"])
         self.assertEqual({"task_scope_escape"}, base.error_codes(errors))
+
+    def test_task_commit_may_touch_an_amended_path(self) -> None:
+        # amend-scope adds a path no task lists; a task commit slice may use
+        # it, and the same slice fails without the amendment.
+        amendment = {
+            "id": "SA-001",
+            "mission_id": self.plan["missions"][0]["id"],
+            "paths": ["src/shared/entry.py"],
+            "reason": "wire the mission into the shared entry",
+            "recorded_at": "2026-11-16T00:00:00Z",
+        }
+        self.assertEqual(
+            [], validate(self.plan, ["src/shared/entry.py"], amendments=[amendment])
+        )
+        errors = validate(self.plan, ["src/shared/entry.py"])
+        self.assertEqual({"scope_escape"}, base.error_codes(errors))
 
     def test_task_order_still_enforced(self) -> None:
         errors = validate(self.plan, ["src/m1/two/shared.py"], reverse_tasks=True)
