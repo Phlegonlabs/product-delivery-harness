@@ -253,6 +253,9 @@ console.log("hybrid fallback and stale QA assertions completed");
             "exact provider/action authorization",
             "route `Motion`",
             "route `Three.js`",
+            "route `Lottie`",
+            "route `Rive`",
+            "## Generated Clips And Models",
             "## HiFi Embedding Limits",
             "never rename, strip or obfuscate library code",
         ):

@@ -116,9 +116,9 @@ Set `Review medium: HTML projection only`. Studies and HiFi review native appear
 
 ## Motion And Generated Media
 
-Consume the approved Motion and Media Intent rows without re-asking them. Use `motion-and-media-routing.md` to select the lowest applicable route (CSS/WAAPI, Motion, GSAP or Three.js) for the selected direction and final HiFi.
+Consume the approved Motion and Media Intent rows without re-asking them. Use [Implementation Routing](motion-and-media-routing.md#implementation-routing-after-direction-selection) to select the lowest applicable route, under its stack rule, for the selected direction and final HiFi.
 
-After direction selection, an installed Higgsfield MCP or another owner-approved generation provider may create an approved generated or curated motion asset only after exact provider/action authorization. Record provider capability, prompt, output identity, usage constraints, placement, fallback, and review result. When intake authorized a provider for an MM row, generate its asset after direction selection so the HiFi shows the actual result. Without that authorization, keep the typed static placeholder and name the gap in the handoff. Generated output cannot add copy, controls, states, routes, or claims.
+After direction selection, an installed Higgsfield MCP or another owner-approved generation provider may create an approved generated or curated motion asset only after exact provider/action authorization. Follow [Generated Clips And Models](motion-and-media-routing.md#generated-clips-and-models) and record provider capability and the listed output fields. When intake authorized a provider for an MM row, generate its asset after direction selection so the HiFi shows the actual result. Without that authorization, keep the typed static placeholder and name the gap in the handoff. Generated output cannot add copy, controls, states, routes, or claims.
 
 Required deterministic functional UI motion may run locally in the HiFi HTML with its normal and reduced-motion behavior. A generated video or cinematic asset has a static poster/fallback even when the generated output is present.
 
