@@ -281,7 +281,17 @@ class ReviewerShellTests(Asserts):
     def test_an_unmatched_start_marker_strips_nothing_further(self):
         for opening in ("<!-- reviewer:start -->", "<aside data-hifi-reviewer-shell>"):
             self.assertIn("emoji-ui", ids(page(body=opening + "<h1>" + ROCKET + " Product</h1>")), opening)
-        self.assertIn("default-sans", ids("<style data-hifi-reviewer-css>x{}</style>" * 0 + page("body{font-family:Inter}")))
+        unmatched = ("<style data-hifi-reviewer-css>body{font-family:Inter}",
+                     "<aside data-hifi-reviewer-shell><h1>" + ROCKET + " Product</h1>",
+                     "<!-- hifi-reviewer:css:start --><h1>" + ROCKET + " Product</h1>")
+        for text in unmatched:
+            self.assertEqual(text, slop_scan.strip_shell(text), text)
+            # A closed shell before it is still removed; the unmatched one and what follows stay.
+            closed = "<style data-hifi-reviewer-css>a{}</style><p>kept</p>"
+            self.assertEqual("<p>kept</p>" + text, slop_scan.strip_shell(closed + text), text)
+        # The parser never delivers the text of a style element that has no end tag, so an
+        # unclosed reviewer style cannot leak shell CSS into the scan.
+        self.assertEqual({}, ids("<html><head>" + unmatched[0]))
 
     def test_shell_elements_only_hide_themselves(self):
         html = page("body{font-family:Inter}", self.TRIGGERS + "<h1>" + ROCKET + " Product</h1>")
