@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: implementing R1–R10; through R9 verified locally
+Status: R1–R10 implemented; focused checks passed; independent exact-head review pending
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -75,6 +75,13 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+- R10: all ten adoption rows name concrete evidence-package edits or unchanged fields. The package's 52 file hashes and PRD hash stayed unchanged.
+- Required checks: skill spec and changed-file pyflakes passed. Markdown anchor tests passed. Documentation weight increased by 766 words.
+- Regression runs: UI suite 629 tests, exit 0, two Windows POSIX skips; Product Definition suite 467 tests, exit 0; golden path one test, exit 0.
+- Read-only package run: `--only UI-001,UI-004`, exit 1. All 48 screen cases and reviewer measurements passed; 150 of 216 interactions passed.
+- The 66 package interaction failures need adoption: 30 hidden/unmarked controls, 12 missing cross-page state links and 24 equal-endpoint state attempts.
+- The candidate's exact-head matrix result is retained at `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-alignment-fb0c2a53f419494daa967cb17a2a2b13/full-matrix/summary.txt`. Read that result before making an acceptance claim.
+
 - R6 follow-up: compiler suite passed 240 tests, exit 0, with two Windows platform skips. Both exact runtimes pass; altered runtime bytes fail.
 
 - R9: test_markdown_anchor_links.py: 3 tests, exit 0; docs_weight.py --baseline 9abe4b9e: exit 0, +744 words.
@@ -96,6 +103,8 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: R10 records per-requirement consumer edits and the unchanged-package diagnostic result. No consumer adoption, version bump or publication occurred.
 
 - 2026-11-16: R6 follow-up adds the disclosure runtime to the compiler's exact allowlist and retains the previous runtime. Modified runtimes still fail.
 
@@ -121,16 +130,40 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 - 2026-11-16: specified from the jolvex-platform dry run. Code locations were read at `9abe4b9e`. No code changed.
 
+## Adoption note (R10)
+
+These edits belong to the consumer author after adoption. None were made in the evidence worktree.
+The observed package still has 125 equal-endpoint interactions with `kind: state`.
+Its PRD parses as 570 operations without errors. The examples below use its actual IDs and pages.
+The entry SHA-256 is `3068b0d684774e39f9f2b0149f9e9046d10b757339be11c3c3d63c0a733a8903`.
+The PRD SHA-256 is `0cf5187b98beb17be3bbe637cc8194b22aaf042b4b47a48c3beb0a981ccf642b`.
+
+| Requirement | Consumer edit and concrete example |
+| --- | --- |
+| R1 | Change equal-endpoint, non-page manifest operations to `kind: feedback`. `OP-UI-036-home` in `index.html` keeps `UI-036/ready` at both ends. Its `ui-036-home` control must produce the PRD-defined observable feedback without reloading the page. Do not invent an `empty` destination or treat focus as feedback. |
+| R2 | Keep `OP-UI-050-recrawl-confirm` as `kind: state`. In `admin-evidence.html`, make every `ui-050-recrawl-confirm` instance an anchor with `href="admin-crawl.html#hifi-state=UI-037/ready"`. Preserve the approved endpoints. |
+| R3 | Keep `loading:n/a` on `UI-001` in `redirect.html`. Keep its Overview reason. Add no product marker, state button or state/target variant for it. |
+| R4 | Keep `data-navigation-id="ui-036-articles"` on repeated rows in `index.html`; do not create an operation per row. Every instance must link to `admin-articles.html`. The driver records the visible count and activates the first visible instance. |
+| R5 | In `admin-agents.html`, replace `data-control-id="ui-040-save"` on supporting textarea/select fields with `data-control-for="ui-040-save"`. Keep the save button's `data-control-id` and its operation. |
+| R6 | In `home.html`, add `data-product-menu` to the existing `button[data-menu-toggle]`. Keep `aria-expanded` and its unique `aria-controls="k3-menu--ready-320"` binding. Use one toggle handler; avoid connecting both the old toggle handler and the canonical handler. For editor/dialog controls, add `data-product-disclosure`, `aria-expanded` and a unique same-surface panel ID through `aria-controls`. |
+| R7 | Keep `UI-001`'s `controls: []` in the manifest and its `ui-001-redirect` navigation. No artificial button is needed. This PRD currently has no `operations: none` surface. Only an approved control-free surface may use both empty lists; do not remove its redirect operation. |
+| R8 | Change no product CSS for the axis. Recapture `home.html` at target 390 under `zoom-200`: the canvas query width is 195 CSS px and its rendered width remains 390. |
+| R9 | Use the updated connected-HiFi and matrix references when repairing this package. The staged `docs/design/.ui-staging/epic058-r1/ui-design.md` must point to newly measured evidence after the package changes. No old receipt becomes a fresh PASS. |
+| R10 | Recompute sibling hashes and the `index.html` identity after adopting these edits. Replace the diagnostic dry-run evidence with a fresh full run, including `observed.change`, `observed.instances` and any `observed.openers`. Retain the original dry run and owner decisions. |
+
+The checker and driver remain in their existing entry modules because these changes share their manifest and receipt joins.
+The focused tests use the existing fixtures. A separate helper module would split those joins without reducing responsibilities.
+
 ## Handoff
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; through R9
-Inputs consumed (path + hash or revision): main 9abe4b9e (v0.83.1); the jolvex-platform evidence paths above
-Approvals in force (gate, owner, date, candidate): owner 「Harness 工具落差走 A」 2026-11-16, relayed by the jolvex-platform Harness parent
-Done and verified (command, exit code): test_markdown_anchor_links.py: 3 tests, exit 0; docs_weight.py --baseline 9abe4b9e: exit 0, +744 words.
-Remaining: R10–R10; final verification; independent read-only review; separately authorized release
-Blocked / waiting (gate name or owner decision): none for implementation; publication and installation are not authorized
-Next action (one command or one owner decision): implement R10
-Next owner (skill or human): this source-maintenance writer
+Stage and skill: source maintenance; R1–R10 implementation and adoption note
+Inputs consumed (path + hash or revision): released main 9abe4b9e (v0.83.1); specification 92cab19b; unchanged consumer package and PRD identities above
+Approvals in force (gate, owner, date, candidate): owner 「Harness 工具落差走 A」 2026-11-16; this thread may implement and commit locally only
+Done and verified (command, exit code): focused checks and regression runs above; read-only consumer diagnostic exit 1; exact-head matrix result at the Acceptance evidence path
+Remaining: independent read-only review of the exact head; separately authorized release and consumer adoption
+Blocked / waiting (gate name or owner decision): consumer adoption remains pending with 66 diagnostic failures; push, PR, tag, version and installation actions are not authorized
+Next action (one command or one owner decision): reviewer reads the exact head and its matrix summary
+Next owner (skill or human): independent read-only reviewer
 ```
