@@ -39,7 +39,8 @@ Read-only evidence in the consumer worktree `C:/Users/mps19/.t3/worktrees/jolvex
 
 ## Accepted Scope
 
-Owner decision, 2026-11-16, relayed by the jolvex-platform Harness parent: 「Harness 工具落差走 A」.
+The owner made only these two statements for this work, both on 2026-11-16: 「Harness 工具落差走 A」 and 「在 Harness 專案開新對話交給 GPT-6.1-Sol」.
+The jolvex-platform Harness parent supplied the repair instructions and the local-commit limit.
 Where an approved PRD describes real product behaviour and the HiFi tools reject it, fix the tools.
 
 Each change keeps the rejection that protects against a fake interaction and adds its own observable proof.
@@ -77,14 +78,16 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ### Review history and N3 repair
 
-| Review | Exact head | Owner-reported result |
+The jolvex-platform Harness parent relayed the protected reviewers' results below.
+
+| Review | Exact head | Relayed protected-review result |
 | --- | --- | --- |
 | Initial independent review | `b0dab02a` | FAIL with blocking F1–F5. |
 | Targeted recheck | `ce5837da` | F1–F5 resolved; N1 blocking. |
 | Scoped re-review 1 | `3c133d59` | N1 resolved; N2 blocking. |
 | Scoped re-review 2 | `3d043588` | N1 stays resolved; N2 pointer escape resolved; N3 blocking. |
 
-The scoped re-review budget is spent (two runs).
+The jolvex-platform Harness parent set the scoped re-review budget; both runs are spent.
 This N3 repair commit has had no independent review.
 The pull-request review must cover `is_product_control`.
 
@@ -97,7 +100,8 @@ The pull-request review must cover `is_product_control`.
 
 ### Isolated N2 repair of reviewed 3c133d59
 
-- The owner reports N1 resolved on `3c133d59` and replaces its reachability rule with the exact N2 pointer/keyboard distinction.
+- The jolvex-platform Harness parent relayed the protected reviewers' results: N1 resolved on `3c133d59`.
+- The parent supplied the exact N2 pointer/keyboard repair instruction.
 - Pointer activation counts with any tabindex or none; keyboard activation counts with any tabindex attribute or native focusability.
 - Other handlers never establish a control; native interactive tags and the shared role set stay unchanged.
 - Focused tests pass: 30 operation-alignment tests and 13 product-contract tests, both exit 0.
@@ -110,14 +114,14 @@ The pull-request review must cover `is_product_control`.
 
 ### Isolated N1 repair of reviewed ce5837da
 
-- The owner reports F1–F5 resolved on exact head `ce5837da`; N1 is the remaining classifier finding.
+- The jolvex-platform Harness parent relayed the protected reviewers' results: F1–F5 resolved on `ce5837da`; N1 blocking.
 - Working-tree checks: `test_hifi_product_contract.py` passes 13 tests; `test_hifi_operation_alignment.py` passes 30 tests; both exit 0.
 - Passive heading animation and focus handlers pass at `tabindex="-1"` and `tabindex="0"`.
 - Ten activation handlers still need operation IDs on reachable custom controls; checkbox roles remain controls even at negative tabindex.
 - Final candidate commands, exits, hashes and platform skips are recorded under `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-n1-repair-20261116-a5c81e6b/`.
 - Use its `verification.md`, `commands.jsonl` and `final-candidate.json` for the scoped re-review candidate and results.
 - The earlier full matrix passed on `ce5837da`; it is historical evidence, not a fresh run for N1.
-- The owner requests affected checks for N1 and no third full matrix unless those checks fail.
+- The jolvex-platform Harness parent requested affected checks for N1 and no third full matrix unless those checks fail.
 
 ### Consolidated repair of reviewed b0dab02a
 
@@ -165,6 +169,8 @@ The handoff report records the final results without changing that tested SHA.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: Correct instruction attribution to the jolvex-platform Harness parent. The owner supplied only the two statements quoted above.
 
 - 2026-11-16: N3 (R7) repair: add native focusability to keyboard discovery and preserve plain summaries. No independent review; PR review must cover `is_product_control`.
 
@@ -239,11 +245,11 @@ The focused tests use the existing fixtures. A separate helper module would spli
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
 Stage and skill: source maintenance; N3 repair attributed to R7, not independently reviewed
-Inputs consumed (path + hash or revision): reviewed 3d043588; owner reports N1 and N2 pointer escape resolved, N3 blocking; scoped budget spent; released main 9abe4b9e
-Approvals in force (gate, owner, date, candidate): owner authorizes one local N3 commit and affected checks; no delegation, push, PR, tag, installation or version bump
+Inputs consumed (path + hash or revision): reviewed 3d043588; the jolvex-platform Harness parent relayed the protected reviewers' results: N1 and N2 pointer escape resolved, N3 blocking; scoped budget spent; released main 9abe4b9e
+Approvals in force (gate, owner, date, candidate): owner statements on 2026-11-16: 「Harness 工具落差走 A」 and 「在 Harness 專案開新對話交給 GPT-6.1-Sol」; the jolvex-platform Harness parent instructed local commits only; push, PR, tag, installation and version bump are not authorized
 Done and verified (command, exit code): working-tree focused product-contract 14 and operation-alignment 30 tests, exit 0; final candidate commands and exits are in the N3 evidence directory above
 Remaining: pull-request review must cover is_product_control; this N3 repair commit has had no independent review
 Blocked / waiting (gate name or owner decision): scoped re-review budget spent (two); independent review deferred to the pull-request review
 Next action (one command or one owner decision): at the separately authorized pull-request review, review is_product_control and the N3 regression cases on the recorded candidate SHA
-Next owner (skill or human): pull-request reviewer after the owner separately authorizes the PR
+Next owner (skill or human): pull-request reviewer after separate PR authorization
 ```
