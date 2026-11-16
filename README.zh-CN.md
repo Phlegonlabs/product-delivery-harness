@@ -53,7 +53,7 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 
 Source-runtime plate 也支持具唯一标记、且 surface、state 与 target 条件符合该行的共用主体。产品脚本执行前会先绑定选定状态。只有内容与检视器面板位置完全符合的已知 design-token 填值脚本会被排除；内容相同的产品脚本仍保留绑定，样本有歧义仍会失败。 初始 hidden 可由元素自身声明的状态规则控制；没有状态控制器的隐藏路径仍会失败。
 
-五个核心 skills 与四个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
+五个核心 skills 与五个独立 skills 都只在你明确点名调用时启动，例如 `$delivery-harness`；也可继续已调用的工作。普通任务不会自动跑 Harness 分流、文档同步、Epic 记录或 PLAN/RUN。安装、项目指令与已有文档都不代表调用。被调用的 skill 保留必要检查与依赖；新的顶层阶段需要明确要求。Codex 设为 `allow_implicit_invocation: false`，其他 host 遵守同一指令边界。
 
 相关选择尚未解决，或现有决定需要参考背景时，使用[参考选择规则](skills/delivery-harness/references/reference-selection.md)与[可选目录](skills/delivery-harness/references/option-library/README.md)。两者都不是前置条件，也不授予执行权限；现有决定与批准仍有效。
 
@@ -99,9 +99,9 @@ Use $growth-review to read back every surface of this released product with its 
 
 [Go To Market](standalone-skills/go-to-market/SKILL.md) 选择渠道与实验、每个项目保留一份 messaging record、把 PRD 的 Launch Window 延伸成 launch runbook、为 Growth Contract 的再触达机制撰写 lifecycle messaging，并准备各渠道草稿、素材、日历与附两个 hook 的各渠道变体，涵盖开发者渠道与商店 listing。
 
-[Customer Discovery](standalone-skills/customer-discovery/SKILL.md) 规划用户访谈、整理去标识化笔记，并把 `RA-*` 候选发现交回 Product Definition。[README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README，有 messaging record 时从中取第一行。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。
+[Customer Discovery](standalone-skills/customer-discovery/SKILL.md) 规划用户访谈、整理去标识化笔记，并把 `RA-*` 候选发现交回 Product Definition。[README Studio](standalone-skills/readme-studio/SKILL.md) 用实际展示编写项目 README，有 messaging record 时从中取第一行。[Release Packager](standalone-skills/release-packager/SKILL.md) 验证 release artifact 与用户安装路径。[Logo Studio](standalone-skills/logo-studio/SKILL.md) 从品牌简报开始设计 logo：先画大量黑白草图，写明筛选理由，再把入选构思精修并做压力测试，最后由 owner 选定。
 
-这四个完整 skill 目录须另行向宿主注册；`install.sh` 只安装五个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
+这五个完整 skill 目录须另行向宿主注册；`install.sh` 只安装五个核心 skills。注册、build、下载、签名、发布、排程与账户变更保留各自授权。沿用现有产品与测量记录，不新增 review wave。
 
 ## 系统如何协同
 
