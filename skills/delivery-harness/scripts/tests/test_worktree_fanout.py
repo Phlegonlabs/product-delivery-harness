@@ -364,6 +364,26 @@ class MergeCheckTests(unittest.TestCase):
             self.assertEqual(["src/feature.py"], report["details"]["untracked_collision"])
             self.assertIsNone(report["merge_command"])
 
+    def test_untracked_file_where_an_incoming_path_needs_a_directory_is_reported(self):
+        with tempfile.TemporaryDirectory() as temp:
+            integration, worker, base = _worker_fanout(temp)
+            _commit_worker_file(worker, "src/feature.py", "feature\n")
+            _write(integration, "src", "a local file named like the incoming directory\n")
+            code, report = run_merge_check(integration, base, "worker-1", ["src/**"])
+            self.assertEqual(1, code)
+            self.assertEqual(["untracked_collision"], report["reasons"])
+            self.assertEqual(["src"], report["details"]["untracked_collision"])
+
+    def test_unrelated_untracked_files_beside_an_incoming_path_do_not_block(self):
+        with tempfile.TemporaryDirectory() as temp:
+            integration, worker, base = _worker_fanout(temp)
+            _commit_worker_file(worker, "src/feature.py", "feature\n")
+            _write(integration, "src/scratch.txt", "untracked neighbour\n")
+            _write(integration, "notes.txt", "untracked at the root\n")
+            code, report = run_merge_check(integration, base, "worker-1", ["src/**"])
+            self.assertEqual(0, code)
+            self.assertTrue(report["mergeable"])
+
     def test_ignored_file_at_an_incoming_path_is_reported(self):
         with tempfile.TemporaryDirectory() as temp:
             integration = Path(temp) / "integration"
@@ -537,9 +557,9 @@ class MergeCheckTests(unittest.TestCase):
             _write(integration, "docs/note.md", "note\n")
             _commit_all(integration, "integration moved on")
             objects = Path(_git(integration, "rev-parse", "--path-format=absolute", "--git-path", "objects"))
-            index = Path(_git(integration, "rev-parse", "--path-format=absolute", "--git-path", "index"))
 
             def snapshot(root: Path) -> tuple:
+                index = Path(_git(root, "rev-parse", "--path-format=absolute", "--git-path", "index"))
                 return (
                     _git(root, "status", "--porcelain"),
                     _git(root, "rev-parse", "HEAD"),

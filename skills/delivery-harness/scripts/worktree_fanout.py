@@ -180,12 +180,23 @@ def _untracked_collisions(root: Path, paths: list[str]) -> list[str]:
     """Changed paths that exist in the checkout as untracked or ignored files.
 
     A merge would refuse to overwrite an untracked file and, by default,
-    silently replaces an ignored one.
+    silently replaces an ignored one. A file sitting where an incoming path
+    needs a directory blocks the merge the same way, so each parent that is
+    not a directory on disk is checked too.
     """
 
+    candidates = set(paths)
+    for path in paths:
+        parts = path.split("/")
+        for depth in range(1, len(parts)):
+            parent = "/".join(parts[:depth])
+            location = root / parent
+            if os.path.lexists(location) and not (location.is_dir() and not location.is_symlink()):
+                candidates.add(parent)
+    ordered = sorted(candidates)
     found: set[str] = set()
-    for start in range(0, len(paths), 200):
-        chunk = [f":(literal){path}" for path in paths[start : start + 200]]
+    for start in range(0, len(ordered), 200):
+        chunk = [f":(literal){path}" for path in ordered[start : start + 200]]
         result = run_git(root, "ls-files", "--others", "-z", "--", *chunk)
         if result.returncode != 0:
             raise GitCommandError(f"cannot list untracked files: {result.stderr.strip()}")
