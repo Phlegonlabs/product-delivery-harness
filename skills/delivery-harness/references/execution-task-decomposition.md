@@ -50,7 +50,7 @@ Split a mission only when one of these is true:
 
 Do not split a mission only because one clause could pass review alone, because parts use different focused verifiers, or because the feature spans several pages or endpoints. Make those parts separate tasks inside the mission. A one-task mission needs one of the reasons above, recorded in the PLAN. Before readiness, count the planned review nodes; when most missions carry a single task, merge them into feature batches.
 
-Shared foundations do not justify a catch-all mission. A batch owns one feature or one foundation, not unrelated work that happens to touch the same router, auth boundary, migration directory, schema, or serialized resource. Freeze the smallest shared contract in its own predecessor mission when dependents need it, then use mission dependencies and serialized-resource claims. Expected merge conflicts are scheduling facts, not product cohesion.
+Shared foundations do not justify a catch-all mission. A batch owns one feature or one foundation, not unrelated work that happens to touch the same router, auth boundary, migration directory, schema, or serialized resource. Freeze the smallest shared contract in its own predecessor mission when dependents need it, then use mission dependencies and serialized-resource claims. Expected merge conflicts are scheduling facts, not product cohesion. A dependency edge is for consumption, not scheduling; its rule lives in `stages/managed-delivery.md#default-mission-topology`.
 
 For `platform-delivery/1`, map each mission that explicitly owns a `UI-*` surface to its `release_surface` stage. Put shared ARCH work in the first stage. Later missions may touch shared ARCH only when their dependencies retain the earlier platform regression.
 

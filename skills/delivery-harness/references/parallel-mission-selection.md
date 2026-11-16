@@ -129,9 +129,9 @@ Worktrees isolate repository files only. They do not make runtime resources non-
 
 Only declare a mission-level `runtime_resources`/`serialized_resources` claim for a resource concurrent *workers* would actually contend for, not one only `integration_verifiers` touch:
 
-- **Worker-stage contention** (claim it): each worktree's own worker would boot a live dev server on the same fixed port, or write to one shared live database at the same time.
+- **Worker-stage contention** (claim it): each worktree's own worker would boot a live dev server or write to one shared live database at the same time. One fixed dev-server port claimed by every UI mission serializes the whole run even when their file scopes are disjoint.
 - **Integration-stage-only use** (no mission-level claim needed): a shared local dev server or database that only an `integration_verifiers` end-to-end/migration check depends on. Integration already happens one mission at a time, so that resource is serialized where it is used; an exclusive mission-level claim would only block worker-stage parallelism.
-- **Mitigation**: when a mission's own `worker_verifiers` need a live local service, prefer a per-worktree or dynamically assigned port/database path over one fixed shared instance, so the claim can stay `shared_read` or be omitted instead of defaulting to `exclusive`.
+- **Mitigation**: when a mission's own `worker_verifiers` need a live local service, give each worktree its own port or database path, or leave the live service to `integration_verifiers`, which already run one mission at a time; the claim then stays `shared_read` or is omitted instead of defaulting to `exclusive`.
 
 ## Conflict Graph
 
