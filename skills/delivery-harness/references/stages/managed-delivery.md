@@ -15,8 +15,8 @@ Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with 
 
 Read only what the current decision needs:
 
-- `references/contract-and-traceability.md`: frozen sources, traces, permissions, and file placement.
-- `references/execution-state-model.md`: PLAN/RUN creation, resume reconciliation, authorization, state transitions, and host handoff.
+- Frozen sources ([Contract Freeze](../contract-and-traceability.md#contract-freeze), [Source Map](../contract-and-traceability.md#source-map)), traces ([Trace IDs](../contract-and-traceability.md#trace-ids), [Mission And Task Identity](../contract-and-traceability.md#mission-and-task-identity)), permissions ([Stop And Ask Conditions](../contract-and-traceability.md#stop-and-ask-conditions)), and file placement ([Canonical Harness State](../contract-and-traceability.md#canonical-harness-state), [Document Folder Handoff](../contract-and-traceability.md#document-folder-handoff), [Compact Artifact Defaults](../contract-and-traceability.md#compact-artifact-defaults)).
+- PLAN/RUN creation ([Three Authorities](../execution-state-model.md#three-authorities), [Generating And Validating State](../execution-state-model.md#generating-and-validating-state)), resume reconciliation ([Resume Reconciliation Gate](../execution-state-model.md#resume-reconciliation-gate)), authorization ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)), state transitions ([Canonical Mission Phases](../execution-state-model.md#canonical-mission-phases), [Canonical Task Phases](../execution-state-model.md#canonical-task-phases), [Typed Graph State](../execution-state-model.md#typed-graph-state), [Run Lock And Watchdog](../execution-state-model.md#run-lock-and-watchdog)), and host handoff ([Serialized Same-Repository Host Handoff](../execution-state-model.md#serialized-same-repository-host-handoff)).
 - `references/graph-orchestration.md`: typed graph, provider policy, bounded experiments, retries and correction loops.
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
