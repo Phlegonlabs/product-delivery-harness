@@ -1288,8 +1288,13 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
     def test_output_contract_templates_are_read_per_artifact(self) -> None:
         skill = self.read(STAGE)
         contract = self.read("references/output-contract.md")
-        self.assertIn("read each artifact's section of it when drafting that artifact", skill)
-        self.assertIn("Run the Quality Checklist section of `references/output-contract.md`, without rereading", skill)
+        step = skill.split("\n9. ", 1)[1].split("\n10. ", 1)[0]
+        self.assertNotIn("`references/output-contract.md`", step)
+        linked = set(re.findall(r"\]\(\.\./output-contract\.md#([a-z0-9-]+)\)", step))
+        for anchor in ("how-to-read-this-package", "prdmd", "architecturemd", "stack-decisionsmd"):
+            self.assertIn(anchor, linked)
+        self.assertIn("sections before drafting each of those artifacts", step)
+        self.assertIn("[Quality Checklist](../output-contract.md#quality-checklist), without rereading", skill)
         for heading in ("## How To Read This Package", "## Quality Checklist"):
             self.assertIn(heading, contract)
 
