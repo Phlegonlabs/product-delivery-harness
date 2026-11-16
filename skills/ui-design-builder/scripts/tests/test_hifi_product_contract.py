@@ -43,6 +43,9 @@ class HiFiProductContractTests(unittest.TestCase):
                  'slider', 'spinbutton', 'textbox', 'combobox')
         for attributes in tuple(f'role="{role}" tabindex="0" aria-checked="false"' for role in roles) + (
                 'tabindex="0" onclick="this.dataset.changed=true"',
+                'tabindex="-1" onclick="this.dataset.changed=true"',
+                'onclick="this.dataset.changed=true"',
+                'tabindex="-1" onkeydown="this.dataset.changed=true"',
                 'role="checkbox" tabindex="-1" onclick="this.dataset.changed=true"'):
             with self.subTest(attributes=attributes):
                 widget = passive.replace('<p ', '<p ' + attributes + ' ', 1)
@@ -71,19 +74,37 @@ class HiFiProductContractTests(unittest.TestCase):
                 self.assertEqual([], parser.errors)
                 self.assertFalse(parser.controls)
 
-    def test_handler_discovery_requires_activation_and_user_reachability(self):
-        handlers = ('onclick', 'onkeydown', 'onkeyup', 'onkeypress', 'onpointerdown', 'onpointerup',
-                    'onmousedown', 'onmouseup', 'ontouchstart', 'ontouchend')
-        for handler in handlers:
-            for tabindex, expected in (('0', True), ('2', True), ('+0', True), ('-0', True),
-                                       ('-1', False), ('invalid', False), ('1_0', False), ('0.5', False),
-                                       ('', False), (None, False)):
-                with self.subTest(handler=handler, tabindex=tabindex):
-                    binding = '' if tabindex is None else f'tabindex="{tabindex}"'
-                    parser = ui._HiFiProductControls()
-                    parser.feed(f'<main data-ui-surface="UI-001"><p {binding} {handler}="activate()">Action</p></main>')
-                    parser.close()
-                    self.assertEqual(expected, 'needs a navigation/control ID' in '\n'.join(parser.errors))
+    def test_handler_discovery_separates_pointer_keyboard_and_passive_handlers(self):
+        groups = (
+            (('onclick', 'ondblclick', 'onpointerdown', 'onpointerup', 'onmousedown', 'onmouseup',
+              'ontouchstart', 'ontouchend'),
+             (('0', True), ('-1', True), ('invalid', True), ('', True), (None, True))),
+            (('onkeydown', 'onkeyup', 'onkeypress'),
+             (('0', True), ('-1', True), ('invalid', True), ('', True), (None, False))),
+            (('onanimationend', 'onfocus', 'onblur', 'ontransitionend', 'onload', 'onscroll',
+              'onpointermove', 'onmouseenter', 'ondragstart', 'oninput'),
+             (('0', False), ('-1', False), ('invalid', False), ('', False), (None, False))),
+        )
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        for handlers, cases in groups:
+            for handler in handlers:
+                for tabindex, expected in cases:
+                    with self.subTest(handler=handler, tabindex=tabindex):
+                        binding = '' if tabindex is None else f'tabindex="{tabindex}"'
+                        widget = markup.replace('<a ', f'<p {binding} {handler}="activate()" ').replace('</a>', '</p>')
+                        parser = ui._HiFiProductControls()
+                        parser.feed(widget)
+                        parser.close()
+                        self.assertEqual(expected, 'needs a navigation/control ID' in '\n'.join(parser.errors))
+                        findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
+                        if expected:
+                            self.assertIn('renders a product control', '\n'.join(findings))
+                        else:
+                            self.assertEqual([], findings)
         for markup in ('<button onclick="activate()">Action</button>',
                        '<input onkeydown="activate()">', '<a href="details.html" onclick="activate()">Action</a>'):
             parser = ui._HiFiProductControls()

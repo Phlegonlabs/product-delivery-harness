@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: N1 (R7) repaired locally; scoped re-review pending; F1–F5 resolved on reviewed ce5837da
+Status: N2 (R7) repaired locally; scoped re-review pending; N1 resolved on reviewed 3c133d59
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -75,6 +75,19 @@ R4 and R6 extend the closed object with instance counts and opener panel IDs.
 
 ## Acceptance evidence
 
+### Isolated N2 repair of reviewed 3c133d59
+
+- The owner reports N1 resolved on `3c133d59` and replaces its reachability rule with the exact N2 pointer/keyboard distinction.
+- Pointer activation counts with any tabindex or none; keyboard activation counts with any tabindex attribute or native focusability.
+- Other handlers never establish a control; native interactive tags and the shared role set stay unchanged.
+- Focused tests pass: 30 operation-alignment tests and 13 product-contract tests, both exit 0.
+- Before committing, the UI suite passes 640 tests, the compiler suite passes 240 tests, and the golden path passes one test.
+- All three precommit commands exit 0; each browser suite retains two Windows permission/symlink skips.
+- Tests check both missing operation IDs and terminal-surface rejection, including negative-tabindex click and keyboard handlers.
+- Passive animation/focus cases pass at tabindex -1 and 0; checkbox roles still fail on terminal surfaces.
+- Final candidate reruns, exits, hashes and skips live under `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-n2-repair-20261116-4f806be9/`.
+- Use its `verification.md`, `commands.jsonl` and `final-candidate.json` for the exact-head scoped re-review.
+
 ### Isolated N1 repair of reviewed ce5837da
 
 - The owner reports F1–F5 resolved on exact head `ce5837da`; N1 is the remaining classifier finding.
@@ -132,6 +145,8 @@ The handoff report records the final results without changing that tested SHA.
 - R1: `test_hifi_operation_alignment.py` passed four tests, including real Chromium, exit 0. Text and form-value changes pass; inert focus fails.
 
 ## Change Log
+
+- 2026-11-16: N2 (R7) repair: separate unconditional pointer activation from focus-capable keyboard activation; keep passive handlers, native tags and roles unchanged.
 
 - 2026-11-16: N1 (R7) repair: require reachable activation handlers for custom-control discovery; preserve passive focus targets and native/ARIA controls.
 
@@ -201,12 +216,12 @@ The focused tests use the existing fixtures. A separate helper module would spli
 
 ```text
 Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; isolated N1 repair attributed to R7
-Inputs consumed (path + hash or revision): reviewed ce5837da; owner reports F1–F5 resolved and N1 blocking; released main 9abe4b9e; specification 92cab19b
-Approvals in force (gate, owner, date, candidate): owner authorizes one local N1 repair commit and affected checks; no delegation, publication, installation or version bump
-Done and verified (command, exit code): working-tree product-contract 13 tests and operation-alignment 30 tests, exit 0; final candidate commands and exits are in the N1 evidence directory above
-Remaining: scoped exact-head N1 re-review; consumer adoption and publication need their own owner decisions
-Blocked / waiting (gate name or owner decision): N1 scoped re-review pending; F1–F5 resolved on ce5837da
-Next action (one command or one owner decision): re-review N1 on the SHA recorded in the N1 final-candidate.json and verification.md
-Next owner (skill or human): independent read-only reviewer after the writer completes the affected checks
+Stage and skill: source maintenance; second and last isolated handler repair, N2 attributed to R7
+Inputs consumed (path + hash or revision): reviewed 3c133d59; owner reports N1 resolved and supplies exact N2 rule; released main 9abe4b9e; specification 92cab19b
+Approvals in force (gate, owner, date, candidate): owner authorizes one local N2 repair commit with precommit UI/compiler/golden checks and final reruns; no delegation, publication, installation or version bump
+Done and verified (command, exit code): precommit focused 30/13, UI 640, compiler 240 and golden path 1 test, all exit 0; final candidate reruns and exits are in the N2 evidence directory above
+Remaining: scoped exact-head N2 re-review; consumer adoption and publication need their own owner decisions
+Blocked / waiting (gate name or owner decision): N2 scoped re-review pending; N1 resolved on 3c133d59; F1–F5 resolved on ce5837da
+Next action (one command or one owner decision): re-review N2 on the SHA recorded in the N2 final-candidate.json and verification.md
+Next owner (skill or human): independent read-only reviewer after the writer completes the final reruns
 ```

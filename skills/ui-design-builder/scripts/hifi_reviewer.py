@@ -14,10 +14,11 @@ INTERACTIVE_ROLES = frozenset({
     "button", "link", "menuitem", "tab", "checkbox", "radio", "switch", "slider",
     "spinbutton", "textbox", "combobox",
 })
-ACTIVATION_HANDLERS = frozenset({
-    "onclick", "onkeydown", "onkeyup", "onkeypress", "onpointerdown", "onpointerup",
+POINTER_ACTIVATION_HANDLERS = frozenset({
+    "onclick", "ondblclick", "onpointerdown", "onpointerup",
     "onmousedown", "onmouseup", "ontouchstart", "ontouchend",
 })
+KEYBOARD_ACTIVATION_HANDLERS = frozenset({"onkeydown", "onkeyup", "onkeypress"})
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
@@ -31,9 +32,9 @@ def is_product_control(tag, attrs):
     if (tag in {"a", "button", "input", "select", "textarea"}
             or INTERACTIVE_ROLES.intersection((attrs.get("role") or "").casefold().split())):
         return True
-    tabindex = (attrs.get("tabindex") or "").strip()
-    return bool(re.fullmatch(r"\+?[0-9]+|-0+", tabindex)) and any(
-        isinstance(attrs.get(handler), str) and attrs[handler].strip() for handler in ACTIVATION_HANDLERS)
+    handlers = {name for name, value in attrs.items() if isinstance(value, str) and value.strip()}
+    return bool(POINTER_ACTIVATION_HANDLERS.intersection(handlers)
+                or ("tabindex" in attrs and KEYBOARD_ACTIVATION_HANDLERS.intersection(handlers)))
 
 
 class ReviewerParser(HTMLParser):

@@ -160,7 +160,7 @@ The exemption covers data-entry fields only: input types `button`, `submit`, `re
 
 A surface may have an empty `navigation` or `controls` array. Both may be empty when its PRD operations declare `none — <reason>`. That surface renders no product control. A package with no operation controls may have an empty `interactions` array. States and responsive targets remain nonempty. Read-only components still have source-bound specimens.
 
-Control discovery and terminal-surface rejection share these interactive roles: `button`, `link`, `menuitem`, `tab`, `checkbox`, `radio`, `switch`, `slider`, `spinbutton`, `textbox`, `combobox`. Beyond native controls and these roles, discovery requires nonnegative integer `tabindex` and a nonempty `onclick`, `onkeydown`, `onkeyup`, `onkeypress`, `onpointerdown`, `onpointerup`, `onmousedown`, `onmouseup`, `ontouchstart` or `ontouchend` handler.
+Control discovery and terminal-surface rejection share these interactive roles: `button`, `link`, `menuitem`, `tab`, `checkbox`, `radio`, `switch`, `slider`, `spinbutton`, `textbox`, `combobox`. Beyond native controls and these roles, nonempty pointer handlers (`onclick`, `ondblclick`, `onpointerdown`, `onpointerup`, `onmousedown`, `onmouseup`, `ontouchstart`, `ontouchend`) always count; nonempty keyboard handlers (`onkeydown`, `onkeyup`, `onkeypress`) count with any `tabindex` attribute or native focusability; other handlers never count.
 
 Native `button[data-product-disclosure]` uses the same live, distinct, same-surface panel rules as menus and tabs. It declares `aria-controls` and `aria-expanded`. A declared menu, tab or disclosure opener needs no product ID or interaction. An opener that retains an ID still needs its PRD-bound interaction.
 
