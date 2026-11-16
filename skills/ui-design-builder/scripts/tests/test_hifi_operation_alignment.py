@@ -77,8 +77,43 @@ class FeedbackContractTests(unittest.TestCase):
                 self.assertTrue(checker._bundle_transcript_findings(broken, manifest))
 
 
+class CrossPageStateTests(unittest.TestCase):
+    def test_cross_page_state_requires_every_anchor_to_name_the_exact_state(self):
+        for href, tag, passes in (("details.html#hifi-state=UI-002/updated", "a", True),
+                                  ("details.html", "a", False),
+                                  ("details.html#hifi-state=UI-002/ready", "a", False),
+                                  ("details.html#hifi-state=UI-002/updated", "button", False)):
+            with self.subTest(href=href, tag=tag), tempfile.TemporaryDirectory() as temporary:
+                path, manifest, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+                manifest["interactions"][0].update(kind="state", destination={"surface": "UI-002", "state": "updated"})
+                write_manifest(path, manifest)
+                html = path.read_text(encoding="utf-8").replace('data-navigation-id="next" href="details.html"',
+                    f'data-navigation-id="next" href="{href}"')
+                if tag == "button":
+                    html = html.replace('<a class="product-link"', '<button class="product-link"').replace('</a>', '</button>')
+                path.write_text(html, encoding="utf-8")
+                findings = []
+                checker._validate_hifi_surface(path, findings, scope)
+                self.assertEqual(passes, not findings, findings)
+
+    def test_a_second_wrong_instance_cannot_hide_behind_a_valid_link(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path, manifest, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+            manifest["interactions"][0].update(kind="state", destination={"surface": "UI-002", "state": "updated"})
+            write_manifest(path, manifest)
+            html = path.read_text(encoding="utf-8").replace('data-navigation-id="next" href="details.html"',
+                'data-navigation-id="next" href="details.html#hifi-state=UI-002/updated"')
+            html = html.replace('</main>', '<a class="product-link" data-specimen-variant="default" '
+                'data-specimen-state="default" data-navigation-id="next" href="details.html">Wrong row</a></main>')
+            path.write_text(html, encoding="utf-8")
+            findings = []
+            checker._validate_hifi_surface(path, findings, scope)
+            self.assertIn("cross-page state control", "\n".join(findings))
+
+
 class OperationBrowserTests(unittest.TestCase):
     playwright = matrix_tests.RealBrowserTests.playwright
+    run_main = matrix_tests.RealBrowserTests.run_main
 
     def driver(self, extra="", edit=None):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
@@ -108,6 +143,24 @@ class OperationBrowserTests(unittest.TestCase):
                 change = reply["result"]["observed"]["change"]
                 self.assertEqual(passes, change["beforeSha256"] != change["afterSha256"])
                 driver.stop()
+
+    def test_cross_page_state_observes_the_arrival_page_and_state(self):
+        actions = copy.deepcopy(matrix_tests.INTERACTIONS)
+        actions[0].update(kind="state", destination={"surface": "UI-002", "state": "error"})
+        for fragment, passes in (("UI-002/error", True), ("UI-002/ready", False)):
+            with self.subTest(fragment=fragment), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                package = matrix_tests.build_interactions_package(root, interactions=actions, page_edit=lambda html:
+                    html.replace('href="details.html"', 'href="details.html#hifi-state=' + fragment + '"'))
+                code, text = self.run_main(self.playwright(), root, package, "--out", "evidence", "--only", "UI-001")
+                self.assertEqual(0 if passes else 1, code, text)
+                output = json.loads((root / "evidence/ui-output.json").read_text(encoding="utf-8"))
+                self.assertEqual({"PASS"} if passes else {"FAIL"}, {r["result"] for r in output["interactions"]})
+                if passes:
+                    self.assertEqual(4, len(output["navigation"]))
+                    expected, navigation = checker._interaction_expectations(capture.read_package(package).manifest)
+                    self.assertEqual(expected[:4], output["interactions"])
+                    self.assertEqual(navigation[:4], output["navigation"])
 
 
 if __name__ == "__main__":

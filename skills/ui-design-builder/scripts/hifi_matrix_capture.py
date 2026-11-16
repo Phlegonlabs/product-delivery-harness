@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
+from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view, _hifi_state_href
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
 from ui_design_v3 import intermediate_width_findings
@@ -345,6 +345,12 @@ async function interact(request) {
     if (await product.count() !== 1) problems.push('product control is missing or not unique: ' + request.control);
     else {
       const handle = product.first();
+      if (request.kind === 'state' && request.page !== request.destinationPage) {
+        const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
+          + '/' + encodeURIComponent(request.destination.state);
+        if (!await product.evaluateAll((list, href) => list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), href))
+          return { problems: ['cross-page state controls must link to the declared page and state'], visible: false, focusCorrect: false };
+      }
       visible = await handle.isVisible();
       let pressedFocused = null;
       let before = null;
@@ -379,6 +385,11 @@ async function interact(request) {
       }
       const url = page.url();
       arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
+      if (request.kind === 'state' && request.page !== request.destinationPage) {
+        const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
+          + '/' + encodeURIComponent(request.destination.state);
+        if (url !== BASE + href) problems.push('browser did not reach the declared state URL');
+      }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
       // Both triggers must land product focus on the control alone; keyboard also had to press from it.
       focusCorrect = events.focus.length === 1 && events.focus[0].control === request.control
@@ -1281,8 +1292,12 @@ class Runner:
         # A navigate attempt's one arrival row becomes the documented navigation event; every other
         # navigation row stays in the transcript and fails the attempt.
         stray = list(events.get("navigation", []))
-        if action["kind"] == "navigate":
-            arrived = [row for row in stray if row.get("url") == DRIVER_BASE + action["destinationPage"]]
+        crosses_page = action["kind"] == "state" and action["page"] != action["destinationPage"]
+        if action["kind"] == "navigate" or crosses_page:
+            urls = {DRIVER_BASE + action["destinationPage"]}
+            if crosses_page:
+                urls.add(DRIVER_BASE + _hifi_state_href(action["destinationPage"], action["destination"]))
+            arrived = [row for row in stray if row.get("url") in urls]
             if len(arrived) == 1:
                 record["arrived"] = action["destinationPage"]
                 stray.remove(arrived[0])
@@ -1300,7 +1315,7 @@ class Runner:
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
         if result.get("observed") is not None:
             record["observed"] = result["observed"]
-        if action["kind"] == "navigate":
+        if action["kind"] == "navigate" or crosses_page:
             if record["arrived"] is None:
                 reasons.append("the destination page did not load")
             elif result.get("arrivedTo") != action["destinationPage"]:
@@ -1504,7 +1519,7 @@ def interaction_rows(runner):
                         "visible": record["visible"], "focusCorrect": record["focusCorrect"], "result": record["result"]})
         if "observed" in record:
             results[-1]["observed"] = record["observed"]
-        if record["kind"] == "navigate" and record["arrived"]:
+        if record["kind"] in {"navigate", "state"} and record["arrived"]:
             navigation.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
                                "from": record["page"], "to": record["arrived"]})
     return results, navigation

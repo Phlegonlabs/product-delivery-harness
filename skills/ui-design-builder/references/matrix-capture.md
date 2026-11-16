@@ -69,3 +69,4 @@ Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix
 - Motion quality. Use the `motion-preview` check.
 - Native, real-login or service behavior.
 - Overlap and overflow are geometry heuristics: a pass can hide a defect, and an intentional overlay reads as an overlap.
+`state` may cross pages through an anchor to the exact destination page and encoded state fragment. The driver checks arrival page, surface, state and URL. Its navigation row names the page filename; any extra navigation fails.

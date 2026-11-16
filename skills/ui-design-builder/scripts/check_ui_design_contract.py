@@ -13,6 +13,7 @@ import sys
 from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 UI_SCRIPTS = Path(__file__).resolve().parent
 # A caller may remove its temporary copy of this directory after import.
@@ -1238,6 +1239,10 @@ class _HiFiSurfaceParser(HTMLParser):
             self.surfaces[self._stack[-1]]["text"].append(data)
 
 
+def _hifi_state_href(page: str, endpoint: dict[str, str]) -> str:
+    return page + "#hifi-state=" + quote(endpoint["surface"], safe="") + "/" + quote(endpoint["state"], safe="")
+
+
 class _HiFiProductControls(HTMLParser):
     """Collect product controls; reviewer controls outside surfaces do not count."""
 
@@ -1422,7 +1427,9 @@ def _validate_hifi_bundle(
                 _add(problems, f"HiFi interaction {identifier} link must reach its declared page")
         elif action["kind"] == "state":
             if source["page"] != destination["page"]:
-                _add(problems, "HiFi state interaction must stay on the same page")
+                href = _hifi_state_href(destination["page"], action["destination"])
+                if any(item.get("tag") != "a" or item.get("href") != href for item in controls):
+                    _add(problems, "HiFi cross-page state control must be an anchor to its declared page and state")
             if action["source"] == action["destination"]:
                 _add(problems, "HiFi state interaction must declare an observable destination state")
         elif action["kind"] == "feedback":
@@ -1436,7 +1443,7 @@ def _validate_hifi_bundle(
     reachable = {"index.html"}
     for _ in documents:
         for action in interactions:
-            if isinstance(action, dict) and action.get("kind") == "navigate":
+            if isinstance(action, dict) and action.get("kind") in {"navigate", "state"}:
                 source = action.get("source", {})
                 destination = action.get("destination", {})
                 if isinstance(source, dict) and isinstance(destination, dict):
@@ -1497,6 +1504,10 @@ def _validate_hifi_html(
                 _add(problems, f"Connected HiFi reference is missing responsive target coverage for {target}")
     class BundleResourceParser(check_wireframe_html.ResourceParser):
         def _record_url(self, tag: str, name: str, value: str) -> None:
+            if (tag == "a" and name == "href" and local_pages is not None
+                and value.split("#", 1)[0] in local_pages
+                and re.fullmatch(r"[^#]+#hifi-state=[A-Za-z0-9_%.-]+/[A-Za-z0-9_%.-]+", value)):
+                return
             if tag == "a" and name == "href" and local_pages is not None and (value in local_pages or ("index.html" in local_pages and value in {"index.html#overview", "index.html#design-tokens"})):
                 return
             super()._record_url(tag, name, value)
@@ -2304,7 +2315,7 @@ def _interaction_expectations(manifest: dict[str, Any]) -> tuple[list[dict[str, 
                         "source": action["source"], "destination": action["destination"],
                         "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS",
                     })
-                    if action["kind"] == "navigate":
+                    if action["kind"] == "navigate" or (action["kind"] == "state" and source["page"] != destination["page"]):
                         navigation.append({"id": action["id"], "target": str(target), "trigger": trigger, "from": source["page"], "to": destination["page"]})
     except (KeyError, TypeError, ValueError):
         return None
