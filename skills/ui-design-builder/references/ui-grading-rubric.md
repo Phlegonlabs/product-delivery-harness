@@ -11,7 +11,7 @@ A missing or contradictory product obligation returns to `product-definition-bui
 ## Capability And Authorization
 
 - Run one complete diagnostic wave before any repair. Agent policy selects fresh grading executors and a lead responsible for the [First-Wave Audit Axes](#first-wave-audit-axes) cases and one consolidated finding set. Browser checks, Impeccable critique/audit and H1-H9 use the same frozen candidate within that wave.
-- Unless agent policy sets another topology, the wave has two fresh reviewers: a lead grader who also produces the browser receipt, and one Impeccable operator who runs critique and audit. Neither reviews its own work.
+- Unless agent policy sets another topology, the wave has two fresh reviewers: a lead grader who also produces the browser receipt, and one Impeccable operator who runs critique and audit. The two launch together, not one after the other. Neither reviews its own work.
 - The grading record names the author's and each grader's provider and model. Agent policy still selects the executors. When it offers a grader on a different model family from the author, the lead grader takes that one; a fresh same-family grader stays valid.
 - Reuse covered browser observations for cases with an equal render fingerprint. Add a specialist grader only on an owner request or a recorded high risk, with a non-overlapping lens over the same frozen inputs.
 - Graders return evidence only: they do not publish, mint trace IDs, contact the owner, or approve the artifact.
