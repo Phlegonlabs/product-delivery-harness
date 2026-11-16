@@ -255,6 +255,29 @@ class SupportingFieldTests(unittest.TestCase):
 
 
 class NotApplicableStateTests(unittest.TestCase):
+    def test_existing_na_markers_and_target_cases_remain_compatible(self):
+        for targets in ((390, 1200), (390,)):
+            with self.subTest(targets=targets), tempfile.TemporaryDirectory() as temporary:
+                path, manifest, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+                manifest["surfaces"][0]["states"].append("permission:n/a")
+                write_manifest(path, manifest)
+                html = re.sub(r'<!-- reviewer:start -->[\s\S]*?<!-- reviewer:end -->',
+                    lambda _: '<!-- reviewer:start -->' + hifi_review_fixture.shell(manifest) + '<!-- reviewer:end -->',
+                    path.read_text(encoding="utf-8"))
+                markers = ''.join(f'<span data-state="permission:n/a" data-responsive-target="{target}"></span>'
+                                  for target in targets)
+                html = html.replace('</main>', markers + '</main>', 1)
+                path.write_text(html, encoding="utf-8")
+                findings = []
+                checker._validate_hifi_surface(path, findings, scope)
+                self.assertEqual([], findings)
+                self.assertFalse(any(row["state"] == "permission:n/a" for row in checker._evidence_matrix(scope)["cases"]))
+                # Optional n/a cases cannot fill a missing real-state case.
+                path.write_text(html.replace('<span data-state="updated" data-responsive-target="390"></span>', ''), encoding="utf-8")
+                findings = []
+                checker._validate_hifi_surface(path, findings, scope)
+                self.assertIn("state/target case coverage is wrong", "\n".join(findings))
+
     def test_na_state_needs_no_product_marker_or_case_but_real_state_does(self):
         for state, passes in (("permission:n/a", True), ("permission", False)):
             with self.subTest(state=state), tempfile.TemporaryDirectory() as temporary:

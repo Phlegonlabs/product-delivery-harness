@@ -1630,7 +1630,8 @@ def _validate_hifi_html(
             if container["route"] != {expected.get("route")}:
                 _add(problems, f"Connected HiFi DOM route binding is wrong for {surface_id}")
             applicable_states = {str(item) for item in expected.get("states", []) if not str(item).endswith(":n/a")}
-            if container["states"] != applicable_states:
+            optional_states = {str(item) for item in expected.get("states", []) if str(item).endswith(":n/a")}
+            if container["states"] - optional_states != applicable_states:
                 _add(problems, f"Connected HiFi DOM state coverage is wrong for {surface_id}")
             if container["targets"] != expected_targets:
                 _add(problems, f"Connected HiFi DOM responsive target coverage is wrong for {surface_id}")
@@ -1644,7 +1645,8 @@ def _validate_hifi_html(
                     else []
                 )
             }
-            if container["cases"] != expected_cases:
+            optional_cases = {(state, target) for state in optional_states for target in expected_targets}
+            if container["cases"] - optional_cases != expected_cases:
                 _add(problems, f"Connected HiFi DOM state/target case coverage is wrong for {surface_id}")
             if not set(actual.get("navigation", [])) <= container["navigation"]:
                 _add(problems, f"Connected HiFi DOM navigation coverage is incomplete for {surface_id}")
