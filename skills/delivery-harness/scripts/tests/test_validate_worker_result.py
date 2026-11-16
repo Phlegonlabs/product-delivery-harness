@@ -605,7 +605,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
             error_codes(validate(applicable, applicable_run, applicable_result)),
         )
 
-    def test_task_commit_slice_must_stay_inside_that_task_scope(self) -> None:
+    def test_task_commit_slice_must_stay_inside_the_mission_scope(self) -> None:
         result = copy.deepcopy(self.result)
         task_id = result["task_results"][0]["task_id"]
         errors = validate(
@@ -614,7 +614,7 @@ class ValidateWorkerResultTests(unittest.TestCase):
             result,
             observed_task_changed_files={task_id: ["src/outside/task.py"]},
         )
-        self.assertIn("task_scope_escape", error_codes(errors))
+        self.assertIn("scope_escape", error_codes(errors))
 
     def test_task_commit_cannot_write_the_acceptance_register(self) -> None:
         # The last mission's scope lists the register for the parent's
