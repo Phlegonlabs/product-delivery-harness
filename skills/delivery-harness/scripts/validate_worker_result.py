@@ -14,6 +14,7 @@ from typing import Any, Iterable
 from harness_core import (
     _normalized_branch,
     changed_files_digest,
+    effective_write_scope,
     validate_changed_path,
 )
 from harness_git import GitMetadataError, reject_object_substitution, run_git
@@ -1021,7 +1022,7 @@ def validate_worker_result_data(
             _issue(errors, "observed_diff_mismatch", "worker_result.changed_files", "must exactly match parent-observed changed files")
 
     if mission is not None:
-        write_scope = mission.get("write_scope", [])
+        write_scope = effective_write_scope(mission, run)
         deny_scope = mission.get("deny_scope", [])
         # With a delivery-acceptance gate, the mission scope lists the
         # register and evidence for the parent's commit only. A worker may
@@ -1036,6 +1037,10 @@ def validate_worker_result_data(
             for task in mission.get("tasks", [])
             if isinstance(task, dict) and not task.get("replaced_by")
         ]
+        # A RUN scope amendment grants its paths to the mission's tasks too.
+        task_scopes.append(
+            [scope for scope in write_scope if scope not in mission.get("write_scope", [])]
+        )
         for index, changed_path in enumerate(reported_paths):
             item_path = f"worker_result.changed_files[{index}]"
             if parent_owned_path(changed_path):

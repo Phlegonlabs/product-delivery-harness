@@ -669,7 +669,7 @@ def summarize_run(
         attempt_recovery=recovery,
         session_id=session_id,
     )
-    return {
+    summary = {
         "run_id": run.get("run_id"),
         "schema_version": run.get("schema_version"),
         "status": run.get("status"),
@@ -697,6 +697,10 @@ def summarize_run(
         ),
         "next_action": next_action,
     }
+    amendments = run.get("scope_amendments")
+    if isinstance(amendments, list) and amendments:
+        summary["scope_amendments"] = amendments
+    return summary
 
 
 def render_text(summary: dict[str, Any]) -> str:
@@ -763,6 +767,13 @@ def render_text(summary: dict[str, Any]) -> str:
             f"{dirty} | recorded={mission['recorded_head_sha'] or '-'} | "
             f"live={mission['live_head_sha'] or '-'}"
         )
+    for row in summary.get("scope_amendments") or []:
+        if isinstance(row, dict):
+            paths = row.get("paths") if isinstance(row.get("paths"), list) else []
+            lines.append(
+                f"Scope amendment {row.get('id')}: {row.get('mission_id')} + "
+                f"{', '.join(str(path) for path in paths)} — {row.get('reason')}"
+            )
     recovery = summary.get("attempt_recovery") or {}
     lines.append(
         "Attempt recovery: "
