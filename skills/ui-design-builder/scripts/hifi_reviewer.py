@@ -506,12 +506,15 @@ def product_control_findings(documents):
             return next((parent for parent in reversed(parents) if "data-ui-surface" in parent), None)
 
         for tag, attrs, parents in nodes:
-            if "data-product-menu" not in attrs and "data-product-tab" not in attrs:
+            kinds = [kind for kind in ("menu", "tab", "disclosure") if "data-product-" + kind in attrs]
+            if not kinds:
                 continue
+            if len(kinds) != 1:
+                errors.append(f"HiFi {page} product opener must declare exactly one kind")
             surface = product_surface(parents)
             if surface is None:
-                errors.append(f"HiFi {page} product menu/tab controls must stay inside a product surface")
-            kind = "menu" if "data-product-menu" in attrs else "tab"
+                errors.append(f"HiFi {page} product menu/tab/disclosure controls must stay inside a product surface")
+            kind = kinds[0]
             if tag != "button":
                 errors.append(f"HiFi {page} product {kind} control must be a native button")
             if id(attrs) in parser.inert_nodes:
@@ -528,10 +531,10 @@ def product_control_findings(documents):
                 errors.append(f"HiFi {page} product {kind} control must bind one distinct panel inside the same product surface")
             elif id(matches[0][0]) in parser.inert_nodes:
                 errors.append(f"HiFi {page} product {kind} panel must be a live product panel outside template/noscript")
-            if kind == "menu":
+            if kind in {"menu", "disclosure"}:
                 expanded = attrs.get("aria-expanded")
                 if expanded not in {"true", "false"}:
-                    errors.append(f"HiFi {page} product menu control must declare expanded state")
+                    errors.append(f"HiFi {page} product {kind} control must declare expanded state")
             else:
                 selected = attrs.get("aria-selected")
                 if selected not in {"true", "false"}:

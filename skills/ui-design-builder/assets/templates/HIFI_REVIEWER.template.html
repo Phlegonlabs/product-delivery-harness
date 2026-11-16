@@ -439,7 +439,7 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       }
       return false;
     }
-    for (const control of host.querySelectorAll("[data-product-menu]")) {
+    for (const control of [...host.querySelectorAll("[data-product-menu]"), ...host.querySelectorAll("[data-product-disclosure]")]) {
       const menuId = control.getAttribute("aria-controls");
       const menu = menuId ? host.querySelector(`#${CSS.escape(menuId)}`) : null;
       if (!isProduct(control) || !menu) continue;

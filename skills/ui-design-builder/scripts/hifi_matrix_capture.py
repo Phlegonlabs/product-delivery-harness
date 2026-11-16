@@ -249,7 +249,9 @@ async function start(request) {
     addEventListener('focusin', event => {
       const el = event.target;
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
-      if (id) window.__pdhFocus({ control: id });
+      const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
+        ? el.getAttribute('aria-controls') : null;
+      if (id || opener) window.__pdhFocus({ control: id || null, opener });
     }, true);
   });
   page = await context.newPage();
@@ -344,8 +346,37 @@ async function interact(request) {
       + surface + ' [data-control-id=' + quote(request.control) + ']');
     const product = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + ']:visible,'
       + surface + ' [data-control-id=' + quote(request.control) + ']:visible');
+    const opened = [];
+    if (await product.count() === 0 && await attached.count() > 0) {
+      const chain = await attached.first().evaluate(el => {
+        const surface = el.closest('[data-ui-surface]');
+        const buttons = Array.from(surface.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]'));
+        const panels = [];
+        for (let panel = el.parentElement; panel && panel !== surface; panel = panel.parentElement) {
+          const opener = buttons.find(button => button.getAttribute('aria-controls') === panel.id && panel.id
+            && button.closest('[data-ui-surface]') === surface && !panel.contains(button));
+          if (opener && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1)
+            panels.unshift({ panel: panel.id, index: buttons.indexOf(opener), selected: opener.hasAttribute('data-product-tab') });
+        }
+        return panels;
+      });
+      const buttons = page.locator(surface + ' button[data-product-menu],'
+        + surface + ' button[data-product-tab],' + surface + ' button[data-product-disclosure]');
+      for (const step of chain) {
+        const panel = page.locator('[id=' + quote(step.panel) + ']');
+        if (await panel.isVisible()) continue;
+        const opener = buttons.nth(step.index);
+        if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
+        await opener.click({ timeout });
+        opened.push(step.panel);
+        try { await panel.waitFor({ state: 'visible', timeout }); }
+        catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+        if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
+            || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+      }
+    }
     const instances = await product.count();
-    observed = { instances };
+    observed = { instances, ...(opened.length ? { openers: opened } : {}) };
     if (instances < 1) problems.push('product control is missing or hidden: ' + request.control);
     else {
       const handle = product.first();
@@ -398,8 +429,10 @@ async function interact(request) {
         if (url !== BASE + href) problems.push('browser did not reach the declared state URL');
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
-      // Both triggers must land product focus on the control alone; keyboard also had to press from it.
-      focusCorrect = events.focus.length === 1 && events.focus[0].control === request.control
+      // Declared opener clicks may precede the one operation-control focus event.
+      focusCorrect = events.focus.length === opened.length + 1
+        && opened.every((panel, index) => events.focus[index].opener === panel)
+        && events.focus[opened.length].control === request.control
         && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
     }
   }

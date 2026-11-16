@@ -1262,9 +1262,11 @@ class _HiFiProductControls(HTMLParser):
         if surface and interactive:
             control = values.get("data-navigation-id") or values.get("data-control-id")
             supporting = values.get("data-control-for") if tag in {"input", "select", "textarea"} else None
+            opener = tag == "button" and any(key in values for key in (
+                "data-product-menu", "data-product-tab", "data-product-disclosure"))
             if supporting:
                 self.supporting_fields.append((surface, supporting))
-            if not control and not supporting:
+            if not control and not supporting and not opener:
                 self.errors.append(f"HiFi product control in {surface} needs a navigation/control ID")
             elif control:
                 self.controls.setdefault((surface, control), []).append(dict(values, tag=tag))
@@ -2359,11 +2361,16 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
             observations_valid = False
             continue
         observed = row.get("observed", {})
-        if not isinstance(observed, dict) or set(observed) - {"change", "instances"}:
+        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "openers"}:
             observations_valid = False
         else:
             if "instances" in observed and (type(observed["instances"]) is not int or observed["instances"] < 1):
                 observations_valid = False
+            if "openers" in observed:
+                openers = observed["openers"]
+                if (not isinstance(openers, list) or any(not isinstance(value, str) or not value.strip() for value in openers)
+                    or len(openers) != len(set(openers))):
+                    observations_valid = False
             change = observed.get("change")
             if "change" in observed or row.get("id") in feedback_ids:
                 if (not isinstance(change, dict) or set(change) != {"beforeSha256", "afterSha256"}

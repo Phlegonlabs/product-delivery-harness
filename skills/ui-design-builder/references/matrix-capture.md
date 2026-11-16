@@ -57,6 +57,8 @@ Rows are written as measured. `validate_output` applies the checker's own review
 
 ## Carrying
 
+For hidden attached controls, the driver opens declared menu, tab or disclosure panels from outermost to innermost. Openers may omit IDs and interactions. Each panel stays inside its opener's product surface and must become visible. `observed.openers` lists the clicked panel IDs. Focus may visit those openers, in order, then the operation control once; unrelated product focus still fails.
+
 Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.
 
 Repeated control IDs may appear on multiple rows. The driver activates the first visible instance and records the visible count in `observed.instances`. Every navigate instance remains an anchor to its declared page. A missing or entirely hidden control still fails.

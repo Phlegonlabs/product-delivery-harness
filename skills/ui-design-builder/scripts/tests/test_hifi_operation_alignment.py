@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import check_ui_design_contract as checker
 import hifi_matrix_capture as capture
 import hifi_review_fixture
+from hifi_reviewer import product_control_findings
 import test_hifi_matrix_capture as matrix_tests
 import test_ui_design_contract as contract_tests
 from operation_coverage import hifi_coverage_findings
@@ -85,6 +86,41 @@ class FeedbackContractTests(unittest.TestCase):
                 output = contract_tests.bundle_output(manifest)
                 output["interactions"][0]["observed"] = {"instances": count}
                 self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
+
+    def test_opener_observations_are_an_ordered_list_of_distinct_panel_ids(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, manifest, _ = contract_tests.materialize_hifi_bundle(Path(temporary))
+            for panels, passes in ((["outer", "inner"], True), (["outer", "outer"], False),
+                                   ([{}], False), ("outer", False), ([""], False)):
+                output = contract_tests.bundle_output(manifest)
+                output["interactions"][0]["observed"] = {"openers": panels}
+                self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
+
+
+class OpenerContractTests(unittest.TestCase):
+    def test_disclosures_keep_the_native_live_same_surface_panel_rules(self):
+        good = ('<main data-ui-surface="UI-001"><button data-product-disclosure aria-controls="panel" '
+                'aria-expanded="false">Open</button><div id="panel" hidden>Contents</div></main>')
+        self.assertEqual([], product_control_findings({"index.html": good}))
+        for bad in (good.replace('<button ', '<div ').replace('</button>', '</div>'),
+                    good.replace('aria-expanded="false"', ''),
+                    good.replace('id="panel"', 'id="other"'),
+                    good.replace('<div id="panel"', '<template id="panel"').replace('Contents</div>', 'Contents</template>'),
+                    good.replace('<button ', '<button id="panel" '),
+                    good.replace('data-ui-surface="UI-001"', 'data-reviewer="UI-001"'),
+                    good.replace('<div id="panel"', '</main><main data-ui-surface="UI-002"><div id="panel"')):
+            self.assertTrue(product_control_findings({"index.html": bad}), bad)
+
+    def test_openers_need_no_operation_but_unmarked_buttons_still_do(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            path, _, scope = contract_tests.materialize_hifi_bundle(Path(temporary))
+            original = path.read_text(encoding="utf-8")
+            for marker, passes in (('data-product-disclosure aria-controls="panel" aria-expanded="false"', True), ('', False)):
+                path.write_text(original.replace('</main>', '<button class="product-button" data-specimen-variant="default" '
+                    'data-specimen-state="default" '+marker+'>Open</button><div id="panel" hidden>Product content</div></main>', 1), encoding="utf-8")
+                findings = []
+                checker._validate_hifi_surface(path, findings, scope)
+                self.assertEqual(passes, not findings, findings)
 
 
 class SupportingFieldTests(unittest.TestCase):
@@ -177,12 +213,12 @@ class OperationBrowserTests(unittest.TestCase):
         driver.start()
         return driver
 
-    def attempt(self, driver, control="save", kind="feedback", destination=None, page="details.html", destination_page=None, **extra):
+    def attempt(self, driver, control="save", kind="feedback", destination=None, page="details.html", destination_page=None, trigger="click", **extra):
         driver.call("open", page=page, timeoutMs=2000)
         return driver.call("interact", page=page, interaction="operation", surface="UI-002", state="ready",
                            target="390", control=control, kind=kind,
                            destination=destination or {"surface": "UI-002", "state": "ready"},
-                           destinationPage=destination_page or page, trigger="click", timeoutMs=2000, **extra)
+                           destinationPage=destination_page or page, trigger=trigger, timeoutMs=2000, **extra)
 
     def test_feedback_requires_product_change_and_ignores_focus_alone(self):
         for handler, passes in (("this.textContent += ' saved'", True),
@@ -196,6 +232,40 @@ class OperationBrowserTests(unittest.TestCase):
                 change = reply["result"]["observed"]["change"]
                 self.assertEqual(passes, change["beforeSha256"] != change["afterSha256"])
                 driver.stop()
+
+    def test_openers_reveal_menu_and_nested_disclosures_in_order(self):
+        save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'
+        menu = ('<button data-product-menu aria-controls="menu" aria-expanded="false">Actions</button>'
+                '<div id="menu" hidden>' + save + '</div>')
+        nested = ('<button data-product-disclosure aria-controls="outer" aria-expanded="false">Editor</button>'
+                  '<div id="outer" hidden><button data-product-disclosure aria-controls="inner" '
+                  'aria-expanded="false">Details</button><div id="inner" hidden>' + save + '</div></div>')
+        for markup, openers in ((menu, ["menu"]), (nested, ["outer", "inner"])):
+            driver = self.driver(markup)
+            for trigger in ("click", "keyboard"):
+                reply = self.attempt(driver, trigger=trigger)
+                self.assertEqual([], reply["result"]["problems"], reply)
+                self.assertTrue(reply["result"]["focusCorrect"], reply)
+                self.assertEqual(openers, reply["result"]["observed"]["openers"])
+            driver.stop()
+
+    def test_unreachable_controls_and_opener_only_feedback_still_fail(self):
+        for markup, reason in (('<div hidden><button data-control-id="save">Save</button></div>', 'missing or hidden'),
+                               ('<button data-product-menu aria-controls="menu" aria-expanded="false">Actions</button>'
+                                '<div id="menu" hidden><button data-control-id="save">Save</button></div>', 'feedback did not change')):
+            driver = self.driver(markup)
+            reply = self.attempt(driver)
+            self.assertIn(reason, "\n".join(reply["result"]["problems"]), reply)
+            driver.stop()
+
+    def test_opener_exemption_does_not_allow_unrelated_product_focus(self):
+        driver = self.driver('<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
+            '<div id="editor" hidden><button data-control-id="save" '
+            'onclick="this.textContent += \' saved\'; document.querySelector(\'[data-control-id=thief]\').focus()">Save</button>'
+            '<button data-control-id="thief">Other</button></div>')
+        reply = self.attempt(driver)
+        self.assertEqual([], reply["result"]["problems"], reply)
+        self.assertFalse(reply["result"]["focusCorrect"], reply)
 
     def test_cross_page_state_observes_the_arrival_page_and_state(self):
         actions = copy.deepcopy(matrix_tests.INTERACTIONS)
