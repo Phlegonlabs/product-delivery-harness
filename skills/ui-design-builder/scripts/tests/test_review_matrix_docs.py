@@ -101,6 +101,8 @@ class ReviewMatrixDocsTests(unittest.TestCase):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, returns)
         self.assertIn("nobody captures those bytes again", evidence)
+        self.assertIn("A candidate gets one full matrix capture", read("references/review-workflow.md"))
+        self.assertIn("one repair batch of the kit and composition approach", read("references/review-workflow.md"))
 
 
 if __name__ == "__main__":

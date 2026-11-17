@@ -377,6 +377,9 @@ console.log("hybrid fallback and stale QA assertions completed");
         stage = self.read(UI_STAGE)
         pass_guide = self.read("references/ui-design-pass.md")
         self.assertIn("one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9", skill)
+        self.assertIn("ui-grading-rubric.md#review-budget", skill)
+        self.assertIn("reference/craft-floor.md", skill)
+        self.assertIn("asked at UI Design Intake", skill)
         self.assertNotIn("another failure stops at", skill)
         self.assertNotIn("second failed review stops at", pass_guide)
         for content in (skill, stage, pass_guide):
