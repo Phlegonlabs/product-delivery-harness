@@ -27,6 +27,8 @@ Access routes, in order: an existing connector or MCP tool, the official API, th
 | `platform_insights` | Followers, reach, views, opens, members, clicks and demographics from the social, video, newsletter or community platform the team runs | Product outcome; pair with ga4 or first_party at the destination |
 | `service_health` | Uptime, health-check results and error rates of an internal or backend service | Any discovery or growth signal |
 
+Before a site exists, `search_console`, `ga4`, `production_page` and the store consoles hold no data for the product. `first_party` can show audience language only from material the user authorized. `google_trends` and `public_serp` carry `demand_research`. `keyword_planner` joins them only when the project records access to an Ads account. Otherwise the map names it as unavailable and keeps demand `estimated` from Trends and the result pages.
+
 ## Search Console
 
 Use Search Console first for a web or docs surface when the property already has meaningful data. The Performance report and Search Analytics API expose clicks, impressions, CTR and average position across query, page, country, device, date and search appearance.
@@ -63,11 +65,13 @@ Use `platform_insights` for the social, video, newsletter and community accounts
 
 ## Google Trends And Keyword Planner
 
-Use Trends to test whether a change is seasonal, regional or market-wide and to compare related terms. It is sampled, normalized to 0–100 and not an absolute volume source. Use Keyword Planner to expand seed terms into ideas with historical estimates bound to language, location and network; `competition` is advertiser competition, not organic difficulty. The Google Ads API needs an Ads account, OAuth and a developer token that an external connector owns.
+Use Trends to test whether a change is seasonal, regional or market-wide and to compare related terms. It is sampled, normalized to 0–100 and not an absolute volume source. Before a site exists, compare the candidate terms of a cluster in the target market and language. The result shows relative interest only. Never turn it into a search volume. Use Keyword Planner only when the project records that access. Without it, do not quote a volume from memory or from another tool's guess. Use it to expand seed terms into ideas with historical estimates bound to language, location and network; `competition` is advertiser competition, not organic difficulty. The Google Ads API needs an Ads account, OAuth and a developer token that an external connector owns.
 
 ## Public Surfaces And Search Evidence
 
 Inspect representative production routes, listings, registry entries and account pages: the home page and primary landing pages, important templates, conversion pages, known weak or declining URLs, the live store listing per locale, the registry page and README, the bot's directory entry, and the account profile with its links. Review response codes, redirects, canonical host, robots directives, `noindex`, canonicals, sitemap, `hreflang`, rendered metadata and main content, structured data against visible content, 404/410 behavior, mobile rendering and Core Web Vitals for web; listing completeness, media, ratings and policy flags for stores; metadata, install command and version hygiene for registries; profile completeness and link destinations for accounts.
+
+For a query that is not yet served, the result page itself is the evidence. Record the query, market, language and retrieval date. Then read the page as [Reading Result Pages](review-method.md#reading-result-pages) states. Store search and registry search work the same way for listings and packages. This shows who ranks now and with what kind of page. It does not show how much demand a query has.
 
 A generic Lighthouse score is a clue, not a complete review. URL Inspection is stronger evidence for Google's indexed view of a specific URL when exact property access is available.
 

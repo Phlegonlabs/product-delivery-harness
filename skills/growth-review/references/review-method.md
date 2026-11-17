@@ -74,6 +74,26 @@ Prioritize qualitatively with business and audience fit, observed first-party de
 
 Rank blockers before growth experiments. Among non-blockers, prefer a strong existing-page or existing-listing opportunity over a speculative new program. Do not use a universal position band, volume floor, difficulty score, authority target or install threshold as a hard gate.
 
+## Evidence Before A Site Exists
+
+`demand_research` and `pre_launch` run before any first-party data. The Source Catalog says what each source can and cannot show at that point. Apply the labels this way:
+
+- `observed`: only what you read directly on a result page, listing or registry page on the retrieval date, such as who ranks and with what kind of page. Record the date.
+- `estimated`: a Trends comparison or a store's search-popularity index. It shows relative interest, never a volume.
+- `hypothesis`: what the result pages imply about demand, intent or effort. It needs first-party validation after launch.
+
+Never invent a volume, a rank or a competitor fact. A claim you cannot trace to a retrieved source is not written. Say the source was not available.
+
+### Reading Result Pages
+
+For each cluster, open the result page for two or more of its queries in the target market and language. Read only a public, unpersonalized result. Do not scrape at scale.
+
+1. Record who ranks: the host and its type, such as vendor, publisher, directory, forum or marketplace.
+2. Record the kind of page each result is: landing page, comparison, guide, tool, listing, category or documentation.
+3. Record result features that change the answer: answer box, video, map, store pack or an answer-engine citation.
+4. Compare the page kinds with the cluster's intent. If the results are all guides and the intent is `buy`, change the intent, the mapped page or the cluster.
+5. Judge whether one page of the product could answer the cluster as well as the results do. If not, set the cluster aside and record why.
+
 ## Pre-Launch Planning Sequence
 
 For `pre_launch`, production data does not exist yet. Build the plan per surface in this order:
