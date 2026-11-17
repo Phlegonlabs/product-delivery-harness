@@ -64,6 +64,12 @@ REFLOW_WIDTH_PX = 320
 SANDBOX = {"network": "disabled", "topNavigation": "allowlisted-local-pages",
            "popups": "blocked", "forms": "blocked"}
 TRANSCRIPT_KINDS = ("console", "network", "navigation", "popups", "forms")
+INTERACTIONS_UNOPENED = "page did not open, so its interactions were not observed"
+REVIEWER_UNOPENED = "page did not open, so its reviewer rows were not measured"
+
+
+def axis_unopened(axis):
+    return f"page did not open, so axis {axis} was not applied"
 
 
 class UsageError(Exception):
@@ -1293,7 +1299,7 @@ class Runner:
             self.run_reviewer()
 
     def open_page(self, page):
-        if self.aborted:
+        if self.aborted or page in self.unopened:       # a page that failed to open stays failed, in every later phase too
             return
         try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
@@ -1333,7 +1339,7 @@ class Runner:
                 for target in action["targets"] for trigger in TRIGGERS]
 
     def interaction_blocked(self, page):
-        return ("page did not open, so its interactions were not observed" if page in self.unopened
+        return (INTERACTIONS_UNOPENED if page in self.unopened
                 else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
 
     def run_interactions(self, page):
@@ -1383,12 +1389,54 @@ class Runner:
         worker.driver = driver
         worker.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
         worker.records, worker.axis_records, worker.interaction_records, worker.reviewer_records = {}, [], [], []
-        worker.page_reasons, worker.unopened = {}, set()
+        worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
         worker.restarts, worker.aborted, worker.active_axis = 0, False, None
         return worker
 
+    def adopt_unopened(self, failed):
+        """Record the pages another worker could not open ({page: reasons}) as a serial run would have: every row this
+        worker measured on such a page becomes the row an unopened page gives. A real failure keeps its own reasons."""
+        for page, reasons in failed.items():
+            if page in self.unopened:
+                continue
+            self.unopened.add(page)
+            self.page_reasons[page] = reasons
+            for record in [r for r in self.records.values() if r["page"] == page]:
+                self.unopen(record, "FAIL", reasons)
+            for record in [r for r in self.axis_records if r["page"] == page]:
+                self.unopen(record, "BLOCKED", [axis_unopened(record["axis"])])
+            for record in [r for r in self.interaction_records if r["page"] == page]:
+                self.unopen(record, "BLOCKED", [INTERACTIONS_UNOPENED])
+            for record in [r for r in self.reviewer_records if r["page"] == page]:
+                self.unopen(record, "BLOCKED", [REVIEWER_UNOPENED])
+
+    def unopen(self, record, result, reasons):
+        """Rewrite one row as its page not having opened. A PASS loses what it measured (and its capture file)."""
+        if record["result"] == "BLOCKED":
+            return
+        own = [r for r in record["reasons"] if r not in reasons] if record["result"] == "FAIL" else []
+        if record["result"] == "PASS":
+            if record.get("capture"):
+                (self.root / record["capture"]["path"]).unlink(missing_ok=True)
+            for key in ("geometry", "settle", "renderFingerprint", "capture", "carriedFrom", "visible", "focusCorrect",
+                        "arrived", "entry"):
+                if key in record:
+                    record[key] = None
+            for key in ("viewport", "sources", "reads"):
+                if key in record:
+                    record[key] = []
+            if "fingerprintIncomplete" in record:
+                record["fingerprintIncomplete"] = False
+            for key in ("pixelDiff", "observed"):
+                record.pop(key, None)
+        record["result"], record["reasons"] = result, list(reasons) + own
+
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
+        self.unopened |= worker.unopened
+        for page, reasons in worker.page_reasons.items():
+            if page in worker.unopened or page not in self.page_reasons:
+                self.page_reasons[page] = reasons
         self.records.update(worker.records)
         self.axis_records += worker.axis_records
         self.interaction_records += worker.interaction_records
@@ -1466,7 +1514,7 @@ class Runner:
 
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
-        blocked = f"page did not open, so axis {axis} was not applied" if page in self.unopened else None
+        blocked = axis_unopened(axis) if page in self.unopened else None
         if blocked is None and not self.aborted:
             try:
                 self.driver.call("axis", name=axis)
@@ -1607,7 +1655,7 @@ class Runner:
                   "reads": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = ("page did not open, so its reviewer rows were not measured" if page in self.unopened
+        blocked = (REVIEWER_UNOPENED if page in self.unopened
                    else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
         if blocked:
             record["result"] = "BLOCKED"
@@ -1727,13 +1775,20 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
     Phase one is every base case, interaction attempt and reviewer row, which depend on nothing. The axis passes
     follow, because the busiest state of a page comes from its measured base cases."""
     def phase(merged, items):
-        for worker in pool.run(partition(items, workers), merged.spawn):
+        shares = pool.run(partition(items, workers), merged.spawn)
+        failed = {}
+        for worker in shares:       # a page any worker could not open is unopened for all, with the first failure's reasons
+            for page in worker.unopened:
+                failed.setdefault(page, worker.page_reasons[page])
+        for worker in shares:
+            worker.adopt_unopened(failed)
             merged.fold(worker)
 
     phase(runner, runner.base_items(cases) + runner.reviewer_items())
     if runner.axes:
         phase(runner, runner.axis_items(cases))
     if intermediate_runner is not None:
+        intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
         phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
 
 

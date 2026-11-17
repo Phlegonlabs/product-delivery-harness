@@ -26,6 +26,7 @@ class TrackedDriver(base.FakeDriver):
         self.starts = self.stops = 0
         self.start_error = None
         self.case_error = None
+        self.open_error_after_restart = {}
 
     def start(self):
         self.starts += 1
@@ -34,6 +35,12 @@ class TrackedDriver(base.FakeDriver):
 
     def stop(self):
         self.stops += 1
+
+    def _open(self, fields):
+        error = self.open_error_after_restart.get(fields["page"])
+        if error and self.restarts:         # a restarted browser is a later phase's fresh one
+            raise error
+        return super()._open(fields)
 
     def _case(self, fields):
         if self.case_error:
@@ -77,10 +84,15 @@ def strip_times(value):
 
 
 def comparable(folder):
-    """What a run decided: no clocks, no worker count, no transcript lists (a parallel run loads pages more often)."""
+    """What a run decided: no clocks and no worker count. A parallel run loads each page once per browser that works on
+    it, so the console list can repeat a page-load row more often than a serial run's: it is compared as its distinct
+    rows. The network, popup and form lists hold only violations, so they are compared whole."""
     output, sidecar = load(folder)
     run = {k: v for k, v in strip_times(sidecar["run"]).items() if k != "workers"}
+    transcript = {"console": sorted({json.dumps(row, sort_keys=True) for row in output["console"]}),
+                  **{k: output[k] for k in ("network", "popups", "forms")}}
     result = {"output": {k: output[k] for k in ("matrix", "results", "interactions", "reviewer", "navigation")},
+              "transcript": transcript,
               "artifacts": sorted(a["path"] for a in output["execution"]["artifacts"] if not a["path"].endswith(m.SIDECAR_NAME)),
               "run": run, "sidecar": {k: strip_times(sidecar[k]) for k in ("cases", "axes", "interactions", "reviewer")}}
     if (folder / m.INTERMEDIATE_DIR).is_dir():
@@ -233,6 +245,53 @@ class FakeWorkersTests(unittest.TestCase):
                 code, summary, _ = fleet.go("--workers", value)
                 self.assertEqual((2, []), (code, fleet.drivers))
                 self.assertEqual("--workers must be from 1 to 4", summary["error"])
+
+    def test_a_page_one_worker_cannot_open_fails_the_whole_page_as_a_serial_run_does(self):
+        failing = {"all": True}
+
+        def configure(driver):
+            if failing["all"] or not fleet.drivers:
+                driver.open_error["index.html"] = m.DriverError("page did not load: index.html")
+
+        fleet = Fleet(self, configure)
+        extra = ("--only", "UI-001", "--axes", "dark")
+        serial_code, _, serial = fleet.go(*extra, out="docs/evidence/serial")
+        failing["all"], fleet.drivers = False, []
+        # three shares: the first holds five of the six cases (its open fails), the second the last case and the
+        # interaction attempts (its open succeeds), the third the reviewer pass
+        code, _, out = fleet.go(*extra, "--workers", "3", out="docs/evidence/parallel")
+        _, sidecar = load(out)
+        self.assertEqual((1, 1), (serial_code, code))
+        self.assertEqual(comparable(serial), relabel(comparable(out), "docs/evidence/parallel", "docs/evidence/serial"))
+        self.assertEqual(["FAIL"] * 6, [r["result"] for r in sidecar["cases"]])
+        self.assertTrue(all(r["reasons"][0].startswith("page did not open") and r["geometry"] is None and r["capture"] is None
+                            for r in sidecar["cases"]))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "index.html"})
+        self.assertEqual(["BLOCKED", "PASS"], [r["result"] for r in sidecar["reviewer"]])
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in sidecar["axes"]})
+        self.assertEqual(0, sum(d.count("axis") for d in fleet.drivers))       # the axis phase never reopened the page
+        self.assertEqual([], list(out.glob("*.png")))                           # no capture of a page that did not open
+
+    def test_a_page_that_fails_to_open_in_the_axis_phase_blocks_its_axis_rows_on_every_worker(self):
+        def configure(driver):
+            if not fleet.drivers:
+                driver.open_error_after_restart["index.html"] = m.DriverError("page did not load: index.html")
+
+        fleet = Fleet(self, configure)
+        code, _, out = fleet.go("--axes", "dark,forced-colors,reduced-motion", "--workers", "3")
+        output, sidecar = load(out)
+        axes = sidecar["axes"]
+        self.assertEqual(1, code)
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})       # the base phase had already passed
+        self.assertTrue(any(r["page"] == "index.html" for r in axes) and any(r["page"] == "details.html" for r in axes))
+        for row in axes:
+            if row["page"] == "index.html":
+                self.assertEqual(("BLOCKED", [m.axis_unopened(row["axis"])], None, None),
+                                 (row["result"], row["reasons"], row["capture"], row["geometry"]))
+            else:
+                self.assertEqual("PASS", row["result"])
+        kept = {r["capture"]["path"].rsplit("/", 1)[-1] for r in sidecar["cases"] + axes if r["capture"]}
+        self.assertEqual(kept, {p.name for p in out.glob("*.png")})                # a blocked row's capture file is gone
 
     def test_a_repeated_axis_is_refused_before_any_browser_starts_for_every_worker_count(self):
         for workers in ("1", "2", "4"):
