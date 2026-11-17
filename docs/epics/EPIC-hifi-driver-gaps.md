@@ -21,6 +21,8 @@ Owner, 2026-11-17: 「同意。你直接修改它，全部的問題。」.
 The second statement approved another Harness repair round, following the first round's GPT-6.1-Sol project thread.
 All other instructions and acceptance requirements come from the jolvex-platform Harness parent.
 That parent owns independent review and release.
+During this round, the parent approved adding the new exact runtime hash to the compiler allowlist.
+Both existing hashes and the altered-runtime rejection remain required.
 
 This writer commits locally on `hifi-driver-gaps` only.
 No delegation, model change, push, PR, tag, install or version bump is authorized.
@@ -44,6 +46,7 @@ Existing passing packages must keep passing.
 | G2 repeated selection | Driver, observation validation and two contracts | G1 commit `9e4d4509`; focused G2 tests | Chosen index is bounded by the visible count; inert selected controls still fail. Parent review pending. |
 | G3 data entry | Driver and two contracts | G2 commit `9ea7f18e`; focused field tests | User input retains source-change and focus proof. Parent review pending. |
 | G4 page recovery | Driver, matrix suites and two contracts | G3 commit `b7b3ac0d`; focused recovery tests | Failed pages remain failed; unrelated pages continue. Parent review pending. |
+| G1 compiler adoption | Exact runtime pin and historical-runtime regression fixture | G4 commit `fe0ff5db`; compiler compatibility suite | Preserve both older runtimes; reject modified bodies. Parent review pending. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -69,7 +72,7 @@ Consumer edits belong to the consumer author. This work changes no consumer byte
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / b7b3ac0d plus G4 candidate / scoped source files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / fe0ff5db plus G1 pin follow-up / scoped compiler files
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
