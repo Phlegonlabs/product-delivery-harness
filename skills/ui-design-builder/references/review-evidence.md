@@ -27,15 +27,21 @@ Keep receipts, inspected captures and source artifacts tracked when they are req
 
 ## Diagnostic Wave Completeness
 
-Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier. The independent browser reviewer verifies these receipts and samples their PASS rows under [Verify-Then-Sample Review](../../delivery-harness/references/runtime-adapters.md#verify-then-sample-review); it does not re-judge the matrix.
+Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier.
+
+The browser evidence is the author's last self-check matrix capture on the exact frozen bytes; nobody captures those bytes again ([Matrix Capture](matrix-capture.md)). The lead grader checks that the output's candidate and page SHA-256 values equal the frozen candidate, samples its PASS rows under [Verify-Then-Sample Review](../../delivery-harness/references/runtime-adapters.md#verify-then-sample-review), and builds the browser receipt from that output with `review_evidence.py`; it does not re-judge the matrix. Reviewers never run the matrix driver. The driver reruns on unchanged bytes only when the identities differ or a sampled row disagrees. The `a11y` sidecar measurements and the author's dispositions are `H4` and `H8` inputs; an undisposed measured failure is a finding.
 
 Complete observed FAIL results, low scores and fully observed defects may enter one consolidated repair batch under the existing write grant. Missing outputs, unscorable `BLOCKED` or `MISSING` rows, an absent H dimension, malformed captures or input drift block the handoff. These findings still fail strict final acceptance. None of this is a PASS or Visual Approval.
 
 Repair re-review follows [Repair Re-review Scope](ui-grading-rubric.md#repair-re-review-scope). Every receipt still binds current candidate bytes. A case carries forward only under [Render fingerprint carry-forward](output-contract.md#render-fingerprint-carry-forward). Do not rebind an earlier PASS to repaired bytes.
 
+## Return Check
+
+When a reviewer returns, the parent at once builds or validates its receipt with `review_evidence.py` and checks the packet's obligation list against the output. A missing obligation, a malformed output or a rejected receipt goes back to the same reviewer session to finish; that is the same attempt. No evidence-only, receipt-only or inspection-completion round exists after a verdict. When the host cannot continue the session, the parent dispatches only the missing obligation as one scoped call under the failed-slot rule in [Reporting And Reconciliation](ui-grading-rubric.md#reporting-and-reconciliation).
+
 ## Diff-first re-review
 
-In a repair re-review, diff each recaptured case against its capture under the last receipt. A geometry diff plus pixel diff within the recorded tolerance auto-records the row as `identical`: it keeps its earlier verdict and cites both captures and the diff value. The reviewer judges only flagged rows. A case with no earlier capture, a failed geometry scan or an unreadable capture is flagged.
+In the re-review, diff each recaptured case against its capture under the last receipt. A geometry diff plus pixel diff within the recorded tolerance auto-records the row as `identical`: it keeps its earlier verdict and cites both captures and the diff value. The reviewer's closure check judges only the flagged rows, one verdict per ledger row; interactions on changed pages are rechecked regardless, because a render fingerprint does not see behaviour. A case with no earlier capture, a failed geometry scan or an unreadable capture is flagged.
 
 Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect every case there, and a scan with zero findings is still not evidence.
 
