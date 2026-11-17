@@ -148,6 +148,9 @@ class RunSuiteTests(unittest.TestCase):
     def test_install_script_module_runs_serially(self) -> None:
         self.assertIn("test_install_script.py", SERIAL_FILES)
 
+    def test_gallery_browser_module_runs_alone_until_the_runtime_race_is_fixed(self) -> None:
+        self.assertIn("test_design_system_showcase.py", SERIAL_FILES)
+
 
 def _git_repo(root: Path) -> str:
     import subprocess

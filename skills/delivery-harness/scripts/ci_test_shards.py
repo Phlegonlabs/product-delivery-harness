@@ -52,10 +52,15 @@ NATIVE_FILES = (
 )
 
 
-# Modules that drive install.sh against the checkout and read its Git state
-# collide with concurrent modules; the local runner executes them after the
-# parallel batch, one at a time.
-SERIAL_FILES = ("test_install_script.py",)
+# Modules the runner executes after the parallel batch, one at a time.
+# test_install_script.py drives install.sh against the checkout and reads its
+# Git state, which collides with concurrent modules.
+# test_design_system_showcase.py opens the committed gallery in Chromium. The
+# gallery page marks a frame ready when the frame reports its size, and on a
+# loaded machine the first frame can report before the page listens; it then
+# never reports again. That is a defect in the gallery runtime, not in the
+# test, so the module runs alone until the runtime is fixed.
+SERIAL_FILES = ("test_install_script.py", "test_design_system_showcase.py")
 
 
 # Modules of these suites start headless Chromium. More than a few at once
