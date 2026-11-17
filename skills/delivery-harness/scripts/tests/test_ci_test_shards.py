@@ -121,6 +121,24 @@ class RunSuiteTests(unittest.TestCase):
             self.assertIn("flag missing", printed.getvalue().split("ui: 0 passed")[0])
             self.assertIn("--- test_env.py", printed.getvalue())
 
+    def test_browser_suites_cap_their_module_concurrency(self) -> None:
+        import contextlib
+        import io
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for folder in ("ui-design-builder", "product-definition-builder"):
+                tests = root / "skills" / folder / "scripts/tests"
+                tests.mkdir(parents=True)
+                (tests / "test_ok.py").write_text(_module(["    def test_ok(self):", "        pass"]), encoding="utf-8")
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(0, run_suite(root, "ui", 8, root / "ui-logs"))
+                self.assertEqual(0, run_suite(root, "product", 8, root / "product-logs"))
+            self.assertIn("ui: 1 passed, 0 failed", printed.getvalue())
+            self.assertRegex(printed.getvalue(), r"ui: .* with 3 workers")
+            self.assertRegex(printed.getvalue(), r"product: .* with 8 workers")
+
     def test_run_suite_rejects_zero_workers(self) -> None:
         from pathlib import Path
 

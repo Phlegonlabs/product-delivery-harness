@@ -58,6 +58,12 @@ NATIVE_FILES = (
 SERIAL_FILES = ("test_install_script.py",)
 
 
+# Modules of these suites start headless Chromium. More than a few at once
+# saturates an eight-core machine, so their module concurrency has a ceiling.
+BROWSER_SUITES = ("ui", "design-system")
+MAX_BROWSER_WORKERS = 3
+
+
 PYFLAKES_DIRS = tuple(
     f"skills/{name}/scripts"
     for name in ("delivery-harness", "product-definition-builder", "ui-design-builder", "design-system-compiler")
@@ -149,6 +155,8 @@ def run_suite(
     """
     if workers <= 0:
         raise CommandError("worker count must be positive")
+    if suite in BROWSER_SUITES:
+        workers = min(workers, MAX_BROWSER_WORKERS)
     names = files or [Path(name).name for name in discover_files(root, suite)]
     if not names:
         raise CommandError("discovery found no tests")

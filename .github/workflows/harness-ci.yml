@@ -196,13 +196,13 @@ jobs:
         env:
           PDH_REQUIRE_BROWSER_TESTS: "1"
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/node_modules/playwright
-        run: python skills/delivery-harness/scripts/ci_test_shards.py run --suite ui --workers 4
+        run: python skills/delivery-harness/scripts/ci_test_shards.py run --suite ui --workers 3
 
       - name: Run browser-capable Design System suite
         env:
           PDH_REQUIRE_BROWSER_TESTS: "1"
           PLAYWRIGHT_MODULE: ${{ github.workspace }}/node_modules/playwright
-        run: python skills/delivery-harness/scripts/ci_test_shards.py run --suite design-system --workers 4
+        run: python skills/delivery-harness/scripts/ci_test_shards.py run --suite design-system --workers 3
 
   golden-path:
     name: golden-path-linux
