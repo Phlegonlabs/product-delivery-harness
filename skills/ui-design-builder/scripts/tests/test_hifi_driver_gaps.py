@@ -52,6 +52,22 @@ class NavigationBrowserTests(unittest.TestCase):
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
 
+    def test_f1_field_activation_can_hide_the_source_before_entry(self):
+        transition = "document.__hifiReviewerRuntime.selectState('loading')"
+        for mode in ("activation", "entry", "inert"):
+            handler = ('onclick="' + transition + '" onkeydown="if(event.key===\' \'){'
+                       'event.preventDefault();' + transition + '}"') if mode == "activation" else (
+                       'oninput="' + transition + '"' if mode == "entry" else '')
+            driver = self.driver('<section data-hifi-state-view="ready" data-responsive-target="390">'
+                '<input data-control-id="save" value="draft" ' + handler + '></section>')
+            for trigger in ("click", "keyboard"):
+                with self.subTest(mode=mode, trigger=trigger):
+                    result = self.attempt(driver, kind="state", trigger=trigger,
+                        destination={"surface": "UI-002", "state": "loading"})["result"]
+                    self.assertEqual(mode == "inert", bool(result["problems"]), result)
+                    self.assertTrue(result["focusCorrect"], result)
+            driver.stop()
+
     def test_same_page_state_hashes_keep_the_existing_non_navigation_contract(self):
         actions = copy.deepcopy(matrix.INTERACTIONS)
         actions[0].update(kind="state", destination={"surface": "UI-001", "state": "loading"})

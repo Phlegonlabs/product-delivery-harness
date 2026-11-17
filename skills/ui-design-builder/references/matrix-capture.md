@@ -50,6 +50,8 @@ Feedback interactions keep their source surface and state. The driver compares s
 
 For a text input or textarea, activation enters a short probe value. For a select, it chooses a different enabled option. Keyboard activation starts from focus and types or uses arrow keys. Disabled and read-only fields fail. Entry alone never waives the required destination, focus or source-change proof.
 
+If clicking a field already applies its declared different destination, observe that arrival without entering more data into the hidden source.
+
 An equal-endpoint `state` attempt fails. An unselected legacy row does not block a diagnostic `--only` run; full static validation still rejects it.
 
 Empty navigation or control arrays create no interaction attempts. A PRD surface with `operations: none — <reason>` has both arrays empty and renders no product control. Its applicable state/target cases still run.

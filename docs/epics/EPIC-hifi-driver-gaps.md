@@ -48,6 +48,7 @@ Existing passing packages must keep passing.
 | G4 page recovery | Driver, matrix suites and two contracts | G3 commit `b7b3ac0d`; focused recovery tests | Failed pages remain failed; unrelated pages continue. Parent review pending. |
 | G1 compiler adoption | Exact runtime pin and historical-runtime regression fixture | G4 commit `fe0ff5db`; compiler compatibility suite | Preserve both older runtimes; reject modified bodies. Parent review pending. |
 | G1 event compatibility | Record same-document arrivals only for navigate attempts | Pin follow-up `48758372`; state-hash Chromium regression | Same-page state hashes retain their existing transcript contract. Exact navigation links still require arrival proof. |
+| F1 / G3 repair | Preserve a field activation that already reaches a different destination | Working-tree `test_f1_field_activation_can_hide_the_source_before_entry` | Focused regression exit 0; entry checks exit 0. Protected recheck pending. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -58,6 +59,21 @@ Only failure to start a fresh browser can block the worker.
 
 The driver remains one module because recovery owns its existing case, interaction and phase joins.
 The changed validator also retains its manifest and receipt joins. No unrelated split is needed.
+
+## Protected Review And Consolidated Repair
+
+The jolvex-platform Harness parent reports two protected GPT-6.1-Sol reviews of exact head `5247a3cb`.
+The reviewers used a `review_input.py` clone, with identity proved by its manifest.
+Both reviews returned FAIL; the consolidated findings are F1-G3, F2-G4, F3-G1 and F4-G1 below.
+The protected reviewers supplied the findings. The parent supplied these repair instructions and the one-commit-per-finding boundary.
+This is one consolidated repair round. A targeted protected recheck follows on its exact final head.
+
+| Finding / requirement | Repair and regression | Verification |
+| --- | --- | --- |
+| F1 / G3 | Preserve field clicks that already apply a different destination. `test_f1_field_activation_can_hide_the_source_before_entry` covers click, keyboard, entry-driven transitions and inert rejection. | Reproduced `locator.inputValue` timeout before repair; focused regression and entry checks exit 0. |
+| F2 / G4 | Carry exhausted page budgets into parallel intermediate work. | Pending. |
+| F3 / G1 | Persist the resolved arrival before reload. | Pending. |
+| F4 / G1 | Clear same-document arrival markers. | Pending. |
 
 ## Adoption Note
 
@@ -73,15 +89,15 @@ Consumer edits belong to the consumer author. This work changes no consumer byte
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / 48758372 plus G1 event repair / scoped driver files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / 5247a3cb plus F1 working tree / scoped driver, regression and contract files
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
 Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes G1-G4 local commits only
-Done and verified (command, exit code): focused G1-G4 suite exit 0, ten tests with Chromium; prior alignment and runtime suites exit 0
-Remaining: final verification and stable-package results in the external ledger; independent review and release
-Blocked / waiting (gate name or owner decision): no implementation blocker
-Next action (one command or one owner decision): verify the committed candidate, then parent reviews its exact head
+Done and verified (command, exit code): protected reviews FAIL on 5247a3cb; F1 regression and entry checks exit 0 after reproducing the failure
+Remaining: F2-F4 consolidated repair and fresh verification; targeted protected recheck and release
+Blocked / waiting (gate name or owner decision): protected recheck pending after repair
+Next action (one command or one owner decision): verify and commit F1, then repair F2
 Next owner (skill or human): this writer, then jolvex-platform Harness parent
 ```
 
@@ -89,3 +105,7 @@ Final command exits, process deadlines, stable-package results and the exact can
 `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-gaps-bd14cf1f4643457e8363c63a30161dd4/`.
 Use `commands.jsonl` and `verification.md`; earlier failed development checks stay in the ledger.
 No local test result constitutes independent review or consumer approval.
+
+Consolidated repair evidence is retained at:
+`C:/Users/mps19/AppData/Local/Temp/pdh-hifi-review-repair-2173cf2cffa149dab553015dec24a6d7/`.
+Its `commands.jsonl` and final `verification.md` preserve command exits, exact-head results and process cleanup.

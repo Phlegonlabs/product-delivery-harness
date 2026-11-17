@@ -473,11 +473,18 @@ async function interact(request) {
       observingNavigation = request.kind === 'navigate';
       if (field) {
         if (request.trigger !== 'keyboard') await handle.click({ timeout });
-        if (field === 'text') {
+        const arrivedAfterClick = request.trigger !== 'keyboard'
+          && (request.surface !== request.destination.surface || request.state !== request.destination.state)
+          && await page.evaluate(destination => {
+            const surface = Array.from(document.querySelectorAll('[data-ui-surface]'))
+              .find(el => el.dataset.uiSurface === destination.surface);
+            return Boolean(surface) && !surface.hidden && surface.dataset.hifiState === destination.state;
+          }, request.destination);
+        if (field === 'text' && !arrivedAfterClick) {
           const probe = await handle.inputValue() === 'HiFi probe' ? 'HiFi entry' : 'HiFi probe';
           await handle.press('ControlOrMeta+A', { timeout });
           await handle.pressSequentially(probe, { timeout });
-        } else {
+        } else if (field === 'select' && !arrivedAfterClick) {
           const option = await handle.evaluate(el => {
             const enabled = Array.from(el.options).map((o, index) => ({ o, index }))
               .filter(({ o }) => !o.disabled && !o.hidden && !o.closest('optgroup[disabled]'));
