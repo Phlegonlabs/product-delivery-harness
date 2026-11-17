@@ -63,7 +63,7 @@ This checks source identities, the approved Product package, manifest closure, U
 
 The intake must already be complete before `frontend-design` proposes a theme or Design Read. If it is missing, read `ui-design-intake.md`, ask the human owner the product-specific questions, end the turn, and wait. Reuse supplied answers; wait only on missing decisions.
 
-If the owner supplies a reference, read `design-reference-guide.md` and inspect it through the matching source route. Record `REF-*` sources and proposed `Adopt / Adapt / Avoid` `RP-*` principles, then end the turn for confirmation before creating a direction.
+If the owner supplies a reference or keeps a reference library, read `design-reference-guide.md` and inspect it through the matching source route. Record `REF-*` sources and proposed `Adopt / Adapt / Avoid` `RP-*` principles, then end the turn for confirmation before creating a direction.
 
 Use the existing Design Brief to connect the page-purpose/profile mapping, typography/density/headline constraints, motion intent, owner answer, reference lessons and visual constraints to Style Integration and MM records as decisions mature. An explicit `no references` answer permits relevant research and recommendations under `design-reference-guide.md`; it is not direction approval. Unanswered optional references stay `not supplied`, and inaccessible material stays uninspected. Continue independent work and wait only for work that depends on the missing input. Preserve answered preferences and unchanged enhancement directions.
 

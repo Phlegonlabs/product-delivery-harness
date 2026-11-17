@@ -8,17 +8,43 @@ References are evidence, not product authority. `PRD.md` owns product behavior a
 
 Treat a supplied reference as `design inspiration` unless the owner explicitly requests page-faithful conformance and names the scope and tolerance.
 
-Link supplied or inspected sources to the existing Design Brief with what the owner wants to learn, avoid and apply to specific UI surfaces. A useful source may be labeled for composition, typography, motion, or another bounded role; an avoid example records its concrete product reason. Keep owner preferences distinct from the agent's observations and proposed principles. A missing or inaccessible image, website or Figma view remains uninspected; record that limitation instead of inventing `REF-*` observations. A supplied reference is not permission to clone a page or change product/stack decisions. An explicit `no references` answer uses the research route below; do not treat an unanswered question as that answer.
+Link supplied or inspected sources to the existing Design Brief with what the owner wants to learn, avoid and apply to specific UI surfaces. A useful source may be labeled for composition, typography, motion, or another bounded role; an avoid example records its concrete product reason. Keep owner preferences distinct from the agent's observations and proposed principles. A missing or inaccessible image, website or Figma view remains uninspected; record that limitation instead of inventing `REF-*` observations. A supplied reference is not permission to clone a page or change product/stack decisions. An explicit `no references` answer uses the library and research route below; do not treat an unanswered question as that answer.
+
+## Owner Reference Library
+
+The owner may keep one folder of captured references across projects, outside any repository. The default path is `~/.agents/design-references/`; the owner may name another. [UI Design Intake](ui-design-intake.md) asks once whether one exists and records `Reference library: <path> | none` in the Design Brief. Later rounds reuse the answer.
+
+The folder holds image captures in collection subfolders and one `index.md` with a Markdown table, one row per capture, that the owner can edit by hand:
+
+```text
+| ID | File | SHA-256 | Source | Captured | Roles | Platform | Note |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| LIB-001 | fintech/ledger.png | <64 hex> | https://example.com/ledger | 2026-08-02 | layout, density | web | Learn: dense table, calm chrome. Avoid: the loud accent. |
+```
+
+`File` is relative to the folder. `Roles` are one or two of `layout`, `density`, `type`, `color`, `control`, `motion`, the board's roles. `Source` is `unknown` when not known. A motion entry keeps its short recording beside its still, under the same name. An image the owner dropped in without a row is still usable: the agent computes its SHA-256 and adds its row when it first uses the image, with `Note` set to `not supplied`.
+
+Before any web research for a board, read the index and propose the entries that fit the product's task and platform. Copy each chosen entry into `docs/design/directions/<round>/references/` and give it a `REF-*` record with the copy's path and SHA-256 as [Records](#records) show; its `Source` line reads `library LIB-001 (original: <URL>)`. If the copy's hash differs from the index, say so and record the copy's hash. A chosen entry counts toward the board, and research fills only the roles the library did not cover. The board count, role coverage and smaller-board exceptions are unchanged.
+
+A library entry is owner-supplied material and binds as an owner-supplied reference does. A stale entry, whose page is gone or whose capture predates the platform's current conventions, is still the owner's taste: say it is stale and keep it as a still. Library captures are for reference only; the cloning, license and page-faithful rules in this guide are unchanged.
+
+After Visual Approval, offer once to add the round's confirmed Adopt and Adapt references that are not yet in the library. Writing outside the repository needs the owner's yes in that turn, and a worker never writes the library without it. Copy the capture and add its index row; never overwrite, rename or delete a library entry.
+
+To see the library as one sheet, run `capture_sheet.py` with the folder as `--repo-root`, one row per collection and the sheet written inside the folder (so it also needs the owner's yes):
+
+```text
+python "<ui-design-builder-skill-root>/scripts/capture_sheet.py" --repo-root <library> --title "Reference library" --row <collection> <image> [<image> ...] [--row ...] --out library-sheet.html
+```
 
 ## Proactive Reference Research
 
 ### Reference Board
 
-Words cannot carry layout, spacing and type; pictures can. For a new visual scope (initial design, explicit full redesign, or an enhancement whose accepted delta changes the direction), gather a board of **9 to 12 captured references** before direction studies. Owner-supplied references count toward it. The direction and HiFi author works from the captures, so the prompt stays short.
+Words cannot carry layout, spacing and type; pictures can. For a new visual scope (initial design, explicit full redesign, or an enhancement whose accepted delta changes the direction), gather a board of **9 to 12 captured references** before direction studies. Owner-supplied references and chosen library entries count toward it. The direction and HiFi author works from the captures, so the prompt stays short.
 
-- Pick current public pages that match the product's task and platform, not a generic color collection.
+- Pick current public pages that match the product's task and platform, not a generic color collection. Research fills the roles the [library](#owner-reference-library) did not cover.
 - Between them, the entries cover layout and section structure, spacing and density, typography, color and surface, control treatment, and motion when a motion intent is in scope. Each entry names the one or two roles it is there for.
-- Each entry is a real inspected page at the relevant viewport and state, captured as a full-page screenshot under `docs/design/directions/<round>/references/`, with its path and SHA-256 in its `REF-*` record. A motion lesson also keeps a short recording there, with its own path and SHA-256, and one still frame from it; the still is the entry's image on the board sheet.
+- Each entry is a real inspected page (or a copied library capture) at the relevant viewport and state, captured as a full-page screenshot under `docs/design/directions/<round>/references/`, with its path and SHA-256 in its `REF-*` record. A motion lesson also keeps a short recording there, with its own path and SHA-256, and one still frame from it; the still is the entry's image on the board sheet.
 - A smaller board is allowed with its count and reason recorded: `Delivery profile: mvp` (floor of 5), an owner-named page-faithful target, or an owner who supplied a complete set. An enhancement that keeps the approved direction needs no board.
 - References set quality and feel; the design is this product's own. Two or more references may feed one direction; no direction copies one reference. An owner-named page-faithful target is the exception: it follows its recorded scope and tolerance.
 

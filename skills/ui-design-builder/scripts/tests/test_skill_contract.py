@@ -485,6 +485,26 @@ console.log("hybrid fallback and stale QA assertions completed");
             self.assertNotIn("complete revised direction set", document)
             self.assertNotIn("renewed complete study set", document)
 
+    def test_owner_reference_library_is_read_before_research_and_offered_after_approval(self):
+        guide = self.read("references/design-reference-guide.md")
+        intake = self.read("references/ui-design-intake.md")
+        stage = self.read(UI_STAGE)
+        template = self.read(UI_TEMPLATE)
+        section = guide.split("## Owner Reference Library", 1)[1].split("## Proactive Reference Research", 1)[0]
+        for phrase in ("~/.agents/design-references/", "`index.md`", "| ID | File | SHA-256 | Source | Captured | Roles | Platform | Note |",
+                       "Before any web research for a board, read the index",
+                       "research fills only the roles the library did not cover",
+                       "binds as an owner-supplied reference does",
+                       "After Visual Approval, offer once",
+                       "a worker never writes the library without it",
+                       "never overwrite, rename or delete a library entry",
+                       "capture_sheet.py"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, section)
+        self.assertIn("`Reference library: <path> | none`", intake)
+        self.assertIn("- Reference library:", template)
+        self.assertIn("owner-reference-library", stage)
+
     def test_hot_path_text_names_no_deleted_helper(self):
         for source in ("SKILL.md", UI_STAGE, "references/ui-design-pass.md", "references/review-evidence.md",
                        "references/ui-grading-rubric.md"):
