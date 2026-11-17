@@ -735,6 +735,53 @@ def _direction_study_identities(style: str, problems: list[str]) -> list[dict[st
 def _direction_studies(style: str, problems: list[str]) -> None:
     """ui-design/3: each compared direction is a rendered study with self-check."""
     _direction_study_identities(style, problems)
+    _variant_rows(style, problems)
+
+
+VARIANT_ID_RE = re.compile(r"VD-R(?P<round>[1-9][0-9]*)-[0-9]{2,}")
+
+
+def _variant_rows(style: str, problems: list[str]) -> list[list[str]]:
+    """The optional `### Variant round` rows: each new study, the previous-round study it is based on, its axis."""
+
+    if re.search(r"^### Variant round\s*$", style, re.MULTILINE) is None:
+        return []
+    rows = _design_table(style, "### Variant round", ["Direction", "Based on", "Axis"], problems)
+    compared = {row[0] for row in _design_table(style, "### Direction comparison", [
+        "Direction", "UI surface", "State", "Target", "Scenario", "Content basis", "Screenshot", "Rationale",
+    ], [])}
+    if {row[0] for row in rows} != compared or len(rows) != len(compared) or len(compared) != 3:
+        _add(problems, "Variant round must list each of the three compared directions once")
+    parents = {row[1] for row in rows}
+    if len(parents) != 1:
+        _add(problems, "Variant round must base every direction on the same previous-round direction")
+    if len({row[2].casefold() for row in rows}) != len(rows):
+        _add(problems, "Variant round must give each direction its own axis")
+    for direction, based_on, _ in rows:
+        current, parent = VARIANT_ID_RE.fullmatch(direction), VARIANT_ID_RE.fullmatch(based_on)
+        if parent is None or current is None or int(parent.group("round")) != int(current.group("round")) - 1:
+            _add(problems, f"Variant round {direction} must be based on a VD-R<round>-<number> direction of the previous round")
+    return rows
+
+
+def _resolve_variant_parent(style: str, repo_root: Path, problems: list[str]) -> None:
+    """A `Based on` direction must be a retained study of another round folder, not a claim."""
+
+    rows = _variant_rows(style, [])
+    if not rows:
+        return
+    current = {Path(study["path"]).parent for study in _direction_study_identities(style, [])}
+    retained: set[str] = set()
+    for path in sorted((repo_root / "docs/design/directions").glob("*/*.html")):
+        if Path(path.relative_to(repo_root).as_posix()).parent in current:
+            continue
+        match = direction_review.PROFILE_RE.search(path.read_text(encoding="utf-8", errors="replace"))
+        try:
+            retained.update(row["id"] for row in json.loads(match.group(1))["directions"]) if match else None
+        except (json.JSONDecodeError, KeyError, TypeError):
+            continue
+    for parent in sorted({row[1] for row in rows} - retained):
+        _add(problems, f"Variant round Based on {parent} is not a retained study of the previous round")
 
 
 def _direction_profile_scope_findings(
@@ -3413,6 +3460,7 @@ def _validate_impl(
         _direction_comparison(style, _section(active, "## UI Design Intake") or "", resolved_scope, problems, repo_root=root)
         if version == UI_CONTRACT_V3:
             _resolve_direction_studies(style, root, problems, scope=resolved_scope)
+            _resolve_variant_parent(style, root, problems)
 
     if approved_gate:
         product_matches = [
