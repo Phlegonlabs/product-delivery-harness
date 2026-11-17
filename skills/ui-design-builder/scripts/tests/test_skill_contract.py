@@ -505,6 +505,27 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("- Reference library:", template)
         self.assertIn("owner-reference-library", stage)
 
+    def test_board_principles_and_directions_reach_the_owner_in_one_turn(self):
+        guide = self.read("references/design-reference-guide.md")
+        pass_guide = self.read("references/ui-design-pass.md")
+        stage = self.read(UI_STAGE)
+        records = guide.split("## Records", 1)[1].split("## Direction Records", 1)[0]
+        for phrase in ("take no owner turn of their own",
+                       "designs the studies from the proposed principles, as proposals",
+                       "selects, mixes or rejects a direction in one reply",
+                       "opens no new round; a rejected set still starts a complete new round",
+                       "Under `Delivery profile: mvp` the one study carries the board and principles",
+                       "library entries and principles the owner already confirmed bind from the start",
+                       "still needs its scope and tolerance before authoring"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, records)
+        self.assertIn("with the board and the proposed principles it was authored from", pass_guide)
+        self.assertIn("reach the owner with the direction studies", stage)
+        for text in (guide, pass_guide, stage):
+            self.assertNotIn("end the turn for confirmation", text)
+            self.assertNotIn("until the owner confirms the principles", text)
+            self.assertNotIn("the owner has confirmed its principles", text)
+
     def test_hot_path_text_names_no_deleted_helper(self):
         for source in ("SKILL.md", UI_STAGE, "references/ui-design-pass.md", "references/review-evidence.md",
                        "references/ui-grading-rubric.md"):

@@ -48,7 +48,7 @@ Words cannot carry layout, spacing and type; pictures can. For a new visual scop
 - A smaller board is allowed with its count and reason recorded: `Delivery profile: mvp` (floor of 5), an owner-named page-faithful target, or an owner who supplied a complete set. An enhancement that keeps the approved direction needs no board.
 - References set quality and feel; the design is this product's own. Two or more references may feed one direction; no direction copies one reference. An owner-named page-faithful target is the exception: it follows its recorded scope and tolerance.
 
-Show the board to the owner as one page built with `capture_sheet.py`, together with the proposed Adopt / Adapt / Avoid principles, in the confirmation turn under [Records](#records). It adds no turn. Resolve `<ui-design-builder-skill-root>` as [Installed Commands](../../delivery-harness/references/installed-commands.md) states.
+Show the board to the owner as one page built with `capture_sheet.py`, together with the proposed Adopt / Adapt / Avoid principles and the direction studies, as [Records](#records) states. It adds no turn. Resolve `<ui-design-builder-skill-root>` as [Installed Commands](../../delivery-harness/references/installed-commands.md) states.
 
 ```text
 python "<ui-design-builder-skill-root>/scripts/capture_sheet.py" --repo-root . --title <text> --row <label> <image> [<image> ...] [--row ...] --out <html>
@@ -66,7 +66,7 @@ Use manual website search, owner-shared example links or screenshots, and any re
 
 For each chosen example, retain its URL, the original website URL when available through Visit Website or another link, the intended lesson and affected UI surface. Inspect the actual page, relevant viewport and state; for a motion lesson retain a short capture or a working source with an explicit capture limitation. If login, payment or access is unavailable, use inspectable owner-supplied material and state what remains uninspected. A directory listing or search snippet cannot become a confirmed `REF-*`.
 
-React Bits is a reusable React effect/component source; Anime.js is an animation engine. Compare their roles with the adopted stack and the [motion catalog](../../delivery-harness/references/option-library/motion.md). A liked example does not authorize copied code or an added dependency: check the selected item's license, source, actual dependencies and maintenance duties first. Propose scoped `RP-*` principles and use the existing owner-confirmation step below before designing from them.
+React Bits is a reusable React effect/component source; Anime.js is an animation engine. Compare their roles with the adopted stack and the [motion catalog](../../delivery-harness/references/option-library/motion.md). A liked example does not authorize copied code or an added dependency: check the selected item's license, source, actual dependencies and maintenance duties first. Propose scoped `RP-*` principles; the owner confirms them with the direction studies, as [Records](#records) states.
 
 Keep what was inspected, not only a description of it: every confirmed `REF-*` has its capture under `docs/design/directions/<round>/references/` with path and SHA-256, as the [Reference Board](#reference-board) states. A source that cannot be captured keeps its written record with the limitation stated and does not count toward the board.
 
@@ -103,7 +103,7 @@ Reason: [product-specific reason]
 Status: proposed | confirmed | rejected
 ```
 
-Show the proposed Adopt / Adapt / Avoid set, with the reference board when one was gathered, to the human owner and end the turn. Do not design from supplied or researched references until the owner confirms the principles. `Delivery profile: mvp` is the exception for a researched board: it takes no turn of its own. The author designs the one study from it as a proposal, presents the board and principles with that study, and the owner confirms them in the Visual Approval. References the owner supplied, and principles the owner already confirmed, bind from the start. Keep `RP-*` principles few: only what is adopted, adapted or avoided.
+The board and the proposed Adopt / Adapt / Avoid set take no owner turn of their own. The author designs the studies from the proposed principles, as proposals, and the owner sees the board, the principles and the studies together. On the standard profile the owner confirms or rejects each principle and selects, mixes or rejects a direction in one reply, the reply that also carries the journey set and font pairings under step 4 of the stage Workflow. A rejected principle that a selected study depends on is handled by that study's author in the mix-or-modify revision and opens no new round; a rejected set still starts a complete new round. Under `Delivery profile: mvp` the one study carries the board and principles, and the owner confirms them in the Visual Approval. References the owner supplied, library entries and principles the owner already confirmed bind from the start. An owner-named page-faithful target still needs its scope and tolerance before authoring. Keep `RP-*` principles few: only what is adopted, adapted or avoided.
 
 ## Direction Records
 

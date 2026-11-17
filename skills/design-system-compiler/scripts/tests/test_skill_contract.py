@@ -101,7 +101,7 @@ class DesignSystemCompilerSkillContractTests(unittest.TestCase):
 
         for marker in ("`REF-*`", "`RP-*`", "Adopt / Adapt / Avoid", "`VD-R<round>-<number>`"):
             self.assertIn(marker, references)
-        self.assertIn("end the turn for confirmation", ui_pass)
+        self.assertIn("the owner confirms them with the direction studies", ui_pass)
         self.assertIn("one product-specific direction", ui_pass)
         self.assertIn("Direction mode: one recommended direction", ui_pass)
         self.assertIn("this applies to `ui-design/3` and `ui-design/2` alike", ui_pass)
