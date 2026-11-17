@@ -31,6 +31,8 @@ Work through these in order and stop at the ones that genuinely apply to this pr
 8. **Pricing and business model baseline.** Published model and price reference points when the product has a commercial surface.
 9. **Category benchmarks.** Evidence for the goals and success measures named during discovery; use it when drafting targets and record missing evidence instead of inventing a benchmark.
 
+Search demand for a public surface is not assessed here; the keyword map in `stages/product-definition.md` step 8 covers it.
+
 ## Source Rules
 
 Apply `references/market-research-guide.md`'s Source Rules and confidence vocabulary unchanged: every claim carries a source URL, publisher, and retrieval date; prefer primary sources; record what could not be confirmed as `UNVALIDATED` with what was searched; never invent a competitor, price, user count, or market figure.
