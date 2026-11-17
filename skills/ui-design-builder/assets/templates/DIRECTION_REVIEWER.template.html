@@ -1,4 +1,4 @@
-<!-- Direction-study additions to the shared reviewer. The assembler installs both segments; do not copy them by hand. -->
+<!-- Direction-study additions to the shared reviewer, and the styles and script of the round comparison page. The assembler installs each segment where it belongs; do not copy them by hand. -->
 <!-- direction-reviewer:css:start -->
 <style data-direction-reviewer-css>
 [data-hifi-review-mode="direction"] [hidden]{display:none!important}
@@ -184,3 +184,206 @@
 })();
 </script>
 <!-- direction-reviewer:runtime:end -->
+
+
+<!-- direction-reviewer:compare-css:start -->
+<style data-direction-compare-css>
+[data-direction-compare]{margin:0;min-height:100vh;background:#e8ebf0;color:var(--review-ink);font:13px/1.5 var(--review-font)}
+[data-direction-compare] *{box-sizing:border-box}
+[data-direction-compare] [hidden]{display:none!important}
+[data-direction-compare] a{color:inherit;text-decoration:none}
+[data-direction-compare] button{font:inherit;color:inherit}
+[data-direction-compare] :focus-visible{outline:2px solid var(--review-focus);outline-offset:2px}
+[data-compare-bar]{position:sticky;top:0;z-index:2;display:flex;flex-wrap:wrap;align-items:center;gap:8px 28px;min-height:56px;padding:10px 24px;background:var(--review-shell);border-bottom:1px solid var(--review-line)}
+[data-compare-bar] h1{margin:0;font-size:15px;font-weight:600;line-height:1.3;letter-spacing:-.01em;overflow-wrap:anywhere}
+[data-compare-lead]{display:flex;align-items:center;gap:12px;min-width:0}
+[data-compare-nav]{display:flex;align-items:center;gap:12px;min-width:0}
+[data-compare-caption]{display:flex;align-items:baseline;gap:10px;min-width:0;overflow-wrap:anywhere}
+[data-compare-caption] b,[data-compare-open] b{font-weight:600;font-variant-numeric:tabular-nums}
+[data-compare-caption] span,[data-compare-open] span{color:var(--review-muted)}
+[data-compare-back],[data-compare-step]{display:inline-flex;align-items:center;justify-content:center;gap:4px;min-height:32px;border:1px solid var(--review-line);border-radius:6px;background:var(--review-surface);transition:background-color .12s ease,border-color .12s ease}
+[data-compare-back]{padding:0 12px 0 6px;font-weight:500}
+[data-compare-step]{width:32px;padding:0}
+[data-compare-back]:hover,[data-compare-step]:hover{border-color:#c7ced9;background:var(--review-hover)}
+[data-compare-steps]{display:flex;gap:6px}
+[data-compare-tools]{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin-left:auto}
+[data-compare-status]{margin:0;font-size:12px;color:var(--review-muted);font-variant-numeric:tabular-nums}
+[data-compare-seg]{display:inline-flex;gap:2px;padding:2px;border:1px solid var(--review-line);border-radius:8px;background:var(--review-surface)}
+[data-compare-seg] button{min-height:30px;padding:0 12px;border:0;border-radius:6px;background:transparent;color:var(--review-muted);font-weight:500;font-variant-numeric:tabular-nums;cursor:pointer;transition:background-color .12s ease,color .12s ease}
+[data-compare-seg] button:hover{background:var(--review-hover);color:var(--review-ink)}
+[data-compare-seg] button[aria-pressed="true"]{background:var(--review-accent-soft);color:var(--review-accent);font-weight:600}
+[data-compare-stage]{padding:28px 24px 40px}
+[data-compare-grid]{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:32px 28px;max-width:var(--compare-max,none);margin-inline:auto;align-items:start}
+[data-compare-study]{position:relative;display:grid;gap:12px;min-width:0}
+[data-compare-view]{position:relative;overflow:hidden;border-radius:8px;background:#fff;box-shadow:0 0 0 1px rgba(32,41,55,.14);transition:box-shadow .12s ease}
+[data-compare-view] iframe{position:absolute;left:0;top:0;display:block;border:0;background:#fff;transform-origin:0 0;pointer-events:none}
+[data-compare-full-view] iframe{pointer-events:auto}
+[data-compare-open]{display:flex;align-items:baseline;gap:10px;overflow-wrap:anywhere}
+[data-compare-open]::after{content:"";position:absolute;inset:0;border-radius:10px}
+[data-compare-open]:focus-visible{outline:0}
+[data-compare-open]:focus-visible::after{outline:2px solid var(--review-focus);outline-offset:4px}
+[data-compare-study]:hover [data-compare-view]{box-shadow:0 0 0 2px var(--review-accent)}
+[data-compare-full]{display:flex;justify-content:center}
+[data-compare-full-view]{flex:none}
+@media(max-width:640px){[data-compare-bar]{padding:10px 16px}[data-compare-stage]{padding:20px 16px 32px}[data-compare-tools]{margin-left:0}}
+@media(prefers-reduced-motion:reduce){[data-direction-compare] *{transition:none!important}}
+</style>
+<!-- direction-reviewer:compare-css:end -->
+<!-- direction-reviewer:compare-runtime:start -->
+<script id="direction-compare-runtime">
+(function(){
+  "use strict";
+  // A study is laid out as the shared reviewer's 236px sidebar beside a stage padded 24px; the frame hides the sidebar
+  // and keeps the stage, so the study shows as its own page does. SLACK keeps the study's scrollbar outside the frame.
+  const SIDE = 236, PAD = 24, SLACK = 24;
+
+  function connectDirectionCompare(options) {
+    const config = options || {};
+    const root = config.root || document;
+    const bar = root.querySelector("[data-compare-bar]");
+    const grid = root.querySelector("[data-compare-grid]");
+    const full = root.querySelector("[data-compare-full]");
+    const fullView = root.querySelector("[data-compare-full-view]");
+    if (!bar || !grid || !full || !fullView) return null;
+    if (root.__directionCompareRuntime) return root.__directionCompareRuntime;
+    const caseControls = Array.from(bar.querySelectorAll("[data-compare-case]"));
+    const targetControls = Array.from(bar.querySelectorAll("[data-compare-target]"));
+    const columns = Array.from(grid.querySelectorAll("[data-compare-study]"));
+    const lead = bar.querySelector("[data-compare-lead]");
+    const nav = bar.querySelector("[data-compare-nav]");
+    const status = bar.querySelector("[data-compare-status]");
+    const back = bar.querySelector("[data-compare-back]");
+    const previous = bar.querySelector("[data-compare-prev]");
+    const next = bar.querySelector("[data-compare-next]");
+    const captionId = bar.querySelector("[data-compare-caption] b");
+    const captionName = bar.querySelector("[data-compare-caption] span");
+    const studies = columns.map(column => ({
+      id: column.dataset.compareId, file: column.dataset.compareFile, column,
+      name: column.querySelector("[data-compare-open] span").textContent
+    }));
+    const cases = caseControls.map(control => {
+      const mine = targetControls.filter(target => target.dataset.compareOf === control.dataset.compareCase);
+      const widths = {};
+      for (const target of mine) widths[target.dataset.compareTarget] = Number(target.dataset.compareWidth);
+      return {id: control.dataset.compareCase, surface: control.dataset.compareSurface,
+        platform: control.dataset.comparePlatform, targets: mine.map(target => target.dataset.compareTarget), widths};
+    });
+    if (!studies.length || !cases.length) return null;
+    const win = root.defaultView || window;
+    let shown;
+
+    function read() {
+      const params = new URLSearchParams((win.location.hash || "").replace(/^#/, ""));
+      const active = cases.find(item => item.id === params.get("case")) || cases[0];
+      const target = active.targets.includes(params.get("target")) ? params.get("target") : active.targets[0];
+      return {case: active, target, width: active.widths[target], study: studies.find(item => item.id === params.get("study")) || null};
+    }
+    function hashFor(state, study) {
+      const params = new URLSearchParams({case: state.case.id, target: state.target});
+      if (study) params.set("study", study.id);
+      return "#" + params.toString();
+    }
+    function mount(view, file, state, label) {
+      let frame = view.querySelector("iframe");
+      if (!frame) {
+        frame = document.createElement("iframe");
+        // The sandbox grants scripts only: each study keeps an opaque origin and reads nothing from the page or the other studies.
+        frame.setAttribute("sandbox", "allow-scripts");
+        frame.setAttribute("tabindex", "-1");
+        view.append(frame);
+      }
+      frame.setAttribute("title", label);
+      const source = file + "#direction-case=" + encodeURIComponent(state.case.id) + "/" + encodeURIComponent(state.target);
+      if (frame.getAttribute("src") !== source) frame.setAttribute("src", source);
+      return frame;
+    }
+    function place(view, frame, width, height, scale) {
+      const shown = width + 2 * PAD;
+      view.style.width = Math.round(shown * scale) + "px";
+      view.style.height = Math.round(height * scale) + "px";
+      frame.style.width = (SIDE + shown + SLACK) + "px";
+      frame.style.height = height + "px";
+      frame.style.transform = `translate(${-SIDE * scale}px, 0) scale(${scale})`;
+    }
+    function fit() {
+      const state = read();
+      if (!state.study) {
+        const height = PAD + (state.width < 700 ? 720 : Math.round(state.width * 0.85));
+        // Narrow studies are not stretched: the row never grows past one natural-size window per study.
+        grid.style.setProperty("--compare-max", (studies.length * (state.width + 2 * PAD) + (studies.length - 1) * 28) + "px");
+        for (const study of studies) {
+          const view = study.column.querySelector("[data-compare-view]");
+          const scale = Math.min(1, study.column.clientWidth / (state.width + 2 * PAD));
+          place(view, view.querySelector("iframe"), state.width, height, scale);
+        }
+        return;
+      }
+      const scale = Math.min(1, (full.clientWidth || state.width + 2 * PAD) / (state.width + 2 * PAD));
+      const room = Math.max(320, win.innerHeight - fullView.getBoundingClientRect().top - 28);
+      const frame = fullView.querySelector("iframe");
+      if (frame) place(fullView, frame, state.width, room / scale, scale);
+      fullView.style.height = room + "px";
+    }
+    function render() {
+      const state = read();
+      for (const control of caseControls) control.setAttribute("aria-pressed", String(control.dataset.compareCase === state.case.id));
+      for (const control of targetControls) {
+        const mine = control.dataset.compareOf === state.case.id;
+        control.hidden = !mine;
+        control.setAttribute("aria-pressed", String(mine && control.dataset.compareTarget === state.target));
+      }
+      if (status) status.textContent = `${state.case.surface}, ${state.case.platform}, ${state.width}px`;
+      for (const study of studies) {
+        const view = study.column.querySelector("[data-compare-view]");
+        mount(view, study.file, state, study.id + " " + study.name);
+        study.column.querySelector("[data-compare-open]").setAttribute("href", hashFor(state, study));
+      }
+      const open = state.study;
+      grid.hidden = Boolean(open);
+      full.hidden = !open;
+      lead.hidden = Boolean(open);
+      nav.hidden = !open;
+      if (open) {
+        const index = studies.indexOf(open);
+        captionId.textContent = open.id;
+        captionName.textContent = open.name;
+        back.setAttribute("href", hashFor(state, null));
+        previous.setAttribute("href", hashFor(state, studies[(index + studies.length - 1) % studies.length]));
+        next.setAttribute("href", hashFor(state, studies[(index + 1) % studies.length]));
+        mount(fullView, open.file, state, open.id + " " + open.name);
+      } else {
+        fullView.replaceChildren();
+      }
+      fit();
+      // Entering or leaving a study moves focus with the person; stepping between studies keeps it on the step control.
+      if (shown !== undefined && Boolean(shown) !== Boolean(open)) (open ? back : shown.column.querySelector("[data-compare-open]")).focus();
+      shown = open;
+    }
+    function select(changes) {
+      const state = read();
+      const active = changes.case || state.case;
+      const target = changes.target || (changes.case ? active.targets[0] : state.target);
+      win.history.replaceState(null, "", hashFor({case: active, target}, state.study));
+      render();
+    }
+    for (const control of caseControls) control.addEventListener("click", () => select({case: cases.find(item => item.id === control.dataset.compareCase)}));
+    for (const control of targetControls) control.addEventListener("click", () => select({target: control.dataset.compareTarget}));
+    win.addEventListener("hashchange", render);
+    win.addEventListener("resize", fit);
+    if (typeof win.ResizeObserver === "function") new win.ResizeObserver(() => win.requestAnimationFrame(fit)).observe(grid);
+    root.addEventListener("keydown", event => {
+      const state = read();
+      if (event.key === "Escape" && state.study) {
+        event.preventDefault();
+        win.location.hash = hashFor(state, null);
+      }
+    });
+    render();
+    root.__directionCompareRuntime = {snapshot: read, select};
+    return root.__directionCompareRuntime;
+  }
+
+  window.connectDirectionCompare = connectDirectionCompare;
+})();
+</script>
+<!-- direction-reviewer:compare-runtime:end -->

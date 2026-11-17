@@ -12,10 +12,11 @@ import hashlib
 import json
 import math
 import re
-from html import escape
+from html import escape, unescape
 from html.parser import HTMLParser
 from typing import Any
 
+import check_wireframe_html
 import reviewer_shell
 import ui_design_v3
 
@@ -30,6 +31,13 @@ TARGET_FAMILIES = ("viewports", "sizeClasses")
 # A platform listed here has exactly one target family; other platforms declare theirs.
 PLATFORM_FAMILY = {"web": "viewports", "ios": "sizeClasses", "android": "sizeClasses"}
 STUDY_COUNTS = (1, 3)
+# A round of three studies also gets one comparison page; it is not a study and has no row in any table.
+COMPARE_FILE = "compare.html"
+COMPARE_RE = re.compile(
+    r'<script id="ui-direction-compare" type="application/json">([\s\S]*?)</script>'
+)
+# The page frames its sibling study files; everything else stays as closed as a study.
+COMPARE_CSP = check_wireframe_html.REQUIRED_HIFI_CSP.replace("frame-src 'none'", "frame-src 'self'")
 PROFILE_RE = re.compile(
     r'<script id="ui-direction-review" type="application/json">([\s\S]*?)</script>'
 )
@@ -61,6 +69,14 @@ def runtime_block(package: str) -> str:
         reviewer_shell.runtime_block() + "\n" + _segment("runtime") + "\n"
         + f'<script>connectDirectionReviewer({json.dumps({"packageId": package})})</script>'
     )
+
+
+def compare_style_block() -> str:
+    return _segment("compare-css")
+
+
+def compare_runtime_block() -> str:
+    return _segment("compare-runtime") + "\n<script>connectDirectionCompare()</script>"
 
 
 def package_id(profile: dict[str, Any]) -> str:
@@ -125,6 +141,8 @@ def profile_findings(profile: Any) -> list[str]:
         directions = directions if isinstance(directions, list) else []
     for index, row in enumerate(directions):
         label = f"directions[{index}]"
+        if isinstance(row, dict) and str(row.get("file")).casefold() == COMPARE_FILE:
+            problems.append(f"{label}.file cannot be {COMPARE_FILE}, which names the comparison page")
         if not isinstance(row, dict) or set(row) != {"id", "file", "sourceSha256"}:
             problems.append(f"{label} must contain exactly id, file and sourceSha256")
             continue
@@ -293,4 +311,115 @@ def assembled_study_findings(html: str, path: str) -> list[str]:
         problems.append(f"Direction study {path} must carry the exact shared runtime and direction shim once")
     problems.extend(ui_design_v3.study_html_findings(html, path, local_pages=study_files(profile)))
     problems.extend(f"Direction study {item}" for item in product_findings(html, path, profile))
+    return problems
+
+
+TITLE_RE = re.compile(r"<title[^>]*>([\s\S]*?)</title>", re.IGNORECASE)
+
+
+def study_name(html: str, file: str) -> str:
+    """The study's own <title>, or its filename stem when it has none."""
+
+    match = TITLE_RE.search(html)
+    name = " ".join(unescape(match.group(1)).split()) if match else ""
+    return name or file.rsplit(".", 1)[0]
+
+
+_CHEVRON = (
+    '<svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path d="{path}" fill="none" '
+    'stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+)
+
+
+def build_compare(profile: dict[str, Any], names: dict[str, str]) -> str:
+    """The comparison page body: one toolbar, then every study of the round side by side."""
+
+    directions, cases = profile["directions"], profile["cases"]
+    left, right = _CHEVRON.format(path="M10 3 5 8l5 5"), _CHEVRON.format(path="M6 3l5 5-5 5")
+    html = (
+        "<header data-compare-bar>\n"
+        f'<div data-compare-lead><h1>{escape(profile["round"])}</h1></div>\n'
+        f'<div data-compare-nav hidden><a href="#" data-compare-back>{left}Compare</a>'
+        "<p data-compare-caption><b></b><span></span></p>"
+        "<div data-compare-steps>"
+        f'<a href="#" data-compare-step data-compare-prev aria-label="Previous study">{left}</a>'
+        f'<a href="#" data-compare-step data-compare-next aria-label="Next study">{right}</a></div></div>\n'
+        '<div data-compare-tools>\n<p data-compare-status role="status"></p>\n'
+    )
+    # One case needs no switch, but the runtime still reads its surface and platform from a control.
+    html += '<div data-compare-seg role="group" aria-label="Review case"' + ("" if len(cases) > 1 else " hidden") + ">"
+    for index, case in enumerate(cases):
+        html += (
+            f'<button type="button" data-compare-case="{escape(case["id"])}" data-compare-surface="{escape(case["surface"])}" '
+            f'data-compare-platform="{escape(case["platform"])}" aria-pressed="{str(index == 0).lower()}">{escape(case["id"])}</button>'
+        )
+    html += '</div>\n<div data-compare-seg role="group" aria-label="Target width">'
+    for index, case in enumerate(cases):
+        for position, (target, width) in enumerate(case["widths"].items()):
+            label = _width_label(width) + "px" if case["targetFamily"] == "viewports" else escape(target)
+            html += (
+                f'<button type="button" data-compare-target="{escape(target)}" data-compare-of="{escape(case["id"])}" '
+                f'data-compare-width="{_width_label(width)}" aria-pressed="{str(index == 0 and position == 0).lower()}"'
+                f'{"" if index == 0 else " hidden"}>{label}</button>'
+            )
+    html += "</div>\n</div>\n</header>\n<main data-compare-stage>\n<div data-compare-grid>\n"
+    for row in directions:
+        html += (
+            f'<article data-compare-study data-compare-id="{escape(row["id"])}" data-compare-file="{escape(row["file"])}">'
+            "<div data-compare-view></div>"
+            f'<a href="#study={escape(row["id"])}" data-compare-open><b>{escape(row["id"])}</b>'
+            f'<span>{escape(names[row["file"]])}</span></a></article>\n'
+        )
+    return html + "</div>\n<section data-compare-full hidden><div data-compare-view data-compare-full-view></div></section>\n</main>"
+
+
+def _compare_data(profile: dict[str, Any], names: dict[str, str]) -> str:
+    encoded = json.dumps({"profile": profile, "names": names}, ensure_ascii=False, separators=(",", ":"))
+    return f'<script id="ui-direction-compare" type="application/json">{encoded}</script>'
+
+
+def render_compare(profile: dict[str, Any], names: dict[str, str]) -> str:
+    """One closed page that frames every study of a three-study round at the same case and width."""
+
+    return (
+        '<!doctype html>\n<html lang="en"><head><meta charset="utf-8">\n'
+        '<meta name="viewport" content="width=device-width,initial-scale=1">\n'
+        f'<meta http-equiv="Content-Security-Policy" content="{COMPARE_CSP}">\n'
+        f'<title>Compare studies, {escape(profile["round"])}</title>\n'
+        + reviewer_shell.shared_style_block() + "\n" + compare_style_block() + "\n"
+        + _compare_data(profile, names) + "\n</head>\n<body data-direction-compare>\n"
+        + build_compare(profile, names) + "\n" + compare_runtime_block() + "\n</body></html>\n"
+    )
+
+
+def assembled_compare_findings(html: str, path: str) -> list[str]:
+    """Strict profile for the comparison page: exactly what the assembler writes, and as closed as a study."""
+
+    blocks = COMPARE_RE.findall(html)
+    if len(blocks) != 1:
+        return [f"Comparison page {path} must embed exactly one comparison record"]
+    try:
+        record = json.loads(blocks[0])
+        profile, names = record["profile"], record["names"]
+        problems = [f"Comparison page {path}: {item}" for item in profile_findings(profile)]
+        named = (isinstance(names, dict) and not problems and len(profile["directions"]) == 3
+                 and set(names) == {row["file"] for row in profile["directions"]}
+                 and all(isinstance(value, str) and value for value in names.values()))
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return [f"Comparison page {path} embeds an unreadable comparison record"]
+    if problems:
+        return problems
+    if not named:
+        return [f"Comparison page {path} must name each of its three studies"]
+    if html != render_compare(profile, names):
+        return [f"Comparison page {path} must exactly match what the assembler writes for its record"]
+    parser = check_wireframe_html.ResourceParser()
+    parser.feed(html)
+    parser.close()
+    if parser.content_security_policies != [COMPARE_CSP]:
+        problems.append(f"Comparison page {path} requires exactly one CSP meta with the closed comparison policy")
+    if parser.link_tags or parser.css_imports or parser.external_resources or parser.external_css_resources:
+        problems.append(f"Comparison page {path} must not load linked, imported or external resources")
+    if parser.active_security_surfaces:
+        problems.append(f"Comparison page {path} must not contain active external or executable surfaces")
     return problems

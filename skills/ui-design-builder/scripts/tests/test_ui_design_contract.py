@@ -1926,5 +1926,70 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertEqual([], checker.validate_text(candidate, require_filled=True))
 
 
+class VariantRoundRecordTests(unittest.TestCase):
+    """`### Variant round`: three studies that each name the previous-round study they are based on, and an axis."""
+
+    @staticmethod
+    def style(parent="VD-R1-02", rows=None):
+        ids = ("VD-R2-01", "VD-R2-02", "VD-R2-03")
+        axes = ("layout", "typography", "color and surface")
+        rows = rows or [(d, parent, a) for d, a in zip(ids, axes)]
+        comparison = "".join(f"| {d} | UI-001 | ready | 390 | primary | copy | docs/design/directions/round-2/a.png @ sha256:{'a' * 64} | why |\n"
+                             for d in ids)
+        variants = "".join(f"| {d} | {b} | {a} |\n" for d, b, a in rows)
+        return ("### Direction comparison\n\n| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + comparison
+                + "\n### Variant round\n\n| Direction | Based on | Axis |\n| --- | --- | --- |\n" + variants
+                + "\n### Direction studies\n")
+
+    def test_a_variant_round_of_three_with_their_own_axes_passes(self):
+        problems = []
+        rows = checker._variant_rows(self.style(), problems)
+        self.assertEqual([], problems)
+        self.assertEqual(["layout", "typography", "color and surface"], [row[2] for row in rows])
+
+    def test_a_round_without_the_section_is_unchanged(self):
+        self.assertEqual([], checker._variant_rows(self.style().replace("### Variant round", "### Notes"), []))
+
+    def test_based_on_must_name_a_direction_of_the_previous_round(self):
+        for parent in ("VD-R2-02", "VD-R3-01", "VD-R0-01", "not-an-id"):
+            problems = []
+            checker._variant_rows(self.style(parent), problems)
+            self.assertTrue(any("must be based on a VD-R<round>-<number> direction of the previous round" in item
+                                for item in problems), parent)
+
+    def test_every_direction_shares_one_parent_and_has_its_own_axis(self):
+        mixed = self.style(rows=[("VD-R2-01", "VD-R1-01", "layout"), ("VD-R2-02", "VD-R1-02", "typography"),
+                                 ("VD-R2-03", "VD-R1-01", "color")])
+        problems = []
+        checker._variant_rows(mixed, problems)
+        self.assertIn("Variant round must base every direction on the same previous-round direction", [item.removeprefix("ui-design: ") for item in problems])
+        repeated = self.style(rows=[("VD-R2-01", "VD-R1-02", "layout"), ("VD-R2-02", "VD-R1-02", "Layout"),
+                                    ("VD-R2-03", "VD-R1-02", "color")])
+        problems = []
+        checker._variant_rows(repeated, problems)
+        self.assertIn("Variant round must give each direction its own axis", [item.removeprefix("ui-design: ") for item in problems])
+
+    def test_the_parent_must_be_a_retained_study_of_another_round_folder(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            previous = root / "docs/design/directions/round-1"
+            current = root / "docs/design/directions/round-2"
+            previous.mkdir(parents=True)
+            current.mkdir(parents=True)
+            profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": [],
+                       "directions": [{"id": f"VD-R1-0{n}", "file": f"vd-0{n}.html", "sourceSha256": "0" * 64} for n in (1, 2, 3)]}
+            (previous / "vd-02.html").write_text(
+                '<script id="ui-direction-review" type="application/json">' + json.dumps(profile) + "</script>", encoding="utf-8")
+            style = self.style() + ("| VD-R2-01 | docs/design/directions/round-2/vd-01.html @ sha256:" + "b" * 64 + " | a | a | pass |\n")
+            problems = []
+            checker._resolve_variant_parent(style, root, problems)
+            self.assertEqual([], problems)
+            problems = []
+            checker._resolve_variant_parent(self.style("VD-R1-09") + style.split("### Direction studies\n", 1)[1], root, problems)
+            self.assertEqual(["Variant round Based on VD-R1-09 is not a retained study of the previous round"],
+                             [item.removeprefix("ui-design: ") for item in problems])
+
+
 if __name__ == "__main__":
     unittest.main()
