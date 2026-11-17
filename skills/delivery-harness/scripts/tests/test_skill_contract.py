@@ -2093,11 +2093,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('-p "test_golden_path.py" -v', content)
         self.assertIn("PDH_REQUIRE_BROWSER_TESTS: \"1\"", content)
         self.assertIn("npx playwright install --with-deps chromium", content)
-        for suite in ("product-definition-builder", "design-system-compiler"):
-            self.assertIn(
-                f"unittest discover -s skills/{suite}/scripts/tests -v",
-                content,
-            )
+        for suite in ("product", "ui", "design-system"):
+            self.assertIn(f"ci_test_shards.py run --suite {suite} --workers 4", content)
         self.assertNotIn("skills/product-activation/scripts", content)
         self.assertNotIn("skills/seo-growth-review/scripts", content)
 
