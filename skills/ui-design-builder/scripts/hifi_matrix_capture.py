@@ -64,6 +64,12 @@ REFLOW_WIDTH_PX = 320
 SANDBOX = {"network": "disabled", "topNavigation": "allowlisted-local-pages",
            "popups": "blocked", "forms": "blocked"}
 TRANSCRIPT_KINDS = ("console", "network", "navigation", "popups", "forms")
+INTERACTIONS_UNOPENED = "page did not open, so its interactions were not observed"
+REVIEWER_UNOPENED = "page did not open, so its reviewer rows were not measured"
+
+
+def axis_unopened(axis):
+    return f"page did not open, so axis {axis} was not applied"
 
 
 class UsageError(Exception):
@@ -778,37 +784,47 @@ class NodeDriver:
         self._lines = queue.Queue()
         self._stderr = collections.deque(maxlen=20)
         self._seq = 0
+        self._lock, self._closed = threading.Lock(), False     # a closed driver never creates a process again
 
     def start(self):
         script = self.scratch / "driver.js"
         if not script.exists():
             script.write_text(DRIVER_JS, encoding="utf-8")
         self._lines = queue.Queue()
-        self.proc = subprocess.Popen(
-            [self.node, str(script), str(self.module)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
-        threading.Thread(target=self._pump, args=(self.proc.stdout, self._lines), daemon=True).start()
-        threading.Thread(target=self._pump, args=(self.proc.stderr, None), daemon=True).start()
+        with self._lock:        # close() waits here, so it either stops this process or stops this start
+            if self._closed:
+                raise DriverError("driver is closed")
+            proc = self.proc = subprocess.Popen(
+                [self.node, str(script), str(self.module)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
+        threading.Thread(target=self._pump, args=(proc.stdout, self._lines), daemon=True).start()
+        threading.Thread(target=self._pump, args=(proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
                           viewport={"width": 1920, "height": 1080}, colorScheme=self.color_scheme)
         self.environment = reply["result"]["environment"]
 
     def _pump(self, stream, sink):
         queue_out = sink
-        for line in stream:
-            if queue_out is not None:
-                queue_out.put(line)
-            else:
-                self._stderr.append(line.rstrip())
+        try:
+            for line in stream:
+                if queue_out is not None:
+                    queue_out.put(line)
+                else:
+                    self._stderr.append(line.rstrip())
+        except (ValueError, OSError):     # stop() closed the pipe under us
+            pass
         if queue_out is not None:
             queue_out.put(None)
 
     def call(self, op, timeout=CASE_TIMEOUT_S + 10, **fields):
         self._seq += 1
+        proc = self.proc
+        if proc is None:
+            raise DriverError("driver is not running")
         try:
             # id and op go last so a payload field of the same name cannot clobber the reply correlation.
-            self.proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
-            self.proc.stdin.flush()
+            proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
+            proc.stdin.flush()
         except OSError as error:
             raise DriverError("driver is not running: " + self._tail()) from error
         deadline = time.monotonic() + timeout
@@ -830,7 +846,8 @@ class NodeDriver:
         return " | ".join(self._stderr)[-400:] or "no driver output"
 
     def stop(self):
-        proc, self.proc = self.proc, None
+        with self._lock:
+            proc, self.proc = self.proc, None
         if proc is None:
             return
         try:
@@ -852,6 +869,13 @@ class NodeDriver:
     def restart(self):
         self.stop()
         self.start()
+
+    def close(self):
+        """Stop for good. A start or restart still creating its process either finishes first and is stopped here,
+        or finds the driver closed and creates nothing."""
+        with self._lock:
+            self._closed = True
+        self.stop()
 
 
 def kill_tree(proc):
@@ -1293,7 +1317,7 @@ class Runner:
             self.run_reviewer()
 
     def open_page(self, page):
-        if self.aborted:
+        if self.aborted or page in self.unopened:       # a page that failed to open stays failed, in every later phase too
             return
         try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
@@ -1333,7 +1357,7 @@ class Runner:
                 for target in action["targets"] for trigger in TRIGGERS]
 
     def interaction_blocked(self, page):
-        return ("page did not open, so its interactions were not observed" if page in self.unopened
+        return (INTERACTIONS_UNOPENED if page in self.unopened
                 else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
 
     def run_interactions(self, page):
@@ -1383,12 +1407,54 @@ class Runner:
         worker.driver = driver
         worker.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
         worker.records, worker.axis_records, worker.interaction_records, worker.reviewer_records = {}, [], [], []
-        worker.page_reasons, worker.unopened = {}, set()
+        worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
         worker.restarts, worker.aborted, worker.active_axis = 0, False, None
         return worker
 
+    def adopt_unopened(self, failed):
+        """Record the pages another worker could not open ({page: reasons}) as a serial run would have: every row this
+        worker measured on such a page becomes the row an unopened page gives. A real failure keeps its own reasons."""
+        for page, reasons in failed.items():
+            if page in self.unopened:
+                continue
+            self.unopened.add(page)
+            self.page_reasons[page] = reasons
+            for record in [r for r in self.records.values() if r["page"] == page]:
+                self.unopen(record, "FAIL", reasons)
+            for record in [r for r in self.axis_records if r["page"] == page]:
+                self.unopen(record, "BLOCKED", [axis_unopened(record["axis"])])
+            for record in [r for r in self.interaction_records if r["page"] == page]:
+                self.unopen(record, "BLOCKED", [INTERACTIONS_UNOPENED])
+            for record in [r for r in self.reviewer_records if r["page"] == page]:
+                self.unopen(record, "BLOCKED", [REVIEWER_UNOPENED])
+
+    def unopen(self, record, result, reasons):
+        """Rewrite one row as its page not having opened. A PASS loses what it measured (and its capture file)."""
+        if record["result"] == "BLOCKED":
+            return
+        own = [r for r in record["reasons"] if r not in reasons] if record["result"] == "FAIL" else []
+        if record["result"] == "PASS":
+            if record.get("capture"):
+                (self.root / record["capture"]["path"]).unlink(missing_ok=True)
+            for key in ("geometry", "settle", "renderFingerprint", "capture", "carriedFrom", "visible", "focusCorrect",
+                        "arrived", "entry"):
+                if key in record:
+                    record[key] = None
+            for key in ("viewport", "sources", "reads"):
+                if key in record:
+                    record[key] = []
+            if "fingerprintIncomplete" in record:
+                record["fingerprintIncomplete"] = False
+            for key in ("pixelDiff", "observed"):
+                record.pop(key, None)
+        record["result"], record["reasons"] = result, list(reasons) + own
+
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
+        self.unopened |= worker.unopened
+        for page, reasons in worker.page_reasons.items():
+            if page in worker.unopened or page not in self.page_reasons:
+                self.page_reasons[page] = reasons
         self.records.update(worker.records)
         self.axis_records += worker.axis_records
         self.interaction_records += worker.interaction_records
@@ -1466,7 +1532,7 @@ class Runner:
 
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
-        blocked = f"page did not open, so axis {axis} was not applied" if page in self.unopened else None
+        blocked = axis_unopened(axis) if page in self.unopened else None
         if blocked is None and not self.aborted:
             try:
                 self.driver.call("axis", name=axis)
@@ -1607,7 +1673,7 @@ class Runner:
                   "reads": [], "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = ("page did not open, so its reviewer rows were not measured" if page in self.unopened
+        blocked = (REVIEWER_UNOPENED if page in self.unopened
                    else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
         if blocked:
             record["result"] = "BLOCKED"
@@ -1712,12 +1778,21 @@ class DriverPool:
         return runners
 
     def close(self):
-        """Stop every driver, all at once, on every exit path."""
+        """Stop every driver, all at once, on every exit path.
+
+        A worker may still be inside start() or restart() when this runs, so the drivers are stopped a second
+        time once the worker threads have ended. A driver with a close() also refuses any later start."""
         self.cancel.set()
-        stoppers = [threading.Thread(target=driver.stop) for driver in self.drivers]
+        self.stop_all(lambda driver: getattr(driver, "close", driver.stop)())
+        for thread in self.threads:
+            thread.join(timeout=30)
+        self.stop_all(lambda driver: driver.stop())
+
+    def stop_all(self, stop):
+        stoppers = [threading.Thread(target=stop, args=(driver,)) for driver in self.drivers]
         for thread in stoppers:
             thread.start()
-        for thread in stoppers + self.threads:
+        for thread in stoppers:
             thread.join(timeout=30)
 
 
@@ -1727,13 +1802,20 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
     Phase one is every base case, interaction attempt and reviewer row, which depend on nothing. The axis passes
     follow, because the busiest state of a page comes from its measured base cases."""
     def phase(merged, items):
-        for worker in pool.run(partition(items, workers), merged.spawn):
+        shares = pool.run(partition(items, workers), merged.spawn)
+        failed = {}
+        for worker in shares:       # a page any worker could not open is unopened for all, with the first failure's reasons
+            for page in worker.unopened:
+                failed.setdefault(page, worker.page_reasons[page])
+        for worker in shares:
+            worker.adopt_unopened(failed)
             merged.fold(worker)
 
     phase(runner, runner.base_items(cases) + runner.reviewer_items())
     if runner.axes:
         phase(runner, runner.axis_items(cases))
     if intermediate_runner is not None:
+        intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
         phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
 
 
@@ -1960,6 +2042,9 @@ def execute(args, make_driver=node_driver):
     unknown = [a for a in axes if a not in AXES]
     if unknown:
         raise UsageError(f"unknown axis {unknown[0]}; choose from {', '.join(AXES)}")
+    repeated = [a for index, a in enumerate(axes) if a in axes[:index]]
+    if repeated:
+        raise UsageError(f"axis {repeated[0]} is repeated; name each axis once")     # two passes would share capture names
     for flag, value in (("--derived", args.derived), ("--ui-design", args.ui_design)):
         if value and not args.derived_once:
             raise UsageError(f"{flag} needs --derived-once")

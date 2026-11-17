@@ -6,9 +6,13 @@ Fake drivers for the logic, real Chromium for the output. Synthetic fixture page
 from __future__ import annotations
 
 import _thread
+import io
 import json
+import os
+import subprocess
 import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -26,6 +30,7 @@ class TrackedDriver(base.FakeDriver):
         self.starts = self.stops = 0
         self.start_error = None
         self.case_error = None
+        self.open_error_after_restart = {}
 
     def start(self):
         self.starts += 1
@@ -34,6 +39,12 @@ class TrackedDriver(base.FakeDriver):
 
     def stop(self):
         self.stops += 1
+
+    def _open(self, fields):
+        error = self.open_error_after_restart.get(fields["page"])
+        if error and self.restarts:         # a restarted browser is a later phase's fresh one
+            raise error
+        return super()._open(fields)
 
     def _case(self, fields):
         if self.case_error:
@@ -77,10 +88,15 @@ def strip_times(value):
 
 
 def comparable(folder):
-    """What a run decided: no clocks, no worker count, no transcript lists (a parallel run loads pages more often)."""
+    """What a run decided: no clocks and no worker count. A parallel run loads each page once per browser that works on
+    it, so the console list can repeat a page-load row more often than a serial run's: it is compared as its distinct
+    rows. The network, popup and form lists hold only violations, so they are compared whole."""
     output, sidecar = load(folder)
     run = {k: v for k, v in strip_times(sidecar["run"]).items() if k != "workers"}
+    transcript = {"console": sorted({json.dumps(row, sort_keys=True) for row in output["console"]}),
+                  **{k: output[k] for k in ("network", "popups", "forms")}}
     result = {"output": {k: output[k] for k in ("matrix", "results", "interactions", "reviewer", "navigation")},
+              "transcript": transcript,
               "artifacts": sorted(a["path"] for a in output["execution"]["artifacts"] if not a["path"].endswith(m.SIDECAR_NAME)),
               "run": run, "sidecar": {k: strip_times(sidecar[k]) for k in ("cases", "axes", "interactions", "reviewer")}}
     if (folder / m.INTERMEDIATE_DIR).is_dir():
@@ -101,6 +117,171 @@ def drop_clock_and_encoding(value):
     if isinstance(value, list):
         return [drop_clock_and_encoding(item) for item in value]
     return value
+
+
+def process_table():
+    """{pid: parent pid} of every process on the machine."""
+    if os.name == "nt":
+        command = ["powershell", "-NoProfile", "-Command",
+                   "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1}' -f $_.ProcessId, $_.ParentProcessId }"]
+    else:
+        command = ["ps", "-e", "-o", "pid=,ppid="]
+    table = {}
+    for line in subprocess.run(command, capture_output=True, text=True, timeout=120, check=False).stdout.splitlines():
+        parts = line.split()
+        if len(parts) == 2 and all(part.isdigit() for part in parts):
+            table[int(parts[0])] = int(parts[1])
+    return table
+
+
+def process_tree(pid):
+    """{pid: parent pid} for a process and everything below it: the Node driver and its Chromium."""
+    table = process_table()
+    tree, found = {pid: table.get(pid)}, True
+    while found:
+        found = False
+        for child, parent in table.items():
+            if parent in tree and child not in tree:
+                tree[child] = parent
+                found = True
+    return tree
+
+
+def survivors(trees):
+    """The recorded processes still running: same pid under the same parent, so a reused pid does not count."""
+    table = process_table()
+    return sorted(pid for tree in trees for pid, parent in tree.items() if table.get(pid) == parent and parent is not None)
+
+
+class ScriptedProcess:
+    """What Popen returns: it stays 'running' until the close request is written and waited for."""
+
+    def __init__(self):
+        self.pid, self.exited, self.killed = 0, False, False
+        self.stdin, self.stdout, self.stderr = self, io.StringIO(), io.StringIO()
+
+    def write(self, text):
+        return len(text)
+
+    def flush(self):
+        pass
+
+    def close(self):
+        pass
+
+    def poll(self):
+        return 0 if self.exited else None
+
+    def wait(self, timeout=None):
+        self.exited = True
+        return 0
+
+
+class InterruptDuringCreationTests(unittest.TestCase):
+    """close() lands while a start or restart is still inside Popen: the process it creates must still be stopped."""
+
+    def driver(self):
+        scratch = tempfile.TemporaryDirectory()
+        self.addCleanup(scratch.cleanup)
+        return m.NodeDriver("node", "playwright", {}, scratch.name)
+
+    def interrupt(self, driver, begin, processes):
+        entered, release = threading.Event(), threading.Event()
+        errors = []
+
+        def popen(*args, **kwargs):
+            entered.set()
+            release.wait(10)
+            return processes.pop(0)
+
+        def launch():
+            try:
+                begin()
+            except m.DriverError as error:
+                errors.append(error)
+
+        with mock.patch.object(m.subprocess, "Popen", popen):
+            starter = threading.Thread(target=launch)
+            starter.start()
+            self.assertTrue(entered.wait(10))
+            closer = threading.Thread(target=driver.close)
+            closer.start()
+            closer.join(0.3)
+            self.assertTrue(closer.is_alive(), "close() must wait for the process being created")
+            release.set()
+            starter.join(10)
+            closer.join(10)
+        self.assertFalse(starter.is_alive() or closer.is_alive())
+        return errors
+
+    def test_close_during_start_stops_the_process_the_start_creates(self):
+        driver, created = self.driver(), ScriptedProcess()
+        errors = self.interrupt(driver, driver.start, [created])
+        self.assertTrue(created.exited)
+        self.assertIsNone(driver.proc)
+        self.assertEqual(1, len(errors))        # the cancelled start ends with an error, not a live browser
+
+    def test_close_during_restart_stops_the_old_and_the_new_process(self):
+        driver, old, new = self.driver(), ScriptedProcess(), ScriptedProcess()
+        driver.proc = old
+        errors = self.interrupt(driver, driver.restart, [new])
+        self.assertTrue(old.exited and new.exited)
+        self.assertIsNone(driver.proc)
+        self.assertEqual(1, len(errors))
+
+    def test_a_closed_driver_creates_no_process(self):
+        driver = self.driver()
+        driver.close()
+        with mock.patch.object(m.subprocess, "Popen", side_effect=AssertionError("a closed driver started a process")):
+            with self.assertRaisesRegex(m.DriverError, "closed"):
+                driver.start()
+            with self.assertRaisesRegex(m.DriverError, "closed"):
+                driver.restart()
+
+    def test_the_pool_stops_a_driver_again_after_its_worker_has_ended(self):
+        entered, release = threading.Event(), threading.Event()
+
+        class SlowDriver:
+            """No close(): the pool can only stop it, once before and once after its worker thread ends."""
+            environment = {}
+
+            def __init__(self):
+                self.attached, self.stops = False, 0
+
+            def start(self):
+                entered.set()
+                release.wait(10)
+                self.attached = True            # the process only exists now, after the first stop
+
+            def stop(self):
+                self.stops += 1
+                self.attached = False
+
+            def restart(self):
+                self.stop()
+                self.start()
+
+        class Stub:
+            def __init__(self, driver):
+                self.driver, self.restarts, self.aborted, self.cancel = driver, 0, False, None
+
+            def run_items(self, items):
+                pass
+
+        with tempfile.TemporaryDirectory() as scratch:
+            drivers = []
+            pool = m.DriverPool(lambda *a, **k: drivers.append(SlowDriver()) or drivers[-1], None, None, scratch, "light")
+            runner = threading.Thread(target=lambda: pool.run([[1]], Stub), daemon=True)
+            runner.start()
+            self.assertTrue(entered.wait(10))
+            closer = threading.Thread(target=pool.close)
+            closer.start()
+            release.set()
+            closer.join(30)
+            runner.join(10)
+        self.assertFalse(closer.is_alive())
+        self.assertFalse(drivers[0].attached)       # what the late start attached was stopped again
+        self.assertGreaterEqual(drivers[0].stops, 2)
 
 
 class PartitionTests(unittest.TestCase):
@@ -178,11 +359,11 @@ class FakeWorkersTests(unittest.TestCase):
         self.assertEqual([1, 1], [d.starts for d in fleet.drivers])
         self.assertTrue(all(d.restarts == 1 for d in fleet.drivers if any(op == "axis" for op, _ in d.calls)))
 
-    def test_every_driver_is_stopped_once(self):
+    def test_every_driver_is_stopped(self):
         fleet = Fleet(self)
         fleet.go(*self.AXES, "--workers", "4")
         self.assertGreater(len(fleet.drivers), 1)
-        self.assertEqual([1] * len(fleet.drivers), [d.stops for d in fleet.drivers])
+        self.assertTrue(all(d.stops >= 1 for d in fleet.drivers))     # the pool stops each driver twice, to catch a late start
 
     def test_a_driver_that_raises_stops_them_all_and_the_error_surfaces(self):
         for error in (RuntimeError("worker blew up"), KeyboardInterrupt("worker blew up")):
@@ -194,7 +375,7 @@ class FakeWorkersTests(unittest.TestCase):
                 with self.assertRaisesRegex(type(error), "worker blew up"):
                     fleet.go("--workers", "3")
                 self.assertGreater(len(fleet.drivers), 1)
-                self.assertEqual([1] * len(fleet.drivers), [d.stops for d in fleet.drivers])
+                self.assertTrue(all(d.stops >= 1 for d in fleet.drivers))     # the pool stops each driver twice, to catch a late start
 
     def test_a_driver_that_cannot_start_fails_the_run_with_exit_2_and_all_are_stopped(self):
         def configure(driver):
@@ -204,7 +385,7 @@ class FakeWorkersTests(unittest.TestCase):
         code, summary, _ = fleet.go("--workers", "3")
         self.assertEqual(2, code)
         self.assertIn("browser could not start", summary["error"])
-        self.assertEqual([1] * len(fleet.drivers), [d.stops for d in fleet.drivers])
+        self.assertTrue(all(d.stops >= 1 for d in fleet.drivers))     # the pool stops each driver twice, to catch a late start
 
     def test_a_driver_out_of_restarts_blocks_only_its_own_share(self):
         def configure(driver):
@@ -233,6 +414,61 @@ class FakeWorkersTests(unittest.TestCase):
                 code, summary, _ = fleet.go("--workers", value)
                 self.assertEqual((2, []), (code, fleet.drivers))
                 self.assertEqual("--workers must be from 1 to 4", summary["error"])
+
+    def test_a_page_one_worker_cannot_open_fails_the_whole_page_as_a_serial_run_does(self):
+        failing = {"all": True}
+
+        def configure(driver):
+            if failing["all"] or not fleet.drivers:
+                driver.open_error["index.html"] = m.DriverError("page did not load: index.html")
+
+        fleet = Fleet(self, configure)
+        extra = ("--only", "UI-001", "--axes", "dark")
+        serial_code, _, serial = fleet.go(*extra, out="docs/evidence/serial")
+        failing["all"], fleet.drivers = False, []
+        # three shares: the first holds five of the six cases (its open fails), the second the last case and the
+        # interaction attempts (its open succeeds), the third the reviewer pass
+        code, _, out = fleet.go(*extra, "--workers", "3", out="docs/evidence/parallel")
+        _, sidecar = load(out)
+        self.assertEqual((1, 1), (serial_code, code))
+        self.assertEqual(comparable(serial), relabel(comparable(out), "docs/evidence/parallel", "docs/evidence/serial"))
+        self.assertEqual(["FAIL"] * 6, [r["result"] for r in sidecar["cases"]])
+        self.assertTrue(all(r["reasons"][0].startswith("page did not open") and r["geometry"] is None and r["capture"] is None
+                            for r in sidecar["cases"]))
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "index.html"})
+        self.assertEqual(["BLOCKED", "PASS"], [r["result"] for r in sidecar["reviewer"]])
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in sidecar["axes"]})
+        self.assertEqual(0, sum(d.count("axis") for d in fleet.drivers))       # the axis phase never reopened the page
+        self.assertEqual([], list(out.glob("*.png")))                           # no capture of a page that did not open
+
+    def test_a_page_that_fails_to_open_in_the_axis_phase_blocks_its_axis_rows_on_every_worker(self):
+        def configure(driver):
+            if not fleet.drivers:
+                driver.open_error_after_restart["index.html"] = m.DriverError("page did not load: index.html")
+
+        fleet = Fleet(self, configure)
+        code, _, out = fleet.go("--axes", "dark,forced-colors,reduced-motion", "--workers", "3")
+        output, sidecar = load(out)
+        axes = sidecar["axes"]
+        self.assertEqual(1, code)
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})       # the base phase had already passed
+        self.assertTrue(any(r["page"] == "index.html" for r in axes) and any(r["page"] == "details.html" for r in axes))
+        for row in axes:
+            if row["page"] == "index.html":
+                self.assertEqual(("BLOCKED", [m.axis_unopened(row["axis"])], None, None),
+                                 (row["result"], row["reasons"], row["capture"], row["geometry"]))
+            else:
+                self.assertEqual("PASS", row["result"])
+        kept = {r["capture"]["path"].rsplit("/", 1)[-1] for r in sidecar["cases"] + axes if r["capture"]}
+        self.assertEqual(kept, {p.name for p in out.glob("*.png")})                # a blocked row's capture file is gone
+
+    def test_a_repeated_axis_is_refused_before_any_browser_starts_for_every_worker_count(self):
+        for workers in ("1", "2", "4"):
+            with self.subTest(workers=workers):
+                fleet = Fleet(self)
+                code, summary, _ = fleet.go("--axes", "dark,reflow-320,dark", "--workers", workers)
+                self.assertEqual((2, []), (code, fleet.drivers))
+                self.assertEqual("axis dark is repeated; name each axis once", summary["error"])
 
     def test_carry_only_derived_diff_recapture_intermediate_and_dark_work_under_workers(self):
         fleet = Fleet(self)
@@ -314,38 +550,43 @@ class RealBrowserWorkersTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             package = base.build_interactions_package(root)
-            started = []
+            started, trees = [], []
             original = m.NodeDriver.start
 
             def spy(driver):
                 original(driver)
                 started.append(driver.proc)
+                trees.append(process_tree(driver.proc.pid))     # the Node driver and the Chromium below it
 
             with mock.patch.object(m.NodeDriver, "start", spy):
                 code, text = self.run_main(module, root, package, "--out", "docs/evidence/stop", "--workers", "2")
             self.assertEqual(0, code, text)
             self.assertEqual(2, len(started))
+            self.assertTrue(all(len(tree) > 1 for tree in trees), trees)     # a browser really was running
             self.assertTrue(all(proc.poll() is not None for proc in started))
-
+            self.assertEqual([], survivors(trees))
 
     def test_an_interrupt_in_the_main_thread_stops_every_driver(self):
         module = self.playwright()
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             package = base.build_interactions_package(root)
-            started = []
+            started, trees = [], []
             original = m.NodeDriver.start
 
             def spy(driver):
                 original(driver)
                 started.append(driver.proc)
+                trees.append(process_tree(driver.proc.pid))
                 if len(started) == 2:
                     _thread.interrupt_main()     # what Ctrl-C does, once every browser is up and working
 
             with mock.patch.object(m.NodeDriver, "start", spy), self.assertRaises(KeyboardInterrupt):
                 self.run_main(module, root, package, "--out", "docs/evidence/interrupt", "--workers", "2")
             self.assertEqual(2, len(started))
+            self.assertTrue(all(len(tree) > 1 for tree in trees), trees)
             self.assertTrue(all(proc.poll() is not None for proc in started))
+            self.assertEqual([], survivors(trees))
 
 
 if __name__ == "__main__":
