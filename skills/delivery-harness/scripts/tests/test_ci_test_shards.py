@@ -91,6 +91,36 @@ class RunSuiteTests(unittest.TestCase):
             )
             self.assertEqual(0, run_suite(root, "design-system", 2, log_dir))
 
+    def test_a_module_that_runs_zero_tests_fails(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tests = root / "skills/product-definition-builder/scripts/tests"
+            tests.mkdir(parents=True)
+            (tests / "test_empty.py").write_text("import unittest\n", encoding="utf-8")
+            log_dir = root / "logs"
+            self.assertEqual(1, run_suite(root, "product", 1, log_dir))
+            self.assertIn("ran zero tests", (log_dir / "test_empty.py.log").read_text(encoding="utf-8"))
+
+    def test_a_failing_module_prints_its_output_and_gets_the_step_environment(self) -> None:
+        import contextlib
+        import io
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            tests = root / "skills/ui-design-builder/scripts/tests"
+            tests.mkdir(parents=True)
+            (tests / "test_env.py").write_text(
+                _module(["    def test_env(self):", "        import os",
+                         "        self.assertEqual('1', os.environ.get('STEP_FLAG'), 'flag missing')"]),
+                encoding="utf-8",
+            )
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                self.assertEqual(1, run_suite(root, "ui", 1, root / "bad"))
+                self.assertEqual(0, run_suite(root, "ui", 1, root / "good", extra_env={"STEP_FLAG": "1"}))
+            self.assertIn("flag missing", printed.getvalue().split("ui: 0 passed")[0])
+            self.assertIn("--- test_env.py", printed.getvalue())
+
     def test_run_suite_rejects_zero_workers(self) -> None:
         from pathlib import Path
 
@@ -139,7 +169,9 @@ class MatrixTests(unittest.TestCase):
             [name for name, _, _ in steps],
         )
         by_name = {name: (command, env) for name, command, env in steps}
-        self.assertIsNone(by_name["harness"][0])
+        for name in ("harness", "product", "ui", "design-system"):
+            self.assertIsNone(by_name[name][0], f"{name} must run module-parallel")
+        self.assertEqual({}, by_name["product"][1])
         self.assertEqual({"HARNESS_GOLDEN_PATH": "1"}, by_name["golden_path"][1])
         for name in ("ui", "design-system"):
             self.assertEqual("1", by_name[name][1]["PDH_REQUIRE_BROWSER_TESTS"])
@@ -173,6 +205,20 @@ class MatrixTests(unittest.TestCase):
                 mock.patch.object(ci_test_shards, "run_suite", return_value=0):
             self.assertEqual(0, ci_test_shards.run_matrix(self.root, self.args(log)))
         self.assertEqual("result: pass", self.summary(log)[-1])
+
+    def test_a_suite_step_runs_module_parallel_in_its_own_log_directory_with_its_environment(self) -> None:
+        from unittest import mock
+
+        import ci_test_shards
+
+        log = Path(self._temp.name) / "suite"
+        steps = [("ui", None, {"PDH_REQUIRE_BROWSER_TESTS": "1"})]
+        with mock.patch.object(ci_test_shards, "matrix_steps", return_value=steps),                 mock.patch.object(ci_test_shards, "run_suite", return_value=0) as run_suite:
+            self.assertEqual(0, ci_test_shards.run_matrix(self.root, self.args(log)))
+        run_suite.assert_called_once_with(
+            self.root, "ui", 2, log / "ui", extra_env={"PDH_REQUIRE_BROWSER_TESTS": "1"},
+        )
+        self.assertTrue((log / "ui.log").is_file())
 
     def test_an_interrupted_run_says_so(self) -> None:
         from unittest import mock
