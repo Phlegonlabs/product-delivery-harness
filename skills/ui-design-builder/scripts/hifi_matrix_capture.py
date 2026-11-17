@@ -399,6 +399,9 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
       shadow: s.boxShadow, background: s.backgroundColor,
     });
     const settleTransitions = el => { getComputedStyle(el).outlineWidth; el.getAnimations().forEach(a => { try { a.finish(); } catch (_) {} }); };
+    // the Tab press that sets keyboard modality may have landed on a product control: read every "before" unfocused
+    const held = document.activeElement;
+    if (held && held !== document.body && held.blur) { held.blur(); settleTransitions(held); }
     for (const el of els) {
       if (!(native(el) || tabbable(el)) || disabled(el)) continue;
       const before = state(getComputedStyle(el));
