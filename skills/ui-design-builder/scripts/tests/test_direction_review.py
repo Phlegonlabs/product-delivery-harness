@@ -486,6 +486,8 @@ class DirectionAssemblyTests(unittest.TestCase):
 
         ids = {file: f"VD-R1-0{index}" for index, file in enumerate(FILES, 1)}
         ids["vd-04.html"] = "VD-R1-04"
+        for position, name in enumerate(names):
+            ids.setdefault(name, f"VD-R1-{10 + position}")
         rows = "".join(
             f"| {ids[name]} | docs/design/directions/round-1/{name} @ sha256:"
             f"{hashlib.sha256((self.out / name).read_bytes()).hexdigest()} | Author | Author | pass |\n" for name in names)
@@ -505,6 +507,26 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertEqual([], self.package_problems(("vd-02.html", "vd-03.html", "vd-01.html")))
         # A study missing from the table no longer matches the profile the page was assembled from.
         self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("vd-01.html", "vd-02.html"))))
+
+    def retained_round(self, files: tuple[str, ...]) -> None:
+        """Write studies for a profile the assembler would refuse today, as an older package already holds them."""
+
+        self.pages = {file: source_html(file[:-5]) for file in files}
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES), "directions": [
+            {"id": f"VD-R1-{10 + position}", "file": file,
+             "sourceSha256": hashlib.sha256(self.pages[file].encode("utf-8")).hexdigest()}
+            for position, file in enumerate(files)]}
+        self.out.mkdir(parents=True)
+        for file, html in self.pages.items():
+            (self.out / file).write_text(direction_review.render_study(profile, html, file), encoding="utf-8", newline="")
+
+    def test_a_round_of_several_cannot_skip_the_comparison_by_naming_a_study_compare_html(self) -> None:
+        self.retained_round(("compare.html", "b.html", "c.html"))
+        self.assertIn("must exactly match the page regenerated", " ".join(self.package_problems(("compare.html", "b.html", "c.html"))))
+
+    def test_a_retained_one_study_package_named_compare_html_still_passes(self) -> None:
+        self.retained_round(("compare.html",))
+        self.assertEqual([], self.package_problems(("compare.html",)))
 
     def one_study_profile(self) -> dict:
         self.pages = {"vd-04.html": source_html("vd-04")}
