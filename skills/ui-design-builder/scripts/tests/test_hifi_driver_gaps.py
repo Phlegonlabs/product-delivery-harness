@@ -2,6 +2,7 @@
 import copy
 import json
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 from unittest import mock
@@ -12,6 +13,7 @@ import test_ui_design_contract as contract
 import check_ui_design_contract as checker
 import hifi_matrix_capture as capture
 import test_hifi_matrix_capture_workers as workers
+import test_reviewer_browser as reviewer_tests
 
 
 class NavigateContractTests(unittest.TestCase):
@@ -174,6 +176,72 @@ class NavigationBrowserTests(unittest.TestCase):
                                  destination={"surface": "UI-001", "state": "ready"}, destination_page="index.html")
             self.assertEqual([], reply["result"]["problems"], reply)
             self.assertEqual("index.html", reply["result"]["arrivedTo"])
+
+
+REVIEWER_BROWSER = r"""
+const fs = require('fs'), path = require('path');
+const { chromium } = require(process.argv[3]);
+const BASE = 'https://hifi.invalid/pkg/';
+(async () => {
+  const browser = await chromium.launch({headless: true});
+  try {
+    const context = await browser.newContext();
+    await context.route('**/*', route => {
+      const url = new URL(route.request().url());
+      const name = url.pathname.slice('/pkg/'.length);
+      if (url.origin !== 'https://hifi.invalid' || !['index.html', 'details.html'].includes(name))
+        return route.abort();
+      return route.fulfill({status: 200, contentType: 'text/html', body: fs.readFileSync(path.join(process.argv[2], name))});
+    });
+    const page = await context.newPage();
+    page.setDefaultTimeout(3000);
+    const errors = [];
+    page.on('pageerror', error => errors.push(String(error)));
+    const open = name => page.goto(BASE + name);
+    const choose = (surface, state) => page.locator('[data-hifi-state-surface="' + surface + '"][data-hifi-state-control="' + state + '"]').click();
+    const expectState = (surface, state) => page.waitForFunction(([surface, state]) => {
+      const snapshot = document.__hifiReviewerRuntime.snapshot();
+      return snapshot.surface === surface && snapshot.productState === state;
+    }, [surface, state], {timeout: 3000});
+    __SCENARIO__
+    if (errors.length) throw Error(errors.join('\n'));
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+"""
+
+
+class ReviewerArrivalBrowserTests(unittest.TestCase):
+    playwright = alignment.OperationBrowserTests.playwright
+
+    def run_scenario(self, scenario):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            def manifest_edit(manifest):
+                manifest["surfaces"][0]["states"][-1] = "error"
+                manifest["interactions"] = copy.deepcopy(matrix.INTERACTIONS)
+            package = matrix.build_package(root, manifest_edit=manifest_edit, page_edit=lambda html:
+                html.replace('data-hifi-state-view="empty"', 'data-hifi-state-view="error"'))
+            result = reviewer_tests.run_browser_script(
+                [shutil.which("node"), "-", str(package), self.playwright()],
+                REVIEWER_BROWSER.replace("__SCENARIO__", scenario), 45)
+            self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
+    def test_f3_product_arrival_replaces_saved_selection_before_reload(self):
+        for fragment, state in (("", "ready"), ("#hifi-state=UI-002/ready", "ready"),
+                                ("#hifi-state=UI-002/loading", "loading")):
+            with self.subTest(fragment=fragment):
+                self.run_scenario("""
+                  await open('details.html');
+                  await choose('UI-002', 'error');
+                  await expectState('UI-002', 'error');
+                  await open('index.html');
+                  await page.locator('a[data-navigation-id="to-details"]').evaluate((link, href) => link.setAttribute('href', href),
+                    %s);
+                  await page.locator('a[data-navigation-id="to-details"]').click();
+                  await expectState('UI-002', %s);
+                  await page.reload();
+                  await expectState('UI-002', %s);
+                """ % (json.dumps("details.html" + fragment), json.dumps(state), json.dumps(state)))
 
 
 class PageRecoveryTests(unittest.TestCase):

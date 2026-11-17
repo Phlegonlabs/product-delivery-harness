@@ -66,6 +66,8 @@ Repeated control IDs may appear on multiple rows. The driver prefers the first u
 
 `navigate` also accepts that exact state anchor, including on the same page. A bare page link is valid only for the destination surface's first applicable state. Every instance is checked. The driver observes arrival page, surface, state and URL. The reviewer applies the arrival fragment first; product navigation without one uses the destination default, independent of stored selections.
 
+The reviewer saves the resolved arrival surface and state. Reload must retain that arrival rather than revive an older saved state.
+
 ## Reviewer object
 
 `hifi_reviewer.reviewer_contract` derives the expected viewport and specimen rows from the package bytes, and the run measures every row in that order. Each page is opened again from scratch (the reviewer's stored selections are cleared first), so the entry observations and the specimen source reads happen at the default target, surface and state. Only reviewer shell controls are clicked; the pass never touches a product control, and its fresh opens are not navigation attempts.

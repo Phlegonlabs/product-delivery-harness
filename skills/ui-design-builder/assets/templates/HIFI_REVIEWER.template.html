@@ -433,6 +433,8 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       }
     });
     restoreRequestedState();
+    if (productArrival && runtime.snapshot().productState !== null)
+      runtime.selectState(runtime.snapshot().productState);
     if (typeof window === "object" && window.addEventListener) window.addEventListener("hashchange", () => {
       restoreRequestedState();
       apply({focus: true});

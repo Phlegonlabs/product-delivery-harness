@@ -50,6 +50,7 @@ Existing passing packages must keep passing.
 | G1 event compatibility | Record same-document arrivals only for navigate attempts | Pin follow-up `48758372`; state-hash Chromium regression | Same-page state hashes retain their existing transcript contract. Exact navigation links still require arrival proof. |
 | F1 / G3 repair | Preserve a field activation that already reaches a different destination | Working-tree `test_f1_field_activation_can_hide_the_source_before_entry` | Focused regression exit 0; entry checks exit 0. Protected recheck pending. |
 | F2 / G4 repair | Inherit base page budgets before parallel intermediate dispatch | F1 commit `e86d6754`; `test_f2_exhausted_page_stays_blocked_when_intermediate_work_changes_workers` | Regression and all 27 worker tests exit 0. Protected recheck pending. |
+| F3 / G1 repair | Save the resolved product arrival before reload; refresh the current runtime pin and digest fixture | F2 commit `96ff70eb`; `test_f3_product_arrival_replaces_saved_selection_before_reload` | Browser regression and seven compiler compatibility tests exit 0. Both historical runtimes and altered-body rejection remain covered. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -73,12 +74,14 @@ This is one consolidated repair round. A targeted protected recheck follows on i
 | --- | --- | --- |
 | F1 / G3 | Preserve field clicks that already apply a different destination. `test_f1_field_activation_can_hide_the_source_before_entry` covers click, keyboard, entry-driven transitions and inert rejection. | Reproduced `locator.inputValue` timeout before repair; focused regression and entry checks exit 0. |
 | F2 / G4 | Carry exhausted page budgets into parallel intermediate work. `test_f2_exhausted_page_stays_blocked_when_intermediate_work_changes_workers` moves source-page cases across workers 0 and 1. | Pre-repair intermediate PASS reproduced; repaired source rows are BLOCKED and the other page passes. Regression and worker suite exit 0. |
-| F3 / G1 | Persist the resolved arrival before reload. | Pending. |
+| F3 / G1 | Persist the resolved arrival before reload. `test_f3_product_arrival_replaces_saved_selection_before_reload` covers bare, default-fragment and different-fragment arrivals. | Bare arrival/reload failed before repair; all cases and seven compiler compatibility tests now exit 0. |
 | F4 / G1 | Clear same-document arrival markers. | Pending. |
 
 ## Adoption Note
 
 Consumer edits belong to the consumer author. This work changes no consumer bytes.
+F3 and F4 require the final repaired runtime, even if an earlier candidate runtime was copied.
+The current compiler fixture pins that runtime's exact digest; the frozen 0.87.0 fixture preserves the two historical runtimes.
 
 | Requirement | Required adoption and evidence-package example |
 | --- | --- |
@@ -90,15 +93,15 @@ Consumer edits belong to the consumer author. This work changes no consumer byte
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / e86d6754 plus F2 working tree / scoped driver, regression and contract files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / 96ff70eb plus F3 working tree / scoped runtime, pin, fixture and regression files
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
 Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes G1-G4 local commits only
-Done and verified (command, exit code): protected reviews FAIL on 5247a3cb; F1 regression and entry checks exit 0; F2 regression and 27 worker tests exit 0
-Remaining: F3-F4 consolidated repair and fresh verification; targeted protected recheck and release
+Done and verified (command, exit code): protected reviews FAIL on 5247a3cb; F1 and F2 checks exit 0; F3 browser regression and seven compiler compatibility tests exit 0
+Remaining: F4 repair and fresh verification; targeted protected recheck and release
 Blocked / waiting (gate name or owner decision): protected recheck pending after repair
-Next action (one command or one owner decision): verify and commit F2, then repair F3
+Next action (one command or one owner decision): verify and commit F3, then repair F4
 Next owner (skill or human): this writer, then jolvex-platform Harness parent
 ```
 

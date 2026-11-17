@@ -137,7 +137,9 @@ class SurfaceStaticTests(unittest.TestCase):
 
     def test_supported_runtime_pin_is_the_canonical_template_runtime(self):
         body = re.search(r'<script id="hifi-reviewer-runtime">([\s\S]*?)</script>', fixture.REVIEWER_RUNTIME).group(1)
-        self.assertIn(hashlib.sha256(body.encode()).hexdigest(), surface_adapter.SUPPORTED_REVIEWER_RUNTIMES)
+        expected = (TESTS / "fixtures/reviewer-runtime-current.sha256").read_text(encoding="utf-8").strip()
+        self.assertEqual(expected, hashlib.sha256(body.encode()).hexdigest())
+        self.assertIn(expected, surface_adapter.SUPPORTED_REVIEWER_RUNTIMES)
 
     def test_pre_disclosure_runtime_stays_supported_but_edits_fail(self):
         previous = (TESTS / "fixtures/reviewer-runtime-0.87.0.html").read_text(encoding="utf-8")
