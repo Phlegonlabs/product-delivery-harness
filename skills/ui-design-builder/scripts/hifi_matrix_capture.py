@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
-"""Capture a HiFi surface x state x target matrix and its product interactions in one offline browser session.
+"""Capture a HiFi surface x state x target matrix and its product interactions in offline browser sessions.
 
-Each page loads once. Targets and states change through the real reviewer shell
-controls, never by reloading. The matrix pass clicks no product control; the
-interaction pass then clicks and keyboard-activates every manifest interaction
-at every source target. Output: one PNG per case, ``ui-output.json``
+One browser is the default; ``--workers N`` splits the work over up to N. A
+browser loads a page once for each run of cases on it; every interaction attempt
+and reviewer pass starts from a fresh load. Targets and states change through
+the real reviewer shell controls, never by reloading between cases. The matrix pass
+clicks no product control; the interaction pass then clicks and
+keyboard-activates every manifest interaction at every source target. Output:
+one PNG per case, ``ui-output.json``
 (``ui-output/3``: matrix, ``interactions`` rows, ``navigation`` events and the
 ``reviewer`` object) and ``matrix-capture.json`` (per-case fingerprints,
 geometry, carried rows, axis runs, interaction records and reviewer
@@ -54,6 +57,7 @@ SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
 CASE_TIMEOUT_S = 30
 MAX_RESTARTS = 3
+MAX_WORKERS = 4         # one headless Chromium each; more than this overloads a laptop
 OVERFLOW_TOLERANCE_PX = 1
 WIDTH_TOLERANCE_PX = 1
 REFLOW_WIDTH_PX = 320
@@ -1258,6 +1262,7 @@ class Runner:
         self.restarts, self.aborted, self.active_axis = 0, False, None
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
         self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
+        self.cancel = None      # a threading.Event a parallel run sets to stop every worker between items
 
     # events: base-case events join the transcript; axis-case events only decide that case
     def absorb(self, events, page, keep=True):
@@ -1287,43 +1292,109 @@ class Runner:
         if not self.intermediate:
             self.run_reviewer()
 
+    def open_page(self, page):
+        if self.aborted:
+            return
+        try:
+            reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
+            self.page_reasons[page] = ["page load: " + r for r in self.absorb(reply["events"], page)]
+        except DriverError as error:
+            self.unopened.add(page)
+            self.page_reasons[page] = [f"page did not open: {error}"] + ["page load: " + r for r in self.absorb(error.events, page)]
+            if isinstance(error, DriverTimeout):
+                self.recover(page)
+
     def run_page(self, page, cases):
-        if not self.aborted:
-            try:
-                reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
-                self.page_reasons[page] = ["page load: " + r for r in self.absorb(reply["events"], page)]
-            except DriverError as error:
-                self.unopened.add(page)
-                self.page_reasons[page] = [f"page did not open: {error}"] + ["page load: " + r for r in self.absorb(error.events, page)]
-                if isinstance(error, DriverTimeout):
-                    self.recover(page)
+        self.open_page(page)
         for case in cases:
             self.records[case.key] = self.observe(case)
-        if self.axes:
-            rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
-                    and any(c.surface == row["id"] for c in cases)]
-            counts = {}
-            for case in cases:
-                geometry = self.records[case.key].get("geometry")
-                if geometry:
-                    counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
-            sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
-            for axis in self.axes:
-                picked = reflow_axis_cases(rows, sampled, self.package.widths[page]) if axis == "reflow-320" else sampled
-                self.run_axis(page, axis, picked)
+        for axis, picked in self.axis_picks(page, cases):
+            self.run_axis(page, axis, picked)
         self.run_interactions(page)
+
+    def axis_picks(self, page, cases):
+        """(axis, sampled cases) for one page, sampled from the geometry its base cases measured."""
+        if not self.axes:
+            return []
+        rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
+                and any(c.surface == row["id"] for c in cases)]
+        counts = {}
+        for case in cases:
+            geometry = self.records[case.key].get("geometry")
+            if geometry:
+                counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
+        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
+        return [(axis, reflow_axis_cases(rows, sampled, self.package.widths[page]) if axis == "reflow-320" else sampled)
+                for axis in self.axes]
+
+    def interaction_attempts(self, page):
+        """(action, target, trigger) for every selected manifest interaction at every source target."""
+        return [(action, target, trigger) for action in self.interactions if action["page"] == page
+                for target in action["targets"] for trigger in TRIGGERS]
+
+    def interaction_blocked(self, page):
+        return ("page did not open, so its interactions were not observed" if page in self.unopened
+                else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
 
     def run_interactions(self, page):
         """Click and keyboard-activate every selected manifest interaction at every source target."""
-        actions = [a for a in self.interactions if a["page"] == page]
-        if not actions:
-            return
-        blocked = ("page did not open, so its interactions were not observed" if page in self.unopened
-                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
-        for action in actions:
-            for target in action["targets"]:
-                for trigger in TRIGGERS:
-                    self.interaction_records.append(self.observe_interaction(action, target, trigger, blocked))
+        for action, target, trigger in self.interaction_attempts(page):
+            self.interaction_records.append(self.observe_interaction(action, target, trigger, self.interaction_blocked(page)))
+
+    # A parallel run cuts the serial work into items: ("case" | "interaction" | "axis" | "reviewer", page, payload).
+    def base_items(self, cases):
+        """Weighted items for every base case and interaction attempt, in the serial order."""
+        items = []
+        for page, page_cases in group_by_page(cases).items():
+            items += [(("case", page, case), 1) for case in page_cases]
+            items += [(("interaction", page, attempt), 1) for attempt in self.interaction_attempts(page)]
+        return items
+
+    def axis_items(self, cases):
+        """One item per page and axis, from the base records a first phase has merged into this runner."""
+        return [(("axis", page, (axis, picked)), 1 + len(picked))
+                for page, page_cases in group_by_page(cases).items() for axis, picked in self.axis_picks(page, page_cases)]
+
+    def reviewer_items(self):
+        plan = self.reviewer_plan
+        return [(("reviewer", page, page_plan), 3) for page, page_plan in plan["pages"].items()] if plan else []
+
+    def run_items(self, items):
+        """One worker's share in serial order. Each item has its page open first, as a serial run would."""
+        current = None
+        for kind, page, payload in items:
+            if self.cancel is not None and self.cancel.is_set():
+                return
+            if page != current:
+                self.open_page(page)
+                current = page
+            if kind == "case":
+                self.records[payload.key] = self.observe(payload)
+            elif kind == "interaction":
+                self.interaction_records.append(self.observe_interaction(*payload, self.interaction_blocked(page)))
+            elif kind == "axis":
+                self.run_axis(page, *payload)
+            else:
+                self.reviewer_records.append(self.observe_reviewer(page, payload))
+
+    def spawn(self, driver):
+        """A Runner with this one's options and none of its results, for one worker."""
+        worker = copy.copy(self)
+        worker.driver = driver
+        worker.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
+        worker.records, worker.axis_records, worker.interaction_records, worker.reviewer_records = {}, [], [], []
+        worker.page_reasons, worker.unopened = {}, set()
+        worker.restarts, worker.aborted, worker.active_axis = 0, False, None
+        return worker
+
+    def fold(self, worker):
+        """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
+        self.records.update(worker.records)
+        self.axis_records += worker.axis_records
+        self.interaction_records += worker.interaction_records
+        self.reviewer_records += worker.reviewer_records
+        for kind in TRANSCRIPT_KINDS:
+            self.transcript[kind] += worker.transcript[kind]
 
     def observe_interaction(self, action, target, trigger, blocked=None):
         record = {"id": action["id"], "surface": action["source"]["surface"], "state": action["source"]["state"],
@@ -1565,6 +1636,107 @@ class Runner:
         return record
 
 
+# --- Parallel run -----------------------------------------------------------------
+def partition(items, workers):
+    """Cut weighted items into at most ``workers`` non-empty, contiguous shares.
+
+    An item goes to the share its weight midpoint falls in. The result depends only on the items and the
+    count, so a plan and a worker count always give the same shares."""
+    total = sum(weight for _, weight in items)
+    shares = [[] for _ in range(workers)]
+    done = 0
+    for item, weight in items:
+        shares[(2 * done + weight) * workers // (2 * total)].append(item)
+        done += weight
+    return [share for share in shares if share]
+
+
+class DriverPool:
+    """Drivers made on demand, one thread each per phase. A driver keeps its restart count and abort flag across phases."""
+
+    def __init__(self, make_driver, package, root, scratch, color_scheme):
+        self.make_driver, self.package, self.root, self.scratch = make_driver, package, root, Path(scratch)
+        self.color_scheme = color_scheme
+        self.drivers, self.started, self.state, self.threads = [], [], [], []
+        self.cancel = threading.Event()
+
+    def driver(self, index):
+        while len(self.drivers) <= index:
+            folder = self.scratch / f"worker-{len(self.drivers)}"
+            folder.mkdir(parents=True, exist_ok=True)
+            self.drivers.append(self.make_driver(self.package, self.root, folder, color_scheme=self.color_scheme))
+            self.started.append(False)
+            self.state.append((0, False))
+        return self.drivers[index]
+
+    @property
+    def restarts(self):
+        return sum(restarts for restarts, _ in self.state)
+
+    def run(self, shares, make_runner):
+        """Run each share on its own driver and Runner at once; return the Runners in share order.
+
+        A worker that raises stops the others between items. The first failure, in share order, is raised."""
+        runners = [make_runner(self.driver(index)) for index in range(len(shares))]
+        failures = [None] * len(shares)
+
+        def work(index):
+            runner = runners[index]
+            try:
+                runner.cancel = self.cancel
+                runner.restarts, runner.aborted = self.state[index]
+                if not self.started[index] or not runner.aborted:
+                    # A later phase gets a fresh browser: the reviewer shell keeps its selections in session
+                    # storage, so a page opened after another phase's pages could arrive in the wrong state.
+                    first = not self.started[index]
+                    self.started[index] = True      # a driver that failed to start is still stopped at the end
+                    try:
+                        runner.driver.start() if first else runner.driver.restart()
+                    except DriverError as error:
+                        raise UsageError(f"browser could not start: {error}") from error
+                runner.run_items(shares[index])
+            except BaseException as error:    # carried to the caller; the other workers stop
+                failures[index] = error
+                self.cancel.set()
+            finally:
+                self.state[index] = (runner.restarts, runner.aborted)
+
+        self.threads = [threading.Thread(target=work, args=(index,), daemon=True) for index in range(len(shares))]
+        for thread in self.threads:
+            thread.start()
+        for thread in self.threads:
+            thread.join()
+        for failure in failures:
+            if failure is not None:
+                raise failure
+        return runners
+
+    def close(self):
+        """Stop every driver, all at once, on every exit path."""
+        self.cancel.set()
+        stoppers = [threading.Thread(target=driver.stop) for driver in self.drivers]
+        for thread in stoppers:
+            thread.start()
+        for thread in stoppers + self.threads:
+            thread.join(timeout=30)
+
+
+def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, intermediate_cases=()):
+    """The run of ``runner`` (and the intermediate sweep of ``intermediate_runner``) on up to ``workers`` drivers.
+
+    Phase one is every base case, interaction attempt and reviewer row, which depend on nothing. The axis passes
+    follow, because the busiest state of a page comes from its measured base cases."""
+    def phase(merged, items):
+        for worker in pool.run(partition(items, workers), merged.spawn):
+            merged.fold(worker)
+
+    phase(runner, runner.base_items(cases) + runner.reviewer_items())
+    if runner.axes:
+        phase(runner, runner.axis_items(cases))
+    if intermediate_runner is not None:
+        phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
+
+
 def pixel_diff(before, after):
     """Compare two PNGs with Pillow: a pixel is changed when any RGBA channel differs. The geometry fingerprint stays the primary signal."""
     from PIL import Image, ImageChops
@@ -1741,6 +1913,8 @@ def parse_args(argv=None):
                         help="also capture every state at the midpoints between adjacent viewport targets into OUT/intermediate")
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
+    parser.add_argument("--workers", type=int, default=1,
+                        help=f"browsers to run at once, 1 to {MAX_WORKERS} (default 1); the same count splits the work the same way")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
     return parser.parse_args(argv)
 
@@ -1780,6 +1954,8 @@ def execute(args, make_driver=node_driver):
     root = args.repo_root.resolve()
     package_dir, out_dir = inside(root, args.package, "--package"), inside(root, args.out, "--out")
     color_scheme = args.color_scheme
+    if not 1 <= args.workers <= MAX_WORKERS:
+        raise UsageError(f"--workers must be from 1 to {MAX_WORKERS}")
     axes = [a for a in args.axes.split(",") if a]
     unknown = [a for a in axes if a not in AXES]
     if unknown:
@@ -1820,26 +1996,45 @@ def execute(args, make_driver=node_driver):
     subject = {"path": (subject_dir + "/" if subject_dir != "." else "") + "index.html", "sha256": package.sha["index.html"]}
     started = now_iso()
     with tempfile.TemporaryDirectory(prefix="pdh-matrix-") as scratch:
-        driver = make_driver(package, root, scratch, color_scheme=color_scheme)
-        intermediate_runner = None
-        try:
+        intermediate_runner, workers_used = None, None
+        if args.workers == 1:
+            driver = make_driver(package, root, scratch, color_scheme=color_scheme)
             try:
-                driver.start()
-            except DriverError as error:
-                raise UsageError(f"browser could not start: {error}") from error
-            runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
-                            derived=derived, interactions=interactions, recapture=args.recapture_carried,
-                            diff_against=diff_against)
-            runner.run(cases)
-            if intermediate_cases:
-                intermediate_dir = out_dir / INTERMEDIATE_DIR
-                intermediate_dir.mkdir(parents=True, exist_ok=True)
-                intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
-                                             interactions=interactions, intermediate=True)
-                intermediate_runner.run(intermediate_cases)
-            environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
-        finally:
-            driver.stop()
+                try:
+                    driver.start()
+                except DriverError as error:
+                    raise UsageError(f"browser could not start: {error}") from error
+                runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
+                                derived=derived, interactions=interactions, recapture=args.recapture_carried,
+                                diff_against=diff_against)
+                runner.run(cases)
+                if intermediate_cases:
+                    intermediate_dir = out_dir / INTERMEDIATE_DIR
+                    intermediate_dir.mkdir(parents=True, exist_ok=True)
+                    intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
+                                                 interactions=interactions, intermediate=True)
+                    intermediate_runner.run(intermediate_cases)
+                environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
+            finally:
+                driver.stop()
+            restarts = runner.restarts
+        else:
+            pool = DriverPool(make_driver, package, root, scratch, color_scheme)
+            try:
+                runner = Runner(None, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
+                                derived=derived, interactions=interactions, recapture=args.recapture_carried,
+                                diff_against=diff_against)
+                if intermediate_cases:
+                    intermediate_dir = out_dir / INTERMEDIATE_DIR
+                    intermediate_dir.mkdir(parents=True, exist_ok=True)
+                    intermediate_runner = Runner(None, package, root, intermediate_dir, derived=derived,
+                                                 interactions=interactions, intermediate=True)
+                capture_parallel(pool, args.workers, runner, cases, intermediate_runner, intermediate_cases)
+                environment = dict(pool.drivers[0].environment, python=platform.python_version(),
+                                   platform=platform.platform())
+                workers_used, restarts = len(pool.drivers), pool.restarts
+            finally:
+                pool.close()
     finished = now_iso()
     for name, path in package.files.items():
         if sha256_bytes(path.read_bytes()) != package.sha[name]:
@@ -1857,6 +2052,8 @@ def execute(args, make_driver=node_driver):
                "derived": derived, "derivedFrom": "--derived" if args.derived else ("--ui-design" if ui_design else None),
                "carryFrom": carry_source, "recaptureCarried": bool(args.recapture_carried),
                "colorScheme": None if color_scheme == "light" else color_scheme, "intermediate": intermediate}
+    if workers_used:
+        options["workers"] = workers_used
     output, output_path, summary = build_outputs(runner, package, cases, root, out_dir, subject, started, finished,
                                                  environment, options)
     problems = validate_output(root, output_path, output)
@@ -1866,7 +2063,7 @@ def execute(args, make_driver=node_driver):
                                         or intermediate["findings"])))
     print(json.dumps({"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
                       "output": output_path.relative_to(root).as_posix(), **summary,
-                      "restarts": runner.restarts, "problems": problems[:5], "intermediate": intermediate}))
+                      "restarts": restarts, "problems": problems[:5], "intermediate": intermediate}))
     return 3 if problems and not failed else (1 if failed else 0)
 
 
