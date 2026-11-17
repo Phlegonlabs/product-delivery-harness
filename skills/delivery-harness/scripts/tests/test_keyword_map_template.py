@@ -60,6 +60,15 @@ class KeywordMapTemplateTests(unittest.TestCase):
         self.assertIn("docs/product/keyword-map.md", stage)
         self.assertIn("a required dependency of that requested skill workflow", entry)
 
+    def test_readback_returns_two_lists_and_prelaunch_starts_from_the_map(self) -> None:
+        method = (GROWTH / "references/review-method.md").read_text(encoding="utf-8")
+        stage = (GROWTH / "references/stages/growth-review.md").read_text(encoding="utf-8")
+        self.assertRegex(method, r"(?m)^## Keyword Map Readback$")
+        self.assertIn("Content-field rewrites.", method)
+        self.assertIn("Structural candidates.", method)
+        self.assertIn("review-method.md#keyword-map-readback", stage)
+        self.assertIn("do not plan the clusters again", stage)
+
 
 if __name__ == "__main__":
     unittest.main()

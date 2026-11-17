@@ -96,7 +96,7 @@ For each cluster, open the result page for two or more of its queries in the tar
 
 ## Pre-Launch Planning Sequence
 
-For `pre_launch`, production data does not exist yet. Build the plan per surface in this order:
+For `pre_launch`, production data does not exist yet. When `docs/product/keyword-map.md` exists, take its clusters, mapped pages and content fields as the plan and check them against the launch window. Otherwise build the plan per surface in this order:
 
 1. Cluster the questions and tasks the product answers, from audience language, support material and public demand evidence.
 2. Assign each cluster one responsibility: a planned public page for web, listing text or screenshot for stores, README section or registry description for registries, a first post series for presence surfaces.
@@ -128,7 +128,18 @@ When the PRD has a `## Growth Contract`, run `growth_review` at its Day 7 and Da
 4. Check each `### Re-engagement` mechanism for a retention signal through its TEST ID or `MS-*` row.
 5. Return next-round PRD delta candidates, each with its evidence and one owner route.
 
+6. When `docs/product/keyword-map.md` exists, add the [Keyword Map Readback](#keyword-map-readback).
+
 The cadence is read-only. It reports evidence; the PRD owner accepts or rejects each candidate. A missed target is a finding, not a mandate to change the product or buy placement.
+
+## Keyword Map Readback
+
+Compare each `KW-*` row with first-party data: the queries and pages in `search_console`, the landing pages in `ga4`, or the listing data in the store console. Use complete periods. Return two lists, each row with its `KW-*`, evidence and follow-up metric:
+
+- Content-field rewrites. A rewrite of a page's `<title>` or meta description is a content change when it keeps the page's cluster and what the page answers, stays inside the recorded limits and stays unique per route. Route it `delivery`. The owner who applies it records it in the map's Change log.
+- Structural candidates. A new route, a change of cluster, or a change to copy that people see on the page needs a PRD delta. Route it `product_definition`.
+
+The review does not edit the map. A cluster with too little data to judge goes to `observe_later`.
 
 ## Gap Routing
 
@@ -164,7 +175,7 @@ Return the result inline unless the user asks to save it.
 | --- | --- | --- | --- | --- | --- |
 
 ## Opportunities By Surface
-[Rows routed `product_definition` are the next-round PRD delta candidates.]
+[Rows routed `product_definition` are the next-round PRD delta candidates. When a keyword map exists, add its two lists here, per [Keyword Map Readback](#keyword-map-readback).]
 | Surface | Priority | Query, topic or listing | Type | Evidence | Current page or listing | Action / route | Follow-up metric |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
