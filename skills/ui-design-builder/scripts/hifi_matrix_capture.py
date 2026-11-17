@@ -307,8 +307,8 @@ async function open(request) {
   };
 }
 
-// One interaction attempt: reset page/target/source state through the reviewer
-// shell, then activate the declared product control by click or keyboard. The
+// One interaction attempt: reload the page, reset target/source state through the
+// reviewer shell, then activate the declared product control by click or keyboard. The
 // destination surface/state must apply; the control, and only the control, must
 // take product focus during the attempt.
 const FEEDBACK_SNAPSHOT = surfaceId => {
@@ -322,9 +322,10 @@ async function interact(request) {
   if (request.kind === 'state' && request.surface === request.destination.surface && request.state === request.destination.state)
     return { problems: ['state interaction needs a different destination state'], visible: false, focusCorrect: false };
   const timeout = request.timeoutMs;
-  if (currentPage !== request.page) {
-    try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
-  }
+  // Every attempt starts from a fresh load of its source page. Product scripts keep state and can move the
+  // browser on their own, so an attempt must not depend on the ones before it: the result is the same wherever
+  // a parallel run starts it.
+  try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
   if (!problems.length) {
     const target = page.locator('[data-hifi-target-control=' + quote(request.target) + ']');
     if (await target.count() !== 1) problems.push('target control missing: ' + request.target);
