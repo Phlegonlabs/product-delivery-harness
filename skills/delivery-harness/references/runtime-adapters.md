@@ -96,7 +96,7 @@ One review node may go out as several calls on one exact SHA: one per lens, or p
 Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.
 Each call carries the full finding contract and its lens or path group.
 Trust-boundary paths stay in one group so the security lens sees them together.
-The security result must report every `required_tools` entry of its node, so a call that answers the security lens carries those tools too.
+A managed security result must report every `required_tools` entry of its node as run, so a node that requires a browser sends security with its visual lens and code in its own call.
 The parent merges the returned sets into one consolidated finding set and records it as one review attempt.
 A lens or path group that no call inspected blocks PASS.
 This is one review point under [Review Topology](verification-gates.md#review-topology).
