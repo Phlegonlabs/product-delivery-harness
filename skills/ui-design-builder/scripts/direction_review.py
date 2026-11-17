@@ -413,12 +413,12 @@ def compare_package_findings(folder: Path, files: list[str], *, required: bool =
         return []
     page, label = folder / COMPARE_FILE, f"Comparison page {folder.name}/{COMPARE_FILE}"
     profiles: set[str | None] = set()
-    names: dict[str, str] = {}
+    titles: dict[str, str] = {}
     for file in files:
         html = (folder / file).read_text(encoding="utf-8", errors="replace")
         found = PROFILE_RE.search(html)
         profiles.add(found.group(1) if found else None)
-        names[file] = study_name(html, file)
+        titles[file] = study_name(html, file)
     expected = None
     if len(profiles) == 1 and None not in profiles:
         try:
@@ -427,7 +427,8 @@ def compare_package_findings(folder: Path, files: list[str], *, required: bool =
             return []  # the study's own check reports an unreadable profile
         if (not profile_findings(profile) and len(profile["directions"]) > 1
                 and {row["file"] for row in profile["directions"]} == set(files)):
-            expected = render_compare(profile, names)
+            # The page lists studies in the order the assembler used, which the profile keeps; table rows may differ.
+            expected = render_compare(profile, {row["file"]: titles[row["file"]] for row in profile["directions"]})
     if expected is None:
         return [f"{label} does not belong to this round's studies; remove it"] if page.exists() else []
     if not page.is_file():

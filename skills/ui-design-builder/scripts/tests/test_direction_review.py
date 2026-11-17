@@ -499,6 +499,13 @@ class DirectionAssemblyTests(unittest.TestCase):
         ui_contract_checker._resolve_direction_studies(style, self.root, problems)
         return [item for item in problems if "Comparison page" in item]
 
+    def test_the_regenerated_page_does_not_depend_on_table_row_order(self) -> None:
+        self.run_assembly()
+        self.assertEqual([], self.package_problems(tuple(reversed(FILES))))
+        self.assertEqual([], self.package_problems(("vd-02.html", "vd-03.html", "vd-01.html")))
+        # A study missing from the table no longer matches the profile the page was assembled from.
+        self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("vd-01.html", "vd-02.html"))))
+
     def one_study_profile(self) -> dict:
         self.pages = {"vd-04.html": source_html("vd-04")}
         return {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
