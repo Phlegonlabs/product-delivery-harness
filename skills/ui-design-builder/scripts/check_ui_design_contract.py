@@ -2455,11 +2455,15 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
             observations_valid = False
             continue
         observed = row.get("observed", {})
-        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "openers"}:
+        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "instanceIndex", "openers"}:
             observations_valid = False
         else:
             if "instances" in observed and (type(observed["instances"]) is not int or observed["instances"] < 1):
                 observations_valid = False
+            if "instanceIndex" in observed:
+                index, count = observed["instanceIndex"], observed.get("instances")
+                if (type(index) is not int or type(count) is not int or not 0 <= index < count):
+                    observations_valid = False
             if "openers" in observed:
                 openers = observed["openers"]
                 if (not isinstance(openers, list) or any(not isinstance(value, str) or not value.strip() for value in openers)

@@ -12,6 +12,15 @@ import check_ui_design_contract as checker
 
 
 class NavigateContractTests(unittest.TestCase):
+    def test_instance_index_requires_a_valid_visible_count(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, manifest, _ = contract.materialize_hifi_bundle(Path(temporary))
+            for index, count, passes in ((0, 2, True), (1, 2, True), (-1, 2, False),
+                                         (2, 2, False), (True, 2, False), (0, None, False)):
+                output = contract.bundle_output(manifest)
+                output["interactions"][0]["observed"] = {"instances": count, "instanceIndex": index}
+                self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
+
     def test_every_navigate_link_must_name_the_destination_state(self):
         for state, href, passes in (
             ("ready", "details.html", True),
@@ -39,6 +48,23 @@ class NavigationBrowserTests(unittest.TestCase):
     run_main = alignment.OperationBrowserTests.run_main
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
+
+    def test_repeated_controls_prefer_an_unselected_instance(self):
+        for attribute, selected in (("aria-pressed", "true"), ("aria-selected", "true"),
+                                    ("aria-checked", "true"), ("aria-current", "page")):
+            for all_selected in (False, True):
+                with self.subTest(attribute=attribute, all_selected=all_selected):
+                    markup = ''.join('<button data-control-id="save" ' + attribute + '="' + value + '" '
+                        'onclick="if(this.getAttribute(\'' + attribute + '\')===\'false\')this.textContent+=\' changed\'">'
+                        'Segment</button>' for value in (selected, selected if all_selected else "false"))
+                    driver = self.driver(markup)
+                    for trigger in ("click", "keyboard"):
+                        reply = self.attempt(driver, trigger=trigger)["result"]
+                        self.assertEqual(all_selected, bool(reply["problems"]), reply)
+                        self.assertEqual(0 if all_selected else 1, reply["observed"]["instanceIndex"])
+                        self.assertEqual(2, reply["observed"]["instances"])
+                        self.assertTrue(reply["focusCorrect"], reply)
+                    driver.stop()
     def test_navigate_observes_default_explicit_and_same_page_arrivals(self):
         actions = copy.deepcopy(matrix.INTERACTIONS)
         for same_page, state, fragment, passes in (

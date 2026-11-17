@@ -56,7 +56,7 @@ When no control instance is visible, the driver searches attached instances in D
 
 Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.
 
-Repeated control IDs may appear on multiple rows. The driver activates the first visible instance and records the visible count in `observed.instances`. Every navigate instance remains an anchor to its declared page. A missing or entirely hidden control still fails.
+Repeated control IDs may appear on multiple rows. The driver prefers the first unselected visible instance. Selection uses `aria-pressed`, `aria-selected`, `aria-checked` and `aria-current`; all selected falls back to the first instance. `observed.instances` records the visible count and `observed.instanceIndex` records the zero-based chosen index. Every navigate instance remains an anchor to its declared destination. A missing or entirely hidden control still fails.
 
 `state` may cross pages through an anchor to the exact destination page and encoded state fragment. The driver checks arrival page, surface, state and URL. Its navigation row names the page filename; any extra navigation fails.
 

@@ -32,7 +32,7 @@ Existing passing packages must keep passing.
 | ID | Outcome | Evidence |
 | --- | --- | --- |
 | G1 | Exact navigation state anchors work; bare default links remain valid; stale selections cannot redirect product arrivals. | Static and Chromium positive/negative navigation tests. |
-| G2 | Repeated controls prefer an unselected visible instance and record its index. | Selection and inert-control regressions. Pending. |
+| G2 | Repeated controls prefer an unselected visible instance and record its index. | Chromium tests cover all four ARIA attributes and the all-selected inert fallback. |
 | G3 | Data-entry controls receive user input; disabled, read-only and unchanged fields fail. | Pointer and keyboard field regressions. Pending. |
 | G4 | Repeated page timeouts cannot block unrelated pages; output order stays deterministic. | Serial and worker recovery regressions; full stable-package run. Pending. |
 
@@ -41,6 +41,7 @@ Existing passing packages must keep passing.
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
 | G1 navigation state | Validator, driver, reviewer runtime and two contracts | `test_hifi_driver_gaps.py` | Three focused tests pass in Chromium; wrong state and bare nondefault links fail. Parent review pending. |
+| G2 repeated selection | Driver, observation validation and two contracts | G1 commit `9e4d4509`; focused G2 tests | Chosen index is bounded by the visible count; inert selected controls still fail. Parent review pending. |
 
 ## Adoption Note
 
@@ -49,7 +50,7 @@ Consumer edits belong to the consumer author. This work changes no consumer byte
 | Requirement | Required adoption and evidence-package example |
 | --- | --- |
 | G1 | Rebuild every page with the updated canonical reviewer runtime. The assembler preserves an existing runtime, so regenerate from author sources or replace the complete marked runtime segment. For `OP-UI-IOS-AUTH-reauth`, use `ios-ledger.html#hifi-state=UI-IOS-TABS/ready`. Language, term and save/cancel links must name their declared nondefault destinations. Recompute child hashes and the entry identity; recapture all affected interactions. |
-| G2 | Pending implementation. |
+| G2 | Keep one operation ID on every cycle segment of `OP-UI-IOS-TABS-cycle` in `ios-ledger.html`. Give segments their actual ARIA selection state. No manifest split or runtime rebuild is required for G2. Recapture with the new driver; it records `observed.instanceIndex`. |
 | G3 | Pending implementation. |
 | G4 | Pending implementation. |
 
@@ -64,6 +65,6 @@ Approvals in force (gate, owner, date, candidate): the two owner statements abov
 Done and verified (command, exit code): focused G1 tests exit 0, three tests with Chromium
 Remaining: G2-G4; final verification; real-package run; independent review and release
 Blocked / waiting (gate name or owner decision): no implementation blocker
-Next action (one command or one owner decision): implement G2 after the G1 commit
+Next action (one command or one owner decision): implement G3 after the G2 commit
 Next owner (skill or human): this writer, then jolvex-platform Harness parent
 ```

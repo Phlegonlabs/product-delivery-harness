@@ -428,7 +428,14 @@ async function interact(request) {
     observed = { instances, ...(opened.length ? { openers: opened } : {}) };
     if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
     else {
-      const handle = product.first();
+      const unselected = instances > 1 ? await product.evaluateAll(list => list.findIndex(el => {
+        const selected = ['aria-pressed', 'aria-selected', 'aria-checked'].some(name => el.getAttribute(name) === 'true');
+        const current = el.getAttribute('aria-current');
+        return !selected && (!current || current === 'false');
+      })) : 0;
+      const instanceIndex = Math.max(0, unselected);
+      observed.instanceIndex = instanceIndex;
+      const handle = product.nth(instanceIndex);
       const stateHref = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
         + '/' + encodeURIComponent(request.destination.state);
       const navigateHrefs = [stateHref];
