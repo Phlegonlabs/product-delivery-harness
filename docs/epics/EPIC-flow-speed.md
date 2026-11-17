@@ -1,6 +1,6 @@
 # EPIC-flow-speed: a managed run keeps going when a mission needs one more path
 
-Status: candidate for 0.84.0 on branch `flow-speed`; not yet published
+Status: published as 0.84.0 on 2026-11-16 (PR #189, `main` `c9a5c7c8`, tag `v0.84.0`); installed and adopted by 23 consumer checkouts the same day
 Design workflow: enhancement
 UI impact: none (worker-result validation, two transition commands, reference links; no product UI in this repository).
 
@@ -70,20 +70,35 @@ Parent repairs after integration:
 
 Review: the owner asked for a direct pull request. The pull request's CI is the one full matrix, and its Codex review is the independent read. No separate protected review ran.
 
+Pull request 189: the Codex review found two gaps in `amend-scope`. It accepted an executable path while the PLAN security review was `not_applicable`, and a UI source path for a mission that is not a UI authoring mission; both gates read only the PLAN scope. The command now evaluates them on the scope as it would be after the amendment and refuses when the amendment is what trips them (`a7aac21b`, five tests). All 14 checks passed on that head.
+
+### Release, Install And Rollout
+
+- Merged as `c9a5c7c8`; its tree equals the candidate `a7aac21b`. Tag `v0.84.0`.
+- `./install.sh` from that commit, with no process running from the shared installation. Five-skill contract `f10bbcaff316aa2b003263965635cac1dfe067d88f48b2f7343c908cc4856fbf`, previous `ba059a53…`. The `ui-design-builder`, `design-system-compiler` and `security-review.md` hashes did not change.
+- That contract value is the Windows one. `harness_contract.py` hashes files in `Path` sort order, which ignores case on Windows and not on Linux, so the same bytes print `3ef31473c782db45e74005695850f2e51c2dc3f5bba5dededfd7061423188a9a` on Linux. The source at `c9a5c7c8` and the installed copy both print `f10bbcaf…` on this machine. Making the order the same on every system changes the pinned value and needs its own release and re-pin.
+- Consumers: one writer per checkout, brief and parent check under the local `task/adopt-0840/`. Twenty checkouts moved from 0.83.1; eighteen mains were pushed and read back, and codex-router and ziwei-doushu stay local because their remotes are not ours. Three repositories with work in flight were adopted on their active branches with local commits only: agentkiosk `ui-redesign-r4`, jolvex-platform `redesign/full-site-20261113` and hk-car-care `foundation-run`. hk-car-care keeps its task-bundle pins for `ui-design-builder` and `design-system-compiler`.
+- Twelve GLM-5.3 Flash writers failed with a provider rate limit before editing anything and were re-delegated to GPT-6.1 Sol at low effort under the owner's standing fallback.
+- The parent check found that two of those writers had rewritten the 0.83.1 adoption row into a 0.84.0 row. The parent restored the original row in tenbagger-radar and worker-manager and refreshed their baselines before pushing.
+- The document-sync baselines of the three in-flight repositories, phlegon-web and agentic-commons-site were not refreshed, because documents outside this adoption differ from their baselines.
+- Removed after the merge: `flow-speed` (local and remote), the four writer branches and worktrees, and the merged `logo-studio` branch and worktree.
+
 ## Change Log
+
+- 2026-11-16: published as 0.84.0, installed, and adopted by 23 consumer checkouts.
 
 - 2026-11-16: four parts merged on `flow-speed`; release surfaces set to 0.84.0.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / flow-speed / this commit / untracked task/ only
-Stage and skill: source maintenance
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / c9a5c7c8 (v0.84.0) plus this record / untracked task/ only
+Stage and skill: source maintenance; release complete
 Inputs consumed (path + hash or revision): main c8c4d569 (v0.83.2); agentkiosk checker-v1-delivery docs/goal/DECISIONS.md and PLAN.md revision notes
-Approvals in force (gate, owner, date, candidate): owner 2026-11-16: commit, push, pull request, merge, publish, install, re-pin consumers, remove this round's branches
-Done and verified (command, exit code): focused modules above, exit 0
-Remaining: pull request CI, merge, tag v0.84.0, install, consumer adoption, branch cleanup
+Approvals in force (gate, owner, date, candidate): none open; the owner's 2026-11-16 instructions covered the pull request, merge, release, install, consumer adoption and this round's branch removal
+Done and verified (command, exit code): PR #189 checks, 14 of 14 pass; install.sh exit 0, contract f10bbcaf…; parent check over 23 checkouts, 22 OK and hk-car-care with its two kept owner pins
+Remaining: none in this round. Proposed, not started: one-command receipts for the design-system compile stage; release batching
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): open the pull request
-Next owner (skill or human): this source-maintenance parent
+Next action (one command or one owner decision): the owner chooses whether to start the compile-stage receipts work
+Next owner (skill or human): owner
 ```
