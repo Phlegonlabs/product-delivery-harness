@@ -2,7 +2,7 @@
 
 Use this reference to define task, mission, integration, and UI acceptance.
 
-The managed ladder below follows the declared graph and selector. Direct source maintenance may overlap resource-safe read-only review and final regression on one unchanged candidate, but must collect both results before closeout; this never bypasses a managed dependency or reuses evidence after a repair.
+The managed ladder below follows the declared graph and selector: a managed final gate still depends on its review node. On the direct route, the resource-safe broad final validation may start together with the review on one unchanged candidate; collect both results before closeout. A repair makes a new candidate and nothing from the overlapped run is reused for it; the validation of the new head overlaps the re-check the same way.
 
 For new delivery work, also apply `delivery-acceptance-contract.md` and `bounded-enhancement.md`: freeze required TEST/scenario/platform/auth expectations before running tests, prepare only authorized isolated synthetic fixtures, and validate the evidence register before final acceptance. Managed plans declare this check as an always-run final verifier with its graph node; direct work runs it without manufacturing PLAN/RUN. Legacy frozen runs keep their original schema and evidence, never retroactive PASS.
 
@@ -19,7 +19,7 @@ Use the smallest reliable proof first:
 4. Integrate serially into the resolved integration branch; run the mission integration surface and only real cross-mission checks, with seam verifiers selected from the merge diff.
 5. Run one review point on the unified head: one read-only call per lens, launched together.
 6. Make one consolidated repair and one targeted re-check; after the re-check, remaining defects enter the Isolated Repair Protocol.
-7. Fix the candidate SHA, then run one planned broad regression, browser E2E, and visual/UI validation suite on that head.
+7. Fix the candidate SHA, then run one planned broad regression, browser E2E, and visual/UI validation suite on that head; on the direct route it may start with step 5.
 8. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
 9. If deterministic checks are impossible, use structured review and name residual risk.
 ```
@@ -135,7 +135,7 @@ Fresh integration review gate:
 
 Final/current-head gate:
 
-- Runs the one planned broad regression, browser E2E, and visual/UI validation suite only after the combined review and its one repair loop converge.
+- Runs the one planned broad regression, browser E2E, and visual/UI validation suite on the exact head. A managed run starts it only after the combined review and its one repair loop converge; the direct route may start it with the review.
 - Covers every `platform-delivery/1` TEST ID. Extra required shared-regression tests are allowed. Every annotated feature gate runs fresh on the exact integration head.
 - Binds every PASS to the exact integration head. Any later code or configuration change invalidates the affected proof.
 - Focused task, worker, and integration checks are not this suite. Plan cross-cutting checks only the whole candidate can answer — build, browser E2E, migration, UI evidence — not a rerun of every focused suite already green on the same code. A gate that only re-executes a mission's own unit tests on an unchanged tree gets changed-file selection against the plan write union, or is dropped.
