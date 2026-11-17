@@ -15,6 +15,8 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from html import escape as html_escape
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest import mock
 
@@ -176,6 +178,33 @@ class DirectionAssemblyTests(unittest.TestCase):
         good = direction_review.render_compare(profile, names)
         weaker = good.replace("object-src 'none'", "object-src *")
         self.assertTrue(direction_review.assembled_compare_findings(weaker, "compare.html"))
+
+    def test_comparison_record_stays_inert_whatever_a_study_title_holds(self) -> None:
+        hostile = "</ScRiPt><script>window.parentTitleInjection=1</ScRiPt><!-- a\u2028b & c"
+        self.pages["vd-01.html"] = self.pages["vd-01.html"].replace(
+            "<title>vd-01</title>", f"<title>{html_escape(hostile)}</title>")
+        html = self.compare_page()
+
+        class Scripts(HTMLParser):
+            found: list = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "script":
+                    self.found.append(dict(attrs).get("id"))
+
+        scripts = Scripts()
+        scripts.found = []
+        scripts.feed(html)
+        self.assertEqual(["ui-direction-compare", "direction-compare-runtime", None], scripts.found)
+        self.assertEqual(3, len(re.findall(r"<script", html, re.IGNORECASE)))
+        self.assertNotIn("\u2028", html)
+        record = json.loads(direction_review.COMPARE_RE.search(html).group(1))
+        self.assertEqual(" ".join(hostile.split()), record["names"]["vd-01.html"])
+        self.assertIn(html_escape(" ".join(hostile.split())), html)
+        self.assertEqual([], direction_review.assembled_compare_findings(html, "compare.html"))
+        data = direction_review._compare_data(self.profile(), {"vd-01.html": hostile})
+        self.assertEqual(1, len(re.findall(r"</script", data, re.IGNORECASE)), "only the elements own end tag")
+        self.assertEqual(hostile, json.loads(direction_review.COMPARE_RE.search(data).group(1))["names"]["vd-01.html"])
 
     def test_a_study_cannot_take_the_comparison_page_name(self) -> None:
         profile = self.profile()

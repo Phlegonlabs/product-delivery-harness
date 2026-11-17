@@ -34,7 +34,7 @@ STUDY_COUNTS = (1, 3)
 # A round of three studies also gets one comparison page; it is not a study and has no row in any table.
 COMPARE_FILE = "compare.html"
 COMPARE_RE = re.compile(
-    r'<script id="ui-direction-compare" type="application/json">([\s\S]*?)</script>'
+    r'<script id="ui-direction-compare" type="application/json">([\s\S]*?)</script>', re.IGNORECASE
 )
 # The page frames its sibling study files; everything else stays as closed as a study.
 COMPARE_CSP = check_wireframe_html.REQUIRED_HIFI_CSP.replace("frame-src 'none'", "frame-src 'self'")
@@ -375,6 +375,10 @@ def build_compare(profile: dict[str, Any], names: dict[str, str]) -> str:
 
 def _compare_data(profile: dict[str, Any], names: dict[str, str]) -> str:
     encoded = json.dumps({"profile": profile, "names": names}, ensure_ascii=False, separators=(",", ":"))
+    # A study title is free text. Escaping every character that can end or hide in a script element keeps the record
+    # inert whatever a title holds, and JSON still reads each escape back as the same character.
+    for char in "&<>\u2028\u2029":
+        encoded = encoded.replace(char, f"\\u{ord(char):04x}")
     return f'<script id="ui-direction-compare" type="application/json">{encoded}</script>'
 
 
