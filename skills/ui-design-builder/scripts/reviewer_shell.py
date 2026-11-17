@@ -4,6 +4,8 @@
 from __future__ import annotations
 
 import json
+import re
+from collections import Counter
 from pathlib import Path
 from typing import Any
 from html import escape
@@ -57,6 +59,75 @@ def inject_shared_css(html: str) -> str:
         raise ValueError("HiFi product page has no </head> insertion point")
     index = html.casefold().rfind("</head>")
     return html[:index] + shared_style_block() + "\n" + html[index:]
+
+
+PRODUCT_CSS_START = "<!-- hifi-product:css:start -->"
+PRODUCT_CSS_END = "<!-- hifi-product:css:end -->"
+_PRODUCT_SEGMENT_RE = re.compile(re.escape(PRODUCT_CSS_START) + r"[\s\S]*?" + re.escape(PRODUCT_CSS_END))
+
+
+def product_style_block(css: str) -> str:
+    return (
+        PRODUCT_CSS_START + "\n"
+        "<style data-hifi-product-css>\n"
+        + css.rstrip() + "\n"
+        "</style>\n"
+        + PRODUCT_CSS_END
+    )
+
+
+def product_css_segments(html: str) -> list[str]:
+    return _PRODUCT_SEGMENT_RE.findall(html)
+
+
+def _single_product_block(html: str) -> str | None:
+    """The page's one product block, or None when it has none or a broken or repeated one."""
+
+    segments = product_css_segments(html)
+    if len(segments) == 1 and html.count(PRODUCT_CSS_START) == 1 and html.count(PRODUCT_CSS_END) == 1:
+        return segments[0]
+    return None
+
+
+def inject_product_css(html: str, css: str) -> str:
+    """Embed the one product stylesheet before the page's own styles; repeat calls change nothing."""
+
+    block = product_style_block(css)
+    if PRODUCT_CSS_START in html or PRODUCT_CSS_END in html:
+        existing = _single_product_block(html)
+        if existing is None:
+            raise ValueError("HiFi page carries a broken or repeated product CSS block")
+        if existing != block:
+            raise ValueError("HiFi page already carries a product CSS block with different bytes")
+        return html
+    lowered = html.casefold()
+    head_end = lowered.rfind("</head>")
+    if head_end < 0:
+        raise ValueError("HiFi product page has no </head> insertion point")
+    first_style = lowered.find("<style", 0, head_end)
+    index = first_style if first_style >= 0 else head_end
+    return html[:index] + block + "\n" + html[index:]
+
+
+def product_css_findings(documents: dict[str, str]) -> list[str]:
+    """One finding per page that departs from the package's product CSS block.
+
+    A package where no page carries a product marker has no findings.
+    """
+
+    if not any(PRODUCT_CSS_START in html or PRODUCT_CSS_END in html for html in documents.values()):
+        return []
+    blocks = {name: _single_product_block(html) for name, html in documents.items()}
+    counts = Counter(block for block in blocks.values() if block is not None)
+    reference = counts.most_common(1)[0][0] if counts else None
+    findings = []
+    for name, block in blocks.items():
+        if block is None:
+            findings.append(f"HiFi {name} must carry exactly one product CSS block between "
+                            f"{PRODUCT_CSS_START} and {PRODUCT_CSS_END}")
+        elif block != reference:
+            findings.append(f"HiFi {name} product CSS block differs from the other pages' block")
+    return findings
 
 
 def runtime_source() -> str:

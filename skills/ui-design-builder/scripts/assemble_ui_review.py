@@ -16,7 +16,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-from reviewer_shell import inject_runtime, inject_shared_css, inject_shell, update_manifest_child_hashes
+from reviewer_shell import (
+    inject_product_css, inject_runtime, inject_shared_css, inject_shell, update_manifest_child_hashes,
+)
 
 PAGE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_-]*\.html$")
 MANIFEST_RE = re.compile(
@@ -185,15 +187,33 @@ def _require_product_structure(html: str, page: str) -> None:
                 _fail(f"index.html must provide its author-authored {panel} panel")
 
 
+def _read_product_css(path: Path) -> str:
+    if not path.is_file():
+        _fail(f"product stylesheet is missing: {path}")
+    if _linked_path(path):
+        _fail(f"linked product stylesheet is not allowed: {path}")
+    try:
+        css = path.read_bytes().decode("utf-8")
+    except (OSError, UnicodeError) as exc:
+        _fail(f"cannot read product stylesheet {path}: {exc}")
+    if not css.strip():
+        _fail(f"product stylesheet is empty: {path}")
+    if re.search(r"</style|<!--|-->", css, re.IGNORECASE):
+        _fail("product stylesheet must be plain CSS: no </style> and no HTML comment markers")
+    return css
+
+
 def assemble(
     manifest_path: Path,
     source_values: list[str],
     output_dir: Path,
     *,
     overwrite: bool = False,
+    product_css: Path | None = None,
 ) -> list[str]:
     sources = _parse_sources(source_values)
     manifest = _load_manifest(manifest_path)
+    product_css_text = _read_product_css(product_css) if product_css is not None else None
     if _linked_path(manifest_path):
         _fail("linked manifest is not allowed")
     declared = _declared_pages(manifest)
@@ -236,6 +256,11 @@ def assemble(
             _fail(f"cannot read source {source}: {exc}")
         _require_product_structure(html, page)
         html = inject_shared_css(html)
+        if product_css_text is not None:
+            try:
+                html = inject_product_css(html, product_css_text)
+            except ValueError as exc:
+                _fail(f"{page}: {exc}")
         html = inject_shell(manifest, html, page, version=3)
         html = inject_runtime(html)
         html = html.replace(
@@ -364,16 +389,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source", action="append", required=True)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--overwrite", action="store_true")
+    parser.add_argument("--product-css", type=Path,
+                        help="one CSS file embedded identically in every page (--mode hifi only)")
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
+    if args.product_css is not None and args.mode != "hifi":
+        _fail("--product-css applies to --mode hifi only")
+    extra = {"product_css": args.product_css} if args.mode == "hifi" else {}
     paths = (assemble_direction if args.mode == "direction" else assemble)(
         args.manifest,
         args.source,
         args.output_dir,
         overwrite=args.overwrite,
+        **extra,
     )
     print("PASS assembled " + ", ".join(paths))
     return 0
