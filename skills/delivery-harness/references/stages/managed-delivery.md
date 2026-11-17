@@ -15,8 +15,8 @@ Author PLAN from `assets/templates/HARNESS_PLAN.template.md`. Generate RUN with 
 
 Read only what the current decision needs:
 
-- `references/contract-and-traceability.md`: frozen sources, traces, permissions, and file placement.
-- `references/execution-state-model.md`: PLAN/RUN creation, resume reconciliation, authorization, state transitions, and host handoff.
+- Frozen sources ([Contract Freeze](../contract-and-traceability.md#contract-freeze), [Source Map](../contract-and-traceability.md#source-map)), traces ([Trace IDs](../contract-and-traceability.md#trace-ids), [Mission And Task Identity](../contract-and-traceability.md#mission-and-task-identity)), permissions ([Stop And Ask Conditions](../contract-and-traceability.md#stop-and-ask-conditions)), and file placement ([Canonical Harness State](../contract-and-traceability.md#canonical-harness-state), [Document Folder Handoff](../contract-and-traceability.md#document-folder-handoff), [Compact Artifact Defaults](../contract-and-traceability.md#compact-artifact-defaults)).
+- PLAN/RUN creation ([Three Authorities](../execution-state-model.md#three-authorities), [Generating And Validating State](../execution-state-model.md#generating-and-validating-state)), resume reconciliation ([Resume Reconciliation Gate](../execution-state-model.md#resume-reconciliation-gate)), authorization ([Authorization Action Ledger](../execution-state-model.md#authorization-action-ledger)), state transitions ([Canonical Mission Phases](../execution-state-model.md#canonical-mission-phases), [Canonical Task Phases](../execution-state-model.md#canonical-task-phases), [Typed Graph State](../execution-state-model.md#typed-graph-state), [Run Lock And Watchdog](../execution-state-model.md#run-lock-and-watchdog)), and host handoff ([Serialized Same-Repository Host Handoff](../execution-state-model.md#serialized-same-repository-host-handoff)).
 - `references/graph-orchestration.md`: typed graph, provider policy, bounded experiments, retries and correction loops.
 - `references/execution-task-decomposition.md`: mission/task split rules.
 - `references/parallel-mission-selection.md`: parallel write-wave selection.
@@ -121,9 +121,9 @@ After the version gate, run `python "<delivery-harness-skill-root>/scripts/harne
 
 ### 5. Verify Local-First
 
-New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See `references/verification-gates.md` for mode, source/Git guards, and evidence requirements.
+New PLANs explicitly select `execution.isolation: "host"` for local build/lint/test. Host commands use current user permissions, not sandbox confinement. Current verifiers support host execution only. See [Changed-File Selection](../verification-gates.md#changed-file-selection-and-exact-execution-reuse) for mode, source/Git guards, and evidence requirements.
 
-Follow the verification ladder, Review Topology, finding triage and re-check scope in `references/verification-gates.md`; the author's focused verifier evidence gates each re-check reservation. Retain Final UI Acceptance from it on the unchanged candidate without another reviewer dispatch. Under the `mvp` profile, Final UI Acceptance is part of the one combined review. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
+Follow the [Verification Ladder](../verification-gates.md#verification-ladder) and the [Review Topology](../verification-gates.md#review-topology), which owns finding triage and re-check scope; the author's focused verifier evidence gates each re-check reservation. Retain [Final UI Acceptance](../verification-gates.md#final-ui-acceptance) on the unchanged candidate without another reviewer dispatch. Under the `mvp` profile, Final UI Acceptance is part of the one combined review. Finish with the applicable `references/gitignore-contract.md` checks, `git diff --check` and a complete final-diff review.
 
 Host verifiers run fresh and serially per runner; keep requests and results outside the reviewed checkout.
 Browser, migration, mutable-environment and network checks retain their separate routes and action authorization.

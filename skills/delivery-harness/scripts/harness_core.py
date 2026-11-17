@@ -281,6 +281,22 @@ def path_in_scopes(path: str, scopes: Iterable[str]) -> bool:
     return any(scope_contains(scope, path) for scope in scopes)
 
 
+def effective_write_scope(mission: dict[str, Any], run: dict[str, Any] | None) -> list[str]:
+    """Return a mission's PLAN write scope plus its RUN scope amendment paths."""
+
+    raw = mission.get("write_scope", [])
+    scope = [item for item in raw if isinstance(item, str)] if isinstance(raw, list) else []
+    amendments = run.get("scope_amendments") if isinstance(run, dict) else None
+    for row in amendments if isinstance(amendments, list) else []:
+        if not isinstance(row, dict) or row.get("mission_id") != mission.get("id"):
+            continue
+        paths = row.get("paths")
+        for path in paths if isinstance(paths, list) else []:
+            if isinstance(path, str) and path not in scope:
+                scope.append(path)
+    return scope
+
+
 def parent_owned_path(path: str) -> bool:
     base = path[:-3] if path.endswith("/**") else path
     name = base.rsplit("/", 1)[-1].casefold()

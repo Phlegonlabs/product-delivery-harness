@@ -694,7 +694,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         self.assertLess(len(core.split()), 2000)
         managed_stage = self.read(MANAGED_STAGE)
-        self.assertLess(len(managed_stage.split()), 2400)
+        self.assertLess(len(managed_stage.split()), 2450)
         self.assertLessEqual(len(worker.split()), 1200)
         # One shared contract plus one section per provider replaces the three
         # adapter skills; the merged file stays near what those three weighed.

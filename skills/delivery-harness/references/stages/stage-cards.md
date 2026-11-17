@@ -128,12 +128,14 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 A worker returned a result, a non-mission attempt finished, or every selected worker result is recorded.
 
-Preflight the payload read-only before any state change. Record the mission result with one locked call; repeat `--verifier-result` per retained execution. A non-passing mission records its node result and no passing payload. Reject a stale or untrusted candidate. Reserve each non-mission attempt before its side effect, then close it with exactly one outcome. Run `verifier_runtime.py` outside the RUN lock and keep request and result files outside the checkout. Record each integration after its gate passes; integration stays serial. Close the wave when no worker or review worker is live.
+Preflight the payload read-only before any state change. Run `record-worker-result --check` first: an issue about the packet's own identity (lease, attempt, verifier context, worker record) is the parent's to correct and resubmit, never to record as a worker failure. When the preflight reports `scope_escape`, record the path with `amend-scope`, then preflight again; a path it refuses needs a PLAN revision. Record the mission result with one locked call; repeat `--verifier-result` per retained execution. A non-passing mission records its node result and no passing payload. Reject a stale or untrusted candidate. Reserve each non-mission attempt before its side effect, then close it with exactly one outcome. Run `verifier_runtime.py` outside the RUN lock and keep request and result files outside the checkout. Record each integration after its gate passes; integration stays serial. Close the wave when no worker or review worker is live.
 
 **Commands in order**
 
 ```text
 python "<delivery-harness-skill-root>/scripts/validate_result.py" --plan <PLAN.md> --run <RUN.md> --node-result <file> --worker-result <file> --verifier-result <file>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --session-id <id> amend-scope --mission-id <id> --path <path> --reason <text>
+python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-worker-result --check --node-result <file> --worker-result <file> --verifier-result <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> record-worker-result --node-result <file> --worker-result <file> --verifier-result <file>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> reject-worker-result --node-id <id> --worker-id <id> --outcome retryable_failure --reason <text>
 python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLAN.md> --run <RUN.md> --repo-root <root> --session-id <id> reserve-node-attempt --node-id <id> --attempt-id <id> --request-out <file>
@@ -147,7 +149,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 **Stop when**
 
 - Validation reports a mismatch against live Git.
-- Changed files leave the mission write scope.
+- Changed files leave the mission write scope and `amend-scope` refuses the path.
 - A result has no matching reserved attempt or lease.
 - A selected mission is still queued or running at close.
 - `record-integration` reports paths outside mission scopes because a parent commit sits between the recorded integration head (or batch base) and the merge.

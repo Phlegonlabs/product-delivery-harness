@@ -143,7 +143,7 @@ Read `references/ui-implementation-contract.md` before UI implementation or revi
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
 - Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- Final UI Acceptance runs the Final Visual Parity Loop and the page-quality pass once, on the exact head, in the one review (`references/verification-gates.md`). Impeccable is not the default reviewer.
+- Final UI Acceptance runs the Final Visual Parity Loop and the page-quality pass once, on the exact head, in the one review (`references/verification-gates.md#final-ui-acceptance`). Impeccable is not the default reviewer.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow
