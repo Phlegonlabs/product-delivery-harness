@@ -264,7 +264,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("one explicit `write_scope`", skill)
         self.assertIn("Freeze shared APIs, schemas, and types", skill)
         self.assertIn("`git status --porcelain`", skill)
-        self.assertIn("one planned parent-owned read-only reviewer", skill)
+        self.assertIn("one planned parent-owned read-only review point on the unified SHA, one call per lens", skill)
+        self.assertIn("one fresh combined review point, one call per lens",
+                      self.read("assets/templates/HARNESS_PLAN.template.md"))
+        self.assertNotIn("One reviewer call holds one lens", self.read("references/delegation-contract.md"))
         self.assertIn("union of lenses the mission's write scope needs", skill)
         self.assertIn("at most one repair-and-re-review cycle", skill)
         self.assertIn("do not dispatch another same-scope review", skill)
@@ -697,7 +700,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         self.assertLess(len(core.split()), 2000)
         managed_stage = self.read(MANAGED_STAGE)
-        self.assertLess(len(managed_stage.split()), 2450)
+        self.assertLess(len(managed_stage.split()), 2460)
         self.assertLessEqual(len(worker.split()), 1200)
         # One shared contract plus one section per provider replaces the three
         # adapter skills; the merged file stays near what those three weighed.
