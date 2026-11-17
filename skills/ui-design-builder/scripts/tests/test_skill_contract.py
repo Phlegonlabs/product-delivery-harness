@@ -320,6 +320,16 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("every manifest-listed sibling page", visual_pass)
         self.assertIn("ask explicitly for Visual Approval", visual_pass)
 
+    def test_output_contract_documents_the_product_stylesheet(self):
+        contract = self.read("references/output-contract.md")
+        section = contract.split("### Connected HiFi Package", 1)[1].split("### Required motion evidence", 1)[0]
+        for phrase in ("--product-css <file>", "<!-- hifi-product:css:start -->", "<!-- hifi-product:css:end -->",
+                       "--require-hifi-preflight", "stages/ui-design.md#workflow"):
+            self.assertIn(phrase, section)
+        import reviewer_shell
+        self.assertIn(reviewer_shell.PRODUCT_CSS_START, section)
+        self.assertIn(reviewer_shell.PRODUCT_CSS_END, section)
+
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         stage = self.read(UI_STAGE)
         contract = self.read("references/output-contract.md")
