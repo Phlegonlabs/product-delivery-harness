@@ -206,11 +206,20 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertEqual(1, len(re.findall(r"</script", data, re.IGNORECASE)), "only the elements own end tag")
         self.assertEqual(hostile, json.loads(direction_review.COMPARE_RE.search(data).group(1))["names"]["vd-01.html"])
 
-    def test_a_study_cannot_take_the_comparison_page_name(self) -> None:
-        profile = self.profile()
-        profile["directions"][0]["file"] = "Compare.html"
-        self.assertIn("directions[0].file cannot be compare.html, which names the comparison page",
-                      direction_review.profile_findings(profile))
+    def test_the_comparison_page_name_is_reserved_only_where_it_is_generated(self) -> None:
+        self.pages = {"vd-01.html": self.pages["vd-01.html"], "vd-02.html": self.pages["vd-02.html"],
+                      "Compare.html": source_html("compare")}
+        self.assert_rejected("a study cannot be named compare.html in a round of several")
+        # A retained one-study package may already hold a study with that name; it validates as it did before.
+        self.pages = {"compare.html": source_html("compare")}
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": "VD-R1-01", "file": "compare.html",
+                                   "sourceSha256": hashlib.sha256(self.pages["compare.html"].encode("utf-8")).hexdigest()}]}
+        self.assertEqual([], direction_review.profile_findings(profile))
+        self.assertEqual([str(self.out / "compare.html")], self.run_assembly(profile))
+        study = (self.out / "compare.html").read_text(encoding="utf-8")
+        self.assertEqual([], ui_design_v3.direction_review_findings(study, "docs/design/directions/round-1/compare.html"))
+        self.assertNotIn("data-compare-bar", study)
 
     def test_comparison_names_fall_back_to_the_filename_and_unescape_titles(self) -> None:
         self.assertEqual("A & B", direction_review.study_name("<title> A &amp;  B </title>", "vd-01.html"))

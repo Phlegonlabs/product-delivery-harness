@@ -141,8 +141,6 @@ def profile_findings(profile: Any) -> list[str]:
         directions = directions if isinstance(directions, list) else []
     for index, row in enumerate(directions):
         label = f"directions[{index}]"
-        if isinstance(row, dict) and str(row.get("file")).casefold() == COMPARE_FILE:
-            problems.append(f"{label}.file cannot be {COMPARE_FILE}, which names the comparison page")
         if not isinstance(row, dict) or set(row) != {"id", "file", "sourceSha256"}:
             problems.append(f"{label} must contain exactly id, file and sourceSha256")
             continue

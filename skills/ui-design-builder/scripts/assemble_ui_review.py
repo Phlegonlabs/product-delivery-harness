@@ -293,7 +293,11 @@ def assemble_direction(
         _fail("linked output directory is not allowed")
     if output_dir.exists() and not output_dir.is_dir():
         _fail(f"output path is not a directory: {output_dir}")
-    # A round of three also gets its comparison page; one study keeps its single view.
+    # A round of three also gets its comparison page, so no study there may take its name. A one-study profile,
+    # including a retained older one, keeps every filename it was valid with.
+    if len(declared) > 1 and any(file.casefold() == direction_review.COMPARE_FILE for file in declared):
+        _fail(f"a study cannot be named {direction_review.COMPARE_FILE} in a round of several; that name is the comparison page")
+    # One study keeps its single view.
     written = declared + ([direction_review.COMPARE_FILE] if len(declared) == 3 else [])
     destinations = [output_dir / file for file in written]
     if any(_linked_path(path) or path.resolve() in source_paths | {manifest_resolved} for path in destinations):
