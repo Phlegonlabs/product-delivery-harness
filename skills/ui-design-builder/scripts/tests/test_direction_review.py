@@ -98,8 +98,8 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_assembles_three_distinct_studies_without_an_entry_or_token_panels(self) -> None:
         paths = self.run_assembly()
-        self.assertEqual([str(self.out / file) for file in (*FILES, "compare.html")], paths)
-        self.assertEqual(sorted((*FILES, "compare.html")), sorted(path.name for path in self.out.iterdir()))
+        self.assertEqual([str(self.out / file) for file in (*FILES, "_compare.html")], paths)
+        self.assertEqual(sorted((*FILES, "_compare.html")), sorted(path.name for path in self.out.iterdir()))
         studies = {file: (self.out / file).read_text(encoding="utf-8") for file in FILES}
         self.assertEqual(3, len(set(studies.values())))
         for file, html in studies.items():
@@ -123,7 +123,7 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def compare_page(self) -> str:
         self.run_assembly()
-        return (self.out / "compare.html").read_text(encoding="utf-8")
+        return (self.out / "_compare.html").read_text(encoding="utf-8")
 
     def test_comparison_page_lists_every_study_once_in_round_order(self) -> None:
         html = self.compare_page()
@@ -133,7 +133,7 @@ class DirectionAssemblyTests(unittest.TestCase):
             self.assertEqual(1, html.count(f"<span>{name}</span></a></article>"))
         self.assertEqual(2, html.count("data-compare-case="))
         self.assertEqual(4, html.count("data-compare-target="))
-        self.assertEqual([], direction_review.assembled_compare_findings(html, "compare.html"))
+        self.assertEqual([], direction_review.assembled_compare_findings(html, "_compare.html"))
         self.assertEqual(html, direction_review.render_compare(self.profile(), {file: file[:-5] for file in FILES}))
 
     def test_comparison_page_stays_closed_and_isolated_from_the_studies(self) -> None:
@@ -152,7 +152,7 @@ class DirectionAssemblyTests(unittest.TestCase):
             study = (self.out / file).read_text(encoding="utf-8")
             self.assertNotIn(self.pages[file].split("<body>", 1)[1].split("</body>", 1)[0], html)
             self.assertEqual(study, direction_review.render_study(self.profile(), self.pages[file], file))
-            self.assertNotIn("compare.html", study)
+            self.assertNotIn("_compare.html", study)
 
     def test_comparison_crop_matches_the_shared_reviewer_layout(self) -> None:
         template = (TEMPLATES / "DIRECTION_REVIEWER.template.html").read_text(encoding="utf-8")
@@ -172,12 +172,12 @@ class DirectionAssemblyTests(unittest.TestCase):
             (html.replace("</head>", "</head>", 1).replace('<script id="ui-direction-compare"', '<script id="other"', 1),
              "must embed exactly one comparison record"),
         ):
-            self.assertIn(expected, "; ".join(direction_review.assembled_compare_findings(changed, "compare.html")))
+            self.assertIn(expected, "; ".join(direction_review.assembled_compare_findings(changed, "_compare.html")))
         profile = self.profile()
         names = {file: file for file in FILES}
         good = direction_review.render_compare(profile, names)
         weaker = good.replace("object-src 'none'", "object-src *")
-        self.assertTrue(direction_review.assembled_compare_findings(weaker, "compare.html"))
+        self.assertTrue(direction_review.assembled_compare_findings(weaker, "_compare.html"))
 
     def test_comparison_record_stays_inert_whatever_a_study_title_holds(self) -> None:
         hostile = "</ScRiPt><script>window.parentTitleInjection=1</ScRiPt><!-- a\u2028b & c"
@@ -201,25 +201,10 @@ class DirectionAssemblyTests(unittest.TestCase):
         record = json.loads(direction_review.COMPARE_RE.search(html).group(1))
         self.assertEqual(" ".join(hostile.split()), record["names"]["vd-01.html"])
         self.assertIn(html_escape(" ".join(hostile.split())), html)
-        self.assertEqual([], direction_review.assembled_compare_findings(html, "compare.html"))
+        self.assertEqual([], direction_review.assembled_compare_findings(html, "_compare.html"))
         data = direction_review._compare_data(self.profile(), {"vd-01.html": hostile})
         self.assertEqual(1, len(re.findall(r"</script", data, re.IGNORECASE)), "only the elements own end tag")
         self.assertEqual(hostile, json.loads(direction_review.COMPARE_RE.search(data).group(1))["names"]["vd-01.html"])
-
-    def test_the_comparison_page_name_is_reserved_only_where_it_is_generated(self) -> None:
-        self.pages = {"vd-01.html": self.pages["vd-01.html"], "vd-02.html": self.pages["vd-02.html"],
-                      "Compare.html": source_html("compare")}
-        self.assert_rejected("a study cannot be named compare.html in a round of several")
-        # A retained one-study package may already hold a study with that name; it validates as it did before.
-        self.pages = {"compare.html": source_html("compare")}
-        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
-                   "directions": [{"id": "VD-R1-01", "file": "compare.html",
-                                   "sourceSha256": hashlib.sha256(self.pages["compare.html"].encode("utf-8")).hexdigest()}]}
-        self.assertEqual([], direction_review.profile_findings(profile))
-        self.assertEqual([str(self.out / "compare.html")], self.run_assembly(profile))
-        study = (self.out / "compare.html").read_text(encoding="utf-8")
-        self.assertEqual([], ui_design_v3.direction_review_findings(study, "docs/design/directions/round-1/compare.html"))
-        self.assertNotIn("data-compare-bar", study)
 
     def test_comparison_names_fall_back_to_the_filename_and_unescape_titles(self) -> None:
         self.assertEqual("A & B", direction_review.study_name("<title> A &amp;  B </title>", "vd-01.html"))
@@ -240,7 +225,7 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.pages = {"vd-01.html": self.pages["vd-01.html"]}
         self.assertEqual([str(self.out / "vd-01.html")], self.run_assembly())
         self.assertIn("round-1, 1 study, 2 cases", (self.out / "vd-01.html").read_text(encoding="utf-8"))
-        self.assertFalse((self.out / "compare.html").exists(), "one study keeps its single view")
+        self.assertFalse((self.out / "_compare.html").exists(), "one study keeps its single view")
         profile = self.profile()
         profile["directions"].append(dict(profile["directions"][0], id="VD-R1-02", file="vd-02.html", sourceSha256="0" * 64))
         self.assertIn("directions must list three studies, or one by explicit owner choice",
@@ -440,7 +425,7 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_contract_routes_profiled_studies_and_keeps_legacy_checks(self) -> None:
         self.run_assembly()
-        (self.out / "compare.html").unlink()  # this test routes one study; the comparison page has its own tests
+        (self.out / "_compare.html").unlink()  # this test routes one study; the comparison page has its own tests
         name = FILES[0]
         path = f"docs/design/directions/round-1/{name}"
         profiled = (self.out / name).read_text(encoding="utf-8")
@@ -508,60 +493,41 @@ class DirectionAssemblyTests(unittest.TestCase):
         # A study missing from the table no longer matches the profile the page was assembled from.
         self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("vd-01.html", "vd-02.html"))))
 
-    def retained_round(self, files: tuple[str, ...]) -> None:
-        """Write studies for a profile the assembler would refuse today, as an older package already holds them."""
+    def test_no_study_can_have_the_comparison_pages_name(self) -> None:
+        self.assertEqual("_compare.html", direction_review.COMPARE_FILE)
+        for name in (direction_review.COMPARE_FILE, "_COMPARE.HTML", "_Compare.html"):
+            self.assertIsNone(direction_review.FILE_RE.fullmatch(name), name)
+        profile = self.profile()
+        profile["directions"][0]["file"] = "_compare.html"
+        self.assertIn("directions[0].file must be the study's actual <name>.html filename",
+                      direction_review.profile_findings(profile))
 
-        self.pages = {file: source_html(file[:-5]) for file in files}
-        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES), "directions": [
-            {"id": f"VD-R1-{10 + position}", "file": file,
-             "sourceSha256": hashlib.sha256(self.pages[file].encode("utf-8")).hexdigest()}
-            for position, file in enumerate(files)]}
-        self.out.mkdir(parents=True)
-        for file, html in self.pages.items():
-            (self.out / file).write_text(direction_review.render_study(profile, html, file), encoding="utf-8", newline="")
-
-    def test_a_round_of_several_cannot_skip_the_comparison_by_naming_a_study_compare_html(self) -> None:
-        self.retained_round(("compare.html", "b.html", "c.html"))
-        self.assertIn("must exactly match the page regenerated", " ".join(self.package_problems(("compare.html", "b.html", "c.html"))))
-
-    def test_a_retained_one_study_package_named_compare_html_still_passes(self) -> None:
-        self.retained_round(("compare.html",))
+    def test_a_study_named_compare_html_is_an_ordinary_study(self) -> None:
+        # A retained one-study package keeps working: it validates and reassembles with no special path.
+        self.pages = {"compare.html": source_html("compare")}
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": "VD-R1-01", "file": "compare.html",
+                                   "sourceSha256": hashlib.sha256(self.pages["compare.html"].encode("utf-8")).hexdigest()}]}
+        self.assertEqual([str(self.out / "compare.html")], self.run_assembly(profile))
+        kept = (self.out / "compare.html").read_bytes()
         self.assertEqual([], self.package_problems(("compare.html",)))
-
-    def test_a_retained_one_study_package_named_with_another_case_validates_and_reassembles(self) -> None:
-        # Filesystems that ignore case see Compare.html and compare.html as one file, so the study must not be taken
-        # for a stale comparison page by the package check or by reassembly.
-        self.pages = {"Compare.html": source_html("compare")}
-        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
-                   "directions": [{"id": "VD-R1-01", "file": "Compare.html",
-                                   "sourceSha256": hashlib.sha256(self.pages["Compare.html"].encode("utf-8")).hexdigest()}]}
-        self.run_assembly(profile)
         self.run_assembly(profile, overwrite=True)
-        self.assertEqual([], self.package_problems(("Compare.html",)))
+        self.assertEqual(kept, (self.out / "compare.html").read_bytes())
+        # In a round of three it is one more study, and the generated page keeps its own name beside it.
+        self.out = self.root / "docs/design/directions/round-2"
+        self.pages = {"compare.html": source_html("compare"), "vd-02.html": source_html("vd-02"), "vd-03.html": source_html("vd-03")}
+        paths = self.run_assembly()
+        self.assertEqual(["compare.html", "vd-02.html", "vd-03.html", "_compare.html"], [Path(path).name for path in paths])
+        self.assertEqual([], direction_review.assembled_compare_findings(
+            (self.out / "_compare.html").read_text(encoding="utf-8"), "_compare.html"))
 
-    def test_a_study_named_in_another_case_is_the_page_only_when_it_is_the_same_file(self) -> None:
-        # Where case matters, Compare.html and compare.html are two files: the study is not the page, so a stale
-        # page beside it is still checked and still removed.
-        from unittest import mock
-
-        folder = Path("round-1")
-        self.assertTrue(direction_review.is_compare_entry(folder, "compare.html"))
-        self.assertFalse(direction_review.is_compare_entry(folder, "vd-01.html"))
-        for same, expected in ((True, True), (False, False)):
-            with mock.patch.object(direction_review.os.path, "samefile", return_value=same):
-                self.assertEqual(expected, direction_review.is_compare_entry(folder, "Compare.html"))
-        with mock.patch.object(direction_review.os.path, "samefile", side_effect=FileNotFoundError):
-            self.assertFalse(direction_review.is_compare_entry(folder, "Compare.html"))
-
-        self.pages = {"Compare.html": source_html("compare")}
-        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
-                   "directions": [{"id": "VD-R1-01", "file": "Compare.html",
-                                   "sourceSha256": hashlib.sha256(self.pages["Compare.html"].encode("utf-8")).hexdigest()}]}
-        self.run_assembly(profile)
-        with mock.patch.object(direction_review.os.path, "samefile", return_value=False):
-            # read as two files, the lowercase name is a page that does not belong to a one-study round
-            if (self.out / "compare.html").exists():
-                self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("Compare.html",))))
+    def test_an_older_file_named_compare_html_is_not_the_comparison_page(self) -> None:
+        # Nothing was released under that name: the tool neither reads such a file as the page nor deletes it.
+        self.out.mkdir(parents=True)
+        (self.out / "compare.html").write_text("<html>older</html>", encoding="utf-8", newline="")
+        self.run_assembly(self.one_study_profile())
+        self.assertEqual("<html>older</html>", (self.out / "compare.html").read_text(encoding="utf-8"))
+        self.assertEqual([], self.package_problems(("vd-04.html",)))
 
     def one_study_profile(self) -> dict:
         self.pages = {"vd-04.html": source_html("vd-04")}
@@ -571,11 +537,11 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_package_check_regenerates_the_comparison_page_from_the_current_studies(self) -> None:
         self.run_assembly()
-        page = self.out / "compare.html"
+        page = self.out / "_compare.html"
         self.assertEqual([], self.package_problems())
         good = page.read_bytes()
         page.unlink()
-        self.assertIn("round-1/compare.html is missing", " ".join(self.package_problems()))
+        self.assertIn("round-1/_compare.html is missing", " ".join(self.package_problems()))
         page.write_bytes(good.replace(b"<h1>round-1</h1>", b"<h1>round-1 edited</h1>"))
         self.assertIn("must exactly match the page regenerated from the round's current studies", " ".join(self.package_problems()))
         # A study changed after the page was written: the old page lists a stale name.
@@ -586,7 +552,7 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_a_one_study_round_leaves_no_comparison_page_and_the_assembler_removes_its_own(self) -> None:
         self.run_assembly()
-        page = self.out / "compare.html"
+        page = self.out / "_compare.html"
         generated = page.read_bytes()
         self.run_assembly(self.one_study_profile())
         self.assertFalse(page.exists(), "a comparison page it generated goes with a one-study reassembly")
@@ -599,14 +565,14 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_the_assembler_never_deletes_a_compare_page_it_cannot_prove_it_wrote(self) -> None:
         self.out.mkdir(parents=True)
-        (self.out / "compare.html").write_text("<html>mine</html>", encoding="utf-8", newline="")
+        (self.out / "_compare.html").write_text("<html>mine</html>", encoding="utf-8", newline="")
         profile = self.one_study_profile()
         stderr = io.StringIO()
         with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
             self.run_assembly(profile)
         self.assertEqual(2, raised.exception.code)
         self.assertIn("is not a comparison page this tool wrote", stderr.getvalue())
-        self.assertEqual("<html>mine</html>", (self.out / "compare.html").read_text(encoding="utf-8"))
+        self.assertEqual("<html>mine</html>", (self.out / "_compare.html").read_text(encoding="utf-8"))
         self.assertFalse((self.out / "vd-04.html").exists(), "a refused assembly writes nothing")
 
     def test_profile_cases_join_approved_scope_without_state_coverage(self) -> None:

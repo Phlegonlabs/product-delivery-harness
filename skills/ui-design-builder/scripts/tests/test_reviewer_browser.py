@@ -715,7 +715,7 @@ const {pathToFileURL}=require('url');
 })().catch(error=>{console.error(error instanceof Error?error.stack:error);process.exitCode=1;});
 '''
             result = run_browser_script(
-                [node, "-", str(root / "round-1" / "compare.html"), playwright, hostile], script, HIFI_BROWSER_TIMEOUT_SECONDS)
+                [node, "-", str(root / "round-1" / "_compare.html"), playwright, hostile], script, HIFI_BROWSER_TIMEOUT_SECONDS)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
             self.assertIn("direction-comparison: PASS", result.stdout)
 

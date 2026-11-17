@@ -2073,7 +2073,7 @@ class VariantRoundRecordTests(unittest.TestCase):
 
 
 class ComparisonPageDateRuleTests(unittest.TestCase):
-    """A round decided before 2026-11-18 may lack compare.html; any page that is present must still match."""
+    """A round decided before 2026-11-18 may lack _compare.html; any page that is present must still match."""
 
     FILES = ("vd-01.html", "vd-02.html", "vd-03.html")
 
@@ -2093,7 +2093,7 @@ class ComparisonPageDateRuleTests(unittest.TestCase):
         self.out = self.root / "docs/design/directions/round-1"
         assemble_ui_review.assemble_direction(
             self.root / "profile.json", [f"{file}={self.root / 'src' / file}" for file in self.FILES], self.out)
-        self.page = self.out / "compare.html"
+        self.page = self.out / "_compare.html"
 
     def tearDown(self):
         self.temp.cleanup()
@@ -2123,10 +2123,10 @@ class ComparisonPageDateRuleTests(unittest.TestCase):
 
     def test_a_round_decided_on_the_constant_date_or_undecided_needs_the_page(self):
         self.page.unlink()
-        self.assertIn("compare.html is missing", self.problems("2026-11-18"))
-        self.assertIn("compare.html is missing", self.problems("2027-01-05"))
-        self.assertIn("compare.html is missing", self.problems(None))
-        self.assertIn("compare.html is missing", self.problems("not a date"))
+        self.assertIn("_compare.html is missing", self.problems("2026-11-18"))
+        self.assertIn("_compare.html is missing", self.problems("2027-01-05"))
+        self.assertIn("_compare.html is missing", self.problems(None))
+        self.assertIn("_compare.html is missing", self.problems("not a date"))
 
     def test_a_present_page_must_match_whatever_the_date(self):
         self.assertEqual("", self.problems("2026-11-17"))
