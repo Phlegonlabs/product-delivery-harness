@@ -784,37 +784,47 @@ class NodeDriver:
         self._lines = queue.Queue()
         self._stderr = collections.deque(maxlen=20)
         self._seq = 0
+        self._lock, self._closed = threading.Lock(), False     # a closed driver never creates a process again
 
     def start(self):
         script = self.scratch / "driver.js"
         if not script.exists():
             script.write_text(DRIVER_JS, encoding="utf-8")
         self._lines = queue.Queue()
-        self.proc = subprocess.Popen(
-            [self.node, str(script), str(self.module)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
-        threading.Thread(target=self._pump, args=(self.proc.stdout, self._lines), daemon=True).start()
-        threading.Thread(target=self._pump, args=(self.proc.stderr, None), daemon=True).start()
+        with self._lock:        # close() waits here, so it either stops this process or stops this start
+            if self._closed:
+                raise DriverError("driver is closed")
+            proc = self.proc = subprocess.Popen(
+                [self.node, str(script), str(self.module)], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE, text=True, encoding="utf-8", bufsize=1)
+        threading.Thread(target=self._pump, args=(proc.stdout, self._lines), daemon=True).start()
+        threading.Thread(target=self._pump, args=(proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
                           viewport={"width": 1920, "height": 1080}, colorScheme=self.color_scheme)
         self.environment = reply["result"]["environment"]
 
     def _pump(self, stream, sink):
         queue_out = sink
-        for line in stream:
-            if queue_out is not None:
-                queue_out.put(line)
-            else:
-                self._stderr.append(line.rstrip())
+        try:
+            for line in stream:
+                if queue_out is not None:
+                    queue_out.put(line)
+                else:
+                    self._stderr.append(line.rstrip())
+        except (ValueError, OSError):     # stop() closed the pipe under us
+            pass
         if queue_out is not None:
             queue_out.put(None)
 
     def call(self, op, timeout=CASE_TIMEOUT_S + 10, **fields):
         self._seq += 1
+        proc = self.proc
+        if proc is None:
+            raise DriverError("driver is not running")
         try:
             # id and op go last so a payload field of the same name cannot clobber the reply correlation.
-            self.proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
-            self.proc.stdin.flush()
+            proc.stdin.write(json.dumps({**fields, "op": op, "id": self._seq}) + "\n")
+            proc.stdin.flush()
         except OSError as error:
             raise DriverError("driver is not running: " + self._tail()) from error
         deadline = time.monotonic() + timeout
@@ -836,7 +846,8 @@ class NodeDriver:
         return " | ".join(self._stderr)[-400:] or "no driver output"
 
     def stop(self):
-        proc, self.proc = self.proc, None
+        with self._lock:
+            proc, self.proc = self.proc, None
         if proc is None:
             return
         try:
@@ -858,6 +869,13 @@ class NodeDriver:
     def restart(self):
         self.stop()
         self.start()
+
+    def close(self):
+        """Stop for good. A start or restart still creating its process either finishes first and is stopped here,
+        or finds the driver closed and creates nothing."""
+        with self._lock:
+            self._closed = True
+        self.stop()
 
 
 def kill_tree(proc):
@@ -1760,12 +1778,21 @@ class DriverPool:
         return runners
 
     def close(self):
-        """Stop every driver, all at once, on every exit path."""
+        """Stop every driver, all at once, on every exit path.
+
+        A worker may still be inside start() or restart() when this runs, so the drivers are stopped a second
+        time once the worker threads have ended. A driver with a close() also refuses any later start."""
         self.cancel.set()
-        stoppers = [threading.Thread(target=driver.stop) for driver in self.drivers]
+        self.stop_all(lambda driver: getattr(driver, "close", driver.stop)())
+        for thread in self.threads:
+            thread.join(timeout=30)
+        self.stop_all(lambda driver: driver.stop())
+
+    def stop_all(self, stop):
+        stoppers = [threading.Thread(target=stop, args=(driver,)) for driver in self.drivers]
         for thread in stoppers:
             thread.start()
-        for thread in stoppers + self.threads:
+        for thread in stoppers:
             thread.join(timeout=30)
 
 
