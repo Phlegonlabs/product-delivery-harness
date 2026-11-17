@@ -1,6 +1,6 @@
 # EPIC-design-flow: carry the owner's references across projects and compare directions side by side
 
-Status: published as 0.87.0 on 2026-11-17 (PR #194, `main` `6b545763`, tag `v0.87.0`); installed the same day (five-skill contract `996be146…`); consumers not yet re-pinned
+Status: published as 0.87.0 on 2026-11-17 (PR #194, `main` `6b545763`, tag `v0.87.0`); installed the same day (five-skill contract `996be146…`); 20 consumer checkouts adopted on 2026-11-17
 Design workflow: enhancement
 UI impact: none in a product. One reviewer page is new: a round of three direction studies gets `_compare.html`.
 
@@ -79,6 +79,7 @@ Known limits, not acted on: a variant round that leaves out its table cannot be 
 
 ## Change Log
 
+- 2026-11-17: consumer rollout. 20 checkouts moved from the 0.84.0 pin to 0.87.0, one Claude Sonnet 5.5 writer per repository (brief and parent scripts in `task/adopt-0870/`): pins in `AGENTS.md`, the review sentence in `CLAUDE.md`, one adoption record, the Handoff facts. The parent check passed for all 20; 18 mains were pushed and read back (phlegon-web through a temporary worktree from `origin/main`); codex-router and ziwei-doushu are local commits only, because their remotes are not the owner's. Not adopted: agentkiosk, jolvex-platform and hk-car-care, each on a branch with a UI round in progress that finishes on its entry pin. Baselines not refreshed in agentic-commons-site and phlegon-web, where documents outside the adoption had changed since the last baseline. ticketradar keeps its owner pin for `design-taste-frontend`. In excalidraw-personal and hk-car-direct `CLAUDE.md` is untracked, so that edit is on disk only.
 - 2026-11-17: published as 0.87.0 and installed. CI passed 14 of 14 on `d9c427a0`; the merge commit is tree-equal to the candidate (`promotion_readback.py post`: `tree_equal_S`).
 - 2026-11-17: reviewed, repaired and verified; the comparison page renamed `_compare.html`; release surfaces set to 0.87.0.
 - 2026-11-17: round opened and integrated.
@@ -91,8 +92,8 @@ Stage and skill: source maintenance; release complete
 Inputs consumed (path + hash or revision): main 176be53b (v0.86.0)
 Approvals in force (gate, owner, date, candidate): owner 2026-11-17, four items picked in the question dialog; the publication path follows the same day's go-ahead for the parallel checks round
 Done and verified (command, exit code): PR #194 checks, 14 of 14 pass; install.sh exit 0, contract 996be1469755f85b9e6653967d987a3b744ecdc624a1b277ae33a2a39ba4d9be (previous ace80228…)
-Remaining: consumer re-pins for 0.86.0 and 0.87.0 after the owner says so. Proposed, not started: the tweak panel on the Design Tokens view; the gallery runtime race recorded in EPIC-parallel-checks
+Remaining: agentkiosk, jolvex-platform and hk-car-care adopt 0.87.0 when their UI rounds close. Proposed, not started: the tweak panel on the Design Tokens view; the gallery runtime race recorded in EPIC-parallel-checks
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): the owner decides when consumers re-pin
+Next action (one command or one owner decision): the owner decides whether to start the tweak panel or the gallery runtime fix
 Next owner (skill or human): owner
 ```
