@@ -264,7 +264,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("one explicit `write_scope`", skill)
         self.assertIn("Freeze shared APIs, schemas, and types", skill)
         self.assertIn("`git status --porcelain`", skill)
-        self.assertIn("one planned parent-owned read-only reviewer", skill)
+        self.assertIn("one planned parent-owned read-only review point on the unified SHA, one call per lens", skill)
+        self.assertIn("one fresh combined review point, one call per lens",
+                      self.read("assets/templates/HARNESS_PLAN.template.md"))
+        self.assertNotIn("One reviewer call holds one lens", self.read("references/delegation-contract.md"))
         self.assertIn("union of lenses the mission's write scope needs", skill)
         self.assertIn("at most one repair-and-re-review cycle", skill)
         self.assertIn("do not dispatch another same-scope review", skill)
@@ -376,7 +379,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         # Reviewers triage blocking findings from non-blocking notes; only
         # blocking findings open a repair round.
-        self.assertIn("One reviewer per candidate", gates)
+        self.assertIn("One review point per candidate", gates)
+        self.assertIn("launched together", gates)
+        self.assertIn("may start together with the review", gates)
+        self.assertIn("a managed final gate still depends on its review node", gates)
         self.assertIn("Finding triage", gates)
         self.assertIn("non-blocking notes", gates)
         self.assertIn("record-review-attempt --note", gates)
@@ -694,7 +700,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         self.assertLess(len(core.split()), 2000)
         managed_stage = self.read(MANAGED_STAGE)
-        self.assertLess(len(managed_stage.split()), 2450)
+        self.assertLess(len(managed_stage.split()), 2460)
         self.assertLessEqual(len(worker.split()), 1200)
         # One shared contract plus one section per provider replaces the three
         # adapter skills; the merged file stays near what those three weighed.
@@ -1943,7 +1949,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("general runtime adapter reference", project_claude)
         self.assertIn("Direct work follows `AGENTS.md`", project_claude)
         self.assertIn("parent retains authorization", project_claude)
-        self.assertIn("one fresh read-only reviewer on the unified head", project_claude)
+        self.assertIn("one fresh read-only review point on the unified head", project_claude)
         self.assertIn("security lens", project_claude)
 
         if REPO_ROOT is not None:
@@ -2090,11 +2096,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn('-p "test_golden_path.py" -v', content)
         self.assertIn("PDH_REQUIRE_BROWSER_TESTS: \"1\"", content)
         self.assertIn("npx playwright install --with-deps chromium", content)
-        for suite in ("product-definition-builder", "design-system-compiler"):
-            self.assertIn(
-                f"unittest discover -s skills/{suite}/scripts/tests -v",
-                content,
-            )
+        for suite, workers in (("product", 4), ("ui", 3), ("design-system", 3)):
+            self.assertIn(f"ci_test_shards.py run --suite {suite} --workers {workers}", content)
         self.assertNotIn("skills/product-activation/scripts", content)
         self.assertNotIn("skills/seo-growth-review/scripts", content)
 

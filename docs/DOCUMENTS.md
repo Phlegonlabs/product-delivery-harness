@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-flow-speed](epics/EPIC-flow-speed.md)
+Current Epic: [EPIC-parallel-checks](epics/EPIC-parallel-checks.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |

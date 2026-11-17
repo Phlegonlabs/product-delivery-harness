@@ -1682,6 +1682,49 @@ class RealBrowserTests(unittest.TestCase):
             finally:
                 driver.stop()
 
+    def test_an_interaction_reopens_a_page_that_left_on_its_own(self):
+        module = self.playwright()
+        leave = "<script>if (!sessionStorage.left) setTimeout(() => { sessionStorage.left = 1; location.href = 'index.html'; }, 300);</script>"
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as scratch:
+            package = build_interactions_package(Path(temporary), details_extra=leave)
+            driver = m.NodeDriver(shutil.which("node"), module, m.read_package(package).files, scratch)
+            driver.start()
+            try:
+                driver.call("open", page="details.html", timeoutMs=30000)
+                time.sleep(1.5)                       # the browser is on index.html; the driver last opened details.html
+                action = INTERACTIONS[1]
+                reply = driver.call("interact", page="details.html", interaction=action["id"], surface="UI-002",
+                                    state="ready", target="390", control=action["control"], kind="navigate",
+                                    destination=action["destination"], destinationPage="index.html", trigger="click",
+                                    timeoutMs=30000)
+            finally:
+                driver.stop()
+            self.assertEqual([], reply["result"]["problems"])
+            self.assertEqual("index.html", reply["result"]["arrivedTo"])
+
+    def test_every_interaction_attempt_starts_from_a_fresh_page_load(self):
+        module = self.playwright()
+        logs = lambda html: html.replace("</main>", "<script>console.info('page-loaded')</script></main>", 1)
+        with tempfile.TemporaryDirectory() as temporary, tempfile.TemporaryDirectory() as scratch:
+            package = build_interactions_package(Path(temporary), page_edit=logs)
+            driver = m.NodeDriver(shutil.which("node"), module, m.read_package(package).files, scratch)
+            driver.start()
+            try:
+                action = INTERACTIONS[0]
+                fields = dict(page="index.html", interaction=action["id"], surface="UI-001", state="ready", target="390",
+                              control=action["control"], kind="navigate", destination=action["destination"],
+                              trigger="click", timeoutMs=30000)
+                # the first attempt stops before it leaves the page, so the second starts where it was
+                refused = driver.call("interact", destinationPage="other.html", **fields)
+                accepted = driver.call("interact", destinationPage="details.html", **fields)
+            finally:
+                driver.stop()
+            loads = lambda reply: [row["message"] for row in reply["events"]["console"] if row["message"] == "page-loaded"]
+            self.assertEqual(["navigate controls must link to the declared page"], refused["result"]["problems"])
+            # the reload of index.html, then the arrival on details.html, which logs too
+            self.assertEqual((1, 2), (len(loads(refused)), len(loads(accepted))))
+            self.assertEqual([], accepted["result"]["problems"])
+
     def test_a_canvas_paint_change_changes_the_fingerprint_and_is_not_carried(self):
         module = self.playwright()
         red = lambda text: text.replace("[data-hifi-canvas]{container-type:inline-size;background:var(--paper)}",

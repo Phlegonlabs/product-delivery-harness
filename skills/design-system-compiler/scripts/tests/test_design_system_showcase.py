@@ -506,7 +506,8 @@ const {chromium} = require(module);
   context.on("request", request => { if (!request.url().startsWith("file:") && !request.url().startsWith("about:") && !request.url().startsWith("data:")) requests.push(request.url()); });
   page.on("popup", popup => popups.push(popup.url()));
   await page.goto(url);
-  await page.waitForTimeout(1500);
+  // Every frame marks itself ready; wait for that instead of a fixed time, which a loaded runner can outlast.
+  await page.waitForFunction(() => [...document.querySelectorAll("iframe[data-ds-frame]")].every(item => item.dataset.dsReady === "1"), null, {timeout: 20000}).catch(() => {});
   const result = {};
   result.frames = await page.$$eval("iframe[data-ds-frame]", items => items.map(item => ({id: item.dataset.dsFrame, height: item.getBoundingClientRect().height, ready: item.dataset.dsReady || null})));
   const handle = async id => (await page.$(`iframe[data-ds-frame="${id}"]`)).contentFrame();

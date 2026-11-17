@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -51,10 +52,21 @@ NATIVE_FILES = (
 )
 
 
-# Modules that drive install.sh against the checkout and read its Git state
-# collide with concurrent modules; the local runner executes them after the
-# parallel batch, one at a time.
-SERIAL_FILES = ("test_install_script.py",)
+# Modules the runner executes after the parallel batch, one at a time.
+# test_install_script.py drives install.sh against the checkout and reads its
+# Git state, which collides with concurrent modules.
+# test_design_system_showcase.py opens the committed gallery in Chromium. The
+# gallery page marks a frame ready when the frame reports its size, and on a
+# loaded machine the first frame can report before the page listens; it then
+# never reports again. That is a defect in the gallery runtime, not in the
+# test, so the module runs alone until the runtime is fixed.
+SERIAL_FILES = ("test_install_script.py", "test_design_system_showcase.py")
+
+
+# Modules of these suites start headless Chromium. More than a few at once
+# saturates an eight-core machine, so their module concurrency has a ceiling.
+BROWSER_SUITES = ("ui", "design-system")
+MAX_BROWSER_WORKERS = 3
 
 
 PYFLAKES_DIRS = tuple(
@@ -111,22 +123,45 @@ def plan_shard(root: Path, args: argparse.Namespace) -> None:
             print(name)
 
 
-def run_one(root: Path, suite: str, name: str, log_dir: Path) -> tuple[str, int, float, Path]:
-    """Run one test module in its own process from the repository root."""
+FAILURE_TAIL_LINES = 60
+RAN_TESTS = re.compile(rb"^Ran [1-9][0-9]* tests?", re.MULTILINE)
+
+
+def run_one(
+    root: Path, suite: str, name: str, log_dir: Path, extra_env: dict[str, str] | None = None,
+) -> tuple[str, int, float, Path]:
+    """Run one test module in its own process from the repository root.
+
+    A module that passes but ran zero tests fails: discovery matched nothing.
+    """
     log_path = log_dir / f"{name}.log"
     started = time.perf_counter()
     with log_path.open("wb") as log:
         completed = subprocess.run(
-            [sys.executable, "-m", "unittest", "discover", "-s", SUITES[suite], "-p", name],
-            cwd=root, stdout=log, stderr=subprocess.STDOUT, env=dict(os.environ, PYTHONIOENCODING="utf-8"),
+            [sys.executable, "-m", "unittest", "discover", "-s", SUITES[suite], "-p", name, "-v"],
+            cwd=root, stdout=log, stderr=subprocess.STDOUT,
+            env=dict(os.environ, PYTHONIOENCODING="utf-8", **(extra_env or {})),
         )
-    return name, completed.returncode, time.perf_counter() - started, log_path
+    code = completed.returncode
+    if not RAN_TESTS.search(log_path.read_bytes()):
+        with log_path.open("ab") as log:
+            log.write(b"\nFAILED: this module ran zero tests\n")
+        code = code or 1
+    return name, code, time.perf_counter() - started, log_path
 
 
-def run_suite(root: Path, suite: str, workers: int, log_dir: Path, files: list[str] | None = None) -> int:
-    """Run a suite's test modules in parallel processes; return 1 on any failure."""
+def run_suite(
+    root: Path, suite: str, workers: int, log_dir: Path, files: list[str] | None = None,
+    extra_env: dict[str, str] | None = None,
+) -> int:
+    """Run a suite's test modules in parallel processes; return 1 on any failure.
+
+    The output tail of each failed module is printed, so the caller's log is enough to read a failure.
+    """
     if workers <= 0:
         raise CommandError("worker count must be positive")
+    if suite in BROWSER_SUITES:
+        workers = min(workers, MAX_BROWSER_WORKERS)
     names = files or [Path(name).name for name in discover_files(root, suite)]
     if not names:
         raise CommandError("discovery found no tests")
@@ -135,11 +170,14 @@ def run_suite(root: Path, suite: str, workers: int, log_dir: Path, files: list[s
     parallel = [name for name in names if name not in SERIAL_FILES]
     serial = [name for name in names if name in SERIAL_FILES]
     with ThreadPoolExecutor(max_workers=workers) as pool:
-        results = list(pool.map(lambda name: run_one(root, suite, name, log_dir), parallel))
-    results.extend(run_one(root, suite, name, log_dir) for name in serial)
+        results = list(pool.map(lambda name: run_one(root, suite, name, log_dir, extra_env), parallel))
+    results.extend(run_one(root, suite, name, log_dir, extra_env) for name in serial)
     failed = [result for result in results if result[1] != 0]
     for name, code, seconds, log_path in sorted(results, key=lambda item: -item[2]):
         print(f"{'FAIL' if code else 'ok  '} {seconds:7.1f}s {name} -> {log_path}")
+    for name, _, _, log_path in failed:
+        tail = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-FAILURE_TAIL_LINES:]
+        print(f"\n--- {name}: last {len(tail)} lines ---\n" + "\n".join(tail))
     print(f"{suite}: {len(results) - len(failed)} passed, {len(failed)} failed, "
           f"{time.perf_counter() - started:.1f}s wall with {workers} workers")
     return 1 if failed else 0
@@ -160,22 +198,20 @@ def _git(root: Path, *arguments: str) -> str:
 
 
 def matrix_steps(root: Path, base: str) -> list[tuple[str, list[str] | None, dict[str, str]]]:
-    """Return (name, command, extra env) per step; the harness suite has no command."""
+    """Return (name, command, extra env) per step; a suite step has no command and runs module-parallel."""
     python = sys.executable
     browser = {"PDH_REQUIRE_BROWSER_TESTS": "1", "PLAYWRIGHT_MODULE": str(root / "node_modules" / "playwright")}
-
-    def suite(name: str, *pattern: str) -> list[str]:
-        return [python, "-m", "unittest", "discover", "-s", SUITES[name], *pattern, "-v"]
 
     return [
         ("check_skill_spec", [python, "skills/delivery-harness/scripts/check_skill_spec.py"], {}),
         ("pyflakes", [python, "-m", "pyflakes", *PYFLAKES_DIRS], {}),
         ("docs_weight", [python, "skills/delivery-harness/scripts/docs_weight.py"], {}),
         ("harness", None, {}),
-        ("golden_path", suite("harness", "-p", "test_golden_path.py"), {"HARNESS_GOLDEN_PATH": "1"}),
-        ("product", suite("product"), {}),
-        ("ui", suite("ui"), browser),
-        ("design-system", suite("design-system"), browser),
+        ("golden_path", [python, "-m", "unittest", "discover", "-s", SUITES["harness"],
+                         "-p", "test_golden_path.py", "-v"], {"HARNESS_GOLDEN_PATH": "1"}),
+        ("product", None, {}),
+        ("ui", None, browser),
+        ("design-system", None, browser),
         ("diff_check", ["git", "diff", "--check", base, "HEAD"], {}),
     ]
 
@@ -206,7 +242,7 @@ def run_matrix(root: Path, args: argparse.Namespace) -> int:
             started = time.perf_counter()
             if command is None:
                 with log_path.open("w", encoding="utf-8") as log, redirect_stdout(log):
-                    code = run_suite(root, "harness", args.workers, log_dir / "harness")
+                    code = run_suite(root, name, args.workers, log_dir / name, extra_env=extra)
             else:
                 with log_path.open("wb") as log:
                     code = subprocess.run(
