@@ -378,6 +378,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # blocking findings open a repair round.
         self.assertIn("One review point per candidate", gates)
         self.assertIn("launched together", gates)
+        self.assertIn("may start together with the review", gates)
+        self.assertIn("a managed final gate still depends on its review node", gates)
         self.assertIn("Finding triage", gates)
         self.assertIn("non-blocking notes", gates)
         self.assertIn("record-review-attempt --note", gates)
