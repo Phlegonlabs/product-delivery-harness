@@ -376,7 +376,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
 
         # Reviewers triage blocking findings from non-blocking notes; only
         # blocking findings open a repair round.
-        self.assertIn("One reviewer per candidate", gates)
+        self.assertIn("One review point per candidate", gates)
+        self.assertIn("launched together", gates)
+        self.assertIn("may start together with the review", gates)
+        self.assertIn("a managed final gate still depends on its review node", gates)
         self.assertIn("Finding triage", gates)
         self.assertIn("non-blocking notes", gates)
         self.assertIn("record-review-attempt --note", gates)
@@ -1943,7 +1946,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("general runtime adapter reference", project_claude)
         self.assertIn("Direct work follows `AGENTS.md`", project_claude)
         self.assertIn("parent retains authorization", project_claude)
-        self.assertIn("one fresh read-only reviewer on the unified head", project_claude)
+        self.assertIn("one fresh read-only review point on the unified head", project_claude)
         self.assertIn("security lens", project_claude)
 
         if REPO_ROOT is not None:

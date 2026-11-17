@@ -92,14 +92,14 @@ A reviewer whose sandbox cannot run git receives the `review_input.py` output (a
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
 For architecture-bearing reviews, apply [Architecture Method](architecture-method.md) to the affected boundaries.
 
-When one review node's packet exceeds the reviewer route's caps, the parent dispatches that review as several scoped calls before launch.
+One review node may go out as several calls on one exact SHA: one per lens, or per disjoint path group when its packet exceeds the route's caps.
 Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.
-Each call covers one disjoint path group of the same exact SHA.
-Each call carries the full finding contract and the lenses its paths need.
+Each call carries the full finding contract and its lens or path group.
 Trust-boundary paths stay in one group so the security lens sees them together.
+The security result must report every `required_tools` entry of its node, so a call that answers the security lens carries those tools too.
 The parent merges the returned sets into one consolidated finding set and records it as one review attempt.
-A path group that no call inspected blocks PASS.
-This is one review point, not the multi-reviewer fan-out that needs an owner request.
+A lens or path group that no call inspected blocks PASS.
+This is one review point under [Review Topology](verification-gates.md#review-topology).
 
 ### Verify-Then-Sample Review
 
