@@ -634,11 +634,15 @@ const run=async(browser,path,kind)=>{
     def test_direction_comparison_opens_studies_and_follows_the_viewport(self):
         node, playwright = self.require_browser()
         import assemble_ui_review
+        from html import escape as html_escape
         from test_direction_review import source_html
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             files = ("vd-01.html", "vd-02.html", "vd-03.html")
             pages = {file: source_html(file[:-5]) for file in files}
+            # A study title is free text the comparison page prints; this one tries to end the data element and run script.
+            hostile = "</ScRiPt><script>window.parentTitleInjection=1</ScRiPt><!-- caption"
+            pages["vd-01.html"] = pages["vd-01.html"].replace("<title>vd-01</title>", "<title>" + html_escape(hostile) + "</title>")
             profile = {"schema": "ui-direction-review/1", "round": "round-1", "directions": [
                 {"id": f"VD-R1-0{index}", "file": file, "sourceSha256": hashlib.sha256(pages[file].encode("utf-8")).hexdigest()}
                 for index, file in enumerate(files, 1)],
@@ -662,6 +666,10 @@ const {pathToFileURL}=require('url');
   const columns=page.locator('[data-compare-grid] [data-compare-study]');
   await columns.nth(2).waitFor();
   if(await columns.count()!==3)throw Error('comparison must list three studies');
+  if(await page.evaluate(()=>window.parentTitleInjection)!==undefined||await page.evaluate(()=>document.scripts.length)!==3)
+    throw Error('a study title must not add or run script in the comparison page');
+  if(await page.locator('[data-compare-open] span').first().textContent()!==process.argv[4])
+    throw Error('a hostile title must show as plain text');
   const state=()=>page.evaluate(()=>Array.from(document.querySelectorAll('[data-compare-grid] iframe')).map(frame=>({
     src:frame.getAttribute('src'),view:frame.parentElement.getBoundingClientRect().width,column:frame.closest('[data-compare-study]').getBoundingClientRect().width,sandbox:frame.getAttribute('sandbox')})));
   const waitForCanvas=async width=>{
@@ -686,9 +694,17 @@ const {pathToFileURL}=require('url');
   if(heading!==1)throw Error('the full-size view must frame exactly one study');
   await page.locator('[data-compare-next]').click();
   if(!page.url().includes('study=VD-R1-03'))throw Error('Next must open the following study');
+  await page.locator('[data-compare-next]').click();
+  if(!page.url().includes('study=VD-R1-01'))throw Error('Next must wrap from the last study to the first');
+  await page.locator('[data-compare-prev]').click();
+  if(!page.url().includes('study=VD-R1-03'))throw Error('Previous must wrap from the first study to the last');
   await page.keyboard.press('Escape');
   await page.locator('[data-compare-grid]').waitFor({state:'visible'});
   if(page.url().includes('study='))throw Error('Escape must return to the comparison');
+  await page.evaluate(()=>{location.hash='#study=nope&case=nope&target=x';});
+  await page.locator('[data-compare-grid]').waitFor({state:'visible'});
+  if(await page.locator('[data-compare-case="primary"]').getAttribute('aria-pressed')!=='true'||await page.locator('[data-compare-full]').isVisible())
+    throw Error('an unknown fragment must fall back to the first case in the comparison');
   await page.goto(pathToFileURL(process.argv[2]).href+'#study=VD-R1-03&case=stress&target=390');
   await page.locator('[data-compare-full]').waitFor({state:'visible'});
   await page.locator('[data-compare-back]').click();
@@ -699,7 +715,7 @@ const {pathToFileURL}=require('url');
 })().catch(error=>{console.error(error instanceof Error?error.stack:error);process.exitCode=1;});
 '''
             result = run_browser_script(
-                [node, "-", str(root / "round-1" / "compare.html"), playwright], script, HIFI_BROWSER_TIMEOUT_SECONDS)
+                [node, "-", str(root / "round-1" / "compare.html"), playwright, hostile], script, HIFI_BROWSER_TIMEOUT_SECONDS)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
             self.assertIn("direction-comparison: PASS", result.stdout)
 
