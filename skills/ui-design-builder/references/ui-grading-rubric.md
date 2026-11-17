@@ -187,9 +187,9 @@ Preference-only suggestions remain advisories unless evidence proves an accepted
 
 ## Review Budget
 
-| Per candidate | Limit |
+| Per review cycle | Limit |
 | --- | --- |
-| Full matrix captures | 1 |
+| Full matrix captures per candidate | 1 |
 | Pilot diagnosis (pilot pages only) | 1 |
 | Independent reviews of the package | 2 |
 | Fix exchanges | 1 |

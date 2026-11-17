@@ -61,7 +61,7 @@ class ReviewMatrixDocsTests(unittest.TestCase):
     def test_budget_table_is_stated_once_and_the_re_review_continues_the_wave(self):
         rubric = read(RUBRIC)
         budget = section(rubric, "## Review Budget")
-        for row in ("| Full matrix captures | 1 |", "| Pilot diagnosis (pilot pages only) | 1 |",
+        for row in ("| Full matrix captures per candidate | 1 |", "| Pilot diagnosis (pilot pages only) | 1 |",
                     "| Independent reviews of the package | 2 |", "| Fix exchanges | 1 |",
                     "| Evidence-only rounds | 0 |"):
             with self.subTest(row=row):
