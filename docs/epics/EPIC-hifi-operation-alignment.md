@@ -1,6 +1,6 @@
 # HiFi Checks Aligned With PRD Operations
 
-Status: N3 (R7) implemented; not independently reviewed; pull-request review must cover is_product_control
+Status: released as 0.85.0 on 2026-11-17 UTC (PR #191, `main` `228a4fdb`, tag `v0.85.0`) and installed; consumer adoption in jolvex-platform is pending
 Design workflow: enhancement
 UI impact: none (checker, matrix driver and their references; no product UI in this repository).
 
@@ -170,6 +170,8 @@ The handoff report records the final results without changing that tested SHA.
 
 ## Change Log
 
+- 2026-11-17 UTC: released as 0.85.0. Owner, 2026-11-16: 「發佈和安裝新版」. The branch took `main` 0.84.0 and its rollout record by merge. PR #191 head `5e2e4a70`: every CI check passed. The pull-request review of `is_product_control` (protected read-only reviewer, exact head `d04c4f1e`) returned PASS with two non-blocking notes: an `a` without `href` counts as a control, and a handler added by script is outside a static check. The Codex review's one P2 finding was fixed in `675e4f80` and its thread resolved. `promotion_readback.py` reported `pre` PASS and `post` `tree_equal_S` for merge commit `228a4fdb`. Tag `v0.85.0` was pushed. `install.sh` from the tag exited 0; installed contract `1cd86e38`, previous `f10bbcaf`, backup `20261116-211512`. `logo-studio` was copied to the user skills directory as a new folder.
+
 - 2026-11-16: R6 repair from the Codex PR review: find the first reachable control instance before opening its declared panel chain.
 
 - 2026-11-16: Correct instruction attribution to the jolvex-platform Harness parent. The owner supplied only the two statements quoted above.
@@ -245,13 +247,13 @@ The focused tests use the existing fixtures. A separate helper module would spli
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-operation-alignment / this commit / none
-Stage and skill: source maintenance; N3 repair attributed to R7, not independently reviewed
-Inputs consumed (path + hash or revision): reviewed 3d043588; the jolvex-platform Harness parent relayed the protected reviewers' results: N1 and N2 pointer escape resolved, N3 blocking; scoped budget spent; released main 9abe4b9e
-Approvals in force (gate, owner, date, candidate): owner statements on 2026-11-16: 「Harness 工具落差走 A」 and 「在 Harness 專案開新對話交給 GPT-6.1-Sol」; the jolvex-platform Harness parent instructed local commits only; push, PR, tag, installation and version bump are not authorized
-Done and verified (command, exit code): working-tree focused product-contract 14 and operation-alignment 30 tests, exit 0; final candidate commands and exits are in the N3 evidence directory above
-Remaining: pull-request review must cover is_product_control; this N3 repair commit has had no independent review
-Blocked / waiting (gate name or owner decision): scoped re-review budget spent (two); independent review deferred to the pull-request review
-Next action (one command or one owner decision): at the separately authorized pull-request review, review is_product_control and the N3 regression cases on the recorded candidate SHA
-Next owner (skill or human): pull-request reviewer after separate PR authorization
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / 228a4fdb (v0.85.0) / none
+Stage and skill: source maintenance; 0.85.0 released and installed
+Inputs consumed (path + hash or revision): tag v0.85.0 228a4fdb; candidate 5e2e4a70 with tree 0c3b0a4d; installed contract 1cd86e38
+Approvals in force (gate, owner, date, candidate): owner 「Harness 工具落差走 A」, 「在 Harness 專案開新對話交給 GPT-6.1-Sol」 and 「發佈和安裝新版」, 2026-11-16
+Done and verified (command, exit code): PR #191 CI pass; promotion_readback.py pre and post exit 0 (tree_equal_S); install.sh exit 0; installed VERSION reads 0.85.0
+Remaining: consumer adoption of the R10 note in jolvex-platform; other consumers still pin 0.84.0
+Blocked / waiting (gate name or owner decision): an owner decision on rolling 0.85.0 out to the other consumers
+Next action (one command or one owner decision): jolvex-platform design author applies the adoption note and reruns the matrix driver
+Next owner (skill or human): jolvex-platform Harness parent
 ```
