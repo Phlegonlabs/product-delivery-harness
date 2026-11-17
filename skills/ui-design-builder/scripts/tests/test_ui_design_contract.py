@@ -2009,6 +2009,69 @@ class VariantRoundRecordTests(unittest.TestCase):
                              problems_for(root, "VD-R1-09"))
 
 
+    def test_a_linked_parent_does_not_count_as_a_retained_study(self):
+        import os
+        import subprocess
+
+        record = {"schema": "ui-direction-review/1", "round": "round-1",
+                  "cases": [{"id": "primary", "surface": "UI-001", "platform": "web", "targetFamily": "viewports",
+                             "widths": {"390": 390}}],
+                  "directions": [{"id": f"VD-R1-0{n}", "file": f"vd-0{n}.html", "sourceSha256": str(n) * 64} for n in (1, 2, 3)]}
+        embedded = '<script id="ui-direction-review" type="application/json">' + json.dumps(record) + "</script>"
+        current = ("\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n"
+                   "| VD-R2-01 | docs/design/directions/round-2/vd-01.html @ sha256:" + "b" * 64 + " | a | a | pass |\n")
+
+        def parent_problems(root):
+            found = []
+            checker._resolve_variant_parent(self.style("VD-R1-03") + current, root, found)
+            return [item.removeprefix("ui-design: ") for item in found]
+
+        def junction(link, target):
+            made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, timeout=15)
+            return made.returncode == 0
+
+        expected = ["Variant round Based on VD-R1-03 is not a retained study of the previous round"]
+        tried = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            outside = base / "outside"
+            outside.mkdir()
+            (outside / "vd-03.html").write_text(embedded, encoding="utf-8")
+            kinds = []
+            # A file link inside a real round folder.
+            file_root = base / "file-repo"
+            (file_root / "docs/design/directions/round-2").mkdir(parents=True)
+            (file_root / "docs/design/directions/round-1").mkdir(parents=True)
+            (file_root / "docs/design/directions/round-2/vd-01.html").write_text(embedded.replace("round-1", "round-2"), encoding="utf-8")
+            try:
+                (file_root / "docs/design/directions/round-1/vd-03.html").symlink_to(outside / "vd-03.html")
+                kinds.append(file_root)
+            except OSError:
+                pass
+            # A linked round folder (a junction where symlinks need a privilege).
+            folder_root = base / "folder-repo"
+            (folder_root / "docs/design/directions/round-2").mkdir(parents=True)
+            (folder_root / "docs/design/directions/round-2/vd-01.html").write_text(embedded.replace("round-1", "round-2"), encoding="utf-8")
+            link = folder_root / "docs/design/directions/round-1"
+            try:
+                link.symlink_to(outside, target_is_directory=True)
+                kinds.append(folder_root)
+            except OSError:
+                if os.name == "nt" and junction(link, outside):
+                    kinds.append(folder_root)
+            if not kinds:
+                self.skipTest("neither a symlink nor a junction can be created here")
+            try:
+                for root in kinds:
+                    tried += 1
+                    self.assertEqual(expected, parent_problems(root), str(root))
+            finally:
+                # Remove a junction or directory link without touching its target.
+                if link.exists() and (link.is_symlink() or os.name == "nt"):
+                    os.rmdir(link) if not link.is_symlink() else os.unlink(link)
+        self.assertGreater(tried, 0)
+
+
 class ComparisonPageDateRuleTests(unittest.TestCase):
     """A round decided before 2026-11-18 may lack compare.html; any page that is present must still match."""
 

@@ -767,6 +767,27 @@ def _variant_rows(style: str, problems: list[str]) -> list[list[str]]:
     return rows
 
 
+def _outside_or_linked(path: Path, repo_root: Path) -> bool:
+    """True when any component below the repository root is a symlink or reparse point, or the file resolves outside it."""
+
+    cursor = repo_root
+    for part in path.relative_to(repo_root).parts:
+        cursor = cursor / part
+        try:
+            info = cursor.lstat()
+        except OSError:
+            return True
+        if stat.S_ISLNK(info.st_mode) or bool(
+            getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        ):
+            return True
+    try:
+        path.resolve(strict=True).relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        return True
+    return False
+
+
 def _resolve_variant_parent(style: str, repo_root: Path, problems: list[str]) -> None:
     """A `Based on` direction must be a retained study of another round folder, not a claim."""
 
@@ -776,7 +797,7 @@ def _resolve_variant_parent(style: str, repo_root: Path, problems: list[str]) ->
     current = {Path(study["path"]).parent for study in _direction_study_identities(style, [])}
     retained: set[str] = set()
     for path in sorted((repo_root / "docs/design/directions").glob("*/*.html")):
-        if path.parent.relative_to(repo_root) in current:
+        if path.parent.relative_to(repo_root) in current or _outside_or_linked(path, repo_root):
             continue
         match = direction_review.PROFILE_RE.search(path.read_text(encoding="utf-8", errors="replace"))
         try:
