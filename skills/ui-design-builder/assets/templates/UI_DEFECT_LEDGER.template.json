@@ -6,7 +6,7 @@
   },
   "waves": [
     {
-      "kind": "diagnostic | re-review | scoped-1 | scoped-2",
+      "kind": "diagnostic | re-review | fix-exchange",
       "inputSha256": "<candidate SHA-256 this wave reviewed>",
       "outputSha256": "<candidate SHA-256 after its repair, or null>",
       "assessment": {

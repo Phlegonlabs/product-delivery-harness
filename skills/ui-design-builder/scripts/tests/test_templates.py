@@ -62,7 +62,7 @@ class DefectLedgerTemplateTests(unittest.TestCase):
         self.assertEqual(identity, set(ledger["candidate"]))
         wave = ledger["waves"][0]
         self.assertEqual({"kind", "inputSha256", "outputSha256", "assessment", "receipts"}, set(wave))
-        self.assertEqual({"diagnostic", "re-review", "scoped-1", "scoped-2"}, options(wave["kind"]))
+        self.assertEqual({"diagnostic", "re-review", "fix-exchange"}, options(wave["kind"]))
         self.assertEqual(identity, set(wave["assessment"]))
         self.assertEqual(identity, set(wave["receipts"][0]))
         family = ledger["families"][0]
@@ -107,14 +107,21 @@ class ReviewPacketTemplateTests(unittest.TestCase):
             "Assignment": ["Assignment ID", "Attempt", "Role", "Route caps"],
             "Frozen inputs (path @ sha256)": ["PRD", "Architecture", "Stack", "ui-design.md", "HiFi entry",
                                               "HiFi pages", "Selected direction", "Journey map",
-                                              "Comparison sheet", "Slop scan output", "Models",
+                                              "Comparison sheet", "Slop scan output", "Browser capture output",
+                                              "a11y sidecar", "Models",
                                               "Impeccable authorization"],
-            "Scoped re-review only": ["Defect ledger", "Prior candidate", "Source diff", "Direct consumers",
-                                      "Closure cases", "Tolerance source"],
-            "Return": ["Verdict", "Direction match", "Candidate SHA-256", "Findings", "ui-output/3", "Receipt", "Commands run"],
+            "Re-review only": ["Defect ledger", "Prior candidate", "Source diff", "Direct consumers",
+                               "Closure cases", "Tolerance source"],
+            "Obligations": ["[ ] <one checklist line per obligation"],
+            "Return": ["Verdict", "Direction match", "Candidate SHA-256", "Findings", "Obligations", "ui-output/3",
+                       "Receipt", "Commands run"],
         }, {name: fields for name, fields in self.blocks.items() if name not in {"Read", "Do not read", "Write scope"}})
         self.assertIn("time <seconds> / turns <n> / max_message_bytes <n>", self.packet)
-        self.assertIn("lead grader | Impeccable operator | scoped re-review", self.packet)
+        self.assertIn("lead grader | Impeccable operator | pilot diagnosis | re-review", self.packet)
+        self.assertNotIn("scoped re-review", self.packet.casefold())
+        self.assertIn("Obligations: one line per obligation with its evidence", self.packet)
+        self.assertIn("a blocking finding adds the frozen requirement, UI decision or rubric rule it breaks and its "
+                      "closure criteria", self.packet)
         self.assertEqual(["docs/design/evidence/<run-id>/ only"], self.blocks["Write scope"])
 
     def test_packet_read_lists_are_existing_sections_and_the_rubric_exclusions(self):
