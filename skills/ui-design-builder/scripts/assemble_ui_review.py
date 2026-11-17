@@ -308,6 +308,21 @@ def assemble_direction(
         destinations,
         [("manifest", manifest_path), *sources.items()],
     )
+    # A one-study round has no comparison page. One left by an earlier round of three goes, but only when its own
+    # record proves the assembler wrote it; any other file of that name is not ours to delete.
+    stale = output_dir / direction_review.COMPARE_FILE
+    remove_stale = False
+    if len(declared) == 1 and declared[0] != direction_review.COMPARE_FILE and os.path.lexists(stale):
+        try:
+            generated = not _linked_path(stale) and direction_review.is_generated_compare(
+                stale.read_text(encoding="utf-8"))
+        except (OSError, UnicodeError):
+            generated = False
+        if not generated:
+            print(f"FAIL {stale} is not a comparison page this tool wrote; remove or move it, then assemble again",
+                  file=sys.stderr)
+            raise SystemExit(2)
+        remove_stale = True
 
     rendered: dict[str, bytes] = {}
     names: dict[str, str] = {}
@@ -340,6 +355,8 @@ def assemble_direction(
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, content in rendered.items():
         _write_bytes(output_dir / file, content)
+    if remove_stale:
+        stale.unlink()
     return [str(path) for path in destinations]
 
 

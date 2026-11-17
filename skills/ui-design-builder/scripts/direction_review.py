@@ -14,6 +14,7 @@ import math
 import re
 from html import escape, unescape
 from html.parser import HTMLParser
+from pathlib import Path
 from typing import Any
 
 import check_wireframe_html
@@ -392,6 +393,47 @@ def render_compare(profile: dict[str, Any], names: dict[str, str]) -> str:
         + _compare_data(profile, names) + "\n</head>\n<body data-direction-compare>\n"
         + build_compare(profile, names) + "\n" + compare_runtime_block() + "\n</body></html>\n"
     )
+
+
+def is_generated_compare(html: str) -> bool:
+    """True only for bytes the assembler itself wrote: the page equals what its own embedded record renders."""
+
+    return not assembled_compare_findings(html, COMPARE_FILE)
+
+
+def compare_package_findings(folder: Path, files: list[str]) -> list[str]:
+    """What a round folder must hold: the comparison page regenerated from its current studies, or none.
+
+    The page belongs to a round whose studies all come from one assembly of several; a one-study round, or a round
+    whose studies were reassembled one at a time, has no current page, so a file left in the folder is stale.
+    """
+
+    if COMPARE_FILE in files:  # an older package whose own study has this name
+        return []
+    page, label = folder / COMPARE_FILE, f"Comparison page {folder.name}/{COMPARE_FILE}"
+    profiles: set[str | None] = set()
+    names: dict[str, str] = {}
+    for file in files:
+        html = (folder / file).read_text(encoding="utf-8", errors="replace")
+        found = PROFILE_RE.search(html)
+        profiles.add(found.group(1) if found else None)
+        names[file] = study_name(html, file)
+    expected = None
+    if len(profiles) == 1 and None not in profiles:
+        try:
+            profile = json.loads(next(iter(profiles)))
+        except json.JSONDecodeError:
+            return []  # the study's own check reports an unreadable profile
+        if (not profile_findings(profile) and len(profile["directions"]) > 1
+                and {row["file"] for row in profile["directions"]} == set(files)):
+            expected = render_compare(profile, names)
+    if expected is None:
+        return [f"{label} does not belong to this round's studies; remove it"] if page.exists() else []
+    if not page.is_file():
+        return [f"{label} is missing; reassemble the round with --overwrite to write it"]
+    if page.read_text(encoding="utf-8", errors="replace") != expected:
+        return [f"{label} must exactly match the page regenerated from the round's current studies"]
+    return []
 
 
 def assembled_compare_findings(html: str, path: str) -> list[str]:

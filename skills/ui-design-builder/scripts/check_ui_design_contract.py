@@ -853,6 +853,10 @@ def _resolve_direction_studies(
                 _add(problems, finding)
             for finding in _direction_profile_scope_findings(html, study["path"], scope):
                 _add(problems, finding)
+    paths = [repo_root / study["path"] for study in _direction_study_identities(style, [])]
+    if paths and all(path.is_file() for path in paths) and len({path.parent for path in paths}) == 1:
+        for finding in direction_review.compare_package_findings(paths[0].parent, [path.name for path in paths]):
+            _add(problems, finding)
 
 
 def _intermediate_width_evidence(value: str | None, scope: dict[str, Any] | None, repo_root: Path,

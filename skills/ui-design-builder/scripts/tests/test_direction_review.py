@@ -440,6 +440,7 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_contract_routes_profiled_studies_and_keeps_legacy_checks(self) -> None:
         self.run_assembly()
+        (self.out / "compare.html").unlink()  # this test routes one study; the comparison page has its own tests
         name = FILES[0]
         path = f"docs/design/directions/round-1/{name}"
         profiled = (self.out / name).read_text(encoding="utf-8")
@@ -479,6 +480,70 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertIn("must not contain active external or executable surfaces", " ".join(route(
             linked, hashlib.sha256(legacy_path.read_bytes()).hexdigest(),
             study_path="docs/design/directions/round-0/legacy.html")))
+
+    def package_problems(self, names: tuple[str, ...] = FILES) -> list[str]:
+        """Run the package check on a Direction studies table that lists the given study files of round-1."""
+
+        ids = {file: f"VD-R1-0{index}" for index, file in enumerate(FILES, 1)}
+        ids["vd-04.html"] = "VD-R1-04"
+        rows = "".join(
+            f"| {ids[name]} | docs/design/directions/round-1/{name} @ sha256:"
+            f"{hashlib.sha256((self.out / name).read_bytes()).hexdigest()} | Author | Author | pass |\n" for name in names)
+        comparison = "".join(
+            f"| {ids[name]} | UI-001 | ready | 390 | primary | Approved copy | docs/design/directions/primary.png @ sha256:{'a' * 64} | Same case |\n"
+            for name in names)
+        style = ("### Direction comparison\n\n| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |\n"
+                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + comparison
+                 + "\n### Direction studies\n\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n" + rows)
+        problems: list[str] = []
+        ui_contract_checker._resolve_direction_studies(style, self.root, problems)
+        return [item for item in problems if "Comparison page" in item]
+
+    def one_study_profile(self) -> dict:
+        self.pages = {"vd-04.html": source_html("vd-04")}
+        return {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                "directions": [{"id": "VD-R1-04", "file": "vd-04.html",
+                                "sourceSha256": hashlib.sha256(self.pages["vd-04.html"].encode("utf-8")).hexdigest()}]}
+
+    def test_package_check_regenerates_the_comparison_page_from_the_current_studies(self) -> None:
+        self.run_assembly()
+        page = self.out / "compare.html"
+        self.assertEqual([], self.package_problems())
+        good = page.read_bytes()
+        page.unlink()
+        self.assertIn("round-1/compare.html is missing", " ".join(self.package_problems()))
+        page.write_bytes(good.replace(b"<h1>round-1</h1>", b"<h1>round-1 edited</h1>"))
+        self.assertIn("must exactly match the page regenerated from the round's current studies", " ".join(self.package_problems()))
+        # A study changed after the page was written: the old page lists a stale name.
+        self.pages["vd-02.html"] = self.pages["vd-02.html"].replace("<title>vd-02</title>", "<title>Renamed</title>")
+        self.run_assembly(overwrite=True)
+        page.write_bytes(good)
+        self.assertIn("must exactly match the page regenerated", " ".join(self.package_problems()))
+
+    def test_a_one_study_round_leaves_no_comparison_page_and_the_assembler_removes_its_own(self) -> None:
+        self.run_assembly()
+        page = self.out / "compare.html"
+        generated = page.read_bytes()
+        self.run_assembly(self.one_study_profile())
+        self.assertFalse(page.exists(), "a comparison page it generated goes with a one-study reassembly")
+        self.assertTrue((self.out / "vd-04.html").exists())
+        self.assertEqual([], self.package_problems(("vd-04.html",)))
+        page.write_bytes(generated)  # left over by hand or by an older tool
+        self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("vd-04.html",))))
+        # Three rows from different assemblies, one of them revised, have no current page either.
+        self.assertIn("does not belong", " ".join(self.package_problems(("vd-01.html", "vd-03.html", "vd-04.html"))))
+
+    def test_the_assembler_never_deletes_a_compare_page_it_cannot_prove_it_wrote(self) -> None:
+        self.out.mkdir(parents=True)
+        (self.out / "compare.html").write_text("<html>mine</html>", encoding="utf-8", newline="")
+        profile = self.one_study_profile()
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            self.run_assembly(profile)
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("is not a comparison page this tool wrote", stderr.getvalue())
+        self.assertEqual("<html>mine</html>", (self.out / "compare.html").read_text(encoding="utf-8"))
+        self.assertFalse((self.out / "vd-04.html").exists(), "a refused assembly writes nothing")
 
     def test_profile_cases_join_approved_scope_without_state_coverage(self) -> None:
         scope = {
