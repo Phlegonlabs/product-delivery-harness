@@ -112,9 +112,9 @@ class CICandidateGateTests(unittest.TestCase):
         )[0]
         for env in ("PDH_REQUIRE_BROWSER_TESTS: \"1\"", "PLAYWRIGHT_MODULE:"):
             self.assertIn(env, linux_browser)
-        self.assertIn("skills/ui-design-builder/scripts/tests -v", linux_browser)
-        self.assertIn("skills/design-system-compiler/scripts/tests -v", linux_browser)
-        self.assertNotIn("skills/design-system-compiler/scripts/tests -v", linux_other)
+        self.assertIn("ci_test_shards.py run --suite ui --workers 4", linux_browser)
+        self.assertIn("ci_test_shards.py run --suite design-system --workers 4", linux_browser)
+        self.assertNotIn("--suite design-system", linux_other)
         self.assertIn("--platform macos", macos)
         self.assertIn("test_golden_path.py", macos)
         self.assertIn("test_check_design_system_pair.py", macos)
