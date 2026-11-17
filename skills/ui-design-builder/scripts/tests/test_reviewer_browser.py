@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -629,6 +630,78 @@ const run=async(browser,path,kind)=>{
             )
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
             self.assertIn("reviewer-sidebar-stress: PASS", result.stdout)
+
+    def test_direction_comparison_opens_studies_and_follows_the_viewport(self):
+        node, playwright = self.require_browser()
+        import assemble_ui_review
+        from test_direction_review import source_html
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            files = ("vd-01.html", "vd-02.html", "vd-03.html")
+            pages = {file: source_html(file[:-5]) for file in files}
+            profile = {"schema": "ui-direction-review/1", "round": "round-1", "directions": [
+                {"id": f"VD-R1-0{index}", "file": file, "sourceSha256": hashlib.sha256(pages[file].encode("utf-8")).hexdigest()}
+                for index, file in enumerate(files, 1)],
+                "cases": [{"id": case, "surface": "UI-001", "platform": "web", "targetFamily": "viewports",
+                           "widths": {"390": 390, "1200": 1200}} for case in ("primary", "stress")]}
+            (root / "src").mkdir()
+            for file, html in pages.items():
+                (root / "src" / file).write_text(html, encoding="utf-8", newline="")
+            (root / "profile.json").write_text(json.dumps(profile), encoding="utf-8")
+            assemble_ui_review.assemble_direction(
+                root / "profile.json", [f"{file}={root / 'src' / file}" for file in files], root / "round-1")
+            script = r'''
+const {chromium}=require(process.argv[3]);
+const {pathToFileURL}=require('url');
+(async()=>{
+ const browser=await chromium.launch({headless:true});
+ try {
+  const page=await browser.newPage({viewport:{width:1440,height:900}});
+  const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  await page.goto(pathToFileURL(process.argv[2]).href);
+  const columns=page.locator('[data-compare-grid] [data-compare-study]');
+  await columns.nth(2).waitFor();
+  if(await columns.count()!==3)throw Error('comparison must list three studies');
+  const state=()=>page.evaluate(()=>Array.from(document.querySelectorAll('[data-compare-grid] iframe')).map(frame=>({
+    src:frame.getAttribute('src'),view:frame.parentElement.getBoundingClientRect().width,column:frame.closest('[data-compare-study]').getBoundingClientRect().width,sandbox:frame.getAttribute('sandbox')})));
+  const waitForCanvas=async width=>{
+    for(const frame of page.frames().filter(item=>item!==page.mainFrame())){
+      await frame.waitForFunction(expected=>{const canvas=document.querySelector('[data-hifi-canvas]');return canvas&&canvas.getBoundingClientRect().width===expected;},width);
+    }
+  };
+  const before=await state();
+  if(before.length!==3||before.some(item=>!item.src.endsWith('#direction-case=primary/390')||item.sandbox!=='allow-scripts'))
+    throw Error('studies must be framed sandboxed at the first case: '+JSON.stringify(before));
+  await waitForCanvas(390);
+  await page.locator('[data-compare-target="1200"][data-compare-of="primary"]').click();
+  const wide=await state();
+  if(wide.some(item=>!item.src.endsWith('#direction-case=primary/1200')))throw Error('every column must follow the viewport: '+JSON.stringify(wide));
+  if(new Set(wide.map(item=>Math.round(item.view))).size!==1||wide.some(item=>item.view>item.column+0.5))
+    throw Error('columns must share one scaled width that fits the column: '+JSON.stringify(wide));
+  await waitForCanvas(1200);
+  await page.locator('[data-compare-open]').nth(1).click();
+  await page.locator('[data-compare-full]').waitFor({state:'visible'});
+  if(!page.url().includes('study=VD-R1-02')||!await page.locator('[data-compare-grid]').isHidden())throw Error('a column must open its study at full size');
+  const heading=await page.locator('[data-compare-full] iframe').count();
+  if(heading!==1)throw Error('the full-size view must frame exactly one study');
+  await page.locator('[data-compare-next]').click();
+  if(!page.url().includes('study=VD-R1-03'))throw Error('Next must open the following study');
+  await page.keyboard.press('Escape');
+  await page.locator('[data-compare-grid]').waitFor({state:'visible'});
+  if(page.url().includes('study='))throw Error('Escape must return to the comparison');
+  await page.goto(pathToFileURL(process.argv[2]).href+'#study=VD-R1-03&case=stress&target=390');
+  await page.locator('[data-compare-full]').waitFor({state:'visible'});
+  await page.locator('[data-compare-back]').click();
+  await page.locator('[data-compare-grid]').waitFor({state:'visible'});
+  if(errors.length)throw Error('page errors: '+errors.join('; '));
+  console.log('direction-comparison: PASS');
+ } finally { await browser.close(); }
+})().catch(error=>{console.error(error instanceof Error?error.stack:error);process.exitCode=1;});
+'''
+            result = run_browser_script(
+                [node, "-", str(root / "round-1" / "compare.html"), playwright], script, HIFI_BROWSER_TIMEOUT_SECONDS)
+            self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+            self.assertIn("direction-comparison: PASS", result.stdout)
 
 
 class BrowserExecutionTests(unittest.TestCase):

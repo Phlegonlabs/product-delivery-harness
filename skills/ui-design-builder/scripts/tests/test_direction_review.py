@@ -8,6 +8,7 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -95,8 +96,8 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_assembles_three_distinct_studies_without_an_entry_or_token_panels(self) -> None:
         paths = self.run_assembly()
-        self.assertEqual([str(self.out / file) for file in FILES], paths)
-        self.assertEqual(sorted(FILES), sorted(path.name for path in self.out.iterdir()))
+        self.assertEqual([str(self.out / file) for file in (*FILES, "compare.html")], paths)
+        self.assertEqual(sorted((*FILES, "compare.html")), sorted(path.name for path in self.out.iterdir()))
         studies = {file: (self.out / file).read_text(encoding="utf-8") for file in FILES}
         self.assertEqual(3, len(set(studies.values())))
         for file, html in studies.items():
@@ -118,6 +119,74 @@ class DirectionAssemblyTests(unittest.TestCase):
             shell = html.split("<!-- reviewer:start -->", 1)[1].split("<!-- reviewer:end -->", 1)[0]
             self.assertEqual(1, shell.count('aria-current="page"'))
 
+    def compare_page(self) -> str:
+        self.run_assembly()
+        return (self.out / "compare.html").read_text(encoding="utf-8")
+
+    def test_comparison_page_lists_every_study_once_in_round_order(self) -> None:
+        html = self.compare_page()
+        ids = re.findall(r'<article data-compare-study data-compare-id="([^"]+)" data-compare-file="([^"]+)"', html)
+        self.assertEqual([(f"VD-R1-0{index}", file) for index, file in enumerate(FILES, 1)], ids)
+        for name in ("vd-01", "vd-02", "vd-03"):
+            self.assertEqual(1, html.count(f"<span>{name}</span></a></article>"))
+        self.assertEqual(2, html.count("data-compare-case="))
+        self.assertEqual(4, html.count("data-compare-target="))
+        self.assertEqual([], direction_review.assembled_compare_findings(html, "compare.html"))
+        self.assertEqual(html, direction_review.render_compare(self.profile(), {file: file[:-5] for file in FILES}))
+
+    def test_comparison_page_stays_closed_and_isolated_from_the_studies(self) -> None:
+        html = self.compare_page()
+        self.assertEqual(f'<meta http-equiv="Content-Security-Policy" content="{direction_review.COMPARE_CSP}">',
+                         re.search(r"<meta http-equiv[^>]+>", html).group())
+        self.assertEqual(check_wireframe_html.REQUIRED_HIFI_CSP.replace("frame-src 'none'", "frame-src 'self'"),
+                         direction_review.COMPARE_CSP)
+        self.assertEqual([], reviewer_shell.shared_css_drift(html))
+        self.assertIn(direction_review.compare_runtime_block(), html)
+        self.assertNotRegex(html, r"https?:|//[a-z]|<link|@import|<img|srcdoc|<iframe")
+        # Studies are only framed by filename, sandboxed without same-origin; none of their bytes enter the page.
+        self.assertIn('setAttribute("sandbox", "allow-scripts")', html)
+        self.assertNotIn("allow-same-origin", html)
+        for file in FILES:
+            study = (self.out / file).read_text(encoding="utf-8")
+            self.assertNotIn(self.pages[file].split("<body>", 1)[1].split("</body>", 1)[0], html)
+            self.assertEqual(study, direction_review.render_study(self.profile(), self.pages[file], file))
+            self.assertNotIn("compare.html", study)
+
+    def test_comparison_crop_matches_the_shared_reviewer_layout(self) -> None:
+        template = (TEMPLATES / "DIRECTION_REVIEWER.template.html").read_text(encoding="utf-8")
+        shared = (TEMPLATES / "REVIEWER_SHARED.css").read_text(encoding="utf-8")
+        self.assertIn("const SIDE = 236, PAD = 24,", template)
+        self.assertIn("--review-sidebar-width:236px", shared)
+        self.assertIn('stage.style.setProperty("margin-left", "236px", "important")', template)
+        self.assertIn('stage.style.setProperty("padding", "24px", "important")', template)
+
+    def test_comparison_findings_reject_drift_and_open_surfaces(self) -> None:
+        html = self.compare_page()
+        for changed, expected in (
+            (html.replace(direction_review.COMPARE_CSP, direction_review.COMPARE_CSP.replace("default-src 'none'", "default-src *")),
+             "must exactly match what the assembler writes"),
+            (html.replace("</body>", '<img src="https://example.test/x.png"></body>'), "must exactly match"),
+            (html.replace(">vd-02</span>", ">renamed</span>"), "must exactly match"),
+            (html.replace("</head>", "</head>", 1).replace('<script id="ui-direction-compare"', '<script id="other"', 1),
+             "must embed exactly one comparison record"),
+        ):
+            self.assertIn(expected, "; ".join(direction_review.assembled_compare_findings(changed, "compare.html")))
+        profile = self.profile()
+        names = {file: file for file in FILES}
+        good = direction_review.render_compare(profile, names)
+        weaker = good.replace("object-src 'none'", "object-src *")
+        self.assertTrue(direction_review.assembled_compare_findings(weaker, "compare.html"))
+
+    def test_a_study_cannot_take_the_comparison_page_name(self) -> None:
+        profile = self.profile()
+        profile["directions"][0]["file"] = "Compare.html"
+        self.assertIn("directions[0].file cannot be compare.html, which names the comparison page",
+                      direction_review.profile_findings(profile))
+
+    def test_comparison_names_fall_back_to_the_filename_and_unescape_titles(self) -> None:
+        self.assertEqual("A & B", direction_review.study_name("<title> A &amp;  B </title>", "vd-01.html"))
+        self.assertEqual("vd-01", direction_review.study_name("<html></html>", "vd-01.html"))
+
     def test_each_case_exposes_only_its_own_approved_targets(self) -> None:
         shell = direction_review.build_shell(self.profile(), "vd-02.html")
         self.assertIn('data-hifi-target-control="390" data-direction-case="primary" data-direction-width="390" aria-pressed="true">390px<', shell)
@@ -133,6 +202,7 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.pages = {"vd-01.html": self.pages["vd-01.html"]}
         self.assertEqual([str(self.out / "vd-01.html")], self.run_assembly())
         self.assertIn("round-1, 1 study, 2 cases", (self.out / "vd-01.html").read_text(encoding="utf-8"))
+        self.assertFalse((self.out / "compare.html").exists(), "one study keeps its single view")
         profile = self.profile()
         profile["directions"].append(dict(profile["directions"][0], id="VD-R1-02", file="vd-02.html", sourceSha256="0" * 64))
         self.assertIn("directions must list three studies, or one by explicit owner choice",

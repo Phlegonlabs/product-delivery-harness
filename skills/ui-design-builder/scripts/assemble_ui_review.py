@@ -293,7 +293,9 @@ def assemble_direction(
         _fail("linked output directory is not allowed")
     if output_dir.exists() and not output_dir.is_dir():
         _fail(f"output path is not a directory: {output_dir}")
-    destinations = [output_dir / file for file in declared]
+    # A round of three also gets its comparison page; one study keeps its single view.
+    written = declared + ([direction_review.COMPARE_FILE] if len(declared) == 3 else [])
+    destinations = [output_dir / file for file in written]
     if any(_linked_path(path) or path.resolve() in source_paths | {manifest_resolved} for path in destinations):
         _fail("output destination aliases an input or is a link")
     if any(path.exists() for path in destinations) and not overwrite:
@@ -304,6 +306,7 @@ def assemble_direction(
     )
 
     rendered: dict[str, bytes] = {}
+    names: dict[str, str] = {}
     for row in profile["directions"]:
         file = row["file"]
         try:
@@ -320,8 +323,15 @@ def assemble_direction(
         if problems:
             _fail("; ".join(problems))
         rendered[file] = study.encode("utf-8")
+        names[file] = direction_review.study_name(html, file)
     if len(set(rendered.values())) != len(rendered):
         _fail("direction studies must be distinct rendered files")
+    if len(declared) == 3:
+        compare = direction_review.render_compare(profile, names)
+        problems = direction_review.assembled_compare_findings(compare, direction_review.COMPARE_FILE)
+        if problems:
+            _fail("; ".join(problems))
+        rendered[direction_review.COMPARE_FILE] = compare.encode("utf-8")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, content in rendered.items():
