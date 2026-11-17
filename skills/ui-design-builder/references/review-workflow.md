@@ -25,7 +25,7 @@ A `ui-design/2` package has no wireframe, W1–W5, Copy Freeze or human Wirefram
 
 ## Owner Acceptance Closes The Round
 
-Visual Approval closes the round once every required check has its PASS: completeness preflight, browser receipts, Impeccable critique and audit, H1–H9 thresholds and required motion evidence. Acceptance with follow-ups is `approved` when the open ledger rows are non-blocking; each becomes a listed follow-up in the Epic. A block, a failed threshold or missing required evidence cannot be waived by acceptance: the checker admits no waiver, the checker admits no waiver, so the candidate stays `blocked` until a named new revision cycle repairs it. After approval the round produces no further gate, receipt, reconciliation or playback record.
+Visual Approval closes the round once every required check has its PASS: completeness preflight, browser receipts, Impeccable critique and audit, H1–H9 thresholds and required motion evidence. Acceptance with follow-ups is `approved` when the open ledger rows are non-blocking; each becomes a listed follow-up in the Epic. A block, a failed threshold or missing required evidence cannot be waived by acceptance: the checker admits no waiver, so the candidate stays `blocked` until a named new revision cycle repairs it. After approval the round produces no further gate, receipt, reconciliation or playback record.
 
 Design-system compilation and the Harness handoff consume the accepted candidate and do not reopen its closed round.
 
