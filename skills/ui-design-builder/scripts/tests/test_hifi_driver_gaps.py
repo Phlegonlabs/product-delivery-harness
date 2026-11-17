@@ -49,6 +49,39 @@ class NavigationBrowserTests(unittest.TestCase):
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
 
+    def test_data_entry_uses_values_and_retains_feedback_proof(self):
+        for markup in ('<input data-control-id="save" value="draft">',
+                       '<input data-control-id="save" value="HiFi probe">',
+                       '<textarea data-control-id="save">draft</textarea>',
+                       '<select data-control-id="save"><option disabled>Unavailable</option>'
+                       '<option selected>HKD</option><option disabled>Disabled</option><option>USD</option></select>',
+                       '<select data-control-id="save"><option>HKD</option><option selected>USD</option></select>'):
+            with self.subTest(markup=markup):
+                driver = self.driver(markup)
+                for trigger in ("click", "keyboard"):
+                    reply = self.attempt(driver, trigger=trigger)["result"]
+                    self.assertEqual([], reply["problems"], reply)
+                    self.assertTrue(reply["focusCorrect"], reply)
+                    change = reply["observed"]["change"]
+                    self.assertNotEqual(change["beforeSha256"], change["afterSha256"])
+                driver.stop()
+
+    def test_disabled_readonly_and_unchanged_fields_still_fail(self):
+        for markup in ('<input data-control-id="save" disabled value="draft">',
+                       '<textarea data-control-id="save" readonly>draft</textarea>',
+                       '<select data-control-id="save" disabled><option>HKD</option><option>USD</option></select>',
+                       '<input data-control-id="save" value="draft" oninput="this.value=\'draft\'">',
+                       '<select data-control-id="save"><option>HKD</option></select>'):
+            with self.subTest(markup=markup):
+                driver = self.driver(markup)
+                for trigger in ("click", "keyboard"):
+                    reply = self.attempt(driver, trigger=trigger)["result"]
+                    self.assertTrue(reply["problems"], reply)
+                    if "change" in reply["observed"]:
+                        change = reply["observed"]["change"]
+                        self.assertEqual(change["beforeSha256"], change["afterSha256"])
+                driver.stop()
+
     def test_repeated_controls_prefer_an_unselected_instance(self):
         for attribute, selected in (("aria-pressed", "true"), ("aria-selected", "true"),
                                     ("aria-checked", "true"), ("aria-current", "page")):

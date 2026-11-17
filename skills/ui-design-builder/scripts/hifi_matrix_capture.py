@@ -450,6 +450,14 @@ async function interact(request) {
           return { problems: ['cross-page state controls must link to the declared page and state'], visible: false, focusCorrect: false };
       }
       visible = await handle.isVisible();
+      const field = await handle.evaluate(el => {
+        if (el.tagName === 'SELECT') return 'select';
+        if (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT'
+            && ['text', 'search', 'email', 'url', 'tel', 'password'].includes(el.type))) return 'text';
+        return null;
+      });
+      if (field && (!await handle.isEnabled() || await handle.getAttribute('readonly') !== null))
+        return { problems: ['data-entry control is disabled or read-only'], visible, focusCorrect: false, observed };
       let pressedFocused = null;
       let before = null;
       if (request.trigger === 'keyboard' || request.kind === 'feedback') {
@@ -461,7 +469,25 @@ async function interact(request) {
         before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
       }
       observingNavigation = true;
-      if (request.trigger === 'keyboard') {
+      if (field) {
+        if (request.trigger !== 'keyboard') await handle.click({ timeout });
+        if (field === 'text') {
+          const probe = await handle.inputValue() === 'HiFi probe' ? 'HiFi entry' : 'HiFi probe';
+          await handle.press('ControlOrMeta+A', { timeout });
+          await handle.pressSequentially(probe, { timeout });
+        } else {
+          const option = await handle.evaluate(el => {
+            const enabled = Array.from(el.options).map((o, index) => ({ o, index }))
+              .filter(({ o }) => !o.disabled && !o.hidden && !o.closest('optgroup[disabled]'));
+            const next = enabled.find(({ index }) => index > el.selectedIndex)
+              || enabled.slice().reverse().find(({ index }) => index < el.selectedIndex);
+            return next ? { index: next.index, direction: next.index > el.selectedIndex ? 'ArrowDown' : 'ArrowUp' } : null;
+          });
+          if (!option) problems.push('select control has no different enabled option');
+          else if (request.trigger === 'keyboard') await handle.press(option.direction, { timeout });
+          else await handle.selectOption({ index: option.index }, { timeout });
+        }
+      } else if (request.trigger === 'keyboard') {
         const tag = await handle.evaluate(el => el.tagName.toLowerCase());
         await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
       } else {

@@ -155,6 +155,8 @@ For `ui-design/2` and `ui-design/3`, each interaction ID equals its PRD operatio
 
 `kind: feedback` keeps both endpoints equal and requires a source-surface DOM, attribute, text or form-value change. Focus alone does not count. A `state` interaction with equal endpoints still fails.
 
+An operation control may itself be a text input, textarea or select. Activation types a short probe or selects a different enabled option. Keyboard activation uses typing or arrow keys from focus. Disabled, read-only and unchanged fields fail; feedback still records distinct before/after source hashes.
+
 State-link components use the reviewer's `encodeURIComponent` encoding, including punctuation and non-ASCII state names. Do not encode the separating slash as part of either component.
 
 A supporting `input`, `select` or `textarea` may use `data-control-for="<control id>"` without its own ID or interaction. The named control must exist in the same product surface. A field with neither binding still fails. A button cannot use this exemption.
