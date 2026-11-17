@@ -306,6 +306,7 @@ async function start(request) {
 async function openPage(name, timeoutMs) {
   observingNavigation = false;
   page.setDefaultTimeout(timeoutMs);
+  page.setDefaultNavigationTimeout(timeoutMs);
   opening = name;
   let response;
   try { response = await page.goto(BASE + encodeURI(name), { waitUntil: 'load' }); } finally { opening = null; }
@@ -342,7 +343,8 @@ async function interact(request) {
   // Every attempt starts from a fresh load of its source page. Product scripts keep state and can move the
   // browser on their own, so an attempt must not depend on the ones before it: the result is the same wherever
   // a parallel run starts it.
-  try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
+  try { await openPage(request.page, timeout); }
+  catch (_) { return { problems: ['page did not open: ' + request.page], pageOpenFailed: true, visible: false, focusCorrect: false }; }
   if (!problems.length) {
     const target = page.locator('[data-hifi-target-control=' + quote(request.target) + ']');
     if (await target.count() !== 1) problems.push('target control missing: ' + request.target);
@@ -810,7 +812,8 @@ lines.on('line', line => {
     try {
       reply = { id: message.id, ok: true, result: await handlers[message.op](message) };
     } catch (error) {
-      reply = { id: message.id, ok: false, error: String((error && error.message) || error).split('\n')[0] };
+      reply = { id: message.id, ok: false, timedOut: error && error.name === 'TimeoutError',
+        error: String((error && error.message) || error).split('\n')[0] };
     }
     reply.events = drain();
     process.stdout.write(JSON.stringify(reply) + '\n');
@@ -890,7 +893,8 @@ class NodeDriver:
             if reply.get("id") == self._seq:
                 break
         if not reply["ok"]:
-            raise DriverError(reply["error"], reply.get("events"))
+            error_type = DriverTimeout if reply.get("timedOut") else DriverError
+            raise error_type(reply["error"], reply.get("events"))
         return reply
 
     def _tail(self):
@@ -1335,6 +1339,7 @@ class Runner:
         self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
+        self.page_restarts = {}
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
         self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
         self.cancel = None      # a threading.Event a parallel run sets to stop every worker between items
@@ -1348,17 +1353,38 @@ class Runner:
 
     def recover(self, page):
         self.restarts += 1
-        if self.restarts > MAX_RESTARTS:
-            self.aborted = True
-            return
+        self.page_restarts[page] = self.page_restarts.get(page, 0) + 1
         try:
             self.driver.restart()
+        except DriverError:
+            self.aborted = True
+            return
+        # Discard the hung browser even when this page has spent its budget.
+        # Leave the fresh browser available for the next page.
+        if self.page_blocked(page) or page in self.unopened:
+            return
+        try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
             self.absorb(reply["events"], page, keep=not self.active_axis)
             if self.active_axis:
                 self.driver.call("axis", name=self.active_axis)
-        except DriverError:
-            self.aborted = True
+        except DriverError as error:
+            self.unopened.add(page)
+            self.page_reasons[page] = [f"recovery page did not open: {error}"]
+            self.absorb(error.events, page, keep=not self.active_axis)
+            if isinstance(error, DriverTimeout):
+                self.restarts += 1
+                try:
+                    self.driver.restart()
+                except DriverError:
+                    self.aborted = True
+
+    def page_blocked(self, page):
+        if self.aborted:
+            return "browser driver could not restart"
+        if self.page_restarts.get(page, 0) > MAX_RESTARTS:
+            return f"page browser driver restart limit ({MAX_RESTARTS}) reached: {page}"
+        return None
 
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
@@ -1368,7 +1394,7 @@ class Runner:
             self.run_reviewer()
 
     def open_page(self, page):
-        if self.aborted or page in self.unopened:       # a page that failed to open stays failed, in every later phase too
+        if self.page_blocked(page) or page in self.unopened:       # a failed page stays failed in later phases
             return
         try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
@@ -1409,7 +1435,7 @@ class Runner:
 
     def interaction_blocked(self, page):
         return (INTERACTIONS_UNOPENED if page in self.unopened
-                else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+                else self.page_blocked(page))
 
     def run_interactions(self, page):
         """Click and keyboard-activate every selected manifest interaction at every source target."""
@@ -1460,6 +1486,7 @@ class Runner:
         worker.records, worker.axis_records, worker.interaction_records, worker.reviewer_records = {}, [], [], []
         worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
         worker.restarts, worker.aborted, worker.active_axis = 0, False, None
+        worker.page_restarts = dict(self.page_restarts)
         return worker
 
     def adopt_unopened(self, failed):
@@ -1505,6 +1532,8 @@ class Runner:
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
         self.unopened |= worker.unopened
+        for page, count in worker.page_restarts.items():
+            self.page_restarts[page] = max(self.page_restarts.get(page, 0), count)
         for page, reasons in worker.page_reasons.items():
             if page in worker.unopened or page not in self.page_reasons:
                 self.page_reasons[page] = reasons
@@ -1523,7 +1552,7 @@ class Runner:
                   "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        blocked = blocked or self.page_blocked(action["page"])
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1551,6 +1580,10 @@ class Runner:
             events, result = error.events, {}
         else:
             events, result = reply["events"], reply["result"]
+            if result.get("pageOpenFailed"):
+                self.unopened.add(action["page"])
+                self.page_reasons[action["page"]] = list(result["problems"])
+                self.recover(action["page"])
         # A navigate attempt's one arrival row becomes the documented navigation event; every other
         # navigation row stays in the transcript and fails the attempt.
         stray = list(events.get("navigation", []))
@@ -1584,7 +1617,7 @@ class Runner:
 
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
-        blocked = axis_unopened(axis) if page in self.unopened else None
+        blocked = axis_unopened(axis) if page in self.unopened else self.page_blocked(page)
         if blocked is None and not self.aborted:
             try:
                 self.driver.call("axis", name=axis)
@@ -1594,7 +1627,7 @@ class Runner:
         for case in sampled:
             self.axis_records.append(self.observe(replace(case, axis=axis), blocked=blocked))
         self.active_axis = None
-        if page in self.unopened or self.aborted:
+        if page in self.unopened or self.page_blocked(page):
             return
         try:
             self.driver.call("axis", name="none")
@@ -1609,7 +1642,7 @@ class Runner:
                   "capture": None, "carriedFrom": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        blocked = blocked or self.page_blocked(case.page)
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1726,7 +1759,7 @@ class Runner:
         began = time.perf_counter()
         reasons = record["reasons"]
         blocked = (REVIEWER_UNOPENED if page in self.unopened
-                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+                   else self.page_blocked(page))
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1770,7 +1803,7 @@ def partition(items, workers):
 
 
 class DriverPool:
-    """Drivers made on demand, one thread each per phase. A driver keeps its restart count and abort flag across phases."""
+    """Drivers made on demand; page restart budgets survive phase changes."""
 
     def __init__(self, make_driver, package, root, scratch, color_scheme):
         self.make_driver, self.package, self.root, self.scratch = make_driver, package, root, Path(scratch)
@@ -1784,12 +1817,12 @@ class DriverPool:
             folder.mkdir(parents=True, exist_ok=True)
             self.drivers.append(self.make_driver(self.package, self.root, folder, color_scheme=self.color_scheme))
             self.started.append(False)
-            self.state.append((0, False))
+            self.state.append((0, False, {}))
         return self.drivers[index]
 
     @property
     def restarts(self):
-        return sum(restarts for restarts, _ in self.state)
+        return sum(restarts for restarts, _, _ in self.state)
 
     def run(self, shares, make_runner):
         """Run each share on its own driver and Runner at once; return the Runners in share order.
@@ -1802,7 +1835,10 @@ class DriverPool:
             runner = runners[index]
             try:
                 runner.cancel = self.cancel
-                runner.restarts, runner.aborted = self.state[index]
+                runner.restarts, runner.aborted, previous_pages = self.state[index]
+                runner.page_restarts = dict(getattr(runner, "page_restarts", {}))
+                for page, count in previous_pages.items():
+                    runner.page_restarts[page] = max(runner.page_restarts.get(page, 0), count)
                 if not self.started[index] or not runner.aborted:
                     # A later phase gets a fresh browser: the reviewer shell keeps its selections in session
                     # storage, so a page opened after another phase's pages could arrive in the wrong state.
@@ -1817,7 +1853,7 @@ class DriverPool:
                 failures[index] = error
                 self.cancel.set()
             finally:
-                self.state[index] = (runner.restarts, runner.aborted)
+                self.state[index] = (runner.restarts, runner.aborted, dict(runner.page_restarts))
 
         self.threads = [threading.Thread(target=work, args=(index,), daemon=True) for index in range(len(shares))]
         for thread in self.threads:
@@ -2150,6 +2186,9 @@ def execute(args, make_driver=node_driver):
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
                     intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
                                                  interactions=interactions, intermediate=True)
+                    intermediate_runner.unopened = set(runner.unopened)
+                    intermediate_runner.page_reasons = dict(runner.page_reasons)
+                    intermediate_runner.page_restarts = dict(runner.page_restarts)
                     intermediate_runner.run(intermediate_cases)
                 environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
             finally:

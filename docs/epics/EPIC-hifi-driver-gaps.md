@@ -34,7 +34,7 @@ Existing passing packages must keep passing.
 | G1 | Exact navigation state anchors work; bare default links remain valid; stale selections cannot redirect product arrivals. | Static and Chromium positive/negative navigation tests. |
 | G2 | Repeated controls prefer an unselected visible instance and record its index. | Chromium tests cover all four ARIA attributes and the all-selected inert fallback. |
 | G3 | Data-entry controls receive user input; disabled, read-only and unchanged fields fail. | Chromium regressions cover input, textarea, selects in both directions, and rejected fields. |
-| G4 | Repeated page timeouts cannot block unrelated pages; output order stays deterministic. | Serial and worker recovery regressions; full stable-package run. Pending. |
+| G4 | Repeated page timeouts cannot block unrelated pages; output order stays deterministic. | Serial, four-worker and Chromium timeout regressions; full stable-package run recorded in the handoff ledger. |
 
 ## Change Log
 
@@ -43,6 +43,17 @@ Existing passing packages must keep passing.
 | G1 navigation state | Validator, driver, reviewer runtime and two contracts | `test_hifi_driver_gaps.py` | Three focused tests pass in Chromium; wrong state and bare nondefault links fail. Parent review pending. |
 | G2 repeated selection | Driver, observation validation and two contracts | G1 commit `9e4d4509`; focused G2 tests | Chosen index is bounded by the visible count; inert selected controls still fail. Parent review pending. |
 | G3 data entry | Driver and two contracts | G2 commit `9ea7f18e`; focused field tests | User input retains source-change and focus proof. Parent review pending. |
+| G4 page recovery | Driver, matrix suites and two contracts | G3 commit `b7b3ac0d`; focused recovery tests | Failed pages remain failed; unrelated pages continue. Parent review pending. |
+
+G4 uses three recovery restarts per page rather than one budget for the browser.
+The next timeout blocks that page's remaining work and still discards its hung browser.
+Recovery-load failures also stay local to their source page.
+This bounds the slow page without guessing a load duration from file size or changing the static worker split.
+Page budgets survive later phases; output lists retain their existing order.
+Only failure to start a fresh browser can block the worker.
+
+The driver remains one module because recovery owns its existing case, interaction and phase joins.
+The changed validator also retains its manifest and receipt joins. No unrelated split is needed.
 
 ## Adoption Note
 
@@ -53,19 +64,24 @@ Consumer edits belong to the consumer author. This work changes no consumer byte
 | G1 | Rebuild every page with the updated canonical reviewer runtime. The assembler preserves an existing runtime, so regenerate from author sources or replace the complete marked runtime segment. For `OP-UI-IOS-AUTH-reauth`, use `ios-ledger.html#hifi-state=UI-IOS-TABS/ready`. Language, term and save/cancel links must name their declared nondefault destinations. Recompute child hashes and the entry identity; recapture all affected interactions. |
 | G2 | Keep one operation ID on every cycle segment of `OP-UI-IOS-TABS-cycle` in `ios-ledger.html`. Give segments their actual ARIA selection state. No manifest split or runtime rebuild is required for G2. Recapture with the new driver; it records `observed.instanceIndex`. |
 | G3 | Keep `OP-UI-IOS-DETAIL-note` on its note field and `OP-UI-IOS-SOURCE-currency` on its currency select. No artificial save button, manifest change or runtime rebuild is needed for G3. Ensure the field accepts entry and its real handlers run. Recapture both click and keyboard attempts. |
-| G4 | Pending implementation. |
+| G4 | No HTML or manifest edit is needed. Run the candidate driver on the full package with `--workers 4`. A timed-out `index.html` no longer blocks unrelated pages assigned to its browser. Retain its failures and blocked attempts; do not report them as passing. |
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / 9ea7f18e plus G3 candidate / scoped source files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / b7b3ac0d plus G4 candidate / scoped source files
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
 Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes G1-G4 local commits only
-Done and verified (command, exit code): focused G1-G3 suite exit 0, seven tests with Chromium; alternate probe regression exit 0
-Remaining: G4; final verification; real-package run; independent review and release
+Done and verified (command, exit code): focused G1-G4 suite exit 0, ten tests with Chromium; prior alignment and runtime suites exit 0
+Remaining: final verification and stable-package results in the external ledger; independent review and release
 Blocked / waiting (gate name or owner decision): no implementation blocker
-Next action (one command or one owner decision): implement G4 after the G3 commit
+Next action (one command or one owner decision): verify the committed candidate, then parent reviews its exact head
 Next owner (skill or human): this writer, then jolvex-platform Harness parent
 ```
+
+Final command exits, process deadlines, stable-package results and the exact candidate SHA are retained at:
+`C:/Users/mps19/AppData/Local/Temp/pdh-hifi-gaps-bd14cf1f4643457e8363c63a30161dd4/`.
+Use `commands.jsonl` and `verification.md`; earlier failed development checks stay in the ledger.
+No local test result constitutes independent review or consumer approval.

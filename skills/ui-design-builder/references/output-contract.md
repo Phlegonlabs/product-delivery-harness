@@ -177,6 +177,8 @@ An interaction output row may add one `observed` object. Its permitted fields ar
 
 Current schema-2 HiFi surface checks require `ui-output/3`; historical checks keep their `ui-output/2` meaning. It retains all existing offline output fields and adds `interactions`. Its exact sandbox is `{ "network":"disabled", "topNavigation":"allowlisted-local-pages", "popups":"blocked", "forms":"blocked" }`. Each interaction runs at every source responsive target with both `trigger: "click"` and `trigger: "keyboard"`. Each output row has these required keys: `id`, `target` (string), `trigger`, `source`, `destination`, `control`, `visible: true`, `focusCorrect: true`, and `result: "PASS"`; endpoints and control match the manifest. `navigation` records exactly one `{ "id", "target", "trigger", "from", "to" }` event per navigate or cross-page state case, with sibling page filenames. Missing, duplicate, or extra results/events fail. Retain blocked attempts; never remove them to pass. Non-document network requests, console errors, popups, and forms still fail.
 
+Restart exhaustion blocks only the affected page's remaining work. A page-load failure retains its failed cases and blocked attempts. Unrelated pages continue, including in the same worker. Failed and blocked rows still fail the package; isolation never converts them to PASS.
+
 A console row may keep native channel metadata. The only exempt row has `source: security` (or `params.entry.source`), `level: error` and the exact message `Unrecognized Content-Security-Policy directive 'navigate-to'.`; any other console error fails. The browser setup and real click/key procedure are in `ui-design-pass.md`.
 
 ### Required motion evidence

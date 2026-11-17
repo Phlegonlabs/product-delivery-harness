@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from unittest import mock
 
 import test_hifi_operation_alignment as alignment
 import test_hifi_matrix_capture as matrix
 import test_ui_design_contract as contract
 import check_ui_design_contract as checker
+import hifi_matrix_capture as capture
+import test_hifi_matrix_capture_workers as workers
 
 
 class NavigateContractTests(unittest.TestCase):
@@ -48,6 +51,15 @@ class NavigationBrowserTests(unittest.TestCase):
     run_main = alignment.OperationBrowserTests.run_main
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
+
+    def test_browser_load_timeout_is_bounded_and_a_fresh_browser_opens_the_next_page(self):
+        driver = self.driver(edit=lambda html: html.replace('</head>',
+            '<script>while(true){}</script></head>') if 'Harbor desk' in html else html)
+        with self.assertRaises(capture.DriverTimeout):
+            driver.call("open", page="index.html", timeoutMs=150, timeout=5)
+        driver.restart()
+        reply = driver.call("open", page="details.html", timeoutMs=2000)
+        self.assertIn("390", reply["result"]["targets"])
 
     def test_data_entry_uses_values_and_retains_feedback_proof(self):
         for markup in ('<input data-control-id="save" value="draft">',
@@ -132,6 +144,46 @@ class NavigationBrowserTests(unittest.TestCase):
                                  destination={"surface": "UI-001", "state": "ready"}, destination_page="index.html")
             self.assertEqual([], reply["result"]["problems"], reply)
             self.assertEqual("index.html", reply["result"]["arrivedTo"])
+
+
+class PageRecoveryTests(unittest.TestCase):
+    def test_recovery_load_failure_does_not_abort_unrelated_pages(self):
+        driver = matrix.FakeDriver()
+        driver.overrides[("UI-001", "ready", "390")] = {"raise": capture.DriverTimeout("hung case")}
+        original = driver._open
+
+        def open_page(fields):
+            if fields["page"] == "index.html" and driver.restarts:
+                raise capture.DriverTimeout("recovery load timed out")
+            return original(fields)
+
+        driver._open = open_page
+        cli = matrix.Cli(self)
+        code, _, out = cli.run(driver)
+        output, sidecar = cli.load(out)
+        self.assertEqual(1, code)
+        self.assertEqual({"FAIL"}, {r["result"] for r in output["results"] if r["surface"] == "UI-001"})
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"] if r["surface"] == "UI-002"})
+        self.assertIn("recovery page did not open", sidecar["cases"][1]["reasons"][0])
+
+    def test_four_workers_keep_slow_page_rejection_and_deterministic_order(self):
+        def configure(driver):
+            for state in ("ready", "loading", "empty"):
+                for target in ("390", "1200"):
+                    driver.overrides[("UI-001", state, target)] = {"raise": capture.DriverTimeout("slow page")}
+
+        fleet = workers.Fleet(self, configure)
+        with mock.patch.object(capture, "MAX_RESTARTS", 1):
+            code, _, first = fleet.go("--workers", "4", out="first")
+            second_code, _, second = fleet.go("--workers", "4", out="second")
+        self.assertEqual((1, 1), (code, second_code))
+        one, two = (workers.load(path) for path in (first, second))
+        for output, sidecar in (one, two):
+            self.assertEqual({"PASS"}, {r["result"] for r in output["results"] if r["surface"] == "UI-002"})
+            self.assertNotIn("PASS", {r["result"] for r in output["results"] if r["surface"] == "UI-001"})
+            self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "details.html"})
+        for key in ("results", "interactions", "navigation"):
+            self.assertEqual(one[0][key], two[0][key])
 
 
 if __name__ == "__main__":
