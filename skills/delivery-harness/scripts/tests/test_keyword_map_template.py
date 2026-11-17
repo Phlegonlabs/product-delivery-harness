@@ -50,6 +50,16 @@ class KeywordMapTemplateTests(unittest.TestCase):
         self.assertIn("observed, estimated or hypothesis", self.text)
         self.assertNotIn("measured", self.text)
 
+    def test_growth_review_admits_demand_research_and_routes_to_the_template(self) -> None:
+        entry = (GROWTH / "SKILL.md").read_text(encoding="utf-8")
+        stage = (GROWTH / "references/stages/growth-review.md").read_text(encoding="utf-8")
+        self.assertIn("assets/templates/KEYWORD_MAP.template.md", entry)
+        self.assertIn("references/stages/growth-review.md#demand-research", entry)
+        self.assertIn("- `demand_research`:", stage)
+        self.assertRegex(stage, r"(?m)^## Demand Research$")
+        self.assertIn("docs/product/keyword-map.md", stage)
+        self.assertIn("a required dependency of that requested skill workflow", entry)
+
 
 if __name__ == "__main__":
     unittest.main()
