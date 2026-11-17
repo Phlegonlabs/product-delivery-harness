@@ -10,8 +10,8 @@ keyboard-activates every manifest interaction at every source target. Output:
 one PNG per case, ``ui-output.json``
 (``ui-output/3``: matrix, ``interactions`` rows, ``navigation`` events and the
 ``reviewer`` object) and ``matrix-capture.json`` (per-case fingerprints,
-geometry, carried rows, axis runs, interaction records and reviewer
-measurements).
+geometry, carried rows, axis runs, interaction records, reviewer
+measurements and, with ``--measure-a11y``, an ``a11y`` object).
 
 The browser is Node Playwright, the repo's pinned test dependency
 (``PLAYWRIGHT_MODULE`` or ``node_modules/playwright`` under ``--repo-root``).
@@ -50,6 +50,9 @@ SIDECAR_NAME = "matrix-capture.json"
 INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
+A11Y_MEASURES = ("contrast", "target-size", "text-clip", "focus-visible", "text-growth")
+A11Y_BASE = ("contrast", "target-size", "text-clip")      # measured on every base case
+A11Y_AXIS = {"dark": ("contrast",), "zoom-200": ("text-clip", "text-growth"), "forced-colors": ("focus-visible",)}
 TRIGGERS = ("click", "keyboard")
 INTERACT_KINDS = ("navigate", "state", "feedback")
 DRIVER_BASE = "https://hifi.invalid/pkg/"
@@ -237,6 +240,199 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
            incomplete: all.length > limit || outside.length > limit };
 };
 
+// Measured accessibility, run in the page visit of the case that was just probed. Plain functions over the same
+// capped element list the probe scans; a finding never changes a case result.
+const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
+  const canvas = document.querySelector('[data-hifi-canvas]');
+  const surface = canvas && Array.from(canvas.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
+  if (!surface) return null;
+  const round = value => Math.round(value * 100) / 100;
+  const rect = el => el.getBoundingClientRect();
+  const visible = el => {
+    const r = rect(el), s = getComputedStyle(el);
+    return r.width > 0 && r.height > 0 && s.visibility !== 'hidden' && s.display !== 'none';
+  };
+  const all = [surface].concat(Array.from(surface.querySelectorAll('*')))
+    .filter(el => !['SCRIPT', 'STYLE', 'TEMPLATE'].includes(el.tagName) && visible(el));
+  const scanned = all.slice(0, limit);
+  // an element clipped to 1 px or less is visually hidden; it is not measured
+  const els = scanned.filter(el => el instanceof HTMLElement && (rect(el).width > 1 || rect(el).height > 1));
+  const rows = [], checked = {};
+  for (const name of measures) checked[name] = 0;
+  const selector = el => {
+    const parts = [];
+    for (let n = el; n && n !== canvas; n = n.parentElement) {
+      let part = n.tagName.toLowerCase();
+      if (n.id) { parts.unshift(part + '#' + n.id); break; }
+      if (n.classList.length) part += '.' + Array.from(n.classList).slice(0, 3).join('.');
+      const same = n.parentElement ? Array.from(n.parentElement.children).filter(c => c.tagName === n.tagName) : [];
+      if (same.length > 1) part += ':nth-of-type(' + (same.indexOf(n) + 1) + ')';
+      parts.unshift(part);
+      if (n === surface) break;
+    }
+    return parts.join(' > ');
+  };
+  const push = (measure, el, level, data, suffix) => rows.push(Object.assign({ measure, selector: selector(el) + (suffix || ''), level }, data));
+  const disabled = el => el.matches(':disabled') || Boolean(el.closest('[aria-disabled="true"]'));
+  const hasText = el => Array.from(el.childNodes).some(n => n.nodeType === 3 && n.textContent.trim());
+  const FIELDS = ['INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'OPTGROUP', 'NOSCRIPT'];
+  const texts = els.filter(el => !FIELDS.includes(el.tagName) && hasText(el));
+  const TEXT_INPUTS = ['text', 'search', 'email', 'url', 'tel', 'password', 'number'];
+  const canvas2d = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+  const parse = value => {
+    canvas2d.clearRect(0, 0, 1, 1); canvas2d.fillStyle = '#000'; canvas2d.fillStyle = value; canvas2d.fillRect(0, 0, 1, 1);
+    const d = canvas2d.getImageData(0, 0, 1, 1).data;
+    return { r: d[0], g: d[1], b: d[2], a: d[3] / 255 };
+  };
+  const lin = c => { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+  const lum = c => 0.2126 * lin(c.r) + 0.7152 * lin(c.g) + 0.0722 * lin(c.b);
+  const ratio = (a, b) => { const x = lum(a), y = lum(b); return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05); };
+
+  if (measures.includes('contrast')) {
+    const MEDIA = ['IMG', 'VIDEO', 'CANVAS', 'PICTURE', 'SVG', 'OBJECT', 'EMBED', 'IFRAME'];
+    const layers = scanned.filter(el => MEDIA.includes(el.tagName.toUpperCase()) || getComputedStyle(el).backgroundImage !== 'none');
+    const background = el => {
+      for (let n = el; n; n = n.parentElement) {
+        const s = getComputedStyle(n);
+        if (parseFloat(s.opacity) < 1) return { why: 'an opacity below 1 sits between the text and its background' };
+        if (s.backgroundImage !== 'none') return { why: 'a background image or gradient sits between the text and its background' };
+        const c = parse(s.backgroundColor);
+        if (c.a === 1) return { color: c, css: s.backgroundColor };
+        if (c.a > 0) return { why: 'a translucent background color sits between the text and its background' };
+      }
+      return { why: 'no ancestor has an opaque background color' };
+    };
+    const textPoint = el => {
+      let r = rect(el);
+      const node = Array.from(el.childNodes).find(n => n.nodeType === 3 && n.textContent.trim());
+      if (node) { const range = document.createRange(); range.selectNodeContents(node); r = range.getClientRects()[0] || r; }
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+    };
+    const targets = [];
+    for (const el of els) {
+      if (disabled(el)) continue;
+      const s = getComputedStyle(el);
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+        if (el.tagName === 'INPUT' && !TEXT_INPUTS.includes(el.type)) continue;
+        if (el.value) targets.push({ el, color: s.webkitTextFillColor || s.color, suffix: '' });
+        else if (el.placeholder) targets.push({ el, color: getComputedStyle(el, '::placeholder').color, suffix: '::placeholder' });
+      } else if (el.tagName === 'SELECT') targets.push({ el, color: s.webkitTextFillColor || s.color, suffix: '' });
+      else if (texts.includes(el)) targets.push({ el, color: s.webkitTextFillColor || s.color, suffix: '' });
+    }
+    for (const { el, color, suffix } of targets) {
+      const s = getComputedStyle(el);
+      const size = parseFloat(s.fontSize), weight = parseInt(s.fontWeight, 10) || 400;
+      const limitRatio = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
+      const base = { color, fontPx: round(size), fontWeight: weight, limit: limitRatio };
+      const skip = reason => push('contrast', el, 'unmeasured', Object.assign({ reason }, base), suffix);
+      const fg = parse(color);
+      if (fg.a < 1) { skip('the text color is translucent'); continue; }
+      const bg = background(el);
+      if (bg.why) { skip(bg.why); continue; }
+      const p = textPoint(el);
+      if (layers.some(l => !l.contains(el) && rect(l).left <= p.x && p.x <= rect(l).right && rect(l).top <= p.y && p.y <= rect(l).bottom)) {
+        skip('a media element or background image sits behind the text'); continue;
+      }
+      checked.contrast++;
+      const got = ratio(fg, bg.color);
+      if (got < limitRatio) push('contrast', el, 'fail', Object.assign({ ratio: round(got), background: bg.css }, base), suffix);
+    }
+  }
+
+  const native = el => {
+    const t = el.tagName;
+    return t === 'BUTTON' || t === 'SELECT' || t === 'TEXTAREA' || t === 'SUMMARY' || (t === 'A' && el.hasAttribute('href'))
+      || (t === 'INPUT' && el.type !== 'hidden');
+  };
+  const tabbable = el => { const v = el.getAttribute('tabindex'); return v !== null && parseInt(v, 10) >= 0; };
+
+  if (measures.includes('target-size')) {
+    const ROLES = ['button', 'link', 'checkbox', 'radio', 'tab', 'menuitem', 'menuitemcheckbox', 'menuitemradio', 'option',
+      'switch', 'slider', 'spinbutton', 'combobox', 'textbox', 'searchbox', 'treeitem'];
+    const narrow = rect(canvas).width < 600;
+    for (const el of els) {
+      if (!(native(el) || tabbable(el) || ROLES.includes((el.getAttribute('role') || '').toLowerCase()))) continue;
+      const inRun = el.tagName === 'A' && getComputedStyle(el).display === 'inline'
+        && Array.from(el.parentNode.childNodes).some(n => n.nodeType === 3 && n.textContent.trim());
+      if (inRun) continue;
+      checked['target-size']++;
+      const w = round(rect(el).width), h = round(rect(el).height);
+      if (w < 24 || h < 24) push('target-size', el, 'fail', { width: w, height: h, limit: 24 });
+      else if (narrow && (w < 44 || h < 44)) push('target-size', el, 'note', { width: w, height: h, limit: 44 });
+    }
+  }
+
+  if (measures.includes('text-clip')) {
+    const clips = (el, which) => { const o = getComputedStyle(el)['overflow' + which]; return o === 'hidden' || o === 'clip'; };
+    const beyond = (inner, outer, which) => which === 'X'
+      ? rect(inner).right > rect(outer).right + 1 || rect(inner).left < rect(outer).left - 1
+      : rect(inner).bottom > rect(outer).bottom + 1 || rect(inner).top < rect(outer).top - 1;
+    for (const el of els) {
+      if (FIELDS.includes(el.tagName)) continue;
+      for (const which of ['X', 'Y']) {
+        if (!clips(el, which)) continue;
+        const scroll = which === 'X' ? el.scrollWidth : el.scrollHeight, client = which === 'X' ? el.clientWidth : el.clientHeight;
+        if (scroll <= client + 1) continue;
+        if (hasText(el) || texts.some(t => t !== el && el.contains(t) && beyond(t, el, which)))
+          push('text-clip', el, 'fail', { kind: 'overflow-' + which.toLowerCase(), overflow: scroll - client, scroll, client, limit: 1 });
+      }
+      if (hasText(el) || texts.some(t => el.contains(t))) checked['text-clip']++;
+    }
+    for (const el of els) {
+      if (el.tagName !== 'INPUT' || !TEXT_INPUTS.includes(el.type) || el.value || !el.placeholder) continue;
+      const s = getComputedStyle(el);
+      canvas2d.font = [s.fontStyle, s.fontWeight, s.fontSize, s.fontFamily].join(' ');
+      const text = s.textTransform === 'uppercase' ? el.placeholder.toUpperCase() : el.placeholder;
+      const wide = canvas2d.measureText(text).width + (parseFloat(s.letterSpacing) || 0) * text.length;
+      const content = el.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight);
+      checked['text-clip']++;
+      if (wide > content + 1)
+        push('text-clip', el, 'fail', { kind: 'placeholder', overflow: round(wide - content), scroll: round(wide), client: round(content), limit: 1 }, '::placeholder');
+    }
+  }
+
+  if (measures.includes('focus-visible')) {
+    const forced = axis === 'forced-colors';
+    const state = s => ({
+      outline: s.outlineStyle === 'none' ? 'none' : s.outlineStyle + ' ' + s.outlineWidth,
+      border: ['Top', 'Right', 'Bottom', 'Left'].map(side => s['border' + side + 'Width'] + ' ' + s['border' + side + 'Style'] + ' ' + s['border' + side + 'Color']).join(' '),
+      shadow: s.boxShadow, background: s.backgroundColor,
+    });
+    const settleTransitions = el => { getComputedStyle(el).outlineWidth; el.getAnimations().forEach(a => { try { a.finish(); } catch (_) {} }); };
+    for (const el of els) {
+      if (!(native(el) || tabbable(el)) || disabled(el)) continue;
+      const before = state(getComputedStyle(el));
+      el.focus({ preventScroll: true });
+      if (document.activeElement !== el) { push('focus-visible', el, 'unmeasured', { reason: 'the element did not take focus' }); continue; }
+      settleTransitions(el);
+      const s = getComputedStyle(el), after = state(s);
+      checked['focus-visible']++;
+      const outline = s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0;
+      const changed = (forced ? ['border'] : ['border', 'shadow', 'background']).filter(key => before[key] !== after[key]);
+      if (!outline && !changed.length)
+        push('focus-visible', el, 'fail', { outline: after.outline, limit: forced ? 'an outline, or a border change' : 'an outline, or a border, box-shadow or background-color change' });
+      el.blur();
+      settleTransitions(el);
+    }
+  }
+
+  if (measures.includes('text-growth') && baseFonts) {
+    const zoom = canvas.style.zoom === '2' ? 2 : 1;
+    for (const el of texts) {
+      const was = baseFonts[selector(el)];
+      if (!was) continue;
+      checked['text-growth']++;
+      const now = parseFloat(getComputedStyle(el).fontSize);
+      const grew = now * zoom / was;
+      if (grew < 1.9) push('text-growth', el, 'fail', { baseFontPx: round(was), fontPx: round(now), zoom, ratio: round(grew), limit: 1.9 });
+    }
+  }
+
+  const sizes = {};
+  if (fonts) for (const el of texts) sizes[selector(el)] = parseFloat(getComputedStyle(el).fontSize);
+  return { rows, checked, incomplete: all.length > limit, fonts: fonts ? sizes : null };
+};
+
 async function start(request) {
   for (const [name, file] of Object.entries(request.files)) pages[name] = fs.readFileSync(file);
   baseColorScheme = request.colorScheme === 'dark' ? 'dark' : 'light';
@@ -265,6 +461,7 @@ async function start(request) {
     addEventListener('submit', event => { event.preventDefault(); record(event.target); }, true);
     HTMLFormElement.prototype.submit = function () { record(this); };
     addEventListener('focusin', event => {
+      if (window.__pdhNoFocusLog) return;     // a measured-accessibility pass moves focus on purpose
       const el = event.target;
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
       const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
@@ -519,17 +716,44 @@ async function runCase(request) {
   if (problems.length) return { problems, settle: null, probe: null };
   await page.evaluate(SET_CANVAS_WIDTH, request.widthPx || null);
   const settle = await page.evaluate(SETTLE, { cap: request.settleCapMs, margin: request.marginMs });
+  if (request.a11y && request.a11y.only) return { problems, settle, probe: null, a11y: await measureA11y(request) };
   const probe = await page.evaluate(PROBE, {
     surfaceId: request.surface, state: request.state, limit: 400, reportLimit: 10, props: STYLE_PROPS,
   });
   if (!probe) return { problems: ['product surface not found: ' + request.surface], settle, probe: null };
-  return {
+  const result = {
     problems, settle,
     probe: {
       geometry: probe.geometry, rectsSha256: sha(probe.rects), styleSha256: sha(probe.styles),
       inputsSha256: sha(probe.inputs), incomplete: probe.incomplete,
     },
   };
+  if (request.a11y) result.a11y = await measureA11y(request);
+  return result;
+}
+
+// Measured accessibility never fails a case: a measurement that cannot run comes back as an error text.
+// Focus is measured after one real Tab press, so :focus-visible rules apply, and is put back afterwards.
+async function measureA11y(request) {
+  const focus = request.a11y.measures.includes('focus-visible');
+  let had = null;
+  try {
+    if (focus) {
+      await page.evaluate(() => { window.__pdhNoFocusLog = true; });
+      had = await page.evaluateHandle(() => document.activeElement);
+      await page.keyboard.press('Tab');
+    }
+    return await page.evaluate(A11Y, Object.assign({ surfaceId: request.surface, limit: 400 }, request.a11y));
+  } catch (error) {
+    return { error: String((error && error.message) || error).split('\n')[0] };
+  } finally {
+    if (focus) {
+      try {
+        if (had) await had.evaluate(el => { if (el && el !== document.body && el.focus) el.focus({ preventScroll: true }); else if (document.activeElement && document.activeElement.blur) document.activeElement.blur(); });
+        await page.evaluate(() => { window.__pdhNoFocusLog = false; });
+      } catch (_) {}
+    }
+  }
 }
 
 async function shot(request) {
@@ -1273,8 +1497,9 @@ def reviewer_plan(package):
 class Runner:
     def __init__(self, driver, package, root, out_dir, *, axes=(), carry=None, carry_source=None, derived=None,
                  interactions=(), recapture=False, diff_against=None, settle_cap_ms=SETTLE_CAP_MS, case_timeout_s=CASE_TIMEOUT_S,
-                 intermediate=False):
+                 intermediate=False, measure_a11y=False):
         self.driver, self.package, self.root, self.out_dir = driver, package, root, out_dir
+        self.measure_a11y, self.a11y_cases, self.a11y_fonts = measure_a11y, {}, {}
         self.axes, self.carry, self.carry_source, self.derived = tuple(axes), carry or {}, carry_source, derived
         self.interactions = list(interactions)
         self.recapture, self.diff_against = recapture, diff_against
@@ -1332,14 +1557,14 @@ class Runner:
         self.open_page(page)
         for case in cases:
             self.records[case.key] = self.observe(case)
+        if self.measure_a11y:
+            self.run_focus(page, self.sample_for(page, cases)[1])
         for axis, picked in self.axis_picks(page, cases):
             self.run_axis(page, axis, picked)
         self.run_interactions(page)
 
-    def axis_picks(self, page, cases):
-        """(axis, sampled cases) for one page, sampled from the geometry its base cases measured."""
-        if not self.axes:
-            return []
+    def sample_for(self, page, cases):
+        """(surface rows, axis sample) of one page, sampled from the geometry its base cases measured."""
         rows = [row for row in self.package.manifest["surfaces"] if row["page"] == page
                 and any(c.surface == row["id"] for c in cases)]
         counts = {}
@@ -1347,7 +1572,13 @@ class Runner:
             geometry = self.records[case.key].get("geometry")
             if geometry:
                 counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
-        sampled = sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
+        return rows, sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
+
+    def axis_picks(self, page, cases):
+        """(axis, sampled cases) for one page."""
+        if not self.axes:
+            return []
+        rows, sampled = self.sample_for(page, cases)
         return [(axis, reflow_axis_cases(rows, sampled, self.package.widths[page]) if axis == "reflow-320" else sampled)
                 for axis in self.axes]
 
@@ -1376,8 +1607,13 @@ class Runner:
 
     def axis_items(self, cases):
         """One item per page and axis, from the base records a first phase has merged into this runner."""
-        return [(("axis", page, (axis, picked)), 1 + len(picked))
-                for page, page_cases in group_by_page(cases).items() for axis, picked in self.axis_picks(page, page_cases)]
+        items = []
+        for page, page_cases in group_by_page(cases).items():
+            if self.measure_a11y:
+                sampled = self.sample_for(page, page_cases)[1]
+                items.append((("focus", page, sampled), 1 + len(sampled)))
+            items += [(("axis", page, (axis, picked)), 1 + len(picked)) for axis, picked in self.axis_picks(page, page_cases)]
+        return items
 
     def reviewer_items(self):
         plan = self.reviewer_plan
@@ -1398,6 +1634,8 @@ class Runner:
                 self.interaction_records.append(self.observe_interaction(*payload, self.interaction_blocked(page)))
             elif kind == "axis":
                 self.run_axis(page, *payload)
+            elif kind == "focus":
+                self.run_focus(page, payload)
             else:
                 self.reviewer_records.append(self.observe_reviewer(page, payload))
 
@@ -1407,6 +1645,7 @@ class Runner:
         worker.driver = driver
         worker.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
         worker.records, worker.axis_records, worker.interaction_records, worker.reviewer_records = {}, [], [], []
+        worker.a11y_cases, worker.a11y_fonts = {}, dict(self.a11y_fonts)
         worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
         worker.restarts, worker.aborted, worker.active_axis = 0, False, None
         return worker
@@ -1419,6 +1658,7 @@ class Runner:
                 continue
             self.unopened.add(page)
             self.page_reasons[page] = reasons
+            self.a11y_cases = {key: entry for key, entry in self.a11y_cases.items() if entry["case"].page != page}
             for record in [r for r in self.records.values() if r["page"] == page]:
                 self.unopen(record, "FAIL", reasons)
             for record in [r for r in self.axis_records if r["page"] == page]:
@@ -1458,6 +1698,8 @@ class Runner:
             if page in worker.unopened or page not in self.page_reasons:
                 self.page_reasons[page] = reasons
         self.records.update(worker.records)
+        self.a11y_cases.update(worker.a11y_cases)
+        self.a11y_fonts.update(worker.a11y_fonts)
         self.axis_records += worker.axis_records
         self.interaction_records += worker.interaction_records
         self.reviewer_records += worker.reviewer_records
@@ -1587,11 +1829,12 @@ class Runner:
 
     def run_case(self, case, record):
         reasons, keep = record["reasons"], case.axis is None
+        a11y = self.a11y_request(case)
         try:
             reply = self.driver.call("case", timeout=self.case_timeout_s + 10, surface=case.surface, state=case.state,
                                      target=self.shell_target(case), widthPx=self.case_width(case),
                                      settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
-                                     timeoutMs=self.case_timeout_s * 1000)
+                                     timeoutMs=self.case_timeout_s * 1000, **({"a11y": a11y} if a11y else {}))
         except DriverTimeout as error:
             reasons.append(f"case timed out after {self.case_timeout_s}s")
             reasons.extend(self.absorb(error.events, case.page, keep))
@@ -1610,6 +1853,8 @@ class Runner:
         geometry = probe["geometry"]
         record.update(geometry=geometry, settle=result["settle"], renderFingerprint=render_fingerprint(probe),
                       fingerprintIncomplete=bool(probe.get("incomplete")))
+        if a11y:
+            self.record_a11y(case, "case", a11y, result.get("a11y"))
         if self.intermediate:
             if abs(geometry["canvasWidth"] - float(case.target)) > WIDTH_TOLERANCE_PX:
                 reasons.append(f"product canvas is {geometry['canvasWidth']}px wide, the intermediate width needs {case.target}px")
@@ -1628,6 +1873,58 @@ class Runner:
             record["carriedFrom"] = self.carried(case, record)
         if record["carriedFrom"] is None or self.recapture:
             self.capture(case, record, keep)
+
+    # Measured accessibility: observations kept next to the case records, never part of a case result.
+    def a11y_request(self, case, measures=None):
+        """The measurements the driver takes in this case's page visit, or None when there are none."""
+        if not self.measure_a11y or self.intermediate:
+            return None
+        base_visit = measures is None and case.axis is None
+        measures = list(measures or (A11Y_BASE if case.axis is None else A11Y_AXIS.get(case.axis, ())))
+        if not measures:
+            return None
+        request = {"measures": measures, "axis": case.axis}
+        if "text-growth" in measures:
+            request["baseFonts"] = self.a11y_fonts.get(case.key)
+        elif base_visit and "zoom-200" in self.axes:
+            request["fonts"] = True       # the 200% axis compares each text with its size in this visit
+        return request
+
+    def record_a11y(self, case, kind, request, result):
+        """Keep one visit's measurements; a visit that returned nothing (a fake or a failed driver) keeps nothing."""
+        if result is None:
+            return
+        rows, measures = result.get("rows", []), request["measures"]
+        if result.get("error"):
+            rows = [{"measure": name, "selector": None, "level": "unmeasured",
+                     "reason": f"the measurement failed: {result['error']}"} for name in measures]
+        elif "text-growth" in measures and request.get("baseFonts") is None:
+            rows = rows + [{"measure": "text-growth", "selector": None, "level": "unmeasured",
+                            "reason": "the same case without the axis was not measured"}]
+        elif result.get("fonts") is not None:
+            self.a11y_fonts[case.key] = result["fonts"]
+        self.a11y_cases[(kind, case.axis or "", case.key)] = {
+            "case": case, "kind": kind, "measures": measures, "rows": rows, "checked": result.get("checked") or {},
+            "incomplete": bool(result.get("incomplete")) and not result.get("error")}
+
+    def run_focus(self, page, sampled):
+        """Focus visibility on the axis sample in the base scheme: the page's own states, no screenshot, no result."""
+        for case in sampled:
+            if page in self.unopened or self.aborted:
+                return
+            request = dict(self.a11y_request(case, ("focus-visible",)), only=True)
+            try:
+                reply = self.driver.call("case", timeout=self.case_timeout_s + 10, surface=case.surface, state=case.state,
+                                         target=self.shell_target(case), widthPx=self.case_width(case),
+                                         settleCapMs=self.settle_cap_ms, marginMs=SETTLE_MARGIN_MS,
+                                         timeoutMs=self.case_timeout_s * 1000, a11y=request)
+            except DriverTimeout:
+                self.recover(page)
+                continue
+            except DriverError:
+                continue
+            if not reply["result"]["problems"]:
+                self.record_a11y(case, "focus", request, reply["result"].get("a11y"))
 
     def carried(self, case, record):
         previous = self.carry.get(case.key)
@@ -1814,7 +2111,7 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
             merged.fold(worker)
 
     phase(runner, runner.base_items(cases) + runner.reviewer_items())
-    if runner.axes:
+    if runner.axes or runner.measure_a11y:
         phase(runner, runner.axis_items(cases))
     if intermediate_runner is not None:
         intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
@@ -1851,6 +2148,47 @@ def interaction_rows(runner):
             navigation.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
                                "from": record["page"], "to": record["arrived"]})
     return results, navigation
+
+
+def a11y_object(runner):
+    """The sidecar's ``a11y`` object: every finding in one order whatever the worker count, what was cut or not run."""
+    surfaces = runner.package.manifest["surfaces"]
+    rows = {row["id"]: row for row in surfaces}
+    pages = list(dict.fromkeys(row["page"] for row in surfaces))
+    ids = list(rows)
+
+    def rank(entry):
+        case, row = entry["case"], rows[entry["case"].surface]
+        return (pages.index(case.page), {"case": 0, "focus": 1}[entry["kind"]] if case.axis is None else 2,
+                runner.axes.index(case.axis) if case.axis else -1, ids.index(case.surface),
+                [str(s) for s in row["states"]].index(case.state), [str(t) for t in row["responsive"]["targets"]].index(case.target))
+
+    summary = {name: {"checked": 0, "fail": 0, "note": 0, "unmeasured": 0} for name in A11Y_MEASURES}
+    findings, incomplete = [], []
+    for entry in sorted(runner.a11y_cases.values(), key=rank):
+        case = entry["case"]
+        where = {"surface": case.surface, "state": case.state, "target": case.target, "axis": case.axis or "base"}
+        for row in entry["rows"]:
+            rest = {key: value for key, value in row.items() if key not in ("measure", "selector")}
+            findings.append(dict({"measure": row["measure"], **where, "selector": row["selector"]}, **rest))
+            summary[row["measure"]][row["level"]] += 1
+        for name in entry["measures"]:
+            summary[name]["checked"] += entry["checked"].get(name, 0)
+            if entry["incomplete"]:
+                incomplete.append({"measure": name, **where, "incomplete": True})
+    not_run = [{"measure": name, "axis": axis, "reason": f"axis {axis} was not requested; pass --axes {axis}"}
+               for axis, names in A11Y_AXIS.items() if axis not in runner.axes for name in names]
+    return {"summary": summary, "notRun": not_run, "incomplete": incomplete, "findings": findings}
+
+
+def a11y_line(a11y):
+    """The one summary line: failures per measurement, and what did not run."""
+    line = {name: a11y["summary"][name]["fail"] for name in A11Y_MEASURES}
+    line["notes"] = sum(row["note"] for row in a11y["summary"].values())
+    line["unmeasured"] = sum(row["unmeasured"] for row in a11y["summary"].values())
+    line["incomplete"] = len(a11y["incomplete"])
+    line["notRun"] = [f"{row['measure']} needs --axes {row['axis']}" for row in a11y["notRun"]]
+    return line
 
 
 def reviewer_identity(row):
@@ -1934,6 +2272,8 @@ def build_outputs(runner, package, cases, root, out_dir, subject, started, finis
                "run": dict(options, startedAt=started, finishedAt=finished, **summary),
                "cases": [r for r in records if r], "axes": runner.axis_records,
                "interactions": runner.interaction_records, "reviewer": runner.reviewer_records}
+    if runner.measure_a11y:
+        sidecar["a11y"] = a11y_object(runner)
     sidecar_bytes = (json.dumps(sidecar, ensure_ascii=False, indent=2) + "\n").encode("utf-8")
     sidecar_path = out_dir / SIDECAR_NAME
     sidecar_path.write_bytes(sidecar_bytes)
@@ -1999,6 +2339,8 @@ def parse_args(argv=None):
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--workers", type=int, default=1,
                         help=f"browsers to run at once, 1 to {MAX_WORKERS} (default 1); the same count splits the work the same way")
+    parser.add_argument("--measure-a11y", action="store_true",
+                        help="also measure contrast, target size, text clip, focus visibility and text growth into the sidecar's a11y object")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
     return parser.parse_args(argv)
 
@@ -2093,7 +2435,7 @@ def execute(args, make_driver=node_driver):
                     raise UsageError(f"browser could not start: {error}") from error
                 runner = Runner(driver, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
                                 derived=derived, interactions=interactions, recapture=args.recapture_carried,
-                                diff_against=diff_against)
+                                diff_against=diff_against, measure_a11y=args.measure_a11y)
                 runner.run(cases)
                 if intermediate_cases:
                     intermediate_dir = out_dir / INTERMEDIATE_DIR
@@ -2110,7 +2452,7 @@ def execute(args, make_driver=node_driver):
             try:
                 runner = Runner(None, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
                                 derived=derived, interactions=interactions, recapture=args.recapture_carried,
-                                diff_against=diff_against)
+                                diff_against=diff_against, measure_a11y=args.measure_a11y)
                 if intermediate_cases:
                     intermediate_dir = out_dir / INTERMEDIATE_DIR
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
@@ -2148,9 +2490,12 @@ def execute(args, make_driver=node_driver):
               or summary["interactionsFail"]
               or bool(intermediate and (intermediate["fail"] or intermediate["interactionsFail"]
                                         or intermediate["findings"])))
-    print(json.dumps({"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
-                      "output": output_path.relative_to(root).as_posix(), **summary,
-                      "restarts": restarts, "problems": problems[:5], "intermediate": intermediate}))
+    line = {"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
+            "output": output_path.relative_to(root).as_posix(), **summary,
+            "restarts": restarts, "problems": problems[:5], "intermediate": intermediate}
+    if args.measure_a11y:
+        line["a11y"] = a11y_line(a11y_object(runner))
+    print(json.dumps(line))
     return 3 if problems and not failed else (1 if failed else 0)
 
 
