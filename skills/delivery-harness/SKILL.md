@@ -79,7 +79,7 @@ After capability detection, apply `references/runtime-upgrades.md`. Only an old 
 
 ### MVP Week
 
-The owner-selected `mvp` delivery profile targets one week from approved PRD to a verified release candidate for a small project or an MVP. It runs one combined review plus one re-check in delivery, folds Final UI Acceptance into the combined review, isolates every post-re-check defect, runs the broad suite once, and keeps at most four owner gates across the flow. Speed changes nothing else: the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding still apply.
+The owner-selected `mvp` profile targets one week from approved PRD to a verified release candidate for a small project or an MVP. It runs one combined review plus one re-check, folds Final UI Acceptance into that review, isolates every post-re-check defect, runs the broad suite once, and keeps at most four owner gates. Speed changes nothing else: the authorization ledger, the security lens on executable diffs, data safety, and exact-SHA binding still apply.
 
 ## Non-Negotiable Boundaries
 
@@ -109,7 +109,7 @@ For unproven cross-layer dependencies, apply [Early Journey And Engineering Evid
 3. Probe the toolchain, browser and reviewer route once (a failed row is an `environment` block), then run focused checks selected from changed files, security tests included.
 4. Review the complete diff and run `git diff --check`.
 5. Create an authorized local commit when requested.
-6. Dispatch one independent read-only reviewer on that SHA carrying every lens the diff needs: code; security, with `references/security-review.md` loaded; and, when UI changed, visual with a real browser and one Final UI Acceptance. It returns one consolidated finding set of blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without the security lens is `UNVALIDATED`, not PASS.
+6. Dispatch one review point on that SHA: read-only calls launched together, one per lens the diff needs: code; security, with `references/security-review.md` loaded; visual, when UI changed, with a real browser and one Final UI Acceptance. The parent merges the results into one finding set of blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without it is `UNVALIDATED`, not PASS.
 7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
 8. Perform only remaining authorized Git actions; for promotion, read `references/branch-promotion-contract.md#candidate-gate` and `references/branch-promotion-contract.md#promote-to-main`.
 

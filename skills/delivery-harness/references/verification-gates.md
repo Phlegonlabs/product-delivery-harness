@@ -17,7 +17,7 @@ Use the smallest reliable proof first:
 2. Identify the smallest deterministic check.
 3. Run affected task and worker checks from parent-observed changed files.
 4. Integrate serially into the resolved integration branch; run the mission integration surface and only real cross-mission checks, with seam verifiers selected from the merge diff.
-5. Run one combined review on the unified head.
+5. Run one review point on the unified head: one read-only call per lens, launched together.
 6. Make one consolidated repair and one targeted re-check; after the re-check, remaining defects enter the Isolated Repair Protocol.
 7. Fix the candidate SHA, then run one planned broad regression, browser E2E, and visual/UI validation suite on that head.
 8. Record evidence with commands, exit codes, artifacts, traces, screenshots, metrics, or approval.
@@ -32,9 +32,7 @@ Default `review_policy: final_candidate`. One review node on the unified candida
 
 Domain lenses. A PLAN may add `domain:<field>` entries to `review.lenses` from the PRD Ambition Range rows marked `review lens`; the Growth Contract's Range crew may supply `domain:seo`, `domain:aso`, and `domain:growth` lenses when the PRD's Growth Contract requires those discovery surfaces. The combined reviewer applies that field's method or tool, not role-play. Domain findings share the triage and review budget and add no reviewer node. A domain lens never sets `review.type`.
 
-One reviewer per candidate. Parallel reviewers on one candidate or surface group need an explicit owner request and return one consolidated finding set through the parent; they never each start a repair loop.
-
-When a review packet exceeds the reviewer route's caps, the parent splits it into scoped calls over disjoint path groups of the same exact SHA ([General Runtime Adapter](runtime-adapters.md#reviewer-tools)) and merges the returned sets into one consolidated finding set under this section's finding triage and two-pass budget. This is one review point, not the multi-reviewer fan-out that needs an owner request. `review_input.py` builds the git-free packet for a sandboxed reviewer.
+One review point per candidate. The parent sends its lenses as separate read-only calls on the same exact SHA, launched together: code, security (with `security-review.md` loaded) and visual (real browser, Final UI Acceptance). A small diff may keep code and security in one call; one lens is one call. A packet that exceeds the reviewer route's caps also splits into scoped calls over disjoint path groups of that SHA ([General Runtime Adapter](runtime-adapters.md#reviewer-tools)). The parent waits for every call and merges the returned sets into one consolidated finding set and one verdict under this section's finding triage and two-pass budget; no call starts a repair loop. The targeted re-check and scoped repair reviews send only the lenses their scope needs, the same way. This is not the multi-reviewer fan-out: parallel reviewers of the same lens or scope still need an explicit owner request. `review_input.py` builds the git-free packet for a sandboxed reviewer.
 
 Finding triage. A reviewer separates blocking findings from non-blocking notes. A blocking finding is a defect against accepted scope, a TEST obligation, security, or correctness; a non-blocking note is style, decorative wording, a suggestion, or backlog. Only blocking findings produce `fix_required`; a PASS records notes through `record-review-attempt --note`, and the notes go to the backlog or the Epic. Security findings of severity critical/high are always blocking.
 
@@ -72,7 +70,7 @@ One finding family becomes one bounded repair task:
 6. A scoped review does not consume the review node's attempts. Managed runs record it with `record-review-attempt --scoped`.
 7. The broad regression and E2E suite runs once per candidate at the end. A failure there is an isolated repair; rerun only the failing suites plus the changed-file selection, never the whole suite.
 
-Consolidated isolated repair. When more than one family remains after the targeted re-check, the parent repairs every open family in one consolidated repair, not one per round. Writers and checkouts follow the effective agent policy ([Delegation](delegation-contract.md)); each writer owns disjoint paths and the parent integrates serially. The repair gets one scoped review point carrying every group's prior findings and repair range. It is split into scoped calls over disjoint path groups only under the packet sizing rule above or an owner request for parallel reviewers. A scoped PASS re-binds the candidate exactly as a single-family scoped PASS does.
+Consolidated isolated repair. When more than one family remains after the targeted re-check, the parent repairs every open family in one consolidated repair, not one per round. Writers and checkouts follow the effective agent policy ([Delegation](delegation-contract.md)); each writer owns disjoint paths and the parent integrates serially. The repair gets one scoped review point carrying every group's prior findings and repair range. It follows the one-review-point rule above and goes to parallel reviewers only on an owner request. A scoped PASS re-binds the candidate exactly as a single-family scoped PASS does.
 
 ## Gate Levels
 
@@ -380,7 +378,7 @@ Early controls and negative tests are development evidence, not a substitute for
 
 The security reviewer is read-only, never delegates, and reports all validated findings in one pass. It receives no write scope, commit authority, scanner-install permission, network permission, or live-target penetration authority. Completion passes the result as `--security-result`. A security PASS must have an empty `exclusions` list; narrowed or omitted coverage is not a PASS.
 
-The unified security pass evaluates cross-mission trust boundaries and security-specific source-to-sink paths from a fresh context. PASS binds to the exact current integration SHA and declared scope. No second security reviewer is dispatched before final validation.
+The unified security pass evaluates cross-mission trust boundaries and security-specific source-to-sink paths from a fresh context. PASS binds to the exact current integration SHA and declared scope. No second security reviewer is dispatched for the same candidate.
 
 An interrupted security reviewer does not fabricate a structured decision. `reconcile-interrupted-reviews` retains a blocked worker without `security_result` only when the unique matching review attempt carries the `interrupted_review_reconciliation` receipt; the run stays paused and the receipt cannot satisfy closeout. A later exact structured PASS from the current reviewer may close the gate. A PASS also needs at least one tool or manual source review recorded as `passed` or `findings`; skipped or unavailable tools alone are not review evidence.
 
