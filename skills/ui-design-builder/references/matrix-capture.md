@@ -40,6 +40,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 | `--diff-against <earlier --out dir>` | Pixel diff against same-named earlier captures (Pillow): `identical` or `changed` with the changed-pixel ratio; a pixel is changed when any RGBA channel differs. |
 | `--color-scheme dark` | Run the whole base matrix with the browser context at `colorScheme: dark`, from the first page load to the interaction pass. The dark run goes to its own `--out` as a separate `ui-output/3`. |
 | `--intermediate` | Also capture every state at the midpoint width between each adjacent pair of numeric viewport targets, into a second `ui-output/3` under `OUT/intermediate` (own sidecar and captures, no reviewer object). A failing sweep case, interaction or coverage finding fails the run. |
+| `--measure-a11y` | Also measure contrast, target size, text clip, focus visibility and text growth into the sidecar's `a11y` object (see Measured accessibility). Off by default, and then the output is the same as without the flag. |
 | `--overwrite` | Write into a non-empty `--out`. Refused (exit 2) with `--carry-from` when `--out` is, holds or sits inside the folder of the carry source or of a capture it carries. |
 
 `--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. After the matrix, the run clicks and Enter/Space-activates every manifest interaction at every source target and writes the `interactions` rows and `navigation` events; a failed attempt fails the run. It then measures the `reviewer` object (see below).
@@ -78,8 +79,23 @@ The sample, once per page, is `ready` (or the first state) and the non-derived s
 
 Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
 
+## Measured accessibility
+
+`--measure-a11y` adds a top-level `a11y` object to `matrix-capture.json`, measured inside the product surface on visible elements in the same page visit as each case's probe. A finding never changes a case result, the `ui-output/3` file or the exit code. The author fixes each failure or records a disposition with a reason; the lead grader reads both as H4/H8 evidence.
+
+| Measurement | Runs on | Reports | Cannot prove |
+| --- | --- | --- | --- |
+| `contrast` | base cases; `dark` axis sample | Text under 4.5:1 against its nearest opaque ancestor background (3:1 for 24 px, or 18.66 px at weight 700). Input placeholders count; disabled controls are skipped. A background image or gradient, an opacity under 1, a translucent colour or a media element in between gives an `unmeasured` row with its reason. | Text over art or a gradient, and anything `unmeasured`. |
+| `target-size` | base cases | Interactive boxes under 24 by 24 px. On targets under 600 px wide, boxes under 44 px are `note` rows. Links inside a run of text are skipped. | Spacing between targets, or a label that enlarges a small control. |
+| `text-clip` | base cases; `zoom-200` axis sample | Text cut by its own box (`overflow` hidden or clip, ellipsis, line clamp) and placeholders wider than their input. | Text cut by an ancestor's `clip-path` or a mask. |
+| `focus-visible` | the axis sample in the base scheme; `forced-colors` axis sample | A focusable control with no outline and no change in border, box-shadow or background when keyboard-focused. Under forced colors only an outline or a border change counts. Focus is restored afterwards. | That the indicator is visible enough, or the tab order. |
+| `text-growth` | `zoom-200` axis sample | Text whose rendered size grew less than 1.9 times against the same element in the same case without the axis. | Layout quality at 200%. |
+
+Rows carry `measure`, `surface`, `state`, `target`, `axis` (`base` or the axis name), `selector`, `level` (`fail`, `note` or `unmeasured`), the values and the `limit`. Elements clipped to 1 px or less are skipped. The probe's 400-element cap applies: a cut scan is listed in `incomplete`. An axis measurement needs its axis in `--axes`; without it the measurement is listed once in `notRun` and in the printed `a11y` summary, and no axis is turned on for it. Carried cases are still measured, and `--workers` gives the same rows in the same order.
+
 ## What it does not prove
 
+- Accessibility. The measurements find some defects; a clean `a11y` object is no WCAG conformance.
 - Appearance. A fingerprint or pixel diff shows change, not correctness. A screenshot is evidence for a reviewer and grades nothing.
 - Motion quality. Use the `motion-preview` check.
 - Native, real-login or service behavior.
