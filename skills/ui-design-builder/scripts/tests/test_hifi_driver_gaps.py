@@ -220,7 +220,8 @@ class ReviewerArrivalBrowserTests(unittest.TestCase):
                 manifest["surfaces"][0]["states"][-1] = "error"
                 manifest["interactions"] = copy.deepcopy(matrix.INTERACTIONS)
             package = matrix.build_package(root, manifest_edit=manifest_edit, page_edit=lambda html:
-                html.replace('data-hifi-state-view="empty"', 'data-hifi-state-view="error"'))
+                html.replace('data-hifi-state-view="empty"', 'data-hifi-state-view="error"').replace('</main>',
+                    '<a data-navigation-id="same-bare" href="index.html">Start</a></main>'))
             result = reviewer_tests.run_browser_script(
                 [shutil.which("node"), "-", str(package), self.playwright()],
                 REVIEWER_BROWSER.replace("__SCENARIO__", scenario), 45)
@@ -242,6 +243,30 @@ class ReviewerArrivalBrowserTests(unittest.TestCase):
                   await page.reload();
                   await expectState('UI-002', %s);
                 """ % (json.dumps("details.html" + fragment), json.dumps(state), json.dumps(state)))
+
+    def test_f4_same_page_arrival_preserves_later_reviewer_selection_on_reload(self):
+        self.run_scenario("""
+          await open('index.html');
+          await page.locator('a[data-navigation-id="to-details"]').evaluate(link =>
+            link.setAttribute('href', 'index.html#hifi-state=UI-001/error'));
+          await page.locator('a[data-navigation-id="to-details"]').click();
+          await expectState('UI-001', 'error');
+          await page.locator('[data-hifi-review-view="overview"]').click();
+          await choose('UI-001', 'error');
+          await page.reload();
+          await expectState('UI-001', 'error');
+          if (await page.evaluate(() => document.__hifiReviewerRuntime.snapshot().view) !== 'overview')
+            throw Error('reviewer view was not retained');
+        """)
+        # A bare same-page link still reloads the document and must reset the product arrival.
+        self.run_scenario("""
+          await open('index.html');
+          await choose('UI-001', 'error');
+          await page.locator('a[data-navigation-id="same-bare"]').click();
+          await expectState('UI-001', 'ready');
+          await page.reload();
+          await expectState('UI-001', 'ready');
+        """)
 
 
 class PageRecoveryTests(unittest.TestCase):

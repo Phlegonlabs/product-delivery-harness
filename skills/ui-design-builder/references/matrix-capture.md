@@ -67,6 +67,7 @@ Repeated control IDs may appear on multiple rows. The driver prefers the first u
 `navigate` also accepts that exact state anchor, including on the same page. A bare page link is valid only for the destination surface's first applicable state. Every instance is checked. The driver observes arrival page, surface, state and URL. The reviewer applies the arrival fragment first; product navigation without one uses the destination default, independent of stored selections.
 
 The reviewer saves the resolved arrival surface and state. Reload must retain that arrival rather than revive an older saved state.
+Same-page fragment navigation clears its arrival marker, so later reviewer selections survive reload. Bare links still use document-arrival handling.
 
 ## Reviewer object
 

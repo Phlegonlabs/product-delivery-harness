@@ -51,6 +51,7 @@ Existing passing packages must keep passing.
 | F1 / G3 repair | Preserve a field activation that already reaches a different destination | Working-tree `test_f1_field_activation_can_hide_the_source_before_entry` | Focused regression exit 0; entry checks exit 0. Protected recheck pending. |
 | F2 / G4 repair | Inherit base page budgets before parallel intermediate dispatch | F1 commit `e86d6754`; `test_f2_exhausted_page_stays_blocked_when_intermediate_work_changes_workers` | Regression and all 27 worker tests exit 0. Protected recheck pending. |
 | F3 / G1 repair | Save the resolved product arrival before reload; refresh the current runtime pin and digest fixture | F2 commit `96ff70eb`; `test_f3_product_arrival_replaces_saved_selection_before_reload` | Browser regression and seven compiler compatibility tests exit 0. Both historical runtimes and altered-body rejection remain covered. |
+| F4 / G1 repair | Clear fragment-arrival markers; keep bare document-arrival handling; refresh the runtime pin and digest fixture | F3 commit `fa118a28`; `test_f4_same_page_arrival_preserves_later_reviewer_selection_on_reload` | All 15 focused tests and seven compiler compatibility tests exit 0. Targeted protected recheck pending. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -66,7 +67,7 @@ The changed validator also retains its manifest and receipt joins. No unrelated 
 
 The jolvex-platform Harness parent reports two protected GPT-6.1-Sol reviews of exact head `5247a3cb`.
 The reviewers used a `review_input.py` clone, with identity proved by its manifest.
-Both reviews returned FAIL; the consolidated findings are F1-G3, F2-G4, F3-G1 and F4-G1 below.
+The protected review returned FAIL; the consolidated findings are F1-G3, F2-G4, F3-G1 and F4-G1 below.
 The protected reviewers supplied the findings. The parent supplied these repair instructions and the one-commit-per-finding boundary.
 This is one consolidated repair round. A targeted protected recheck follows on its exact final head.
 
@@ -75,7 +76,11 @@ This is one consolidated repair round. A targeted protected recheck follows on i
 | F1 / G3 | Preserve field clicks that already apply a different destination. `test_f1_field_activation_can_hide_the_source_before_entry` covers click, keyboard, entry-driven transitions and inert rejection. | Reproduced `locator.inputValue` timeout before repair; focused regression and entry checks exit 0. |
 | F2 / G4 | Carry exhausted page budgets into parallel intermediate work. `test_f2_exhausted_page_stays_blocked_when_intermediate_work_changes_workers` moves source-page cases across workers 0 and 1. | Pre-repair intermediate PASS reproduced; repaired source rows are BLOCKED and the other page passes. Regression and worker suite exit 0. |
 | F3 / G1 | Persist the resolved arrival before reload. `test_f3_product_arrival_replaces_saved_selection_before_reload` covers bare, default-fragment and different-fragment arrivals. | Bare arrival/reload failed before repair; all cases and seven compiler compatibility tests now exit 0. |
-| F4 / G1 | Clear same-document arrival markers. | Pending. |
+| F4 / G1 | Clear same-document arrival markers. `test_f4_same_page_arrival_preserves_later_reviewer_selection_on_reload` covers fragment navigation, Overview, reviewer selection and reload. | Pre-repair reset reproduced. Repaired selection survives reload; bare same-page document links still reset correctly. All 15 focused tests and seven compiler compatibility tests exit 0. |
+
+The repaired runtime body digest is `3c016dead62a116b6c527604aa3480a5327d5887a94dad096928a6f49768bbe3`.
+Final exact-head suite exits and cleanup results belong to the repair ledger linked below.
+Earlier full-matrix and consumer results belong to `5247a3cb`; they are not fresh repair evidence.
 
 ## Adoption Note
 
@@ -88,21 +93,21 @@ The current compiler fixture pins that runtime's exact digest; the frozen 0.87.0
 | G1 | Rebuild every page with the updated canonical reviewer runtime. The assembler preserves an existing runtime, so regenerate from author sources or replace the complete marked runtime segment. For `OP-UI-IOS-AUTH-reauth`, use `ios-ledger.html#hifi-state=UI-IOS-TABS/ready`. Language, term and save/cancel links must name their declared nondefault destinations. Recompute child hashes and the entry identity; recapture all affected interactions. |
 | G2 | Keep one operation ID on every cycle segment of `OP-UI-IOS-TABS-cycle` in `ios-ledger.html`. Give segments their actual ARIA selection state. No manifest split or runtime rebuild is required for G2. Recapture with the new driver; it records `observed.instanceIndex`. |
 | G3 | Keep `OP-UI-IOS-DETAIL-note` on its note field and `OP-UI-IOS-SOURCE-currency` on its currency select. No artificial save button, manifest change or runtime rebuild is needed for G3. Ensure the field accepts entry and its real handlers run. Recapture both click and keyboard attempts. |
-| G4 | No HTML or manifest edit is needed. Run the candidate driver on the full package with `--workers 4`. A timed-out `index.html` no longer blocks unrelated pages assigned to its browser. Retain its failures and blocked attempts; do not report them as passing. |
+| G4 | No HTML or manifest edit is needed. Run the candidate driver on the full package with `--workers 4`. Run the applicable intermediate sweep with the repaired driver too. Exhausted page budgets carry into that sweep across workers. A timed-out `index.html` leaves unrelated pages available. Retain failed and blocked rows. |
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / 96ff70eb plus F3 working tree / scoped runtime, pin, fixture and regression files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / F4 candidate after fa118a28; exact head in repair ledger / scoped runtime, pin, fixture and regression files
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
-Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes G1-G4 local commits only
-Done and verified (command, exit code): protected reviews FAIL on 5247a3cb; F1 and F2 checks exit 0; F3 browser regression and seven compiler compatibility tests exit 0
-Remaining: F4 repair and fresh verification; targeted protected recheck and release
+Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes one local repair commit per F1-F4 finding
+Done and verified (command, exit code): protected review FAIL on 5247a3cb; all four regressions reproduced before repair; all 15 focused tests and seven compiler compatibility tests exit 0
+Remaining: final-candidate suite results in repair ledger; targeted protected recheck and parent release
 Blocked / waiting (gate name or owner decision): protected recheck pending after repair
-Next action (one command or one owner decision): verify and commit F3, then repair F4
-Next owner (skill or human): this writer, then jolvex-platform Harness parent
+Next action (one command or one owner decision): read exact head and final command exits from repair ledger, then run the targeted protected recheck
+Next owner (skill or human): jolvex-platform Harness parent after local verification
 ```
 
 Final command exits, process deadlines, stable-package results and the exact candidate SHA are retained at:

@@ -406,8 +406,11 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         try {
           const destination = new URL(link.getAttribute("href"), window.location.href);
           const page = destination.pathname.split("/").pop();
-          if (storage && destination.origin === window.location.origin && pages.includes(page))
-            storage.setItem(arrivalKey(page), "product");
+          if (storage && destination.origin === window.location.origin && pages.includes(page)) {
+            const sameDocument = destination.pathname === window.location.pathname
+              && destination.search === window.location.search && destination.href.includes("#");
+            storage.setItem(arrivalKey(page), sameDocument ? "" : "product");
+          }
         } catch (_) {}
       });
     }

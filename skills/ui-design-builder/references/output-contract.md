@@ -152,6 +152,7 @@ Each interaction has exactly `id`, `source`, `control`, `kind`, and `destination
 An arrival fragment selects its surface and state before stored reviewer selections. Product navigation starts at the destination default without a fragment. Stored surface and state selections belong to their own page. Rebuild every page's reviewer runtime when adopting this rule. Refresh child hashes and the entry identity, then recapture evidence.
 
 Persist the resolved product arrival, including a default state, so reload keeps that selection instead of restoring an older review state.
+Same-document fragment links leave no pending document-arrival marker. Later reviewer selections must survive reload.
 
 For `ui-design/2` and `ui-design/3`, each interaction ID equals its PRD operation ID. Match its source surface/state, control and destination exactly. `presentation: page` maps to `kind: navigate`. Other presentations map to `feedback` for equal endpoints and `state` for different endpoints. Legacy packages keep their original operation join.
 
