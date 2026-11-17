@@ -539,6 +539,30 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.run_assembly(profile, overwrite=True)
         self.assertEqual([], self.package_problems(("Compare.html",)))
 
+    def test_a_study_named_in_another_case_is_the_page_only_when_it_is_the_same_file(self) -> None:
+        # Where case matters, Compare.html and compare.html are two files: the study is not the page, so a stale
+        # page beside it is still checked and still removed.
+        from unittest import mock
+
+        folder = Path("round-1")
+        self.assertTrue(direction_review.is_compare_entry(folder, "compare.html"))
+        self.assertFalse(direction_review.is_compare_entry(folder, "vd-01.html"))
+        for same, expected in ((True, True), (False, False)):
+            with mock.patch.object(direction_review.os.path, "samefile", return_value=same):
+                self.assertEqual(expected, direction_review.is_compare_entry(folder, "Compare.html"))
+        with mock.patch.object(direction_review.os.path, "samefile", side_effect=FileNotFoundError):
+            self.assertFalse(direction_review.is_compare_entry(folder, "Compare.html"))
+
+        self.pages = {"Compare.html": source_html("compare")}
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": "VD-R1-01", "file": "Compare.html",
+                                   "sourceSha256": hashlib.sha256(self.pages["Compare.html"].encode("utf-8")).hexdigest()}]}
+        self.run_assembly(profile)
+        with mock.patch.object(direction_review.os.path, "samefile", return_value=False):
+            # read as two files, the lowercase name is a page that does not belong to a one-study round
+            if (self.out / "compare.html").exists():
+                self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("Compare.html",))))
+
     def one_study_profile(self) -> dict:
         self.pages = {"vd-04.html": source_html("vd-04")}
         return {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),

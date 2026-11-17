@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import json
 import math
+import os
 import re
 from html import escape, unescape
 from html.parser import HTMLParser
@@ -401,6 +402,23 @@ def is_generated_compare(html: str) -> bool:
     return not assembled_compare_findings(html, COMPARE_FILE)
 
 
+def is_compare_entry(folder: Path, name: str) -> bool:
+    """Whether a study named ``name`` is the comparison page's own directory entry in ``folder``.
+
+    A filesystem that ignores case sees ``Compare.html`` and ``compare.html`` as one file; one that does not can
+    hold both, and then the study is not the page.
+    """
+
+    if name == COMPARE_FILE:
+        return True
+    if name.casefold() != COMPARE_FILE:
+        return False
+    try:
+        return os.path.samefile(folder / name, folder / COMPARE_FILE)
+    except OSError:  # one of the two does not exist, so they are not one entry
+        return False
+
+
 def compare_package_findings(folder: Path, files: list[str], *, required: bool = True) -> list[str]:
     """What a round folder must hold: the comparison page regenerated from its current studies, or none.
 
@@ -409,7 +427,7 @@ def compare_package_findings(folder: Path, files: list[str], *, required: bool =
     A round decided before the page existed (``required`` false) may lack it, but a page that is there must match.
     """
 
-    if len(files) == 1 and files[0].casefold() == COMPARE_FILE:  # a retained one-study package whose study has this name
+    if len(files) == 1 and is_compare_entry(folder, files[0]):  # a retained one-study package whose study is this file
         return []
     page, label = folder / COMPARE_FILE, f"Comparison page {folder.name}/{COMPARE_FILE}"
     profiles: set[str | None] = set()

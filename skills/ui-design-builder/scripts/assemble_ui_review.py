@@ -312,7 +312,8 @@ def assemble_direction(
     # record proves the assembler wrote it; any other file of that name is not ours to delete.
     stale = output_dir / direction_review.COMPARE_FILE
     remove_stale = False
-    if len(declared) == 1 and declared[0].casefold() != direction_review.COMPARE_FILE and os.path.lexists(stale):
+    if (len(declared) == 1 and os.path.lexists(stale)
+            and not direction_review.is_compare_entry(output_dir, declared[0])):
         try:
             generated = not _linked_path(stale) and direction_review.is_generated_compare(
                 stale.read_text(encoding="utf-8"))
