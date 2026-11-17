@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.85.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.86.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -201,6 +201,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.86.0** — 慢的检查现在可以同时跑。`hifi_matrix_capture.py --workers N`（1 到 4，默认 1）用固定的切分方式，把基本用例、交互操作、reviewer 测量和轴测量分给 N 个 headless Chromium，最后写出一份合并输出，行的内容与单一浏览器的结果相同；一个 222 个用例的真实 package 用 4 个浏览器从 1803 秒降到 697 秒。不论几个 worker，每次交互操作现在都从重新加载的来源页开始：前一次操作留下的产品状态不再影响下一次。这在该 package 上消除了 109 条假的交互失败，所以同一个 package 旧的失败数可能比新跑的高。任一浏览器打不开的页面整页判失败，重复的 `--axes` 值以退出码 2 拒绝，执行结束后不留下任何浏览器进程。一个审查点现在以同时派出的只读调用送出，每个 lens（code、security、visual）一个；parent 把结果合并成一份 finding、一个判定和一个修补循环。同一个 lens 派多个审查员仍需要 owner 要求，需要浏览器的 managed 节点把 security 与 visual lens 放在同一个调用。在 direct 路线上，全量最终验证可以和审查在同一个未变动的候选版本上同时开始；修补后不沿用其中任何结果，managed 的最终 gate 仍然等待它的审查节点。在本仓库中，`ci_test_shards.py matrix` 以每个测试模块一个进程的方式跑 product、ui 和 design-system 套件，浏览器套件同时最多三个，跑了零个测试的模块判失败，并打印失败模块的最后几行；CI 的浏览器任务使用同一个 runner。
+
 - **0.85.0** — HiFi 检查现在接受已批准 PRD 所描述的行为。目的地与来源相同的 PRD 操作（保存、筛选、排序）对应到新的 manifest kind `feedback`，matrix driver 只在触发后来源 surface 真的有变化时才判为通过；只有焦点移动不算。`state` 交互可以落在另一页，条件是该控件的每个实例都链接到 `<page>#hifi-state=<surface>/<state>`。声明为 `:n/a` 的状态不需要页面标记。同一个操作可以画很多次：driver 触发第一个可见的实例，并记录数量。表单字段可以用 `data-control-for` 指明所属的按钮，不必自己带一个操作；动作型 input 以及 button、link role 不能用这个属性。`data-product-disclosure` 加入菜单与标签页这两种开关，开关本身不需要操作，driver 会先打开已声明的开关，再触发被收起的控件。PRD 操作为 `none` 的 surface 可以不声明 navigation 和 controls。`zoom-200` 轴现在把 query container 的宽度减半，与浏览器缩放一致。交互行可以带一个可选的 `observed` 对象（`change`、`instances`、`openers`）；`ui-output/3` 和旧回执仍然有效。控件检测变严了：所有交互型 ARIA role、带指针事件处理的任何元素，以及带键盘事件处理的可聚焦元素，现在都需要 control ID；以前画了这类元素却没有绑定的包，要补上绑定才会通过。
 
 - **0.84.0** — mission 只是多需要一个路径时，managed run 不再为此停下来做 PLAN 修订。某个 consumer 的一次交付里，写入范围的修正占了 53 小时中的约 21 小时，并造成六次 PLAN 修订和六个新 RUN。这一版用三个改动去掉这个成本。task 的 commit 可以碰 mission 写入范围内、且有该 mission 任一 task 列出的路径；task 的 `write_scope` 是规划提示，mission 范围仍是边界。`harness_transition.py amend-scope --mission-id <id> --path <path> --reason <text>` 把路径记进运行中 RUN 的 `scope_amendments`：PLAN、修订号和 digest 都不变，当前这次尝试的结果随即可以通过验证。parent 直接执行，不需要 owner 回复。它会拒绝 parent 拥有的文件、coordination 路径、acceptance register、被 deny 的路径、冻结的来源文件、与尚未整合的 mission 重叠的路径、security review 为 `not_applicable` 时的可执行路径，以及会让非 UI mission 变成 UI authoring 的路径；这些仍然要走 PLAN 修订。`record-worker-result` 和 `record-node-result` 新增 `--check`，跑同样的验证但不写入任何东西，所以 packet 写错 lease 时改正后重送即可，不会用掉该节点的尝试次数。必读内容也变少：入口、managed 阶段和 Product Definition 阶段原本整份链接到 `verification-gates.md`、`execution-state-model.md`、`contract-and-traceability.md` 和 `output-contract.md`，现在改为链接到章节（delivery-harness 由 32,017 字降到 26,137 字，product-definition-builder 由 38,169 字降到 35,889 字）。没有删除任何规则文字。
@@ -208,7 +210,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.83.2** — 独立 skills 新增 Logo Studio。`logo-studio` 从品牌简报开始设计或重做产品 logo：先看同行的标志，再画至少 36 个黑白草图，分四类，单纯首字母的草图最多占九分之一；每个草图按五项测试评分，把三至五个构思精修成只含路径的 SVG，然后做压力测试：16 像素、单色、app 图标，以及产品里实际出现的位置。原则文件引用 Chermayeff & Geismar & Haviv 的三项标准和 Apple、Android 的图标指引，核查日期 2026-11-16。标志由 owner 选定；这个 skill 不批准任何东西、不做商标检索、不替换线上资产。它和其他独立 skills 一样须另行向宿主注册，`install.sh` 仍然只安装五个核心 skills。
 
 - **0.83.1** — 修补版，把 UI compiler 证据的修正正式放进 main。这些修正自 2026-11-15 起以开发版安装的方式在使用，0.83.0 没有包含。`check_ui_design_contract.py` 不再把套件声明为 `n/a` 的状态算进 compiler 的预期截图矩阵；中间宽度的收据也不必重复已在核准宽度量过的 reviewer 数值，但仍需要 typed output、当前的来源绑定、浏览器记录、交互与区间覆盖。`design-system-compiler` 方面：source-runtime plate 可以使用唯一标注的共用 subject，只要它的 surface、state、target 与该行一致；选定的状态会在产品脚本执行前绑定；只排除 reviewer 面板位置上那一段确切可辨识的 design-token 填充脚本，相同内容的产品脚本仍会绑定；被自己声明的初始状态隐藏的 subject 可以解析，没有控制器的隐藏路径仍然失败。0.83.0 的规则没有任何变动。
-
-- **0.83.0** — 互不依赖的工作现在同时进行。小型工作里有几个互不依赖、文件不重叠的部分时，不必再在“一位 writer”和“完整 PLAN/RUN”之间二选一：Direct Fan-Out 让每个部分有自己的 writer 和 worktree，writer 一完成，只要 `worktree_fanout.py merge-check` 通过，parent 就立刻合回工作分支。检查项目是：worktree 干净、base 正确、改动都在该部分的 scope 内、没有改 PLAN/RUN、没有空白错误、试合并没有冲突。检查不过就不合并，并说明原因。`worktree_fanout.py scopes` 在派工前确认各部分的写入范围不重叠。规模判断也跟着改：missions 互相依赖，或工作必须跨 session 延续，才算 large；光是有两个可写的部分不算。managed run 方面，`plan_width.py` 在 readiness 前报告 PLAN 的并行宽度、依赖层级和关键路径，并指出三种情况：一个 mission 等待另一个，但两者没有共用文件或资源；三个以上 mission 声明同一个独占资源，例如同一个固定的 dev-server port；并行上限低于宽度。它只报告，不增加 gate。依赖边现在的意思是一个 mission 要用另一个的产出；合并顺序和 review 顺序都不是依赖。PLAN 模板和 `new_run.py` 的并行上限默认从 1 改为 8。UI 设计里，每个 direction study 可以有自己的作者，主机有容量时三个 study 同时撰写。checker 不再要求所有 study 同一位作者，但仍要求每个 study 由自己的作者自查。HiFi 仍由一位作者负责。研究任务和 review 波次的各个读者同时派出。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
