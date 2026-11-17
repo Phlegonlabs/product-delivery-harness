@@ -485,6 +485,47 @@ console.log("hybrid fallback and stale QA assertions completed");
             self.assertNotIn("complete revised direction set", document)
             self.assertNotIn("renewed complete study set", document)
 
+    def test_owner_reference_library_is_read_before_research_and_offered_after_approval(self):
+        guide = self.read("references/design-reference-guide.md")
+        intake = self.read("references/ui-design-intake.md")
+        stage = self.read(UI_STAGE)
+        template = self.read(UI_TEMPLATE)
+        section = guide.split("## Owner Reference Library", 1)[1].split("## Proactive Reference Research", 1)[0]
+        for phrase in ("~/.agents/design-references/", "`index.md`", "| ID | File | SHA-256 | Source | Captured | Roles | Platform | Note |",
+                       "Before any web research for a board, read the index",
+                       "research fills only the roles the library did not cover",
+                       "binds as an owner-supplied reference does",
+                       "After Visual Approval, offer once",
+                       "a worker never writes the library without it",
+                       "never overwrite, rename or delete a library entry",
+                       "capture_sheet.py"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, section)
+        self.assertIn("`Reference library: <path> | none`", intake)
+        self.assertIn("- Reference library:", template)
+        self.assertIn("owner-reference-library", stage)
+
+    def test_board_principles_and_directions_reach_the_owner_in_one_turn(self):
+        guide = self.read("references/design-reference-guide.md")
+        pass_guide = self.read("references/ui-design-pass.md")
+        stage = self.read(UI_STAGE)
+        records = guide.split("## Records", 1)[1].split("## Direction Records", 1)[0]
+        for phrase in ("take no owner turn of their own",
+                       "designs the studies from the proposed principles, as proposals",
+                       "selects, mixes or rejects a direction in one reply",
+                       "opens no new round; a rejected set still starts a complete new round",
+                       "Under `Delivery profile: mvp` the one study carries the board and principles",
+                       "library entries and principles the owner already confirmed bind from the start",
+                       "still needs its scope and tolerance before authoring"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, records)
+        self.assertIn("with the board and the proposed principles it was authored from", pass_guide)
+        self.assertIn("reach the owner with the direction studies", stage)
+        for text in (guide, pass_guide, stage):
+            self.assertNotIn("end the turn for confirmation", text)
+            self.assertNotIn("until the owner confirms the principles", text)
+            self.assertNotIn("the owner has confirmed its principles", text)
+
     def test_hot_path_text_names_no_deleted_helper(self):
         for source in ("SKILL.md", UI_STAGE, "references/ui-design-pass.md", "references/review-evidence.md",
                        "references/ui-grading-rubric.md"):
@@ -498,6 +539,21 @@ console.log("hybrid fallback and stale QA assertions completed");
         evidence = self.read("references/review-evidence.md")
         self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
         self.assertIn("Do not commit evidence of earlier attempts", evidence)
+
+
+class OneTurnAndLibraryConsentTests(unittest.TestCase):
+    def test_no_document_requires_confirmed_principles_before_the_studies_or_writes_the_library_unasked(self):
+        references = Path(__file__).resolve().parents[2] / "references"
+        guide = (references / "design-reference-guide.md").read_text(encoding="utf-8")
+        design_pass = (references / "ui-design-pass.md").read_text(encoding="utf-8")
+        for text in (guide, design_pass):
+            self.assertNotIn("confirmed `REF-*` and `RP-*` evidence", text)
+            self.assertIn("proposed until the owner confirms it with the studies", text)
+        self.assertNotIn("adds its row when it first uses the image", guide)
+        self.assertIn("leaves the library unchanged", guide)
+        self.assertIn("written only on that yes", guide)
+        self.assertNotIn("the reply that also carries the journey set", guide)
+        self.assertIn("The journey set and font pairings follow selection", guide)
 
 
 if __name__ == "__main__":

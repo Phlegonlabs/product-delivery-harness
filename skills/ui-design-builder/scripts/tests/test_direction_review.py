@@ -8,12 +8,15 @@ import hashlib
 import io
 import json
 import os
+import re
 import shutil
 import stat
 import subprocess
 import sys
 import tempfile
 import unittest
+from html import escape as html_escape
+from html.parser import HTMLParser
 from pathlib import Path
 from unittest import mock
 
@@ -95,8 +98,8 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_assembles_three_distinct_studies_without_an_entry_or_token_panels(self) -> None:
         paths = self.run_assembly()
-        self.assertEqual([str(self.out / file) for file in FILES], paths)
-        self.assertEqual(sorted(FILES), sorted(path.name for path in self.out.iterdir()))
+        self.assertEqual([str(self.out / file) for file in (*FILES, "_compare.html")], paths)
+        self.assertEqual(sorted((*FILES, "_compare.html")), sorted(path.name for path in self.out.iterdir()))
         studies = {file: (self.out / file).read_text(encoding="utf-8") for file in FILES}
         self.assertEqual(3, len(set(studies.values())))
         for file, html in studies.items():
@@ -118,6 +121,95 @@ class DirectionAssemblyTests(unittest.TestCase):
             shell = html.split("<!-- reviewer:start -->", 1)[1].split("<!-- reviewer:end -->", 1)[0]
             self.assertEqual(1, shell.count('aria-current="page"'))
 
+    def compare_page(self) -> str:
+        self.run_assembly()
+        return (self.out / "_compare.html").read_text(encoding="utf-8")
+
+    def test_comparison_page_lists_every_study_once_in_round_order(self) -> None:
+        html = self.compare_page()
+        ids = re.findall(r'<article data-compare-study data-compare-id="([^"]+)" data-compare-file="([^"]+)"', html)
+        self.assertEqual([(f"VD-R1-0{index}", file) for index, file in enumerate(FILES, 1)], ids)
+        for name in ("vd-01", "vd-02", "vd-03"):
+            self.assertEqual(1, html.count(f"<span>{name}</span></a></article>"))
+        self.assertEqual(2, html.count("data-compare-case="))
+        self.assertEqual(4, html.count("data-compare-target="))
+        self.assertEqual([], direction_review.assembled_compare_findings(html, "_compare.html"))
+        self.assertEqual(html, direction_review.render_compare(self.profile(), {file: file[:-5] for file in FILES}))
+
+    def test_comparison_page_stays_closed_and_isolated_from_the_studies(self) -> None:
+        html = self.compare_page()
+        self.assertEqual(f'<meta http-equiv="Content-Security-Policy" content="{direction_review.COMPARE_CSP}">',
+                         re.search(r"<meta http-equiv[^>]+>", html).group())
+        self.assertEqual(check_wireframe_html.REQUIRED_HIFI_CSP.replace("frame-src 'none'", "frame-src 'self'"),
+                         direction_review.COMPARE_CSP)
+        self.assertEqual([], reviewer_shell.shared_css_drift(html))
+        self.assertIn(direction_review.compare_runtime_block(), html)
+        self.assertNotRegex(html, r"https?:|//[a-z]|<link|@import|<img|srcdoc|<iframe")
+        # Studies are only framed by filename, sandboxed without same-origin; none of their bytes enter the page.
+        self.assertIn('setAttribute("sandbox", "allow-scripts")', html)
+        self.assertNotIn("allow-same-origin", html)
+        for file in FILES:
+            study = (self.out / file).read_text(encoding="utf-8")
+            self.assertNotIn(self.pages[file].split("<body>", 1)[1].split("</body>", 1)[0], html)
+            self.assertEqual(study, direction_review.render_study(self.profile(), self.pages[file], file))
+            self.assertNotIn("_compare.html", study)
+
+    def test_comparison_crop_matches_the_shared_reviewer_layout(self) -> None:
+        template = (TEMPLATES / "DIRECTION_REVIEWER.template.html").read_text(encoding="utf-8")
+        shared = (TEMPLATES / "REVIEWER_SHARED.css").read_text(encoding="utf-8")
+        self.assertIn("const SIDE = 236, PAD = 24,", template)
+        self.assertIn("--review-sidebar-width:236px", shared)
+        self.assertIn('stage.style.setProperty("margin-left", "236px", "important")', template)
+        self.assertIn('stage.style.setProperty("padding", "24px", "important")', template)
+
+    def test_comparison_findings_reject_drift_and_open_surfaces(self) -> None:
+        html = self.compare_page()
+        for changed, expected in (
+            (html.replace(direction_review.COMPARE_CSP, direction_review.COMPARE_CSP.replace("default-src 'none'", "default-src *")),
+             "must exactly match what the assembler writes"),
+            (html.replace("</body>", '<img src="https://example.test/x.png"></body>'), "must exactly match"),
+            (html.replace(">vd-02</span>", ">renamed</span>"), "must exactly match"),
+            (html.replace("</head>", "</head>", 1).replace('<script id="ui-direction-compare"', '<script id="other"', 1),
+             "must embed exactly one comparison record"),
+        ):
+            self.assertIn(expected, "; ".join(direction_review.assembled_compare_findings(changed, "_compare.html")))
+        profile = self.profile()
+        names = {file: file for file in FILES}
+        good = direction_review.render_compare(profile, names)
+        weaker = good.replace("object-src 'none'", "object-src *")
+        self.assertTrue(direction_review.assembled_compare_findings(weaker, "_compare.html"))
+
+    def test_comparison_record_stays_inert_whatever_a_study_title_holds(self) -> None:
+        hostile = "</ScRiPt><script>window.parentTitleInjection=1</ScRiPt><!-- a\u2028b & c"
+        self.pages["vd-01.html"] = self.pages["vd-01.html"].replace(
+            "<title>vd-01</title>", f"<title>{html_escape(hostile)}</title>")
+        html = self.compare_page()
+
+        class Scripts(HTMLParser):
+            found: list = []
+
+            def handle_starttag(self, tag, attrs):
+                if tag == "script":
+                    self.found.append(dict(attrs).get("id"))
+
+        scripts = Scripts()
+        scripts.found = []
+        scripts.feed(html)
+        self.assertEqual(["ui-direction-compare", "direction-compare-runtime", None], scripts.found)
+        self.assertEqual(3, len(re.findall(r"<script", html, re.IGNORECASE)))
+        self.assertNotIn("\u2028", html)
+        record = json.loads(direction_review.COMPARE_RE.search(html).group(1))
+        self.assertEqual(" ".join(hostile.split()), record["names"]["vd-01.html"])
+        self.assertIn(html_escape(" ".join(hostile.split())), html)
+        self.assertEqual([], direction_review.assembled_compare_findings(html, "_compare.html"))
+        data = direction_review._compare_data(self.profile(), {"vd-01.html": hostile})
+        self.assertEqual(1, len(re.findall(r"</script", data, re.IGNORECASE)), "only the elements own end tag")
+        self.assertEqual(hostile, json.loads(direction_review.COMPARE_RE.search(data).group(1))["names"]["vd-01.html"])
+
+    def test_comparison_names_fall_back_to_the_filename_and_unescape_titles(self) -> None:
+        self.assertEqual("A & B", direction_review.study_name("<title> A &amp;  B </title>", "vd-01.html"))
+        self.assertEqual("vd-01", direction_review.study_name("<html></html>", "vd-01.html"))
+
     def test_each_case_exposes_only_its_own_approved_targets(self) -> None:
         shell = direction_review.build_shell(self.profile(), "vd-02.html")
         self.assertIn('data-hifi-target-control="390" data-direction-case="primary" data-direction-width="390" aria-pressed="true">390px<', shell)
@@ -133,6 +225,7 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.pages = {"vd-01.html": self.pages["vd-01.html"]}
         self.assertEqual([str(self.out / "vd-01.html")], self.run_assembly())
         self.assertIn("round-1, 1 study, 2 cases", (self.out / "vd-01.html").read_text(encoding="utf-8"))
+        self.assertFalse((self.out / "_compare.html").exists(), "one study keeps its single view")
         profile = self.profile()
         profile["directions"].append(dict(profile["directions"][0], id="VD-R1-02", file="vd-02.html", sourceSha256="0" * 64))
         self.assertIn("directions must list three studies, or one by explicit owner choice",
@@ -332,6 +425,7 @@ class DirectionAssemblyTests(unittest.TestCase):
 
     def test_contract_routes_profiled_studies_and_keeps_legacy_checks(self) -> None:
         self.run_assembly()
+        (self.out / "_compare.html").unlink()  # this test routes one study; the comparison page has its own tests
         name = FILES[0]
         path = f"docs/design/directions/round-1/{name}"
         profiled = (self.out / name).read_text(encoding="utf-8")
@@ -371,6 +465,139 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.assertIn("must not contain active external or executable surfaces", " ".join(route(
             linked, hashlib.sha256(legacy_path.read_bytes()).hexdigest(),
             study_path="docs/design/directions/round-0/legacy.html")))
+
+    def package_problems(self, names: tuple[str, ...] = FILES) -> list[str]:
+        """Run the package check on a Direction studies table that lists the given study files of round-1."""
+
+        ids = {file: f"VD-R1-0{index}" for index, file in enumerate(FILES, 1)}
+        ids["vd-04.html"] = "VD-R1-04"
+        for position, name in enumerate(names):
+            ids.setdefault(name, f"VD-R1-{10 + position}")
+        rows = "".join(
+            f"| {ids[name]} | docs/design/directions/round-1/{name} @ sha256:"
+            f"{hashlib.sha256((self.out / name).read_bytes()).hexdigest()} | Author | Author | pass |\n" for name in names)
+        comparison = "".join(
+            f"| {ids[name]} | UI-001 | ready | 390 | primary | Approved copy | docs/design/directions/primary.png @ sha256:{'a' * 64} | Same case |\n"
+            for name in names)
+        style = ("### Direction comparison\n\n| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |\n"
+                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + comparison
+                 + "\n### Direction studies\n\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n" + rows)
+        problems: list[str] = []
+        ui_contract_checker._resolve_direction_studies(style, self.root, problems)
+        return [item for item in problems if "Comparison page" in item]
+
+    def test_the_regenerated_page_does_not_depend_on_table_row_order(self) -> None:
+        self.run_assembly()
+        self.assertEqual([], self.package_problems(tuple(reversed(FILES))))
+        self.assertEqual([], self.package_problems(("vd-02.html", "vd-03.html", "vd-01.html")))
+        # A study missing from the table no longer matches the profile the page was assembled from.
+        self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("vd-01.html", "vd-02.html"))))
+
+    def test_no_study_can_have_the_comparison_pages_name(self) -> None:
+        self.assertEqual("_compare.html", direction_review.COMPARE_FILE)
+        for name in (direction_review.COMPARE_FILE, "_COMPARE.HTML", "_Compare.html"):
+            self.assertIsNone(direction_review.FILE_RE.fullmatch(name), name)
+        profile = self.profile()
+        profile["directions"][0]["file"] = "_compare.html"
+        self.assertIn("directions[0].file must be the study's actual <name>.html filename",
+                      direction_review.profile_findings(profile))
+
+    def test_a_study_named_compare_html_is_an_ordinary_study(self) -> None:
+        # A retained one-study package keeps working: it validates and reassembles with no special path.
+        self.pages = {"compare.html": source_html("compare")}
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": "VD-R1-01", "file": "compare.html",
+                                   "sourceSha256": hashlib.sha256(self.pages["compare.html"].encode("utf-8")).hexdigest()}]}
+        self.assertEqual([str(self.out / "compare.html")], self.run_assembly(profile))
+        kept = (self.out / "compare.html").read_bytes()
+        self.assertEqual([], self.package_problems(("compare.html",)))
+        self.run_assembly(profile, overwrite=True)
+        self.assertEqual(kept, (self.out / "compare.html").read_bytes())
+        # In a round of three it is one more study, and the generated page keeps its own name beside it.
+        self.out = self.root / "docs/design/directions/round-2"
+        self.pages = {"compare.html": source_html("compare"), "vd-02.html": source_html("vd-02"), "vd-03.html": source_html("vd-03")}
+        paths = self.run_assembly()
+        self.assertEqual(["compare.html", "vd-02.html", "vd-03.html", "_compare.html"], [Path(path).name for path in paths])
+        self.assertEqual([], direction_review.assembled_compare_findings(
+            (self.out / "_compare.html").read_text(encoding="utf-8"), "_compare.html"))
+
+    def test_an_older_file_named_compare_html_is_not_the_comparison_page(self) -> None:
+        # Nothing was released under that name: the tool neither reads such a file as the page nor deletes it.
+        self.out.mkdir(parents=True)
+        (self.out / "compare.html").write_text("<html>older</html>", encoding="utf-8", newline="")
+        self.run_assembly(self.one_study_profile())
+        self.assertEqual("<html>older</html>", (self.out / "compare.html").read_text(encoding="utf-8"))
+        self.assertEqual([], self.package_problems(("vd-04.html",)))
+
+    def one_study_profile(self) -> dict:
+        self.pages = {"vd-04.html": source_html("vd-04")}
+        return {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                "directions": [{"id": "VD-R1-04", "file": "vd-04.html",
+                                "sourceSha256": hashlib.sha256(self.pages["vd-04.html"].encode("utf-8")).hexdigest()}]}
+
+    def test_package_check_regenerates_the_comparison_page_from_the_current_studies(self) -> None:
+        self.run_assembly()
+        page = self.out / "_compare.html"
+        self.assertEqual([], self.package_problems())
+        good = page.read_bytes()
+        page.unlink()
+        self.assertIn("round-1/_compare.html is missing", " ".join(self.package_problems()))
+        page.write_bytes(good.replace(b"<h1>round-1</h1>", b"<h1>round-1 edited</h1>"))
+        self.assertIn("must exactly match the page regenerated from the round's current studies", " ".join(self.package_problems()))
+        # A study changed after the page was written: the old page lists a stale name.
+        self.pages["vd-02.html"] = self.pages["vd-02.html"].replace("<title>vd-02</title>", "<title>Renamed</title>")
+        self.run_assembly(overwrite=True)
+        page.write_bytes(good)
+        self.assertIn("must exactly match the page regenerated", " ".join(self.package_problems()))
+
+    def test_a_one_study_round_leaves_no_comparison_page_and_the_assembler_removes_its_own(self) -> None:
+        self.run_assembly()
+        page = self.out / "_compare.html"
+        generated = page.read_bytes()
+        self.run_assembly(self.one_study_profile())
+        self.assertFalse(page.exists(), "a comparison page it generated goes with a one-study reassembly")
+        self.assertTrue((self.out / "vd-04.html").exists())
+        self.assertEqual([], self.package_problems(("vd-04.html",)))
+        page.write_bytes(generated)  # left over by hand or by an older tool
+        self.assertIn("does not belong to this round's studies", " ".join(self.package_problems(("vd-04.html",))))
+        # Three rows from different assemblies, one of them revised, have no current page either.
+        self.assertIn("does not belong", " ".join(self.package_problems(("vd-01.html", "vd-03.html", "vd-04.html"))))
+
+    def test_the_journey_map_keeps_the_comparison_page_and_a_revised_study_removes_it(self) -> None:
+        # Workflow step 4 assembles journeys.html as a one-direction profile into the round folder. It replaces no
+        # compared study, so the three-study comparison page must survive and the package must stay valid.
+        self.run_assembly()
+        page = self.out / "_compare.html"
+        generated = page.read_bytes()
+        studies = dict(self.pages)
+        selected = self.profile()["directions"][1]
+        self.pages = {"journeys.html": source_html("journeys")}
+        journeys = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                    "directions": [{"id": selected["id"], "file": "journeys.html",
+                                    "sourceSha256": hashlib.sha256(self.pages["journeys.html"].encode("utf-8")).hexdigest()}]}
+        self.run_assembly(journeys)
+        self.assertTrue((self.out / "journeys.html").exists())
+        self.assertEqual(generated, page.read_bytes())
+        self.assertEqual([], self.package_problems())
+        # A revised study takes a compared study's file: the page no longer describes the round and goes.
+        self.pages = {selected["file"]: studies[selected["file"]].replace("</title>", " revised</title>")}
+        revised = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": selected["id"], "file": selected["file"],
+                                   "sourceSha256": hashlib.sha256(self.pages[selected["file"]].encode("utf-8")).hexdigest()}]}
+        self.run_assembly(revised, overwrite=True)
+        self.assertFalse(page.exists())
+
+    def test_the_assembler_never_deletes_a_compare_page_it_cannot_prove_it_wrote(self) -> None:
+        self.out.mkdir(parents=True)
+        (self.out / "_compare.html").write_text("<html>mine</html>", encoding="utf-8", newline="")
+        profile = self.one_study_profile()
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr), self.assertRaises(SystemExit) as raised:
+            self.run_assembly(profile)
+        self.assertEqual(2, raised.exception.code)
+        self.assertIn("is not a comparison page this tool wrote", stderr.getvalue())
+        self.assertEqual("<html>mine</html>", (self.out / "_compare.html").read_text(encoding="utf-8"))
+        self.assertFalse((self.out / "vd-04.html").exists(), "a refused assembly writes nothing")
 
     def test_profile_cases_join_approved_scope_without_state_coverage(self) -> None:
         scope = {

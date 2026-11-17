@@ -1,6 +1,6 @@
 # EPIC-parallel-checks: run the full check and the UI check at the same time
 
-Status: reviewed and verified on `parallel-checks`; release surfaces set to 0.86.0; pull request open, not merged
+Status: published as 0.86.0 on 2026-11-17 (PR #193, `main` `176be53b`, tag `v0.86.0`); installed the same day (five-skill contract `ace80228…`); consumers not yet re-pinned
 Design workflow: enhancement
 UI impact: none (one capture script flag, review rules, the source test runner and two CI jobs; no product UI in this repository).
 
@@ -86,19 +86,20 @@ Open defect for a later round: the gallery runtime can miss the first frame's si
 
 ## Change Log
 
+- 2026-11-17: published as 0.86.0 and installed. CI passed 14 of 14 on `f1c24be4` after the gallery module moved to the serial path; scoped review of the two CI repairs PASS; the merge commit is tree-equal to the candidate (`promotion_readback.py post`: `tree_equal_S`).
 - 2026-11-17: reviewed, repaired and verified; release surfaces set to 0.86.0.
 - 2026-11-17: round opened; scope and acceptance recorded; three writers started.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / parallel-checks / the release commit after d897060c / none
-Stage and skill: source maintenance; candidate reviewed, pull request open
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / 176be53b (v0.86.0) / none
+Stage and skill: source maintenance; release complete
 Inputs consumed (path + hash or revision): main 3a553df7 (v0.85.0); agentkiosk and ticketradar evidence read for timings only
 Approvals in force (gate, owner, date, candidate): owner 2026-11-17 "OK 做吧" after the parent stated it would push, open the pull request, merge after CI, tag v0.86.0 and install; consumer re-pins are not covered
 Done and verified (command, exit code): full matrix on 2a8a2fb2, result pass; capture modules on d897060c, exit 0; review PASS on d897060c
-Remaining: CI on the pull request head; merge; tag v0.86.0; install; consumer re-pins after the owner says so
+Remaining: consumer re-pins after the owner says so (installed contract ace80228bc37c9972e97aca6bc18068c326378c2e99de9a5f061c5aebc9d4f4e, previous 1cd86e38…); the gallery runtime race
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): merge the pull request when its checks pass
-Next owner (skill or human): Harness parent
+Next action (one command or one owner decision): the owner decides when consumers re-pin and whether to fix the gallery runtime race
+Next owner (skill or human): owner
 ```

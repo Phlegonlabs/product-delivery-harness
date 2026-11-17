@@ -293,7 +293,9 @@ def assemble_direction(
         _fail("linked output directory is not allowed")
     if output_dir.exists() and not output_dir.is_dir():
         _fail(f"output path is not a directory: {output_dir}")
-    destinations = [output_dir / file for file in declared]
+    # A round of three also gets its comparison page, whose name no study can have; one study keeps its single view.
+    written = declared + ([direction_review.COMPARE_FILE] if len(declared) == 3 else [])
+    destinations = [output_dir / file for file in written]
     if any(_linked_path(path) or path.resolve() in source_paths | {manifest_resolved} for path in destinations):
         _fail("output destination aliases an input or is a link")
     if any(path.exists() for path in destinations) and not overwrite:
@@ -302,8 +304,25 @@ def assemble_direction(
         destinations,
         [("manifest", manifest_path), *sources.items()],
     )
+    # A one-study round has no comparison page. One left by an earlier round of three goes, but only when its own
+    # record proves the assembler wrote it; any other file of that name is not ours to delete. A page added beside
+    # the compared studies, the journey map, replaces none of them, so their comparison page stays.
+    stale = output_dir / direction_review.COMPARE_FILE
+    remove_stale = False
+    if len(declared) == 1 and os.path.lexists(stale):
+        try:
+            stale_html = stale.read_text(encoding="utf-8")
+            generated = not _linked_path(stale) and direction_review.is_generated_compare(stale_html)
+        except (OSError, UnicodeError):
+            stale_html, generated = "", False
+        if not generated:
+            print(f"FAIL {stale} is not a comparison page this tool wrote; remove or move it, then assemble again",
+                  file=sys.stderr)
+            raise SystemExit(2)
+        remove_stale = not direction_review.is_beside_compared_studies(stale_html, profile["directions"][0])
 
     rendered: dict[str, bytes] = {}
+    names: dict[str, str] = {}
     for row in profile["directions"]:
         file = row["file"]
         try:
@@ -320,12 +339,21 @@ def assemble_direction(
         if problems:
             _fail("; ".join(problems))
         rendered[file] = study.encode("utf-8")
+        names[file] = direction_review.study_name(html, file)
     if len(set(rendered.values())) != len(rendered):
         _fail("direction studies must be distinct rendered files")
+    if len(declared) == 3:
+        compare = direction_review.render_compare(profile, names)
+        problems = direction_review.assembled_compare_findings(compare, direction_review.COMPARE_FILE)
+        if problems:
+            _fail("; ".join(problems))
+        rendered[direction_review.COMPARE_FILE] = compare.encode("utf-8")
 
     output_dir.mkdir(parents=True, exist_ok=True)
     for file, content in rendered.items():
         _write_bytes(output_dir / file, content)
+    if remove_stale:
+        stale.unlink()
     return [str(path) for path in destinations]
 
 

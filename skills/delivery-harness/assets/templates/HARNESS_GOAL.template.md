@@ -59,7 +59,7 @@ Targets use only the five prefixes: `worker:`, `task:`, `worktree:`, `branch:`, 
 | Assumptions authorized for the discovery interview | <yes \| no> | product-definition Workflow step 3 |
 | Stack Decision Mode | <owner review of one coherent recommendation plus alternatives \| layer-by-layer owner selection \| explicit delegation to the skill> | product-definition Workflow step 7 |
 | Direction mode | <three studies \| one recommended direction (mvp)> | ui-design Workflow step 3 |
-| Design System Need Gate expectation | <required \| not_required with its reason> | ui-design Workflow step 8 |
+| Design System Need Gate expectation | <required \| not_required with its reason> | ui-design Workflow step 9 |
 | Publish-path list approval rule | <approve the exact list the run presents \| leave staged> | product-definition Workflow step 20 |
 | Run-branch name | <refs/heads/<name>> | Harness SKILL Non-Negotiable Boundaries |
 | Archive and cleanup grants | <none (default) \| exact ledger rows> | branch-promotion-contract Managed RUN Archive Before Promotion; ledger rows `archive_worker_tasks`, `remove_worktrees`, `delete_branches` |
@@ -73,7 +73,7 @@ These gates stop the run for an owner decision. A pre-recorded decision removes 
 
 - Product Definition Approval, with the Stack Decision Checkpoint (product-definition Workflow steps 14 and 15).
 - Direction selection, outside `mvp` (ui-design Workflow step 3).
-- Visual Approval (ui-design Workflow step 7).
+- Visual Approval (ui-design Workflow step 8).
 - Execution authorization, when this brief does not pre-record it.
 - Release or publication (branch-promotion-contract).
 - Any external console write, including every step in `docs/DEPLOYMENT.md` External Console Setup.

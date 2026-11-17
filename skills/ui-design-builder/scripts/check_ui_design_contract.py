@@ -392,6 +392,9 @@ def _date(value: str | None) -> bool:
 # and the approval date is author-entered, so HiFi receipt times count too.
 CURRENT_HIFI_CUTOVER = date(2026, 9, 27)
 CURRENT_HIFI_CUTOVER_INSTANT = datetime(2026, 9, 27, tzinfo=timezone.utc)
+# A three-study direction round decided before this date was approved without a comparison page and stays valid
+# without one. The recorded decision date is taken as written; a page that is present must always match.
+COMPARISON_PAGE_REQUIRED_FROM = date(2026, 11, 18)
 
 
 def current_hifi_cutover_applies(decided_on: str | None, receipt_times: list[datetime]) -> bool:
@@ -735,6 +738,78 @@ def _direction_study_identities(style: str, problems: list[str]) -> list[dict[st
 def _direction_studies(style: str, problems: list[str]) -> None:
     """ui-design/3: each compared direction is a rendered study with self-check."""
     _direction_study_identities(style, problems)
+    _variant_rows(style, problems)
+
+
+VARIANT_ID_RE = re.compile(r"VD-R(?P<round>[1-9][0-9]*)-[0-9]{2,}")
+
+
+def _variant_rows(style: str, problems: list[str]) -> list[list[str]]:
+    """The optional `### Variant round` rows: each new study, the previous-round study it is based on, its axis."""
+
+    if re.search(r"^### Variant round\s*$", style, re.MULTILINE) is None:
+        return []
+    rows = _design_table(style, "### Variant round", ["Direction", "Based on", "Axis"], problems)
+    compared = {row[0] for row in _design_table(style, "### Direction comparison", [
+        "Direction", "UI surface", "State", "Target", "Scenario", "Content basis", "Screenshot", "Rationale",
+    ], [])}
+    if {row[0] for row in rows} != compared or len(rows) != len(compared) or len(compared) != 3:
+        _add(problems, "Variant round must list each of the three compared directions once")
+    parents = {row[1] for row in rows}
+    if len(parents) != 1:
+        _add(problems, "Variant round must base every direction on the same previous-round direction")
+    if len({row[2].casefold() for row in rows}) != len(rows):
+        _add(problems, "Variant round must give each direction its own axis")
+    for direction, based_on, _ in rows:
+        current, parent = VARIANT_ID_RE.fullmatch(direction), VARIANT_ID_RE.fullmatch(based_on)
+        if parent is None or current is None or int(parent.group("round")) != int(current.group("round")) - 1:
+            _add(problems, f"Variant round {direction} must be based on a VD-R<round>-<number> direction of the previous round")
+    return rows
+
+
+def _outside_or_linked(path: Path, repo_root: Path) -> bool:
+    """True when any component below the repository root is a symlink or reparse point, or the file resolves outside it."""
+
+    cursor = repo_root
+    for part in path.relative_to(repo_root).parts:
+        cursor = cursor / part
+        try:
+            info = cursor.lstat()
+        except OSError:
+            return True
+        if stat.S_ISLNK(info.st_mode) or bool(
+            getattr(info, "st_file_attributes", 0) & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
+        ):
+            return True
+    try:
+        path.resolve(strict=True).relative_to(repo_root.resolve())
+    except (OSError, ValueError):
+        return True
+    return False
+
+
+def _resolve_variant_parent(style: str, repo_root: Path, problems: list[str]) -> None:
+    """A `Based on` direction must be a retained study of another round folder, not a claim."""
+
+    rows = _variant_rows(style, [])
+    if not rows:
+        return
+    current = {Path(study["path"]).parent for study in _direction_study_identities(style, [])}
+    retained: set[str] = set()
+    for path in sorted((repo_root / "docs/design/directions").glob("*/*.html")):
+        if path.parent.relative_to(repo_root) in current or _outside_or_linked(path, repo_root):
+            continue
+        match = direction_review.PROFILE_RE.search(path.read_text(encoding="utf-8", errors="replace"))
+        try:
+            profile = json.loads(match.group(1)) if match else None
+        except json.JSONDecodeError:
+            continue
+        # The file itself must hold the identity: a valid profile of its own folder's round, with a row for this file.
+        if profile is None or direction_review.profile_findings(profile) or profile["round"] != path.parent.name:
+            continue
+        retained.update(row["id"] for row in profile["directions"] if row["file"] == path.name)
+    for parent in sorted({row[1] for row in rows} - retained):
+        _add(problems, f"Variant round Based on {parent} is not a retained study of the previous round")
 
 
 def _direction_profile_scope_findings(
@@ -806,6 +881,13 @@ def _resolve_direction_studies(
                 _add(problems, finding)
             for finding in _direction_profile_scope_findings(html, study["path"], scope):
                 _add(problems, finding)
+    paths = [repo_root / study["path"] for study in _direction_study_identities(style, [])]
+    if paths and all(path.is_file() for path in paths) and len({path.parent for path in paths}) == 1:
+        decided = _field(style, "Direction decided on")
+        required = not _date(decided) or date.fromisoformat(decided.strip()) >= COMPARISON_PAGE_REQUIRED_FROM
+        for finding in direction_review.compare_package_findings(
+                paths[0].parent, [path.name for path in paths], required=required):
+            _add(problems, finding)
 
 
 def _intermediate_width_evidence(value: str | None, scope: dict[str, Any] | None, repo_root: Path,
@@ -3413,6 +3495,7 @@ def _validate_impl(
         _direction_comparison(style, _section(active, "## UI Design Intake") or "", resolved_scope, problems, repo_root=root)
         if version == UI_CONTRACT_V3:
             _resolve_direction_studies(style, root, problems, scope=resolved_scope)
+            _resolve_variant_parent(style, root, problems)
 
     if approved_gate:
         product_matches = [

@@ -1926,5 +1926,214 @@ class UiDesignContractTests(unittest.TestCase):
         self.assertEqual([], checker.validate_text(candidate, require_filled=True))
 
 
+class VariantRoundRecordTests(unittest.TestCase):
+    """`### Variant round`: three studies that each name the previous-round study they are based on, and an axis."""
+
+    @staticmethod
+    def style(parent="VD-R1-02", rows=None):
+        ids = ("VD-R2-01", "VD-R2-02", "VD-R2-03")
+        axes = ("layout", "typography", "color and surface")
+        rows = rows or [(d, parent, a) for d, a in zip(ids, axes)]
+        comparison = "".join(f"| {d} | UI-001 | ready | 390 | primary | copy | docs/design/directions/round-2/a.png @ sha256:{'a' * 64} | why |\n"
+                             for d in ids)
+        variants = "".join(f"| {d} | {b} | {a} |\n" for d, b, a in rows)
+        return ("### Direction comparison\n\n| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + comparison
+                + "\n### Variant round\n\n| Direction | Based on | Axis |\n| --- | --- | --- |\n" + variants
+                + "\n### Direction studies\n")
+
+    def test_a_variant_round_of_three_with_their_own_axes_passes(self):
+        problems = []
+        rows = checker._variant_rows(self.style(), problems)
+        self.assertEqual([], problems)
+        self.assertEqual(["layout", "typography", "color and surface"], [row[2] for row in rows])
+
+    def test_a_round_without_the_section_is_unchanged(self):
+        self.assertEqual([], checker._variant_rows(self.style().replace("### Variant round", "### Notes"), []))
+
+    def test_based_on_must_name_a_direction_of_the_previous_round(self):
+        for parent in ("VD-R2-02", "VD-R3-01", "VD-R0-01", "not-an-id"):
+            problems = []
+            checker._variant_rows(self.style(parent), problems)
+            self.assertTrue(any("must be based on a VD-R<round>-<number> direction of the previous round" in item
+                                for item in problems), parent)
+
+    def test_every_direction_shares_one_parent_and_has_its_own_axis(self):
+        mixed = self.style(rows=[("VD-R2-01", "VD-R1-01", "layout"), ("VD-R2-02", "VD-R1-02", "typography"),
+                                 ("VD-R2-03", "VD-R1-01", "color")])
+        problems = []
+        checker._variant_rows(mixed, problems)
+        self.assertIn("Variant round must base every direction on the same previous-round direction", [item.removeprefix("ui-design: ") for item in problems])
+        repeated = self.style(rows=[("VD-R2-01", "VD-R1-02", "layout"), ("VD-R2-02", "VD-R1-02", "Layout"),
+                                    ("VD-R2-03", "VD-R1-02", "color")])
+        problems = []
+        checker._variant_rows(repeated, problems)
+        self.assertIn("Variant round must give each direction its own axis", [item.removeprefix("ui-design: ") for item in problems])
+
+    def test_the_parent_must_be_a_retained_study_file_of_the_previous_round(self):
+        def profile(round_name, ids):
+            return {"schema": "ui-direction-review/1", "round": round_name,
+                    "cases": [{"id": "primary", "surface": "UI-001", "platform": "web", "targetFamily": "viewports",
+                               "widths": {"390": 390}}],
+                    "directions": [{"id": f"VD-R{ids}-0{n}", "file": f"vd-0{n}.html", "sourceSha256": str(n) * 64} for n in (1, 2, 3)]}
+
+        def study(root, folder, name, record):
+            target = root / "docs/design/directions" / folder
+            target.mkdir(parents=True, exist_ok=True)
+            (target / name).write_text(
+                '<script id="ui-direction-review" type="application/json">' + json.dumps(record) + "</script>", encoding="utf-8")
+
+        current = "\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n| VD-R2-01 | docs/design/directions/round-2/vd-01.html @ sha256:" + "b" * 64 + " | a | a | pass |\n"
+
+        def problems_for(root, parent):
+            style = self.style(parent) + current
+            found = []
+            checker._resolve_variant_parent(style, root, found)
+            return [item.removeprefix("ui-design: ") for item in found]
+
+        missing = "Variant round Based on VD-R1-03 is not a retained study of the previous round"
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            study(root, "round-2", "vd-01.html", profile("round-2", 2))
+            # Only vd-02.html is retained. Its profile names VD-R1-03, but that study's file is absent.
+            study(root, "round-1", "vd-02.html", profile("round-1", 1))
+            self.assertEqual([], problems_for(root, "VD-R1-02"))
+            self.assertEqual([missing], problems_for(root, "VD-R1-03"))
+            # A file whose identity is right but which sits in another round's folder is not the previous round.
+            study(root, "round-9", "vd-03.html", profile("round-1", 1))
+            self.assertEqual([missing], problems_for(root, "VD-R1-03"))
+            # The same file in its own round's folder resolves.
+            study(root, "round-1", "vd-03.html", profile("round-1", 1))
+            self.assertEqual([], problems_for(root, "VD-R1-03"))
+            self.assertEqual(["Variant round Based on VD-R1-09 is not a retained study of the previous round"],
+                             problems_for(root, "VD-R1-09"))
+
+
+    def test_a_linked_parent_does_not_count_as_a_retained_study(self):
+        import os
+        import subprocess
+
+        record = {"schema": "ui-direction-review/1", "round": "round-1",
+                  "cases": [{"id": "primary", "surface": "UI-001", "platform": "web", "targetFamily": "viewports",
+                             "widths": {"390": 390}}],
+                  "directions": [{"id": f"VD-R1-0{n}", "file": f"vd-0{n}.html", "sourceSha256": str(n) * 64} for n in (1, 2, 3)]}
+        embedded = '<script id="ui-direction-review" type="application/json">' + json.dumps(record) + "</script>"
+        current = ("\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n"
+                   "| VD-R2-01 | docs/design/directions/round-2/vd-01.html @ sha256:" + "b" * 64 + " | a | a | pass |\n")
+
+        def parent_problems(root):
+            found = []
+            checker._resolve_variant_parent(self.style("VD-R1-03") + current, root, found)
+            return [item.removeprefix("ui-design: ") for item in found]
+
+        def junction(link, target):
+            made = subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], capture_output=True, timeout=15)
+            return made.returncode == 0
+
+        expected = ["Variant round Based on VD-R1-03 is not a retained study of the previous round"]
+        tried = 0
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            outside = base / "outside"
+            outside.mkdir()
+            (outside / "vd-03.html").write_text(embedded, encoding="utf-8")
+            kinds = []
+            # A file link inside a real round folder.
+            file_root = base / "file-repo"
+            (file_root / "docs/design/directions/round-2").mkdir(parents=True)
+            (file_root / "docs/design/directions/round-1").mkdir(parents=True)
+            (file_root / "docs/design/directions/round-2/vd-01.html").write_text(embedded.replace("round-1", "round-2"), encoding="utf-8")
+            try:
+                (file_root / "docs/design/directions/round-1/vd-03.html").symlink_to(outside / "vd-03.html")
+                kinds.append(file_root)
+            except OSError:
+                pass
+            # A linked round folder (a junction where symlinks need a privilege).
+            folder_root = base / "folder-repo"
+            (folder_root / "docs/design/directions/round-2").mkdir(parents=True)
+            (folder_root / "docs/design/directions/round-2/vd-01.html").write_text(embedded.replace("round-1", "round-2"), encoding="utf-8")
+            link = folder_root / "docs/design/directions/round-1"
+            try:
+                link.symlink_to(outside, target_is_directory=True)
+                kinds.append(folder_root)
+            except OSError:
+                if os.name == "nt" and junction(link, outside):
+                    kinds.append(folder_root)
+            if not kinds:
+                self.skipTest("neither a symlink nor a junction can be created here")
+            try:
+                for root in kinds:
+                    tried += 1
+                    self.assertEqual(expected, parent_problems(root), str(root))
+            finally:
+                # Remove a junction or directory link without touching its target.
+                if link.exists() and (link.is_symlink() or os.name == "nt"):
+                    os.rmdir(link) if not link.is_symlink() else os.unlink(link)
+        self.assertGreater(tried, 0)
+
+
+class ComparisonPageDateRuleTests(unittest.TestCase):
+    """A round decided before 2026-11-18 may lack _compare.html; any page that is present must still match."""
+
+    FILES = ("vd-01.html", "vd-02.html", "vd-03.html")
+
+    def setUp(self):
+        import assemble_ui_review
+        from test_direction_review import CASES, source_html
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        pages = {file: source_html(file[:-5]) for file in self.FILES}
+        (self.root / "src").mkdir()
+        for file, html in pages.items():
+            (self.root / "src" / file).write_text(html, encoding="utf-8", newline="")
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": CASES, "directions": [
+            {"id": f"VD-R1-0{n}", "file": file, "sourceSha256": hashlib.sha256(pages[file].encode("utf-8")).hexdigest()}
+            for n, file in enumerate(self.FILES, 1)]}
+        (self.root / "profile.json").write_text(json.dumps(profile), encoding="utf-8")
+        self.out = self.root / "docs/design/directions/round-1"
+        assemble_ui_review.assemble_direction(
+            self.root / "profile.json", [f"{file}={self.root / 'src' / file}" for file in self.FILES], self.out)
+        self.page = self.out / "_compare.html"
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def problems(self, decided):
+        rows = "".join(
+            f"| VD-R1-0{n} | docs/design/directions/round-1/{file} @ sha256:"
+            f"{hashlib.sha256((self.out / file).read_bytes()).hexdigest()} | Author | Author | pass |\n"
+            for n, file in enumerate(self.FILES, 1))
+        comparison = "".join(
+            f"| VD-R1-0{n} | UI-001 | ready | 390 | primary | Approved copy | docs/design/directions/primary.png @ sha256:{'a' * 64} | Same case |\n"
+            for n in (1, 2, 3))
+        style = ((f"Direction decided on: {decided}\n" if decided else "")
+                 + "\n### Direction comparison\n\n| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |\n"
+                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + comparison
+                 + "\n### Direction studies\n\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n" + rows)
+        found = []
+        checker._resolve_direction_studies(style, self.root, found)
+        return " ".join(item for item in found if "Comparison page" in item)
+
+    def test_the_constant_is_the_first_required_date(self):
+        self.assertEqual("2026-11-18", checker.COMPARISON_PAGE_REQUIRED_FROM.isoformat())
+
+    def test_an_older_round_passes_without_the_page(self):
+        self.page.unlink()
+        self.assertEqual("", self.problems("2026-11-17"))
+
+    def test_a_round_decided_on_the_constant_date_or_undecided_needs_the_page(self):
+        self.page.unlink()
+        self.assertIn("_compare.html is missing", self.problems("2026-11-18"))
+        self.assertIn("_compare.html is missing", self.problems("2027-01-05"))
+        self.assertIn("_compare.html is missing", self.problems(None))
+        self.assertIn("_compare.html is missing", self.problems("not a date"))
+
+    def test_a_present_page_must_match_whatever_the_date(self):
+        self.assertEqual("", self.problems("2026-11-17"))
+        self.page.write_bytes(self.page.read_bytes().replace(b"<h1>round-1</h1>", b"<h1>round-1 edited</h1>"))
+        self.assertIn("must exactly match the page regenerated", self.problems("2026-11-17"))
+        self.assertIn("must exactly match the page regenerated", self.problems("2026-11-18"))
+
+
 if __name__ == "__main__":
     unittest.main()
