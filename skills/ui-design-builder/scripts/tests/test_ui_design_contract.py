@@ -27,6 +27,7 @@ if str(DS_TESTS) not in sys.path:
     sys.path.append(str(DS_TESTS))
 
 checker = importlib.import_module("check_ui_design_contract")
+reviewer_shell = importlib.import_module("reviewer_shell")
 
 A_HASH = hashlib.sha256(b"prd").hexdigest()
 B_HASH = hashlib.sha256(b"architecture").hexdigest()
@@ -787,6 +788,39 @@ class UiDesignContractTests(unittest.TestCase):
             problems = []
             checker._validate_hifi_surface(path, problems, scope)
             self.assertTrue(any("stale" in value for value in problems), problems)
+
+    def test_product_stylesheet_must_be_complete_and_identical_when_any_page_has_one(self):
+        def embed(root, path, manifest, blocks):
+            """Write each page's block (None leaves the page without one) and re-hash the child."""
+            child = root / "details.html"
+            if blocks["details.html"] is not None:
+                child.write_bytes(child.read_bytes().replace(b"</head>", (blocks["details.html"] + "</head>").encode("utf-8")))
+            manifest["pages"] = [{"path": "details.html", "sha256": hashlib.sha256(child.read_bytes()).hexdigest()}]
+            html = checker.HIFI_MANIFEST_RE.sub(lambda _: '<script id="ui-hifi-manifest" type="application/json">' + json.dumps(manifest) + '</script>', path.read_text(encoding="utf-8"))
+            if blocks["index.html"] is not None:
+                html = html.replace("</head>", blocks["index.html"] + "</head>")
+            path.write_text(html, encoding="utf-8")
+
+        def findings(blocks):
+            with tempfile.TemporaryDirectory() as temp:
+                path, manifest, scope = materialize_hifi_bundle(Path(temp))
+                embed(Path(temp), path, manifest, blocks)
+                problems = []
+                checker._validate_hifi_surface(path, problems, scope)
+                return [value for value in problems if "product CSS" in value]
+
+        kit = reviewer_shell.product_style_block(".kit{color:#123456}")
+        drift = reviewer_shell.product_style_block(".kit{color:#654321}")
+        self.assertEqual([], findings({"index.html": None, "details.html": None}))
+        self.assertEqual([], findings({"index.html": kit, "details.html": kit}))
+        missing = findings({"index.html": kit, "details.html": None})
+        self.assertEqual(1, len(missing), missing)
+        self.assertIn("details.html", missing[0])
+        different = findings({"index.html": kit, "details.html": drift})
+        self.assertEqual(1, len(different), different)
+        doubled = findings({"index.html": kit + kit, "details.html": kit})
+        self.assertEqual(1, len(doubled), doubled)
+        self.assertIn("index.html", doubled[0])
 
     def test_multi_page_hifi_rejects_wrong_link_and_dead_control(self):
         for old, new, error in ((

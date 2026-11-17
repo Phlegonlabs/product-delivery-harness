@@ -32,6 +32,7 @@ from review_evidence import (
     line_ending_note,
     score_findings,
 )
+from reviewer_shell import product_css_findings
 from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
@@ -1417,6 +1418,7 @@ def _validate_hifi_bundle(
     except (OSError, UnicodeError, ValueError) as exc:
         _add(problems, str(exc))
         return
+    problems.extend(product_css_findings(documents))
     surfaces = manifest.get("surfaces")
     if not isinstance(surfaces, list) or not surfaces:
         _add(problems, "HiFi bundle surfaces must be non-empty")
