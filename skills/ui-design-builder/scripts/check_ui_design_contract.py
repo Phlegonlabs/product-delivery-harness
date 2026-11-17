@@ -773,13 +773,17 @@ def _resolve_variant_parent(style: str, repo_root: Path, problems: list[str]) ->
     current = {Path(study["path"]).parent for study in _direction_study_identities(style, [])}
     retained: set[str] = set()
     for path in sorted((repo_root / "docs/design/directions").glob("*/*.html")):
-        if Path(path.relative_to(repo_root).as_posix()).parent in current:
+        if path.parent.relative_to(repo_root) in current:
             continue
         match = direction_review.PROFILE_RE.search(path.read_text(encoding="utf-8", errors="replace"))
         try:
-            retained.update(row["id"] for row in json.loads(match.group(1))["directions"]) if match else None
-        except (json.JSONDecodeError, KeyError, TypeError):
+            profile = json.loads(match.group(1)) if match else None
+        except json.JSONDecodeError:
             continue
+        # The file itself must hold the identity: a valid profile of its own folder's round, with a row for this file.
+        if profile is None or direction_review.profile_findings(profile) or profile["round"] != path.parent.name:
+            continue
+        retained.update(row["id"] for row in profile["directions"] if row["file"] == path.name)
     for parent in sorted({row[1] for row in rows} - retained):
         _add(problems, f"Variant round Based on {parent} is not a retained study of the previous round")
 

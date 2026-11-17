@@ -1970,25 +1970,43 @@ class VariantRoundRecordTests(unittest.TestCase):
         checker._variant_rows(repeated, problems)
         self.assertIn("Variant round must give each direction its own axis", [item.removeprefix("ui-design: ") for item in problems])
 
-    def test_the_parent_must_be_a_retained_study_of_another_round_folder(self):
+    def test_the_parent_must_be_a_retained_study_file_of_the_previous_round(self):
+        def profile(round_name, ids):
+            return {"schema": "ui-direction-review/1", "round": round_name,
+                    "cases": [{"id": "primary", "surface": "UI-001", "platform": "web", "targetFamily": "viewports",
+                               "widths": {"390": 390}}],
+                    "directions": [{"id": f"VD-R{ids}-0{n}", "file": f"vd-0{n}.html", "sourceSha256": str(n) * 64} for n in (1, 2, 3)]}
+
+        def study(root, folder, name, record):
+            target = root / "docs/design/directions" / folder
+            target.mkdir(parents=True, exist_ok=True)
+            (target / name).write_text(
+                '<script id="ui-direction-review" type="application/json">' + json.dumps(record) + "</script>", encoding="utf-8")
+
+        current = "\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n| VD-R2-01 | docs/design/directions/round-2/vd-01.html @ sha256:" + "b" * 64 + " | a | a | pass |\n"
+
+        def problems_for(root, parent):
+            style = self.style(parent) + current
+            found = []
+            checker._resolve_variant_parent(style, root, found)
+            return [item.removeprefix("ui-design: ") for item in found]
+
+        missing = "Variant round Based on VD-R1-03 is not a retained study of the previous round"
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            previous = root / "docs/design/directions/round-1"
-            current = root / "docs/design/directions/round-2"
-            previous.mkdir(parents=True)
-            current.mkdir(parents=True)
-            profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": [],
-                       "directions": [{"id": f"VD-R1-0{n}", "file": f"vd-0{n}.html", "sourceSha256": "0" * 64} for n in (1, 2, 3)]}
-            (previous / "vd-02.html").write_text(
-                '<script id="ui-direction-review" type="application/json">' + json.dumps(profile) + "</script>", encoding="utf-8")
-            style = self.style() + ("| VD-R2-01 | docs/design/directions/round-2/vd-01.html @ sha256:" + "b" * 64 + " | a | a | pass |\n")
-            problems = []
-            checker._resolve_variant_parent(style, root, problems)
-            self.assertEqual([], problems)
-            problems = []
-            checker._resolve_variant_parent(self.style("VD-R1-09") + style.split("### Direction studies\n", 1)[1], root, problems)
+            study(root, "round-2", "vd-01.html", profile("round-2", 2))
+            # Only vd-02.html is retained. Its profile names VD-R1-03, but that study's file is absent.
+            study(root, "round-1", "vd-02.html", profile("round-1", 1))
+            self.assertEqual([], problems_for(root, "VD-R1-02"))
+            self.assertEqual([missing], problems_for(root, "VD-R1-03"))
+            # A file whose identity is right but which sits in another round's folder is not the previous round.
+            study(root, "round-9", "vd-03.html", profile("round-1", 1))
+            self.assertEqual([missing], problems_for(root, "VD-R1-03"))
+            # The same file in its own round's folder resolves.
+            study(root, "round-1", "vd-03.html", profile("round-1", 1))
+            self.assertEqual([], problems_for(root, "VD-R1-03"))
             self.assertEqual(["Variant round Based on VD-R1-09 is not a retained study of the previous round"],
-                             [item.removeprefix("ui-design: ") for item in problems])
+                             problems_for(root, "VD-R1-09"))
 
 
 if __name__ == "__main__":
