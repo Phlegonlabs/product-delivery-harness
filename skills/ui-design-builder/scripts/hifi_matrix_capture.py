@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 
-from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view
+from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view, _hifi_state_href
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
 from ui_design_v3 import intermediate_width_findings
@@ -48,7 +48,7 @@ INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
 TRIGGERS = ("click", "keyboard")
-INTERACT_KINDS = ("navigate", "state")
+INTERACT_KINDS = ("navigate", "state", "feedback")
 DRIVER_BASE = "https://hifi.invalid/pkg/"
 SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
@@ -116,7 +116,14 @@ const packageVersion = () => {
 
 const SET_CANVAS_WIDTH = px => {
   const canvas = document.querySelector('[data-hifi-canvas]');
-  if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
+  if (canvas.style.zoom === '2') {
+    const target = canvas.dataset.hifiTarget;
+    const widths = JSON.parse(canvas.dataset.hifiTargetWidths || '{}');
+    const nominal = px || widths[target] || Number(target);
+    if (!Number.isFinite(nominal) || nominal <= 0) throw Error('zoom target has no numeric width');
+    canvas.style.setProperty('width', nominal / 2 + 'px');
+  } else if (px) canvas.style.setProperty('width', px + 'px');
+  else canvas.style.removeProperty('width');
 };
 
 const SETTLE = async ({ cap, margin }) => {
@@ -179,6 +186,7 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
   const box = surface.getBoundingClientRect();
   const geometry = {
     canvasWidth: round(origin.width), canvasHeight: round(origin.height),
+    containerInlineSize: round(parseFloat(getComputedStyle(canvas).width)),
     surface: { x: round(box.left - origin.left), y: round(box.top - origin.top), width: round(box.width), height: round(box.height) },
     scrollWidth: surface.scrollWidth, clientWidth: surface.clientWidth,
     scrollHeight: surface.scrollHeight, clientHeight: surface.clientHeight,
@@ -249,7 +257,11 @@ async function start(request) {
     addEventListener('focusin', event => {
       const el = event.target;
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
-      if (id) window.__pdhFocus({ control: id });
+      const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
+        ? el.getAttribute('aria-controls') : null;
+      const supporting = el && el.closest && el.closest('[data-ui-surface]')
+        ? el.getAttribute('data-control-for') : null;
+      if (id || opener || supporting) window.__pdhFocus({ control: id || null, opener, supporting });
     }, true);
   });
   page = await context.newPage();
@@ -299,8 +311,16 @@ async function open(request) {
 // shell, then activate the declared product control by click or keyboard. The
 // destination surface/state must apply; the control, and only the control, must
 // take product focus during the attempt.
+const FEEDBACK_SNAPSHOT = surfaceId => {
+  const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
+  return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
+    .map(el => [el.value, el.checked, el.selectedIndex])]) : null;
+};
+
 async function interact(request) {
   const problems = [];
+  if (request.kind === 'state' && request.surface === request.destination.surface && request.state === request.destination.state)
+    return { problems: ['state interaction needs a different destination state'], visible: false, focusCorrect: false };
   const timeout = request.timeoutMs;
   if (currentPage !== request.page) {
     try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
@@ -331,23 +351,102 @@ async function interact(request) {
       }
     }
   }
-  let visible = null, focusCorrect = null, arrivedTo = null;
+  let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
   if (!problems.length) {
     const surface = '[data-ui-surface=' + quote(request.surface) + ']';
+    const attached = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + '],'
+      + surface + ' [data-control-id=' + quote(request.control) + ']');
     const product = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + ']:visible,'
       + surface + ' [data-control-id=' + quote(request.control) + ']:visible');
-    if (await product.count() !== 1) problems.push('product control is missing or not unique: ' + request.control);
+    const opened = [];
+    if (await product.count() === 0 && await attached.count() > 0) {
+      const chain = await attached.evaluateAll(list => {
+        for (const el of list) {
+          const surface = el.closest('[data-ui-surface]');
+          const target = surface.closest('[data-hifi-canvas]').dataset.hifiTarget;
+          const buttons = Array.from(surface.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]'));
+          const panels = [];
+          let reachable = true;
+          for (let panel = el; panel; panel = panel.parentElement) {
+            if ((panel.hasAttribute('data-hifi-state-view') && panel.dataset.hifiStateView !== surface.dataset.hifiState)
+                || (panel.hasAttribute('data-responsive-target') && panel.dataset.responsiveTarget !== target)) {
+              reachable = false; break;
+            }
+            const openers = panel !== el && panel !== surface && panel.id
+              ? buttons.filter(button => button.getAttribute('aria-controls') === panel.id
+                && button.closest('[data-ui-surface]') === surface && !panel.contains(button)) : [];
+            const opener = openers.length === 1 && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1
+              ? openers[0] : null;
+            const style = getComputedStyle(panel);
+            const hidesVisibility = (style.visibility === 'hidden' || style.visibility === 'collapse')
+              && (!panel.parentElement || getComputedStyle(panel.parentElement).visibility !== style.visibility);
+            if ((panel.hidden || style.display === 'none' || hidesVisibility) && !opener) {
+              reachable = false; break;
+            }
+            if (opener)
+              panels.unshift({ panel: panel.id, index: buttons.indexOf(opener), selected: opener.hasAttribute('data-product-tab') });
+            if (panel === surface) break;
+          }
+          if (reachable) return panels;
+        }
+        return [];
+      });
+      const buttons = page.locator(surface + ' button[data-product-menu],'
+        + surface + ' button[data-product-tab],' + surface + ' button[data-product-disclosure]');
+      for (const step of chain) {
+        const panel = page.locator('[id=' + quote(step.panel) + ']');
+        if (await panel.isVisible()) continue;
+        const opener = buttons.nth(step.index);
+        if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
+        await opener.click({ timeout });
+        opened.push(step.panel);
+        try { await panel.waitFor({ state: 'visible', timeout }); }
+        catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+        if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
+            || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+      }
+    }
+    const instances = await product.count();
+    observed = { instances, ...(opened.length ? { openers: opened } : {}) };
+    if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
     else {
       const handle = product.first();
+      if (request.kind === 'navigate' && !await attached.evaluateAll((list, href) =>
+          list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), request.destinationPage))
+        return { problems: ['navigate controls must link to the declared page'], visible: false, focusCorrect: false, observed };
+      if (request.kind === 'state' && request.page !== request.destinationPage) {
+        const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
+          + '/' + encodeURIComponent(request.destination.state);
+        if (!await attached.evaluateAll((list, href) => list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), href))
+          return { problems: ['cross-page state controls must link to the declared page and state'], visible: false, focusCorrect: false };
+      }
       visible = await handle.isVisible();
       let pressedFocused = null;
-      if (request.trigger === 'keyboard') {
+      let before = null;
+      if (request.trigger === 'keyboard' || request.kind === 'feedback') {
         await handle.focus({ timeout });
         pressedFocused = await handle.evaluate(el => el === document.activeElement);
+      }
+      if (request.kind === 'feedback') {
+        await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
+        before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
+      }
+      if (request.trigger === 'keyboard') {
         const tag = await handle.evaluate(el => el.tagName.toLowerCase());
         await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
       } else {
         await handle.click({ timeout });
+      }
+      if (request.kind === 'feedback') {
+        try {
+          await page.waitForFunction(({ surfaceId, before }) => {
+            const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
+            return surface && JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
+              .map(el => [el.value, el.checked, el.selectedIndex])]) !== before;
+          }, { surfaceId: request.surface, before }, { timeout: Math.min(timeout, 2000) });
+        } catch (_) { problems.push('feedback did not change the source surface'); }
+        const after = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
+        if (before && after) observed.change = { beforeSha256: sha(before), afterSha256: sha(after) };
       }
       try {
         await page.waitForFunction(([surface, state]) => {
@@ -359,13 +458,20 @@ async function interact(request) {
       }
       const url = page.url();
       arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
+      if (request.kind === 'state' && request.page !== request.destinationPage) {
+        const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
+          + '/' + encodeURIComponent(request.destination.state);
+        if (url !== BASE + href) problems.push('browser did not reach the declared state URL');
+      }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
-      // Both triggers must land product focus on the control alone; keyboard also had to press from it.
-      focusCorrect = events.focus.length === 1 && events.focus[0].control === request.control
+      // Declared opener clicks may precede the one operation-control focus event.
+      focusCorrect = events.focus.length === opened.length + 1
+        && opened.every((panel, index) => events.focus[index].opener === panel)
+        && events.focus[opened.length].control === request.control
         && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
     }
   }
-  return { problems, visible, focusCorrect, arrivedTo };
+  return { problems, visible, focusCorrect, arrivedTo, observed };
 }
 
 async function runCase(request) {
@@ -400,10 +506,7 @@ async function runCase(request) {
     }
   }
   if (problems.length) return { problems, settle: null, probe: null };
-  await page.evaluate(px => {
-    const canvas = document.querySelector('[data-hifi-canvas]');
-    if (px) canvas.style.setProperty('width', px + 'px'); else canvas.style.removeProperty('width');
-  }, request.widthPx || null);
+  await page.evaluate(SET_CANVAS_WIDTH, request.widthPx || null);
   const settle = await page.evaluate(SETTLE, { cap: request.settleCapMs, margin: request.marginMs });
   const probe = await page.evaluate(PROBE, {
     surfaceId: request.surface, state: request.state, limit: 400, reportLimit: 10, props: STYLE_PROPS,
@@ -432,13 +535,14 @@ async function axis(request) {
     forcedColors: name === 'forced-colors' ? 'active' : 'none',
   });
   await page.evaluate(zoom => {
-    for (const surface of document.querySelectorAll('[data-ui-surface]')) {
-      if (zoom) surface.style.setProperty('zoom', '2'); else surface.style.removeProperty('zoom');
-    }
     // a reflow case leaves its inline width behind; the next pass must meet the declared widths again
     const canvas = document.querySelector('[data-hifi-canvas]');
-    if (canvas) canvas.style.removeProperty('width');
+    if (canvas) {
+      canvas.style.removeProperty('width');
+      if (zoom) canvas.style.setProperty('zoom', '2'); else canvas.style.removeProperty('zoom');
+    }
   }, name === 'zoom-200');
+  await page.evaluate(SET_CANVAS_WIDTH, null);
   return {};
 }
 
@@ -971,6 +1075,8 @@ def interaction_plan(package, only=None):
             if row is None or not isinstance(state, str) or state not in [str(s) for s in row["states"]]:
                 raise UsageError(f"interaction {ident} names an unknown {field} surface state: {surface} {state}")
         source_row = surfaces[action["source"]["surface"]]
+        if kind == "feedback" and action["source"] != action["destination"]:
+            raise UsageError(f"feedback interaction {ident} must keep its source surface and state")
         plan.append({"id": ident, "kind": kind, "control": control, "source": action["source"],
                      "destination": action["destination"], "page": source_row["page"],
                      "destinationPage": surfaces[action["destination"]["surface"]]["page"],
@@ -1257,8 +1363,12 @@ class Runner:
         # A navigate attempt's one arrival row becomes the documented navigation event; every other
         # navigation row stays in the transcript and fails the attempt.
         stray = list(events.get("navigation", []))
-        if action["kind"] == "navigate":
-            arrived = [row for row in stray if row.get("url") == DRIVER_BASE + action["destinationPage"]]
+        crosses_page = action["kind"] == "state" and action["page"] != action["destinationPage"]
+        if action["kind"] == "navigate" or crosses_page:
+            urls = {DRIVER_BASE + action["destinationPage"]}
+            if crosses_page:
+                urls.add(DRIVER_BASE + _hifi_state_href(action["destinationPage"], action["destination"]))
+            arrived = [row for row in stray if row.get("url") in urls]
             if len(arrived) == 1:
                 record["arrived"] = action["destinationPage"]
                 stray.remove(arrived[0])
@@ -1274,7 +1384,9 @@ class Runner:
             if result.get("focusCorrect") is not True:
                 reasons.append("product focus did not land on the control alone")
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
-        if action["kind"] == "navigate":
+        if result.get("observed") is not None:
+            record["observed"] = result["observed"]
+        if action["kind"] == "navigate" or crosses_page:
             if record["arrived"] is None:
                 reasons.append("the destination page did not load")
             elif result.get("arrivedTo") != action["destinationPage"]:
@@ -1476,7 +1588,9 @@ def interaction_rows(runner):
                         "source": {"surface": record["surface"], "state": record["state"]},
                         "destination": record["destination"], "control": record["control"],
                         "visible": record["visible"], "focusCorrect": record["focusCorrect"], "result": record["result"]})
-        if record["kind"] == "navigate" and record["arrived"]:
+        if "observed" in record:
+            results[-1]["observed"] = record["observed"]
+        if record["kind"] in {"navigate", "state"} and record["arrived"]:
             navigation.append({"id": record["id"], "target": record["target"], "trigger": record["trigger"],
                                "from": record["page"], "to": record["arrived"]})
     return results, navigation

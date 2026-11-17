@@ -139,6 +139,18 @@ class SurfaceStaticTests(unittest.TestCase):
         body = re.search(r'<script id="hifi-reviewer-runtime">([\s\S]*?)</script>', fixture.REVIEWER_RUNTIME).group(1)
         self.assertIn(hashlib.sha256(body.encode()).hexdigest(), surface_adapter.SUPPORTED_REVIEWER_RUNTIMES)
 
+    def test_pre_disclosure_runtime_stays_supported_but_edits_fail(self):
+        legacy = fixture.REVIEWER_RUNTIME.replace(
+            '[...host.querySelectorAll("[data-product-menu]"), ...host.querySelectorAll("[data-product-disclosure]")]',
+            'host.querySelectorAll("[data-product-menu]")')
+        body = re.search(r'<script id="hifi-reviewer-runtime">([\s\S]*?)</script>', legacy).group(1)
+        self.assertEqual('854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597',
+                         hashlib.sha256(body.encode()).hexdigest())
+        self.assertEqual('', findings(kiln(lambda page: page.replace(fixture.REVIEWER_RUNTIME, legacy))))
+        altered = legacy.replace('const TARGET_KEY', 'window.unapproved = true; const TARGET_KEY', 1)
+        self.assertIn('supported public reviewer runtime', findings(kiln(
+            lambda page: page.replace(fixture.REVIEWER_RUNTIME, altered))))
+
     def test_legacy_schema_one_and_committed_demo_bytes_are_unchanged(self):
         from showcase_fixture import DEMO_DIR, render_demo
 

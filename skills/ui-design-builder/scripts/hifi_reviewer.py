@@ -10,12 +10,35 @@ from reviewer_shell import shared_css_drift
 
 VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "param", "source", "track", "wbr"}
 INERT_CONTAINERS = {"template", "noscript"}
+INTERACTIVE_ROLES = frozenset({
+    "button", "link", "menuitem", "tab", "checkbox", "radio", "switch", "slider",
+    "spinbutton", "textbox", "combobox",
+})
+POINTER_ACTIVATION_HANDLERS = frozenset({
+    "onclick", "ondblclick", "onpointerdown", "onpointerup",
+    "onmousedown", "onmouseup", "ontouchstart", "ontouchend",
+})
+KEYBOARD_ACTIVATION_HANDLERS = frozenset({"onkeydown", "onkeyup", "onkeypress"})
 TOKEN_PREVIEW_PROPERTIES = {
     "color", "background-color", "background-image", "font-family", "font-size", "font-weight",
     "line-height", "letter-spacing", "width", "height", "gap", "padding",
     "border-radius", "border-width", "box-shadow", "opacity", "z-index",
     "transition-duration", "transition-timing-function",
 }
+
+
+def is_product_control(tag, attrs):
+    """Share native, ARIA and directly authored widget discovery across HiFi checks."""
+    if (tag in {"a", "button", "input", "select", "textarea"}
+            or INTERACTIVE_ROLES.intersection((attrs.get("role") or "").casefold().split())):
+        return True
+    handlers = {name for name, value in attrs.items() if isinstance(value, str) and value.strip()}
+    focusable = ("tabindex" in attrs or tag in {"summary", "iframe"}
+                 or (tag == "area" and "href" in attrs)
+                 or (tag in {"audio", "video"} and "controls" in attrs)
+                 or ("contenteditable" in attrs and (attrs.get("contenteditable") or "").casefold() != "false"))
+    return bool(POINTER_ACTIVATION_HANDLERS.intersection(handlers)
+                or (focusable and KEYBOARD_ACTIVATION_HANDLERS.intersection(handlers)))
 
 
 class ReviewerParser(HTMLParser):
@@ -506,12 +529,15 @@ def product_control_findings(documents):
             return next((parent for parent in reversed(parents) if "data-ui-surface" in parent), None)
 
         for tag, attrs, parents in nodes:
-            if "data-product-menu" not in attrs and "data-product-tab" not in attrs:
+            kinds = [kind for kind in ("menu", "tab", "disclosure") if "data-product-" + kind in attrs]
+            if not kinds:
                 continue
+            if len(kinds) != 1:
+                errors.append(f"HiFi {page} product opener must declare exactly one kind")
             surface = product_surface(parents)
             if surface is None:
-                errors.append(f"HiFi {page} product menu/tab controls must stay inside a product surface")
-            kind = "menu" if "data-product-menu" in attrs else "tab"
+                errors.append(f"HiFi {page} product menu/tab/disclosure controls must stay inside a product surface")
+            kind = kinds[0]
             if tag != "button":
                 errors.append(f"HiFi {page} product {kind} control must be a native button")
             if id(attrs) in parser.inert_nodes:
@@ -528,10 +554,10 @@ def product_control_findings(documents):
                 errors.append(f"HiFi {page} product {kind} control must bind one distinct panel inside the same product surface")
             elif id(matches[0][0]) in parser.inert_nodes:
                 errors.append(f"HiFi {page} product {kind} panel must be a live product panel outside template/noscript")
-            if kind == "menu":
+            if kind in {"menu", "disclosure"}:
                 expanded = attrs.get("aria-expanded")
                 if expanded not in {"true", "false"}:
-                    errors.append(f"HiFi {page} product menu control must declare expanded state")
+                    errors.append(f"HiFi {page} product {kind} control must declare expanded state")
             else:
                 selected = attrs.get("aria-selected")
                 if selected not in {"true", "false"}:

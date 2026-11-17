@@ -1714,7 +1714,7 @@ class RealBrowserTests(unittest.TestCase):
             sidecar = json.loads((root / "docs/evidence/interactions" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
             manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
             expected, navigation = checker._interaction_expectations(manifest)
-            self.assertEqual(expected, output["interactions"])
+            self.assertEqual(expected, [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
             self.assertEqual(navigation, output["navigation"])
             self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
             self.assertEqual("PASS", build_receipt(root, "docs/evidence/interactions/" + m.OUTPUT_NAME)["result"])
@@ -1824,7 +1824,7 @@ class RealBrowserTests(unittest.TestCase):
             sidecar = json.loads((root / "docs/evidence/state" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
             manifest = json.loads(m.HIFI_MANIFEST_RE.search((package / "index.html").read_text(encoding="utf-8")).group("data"))
             expected, navigation = checker._interaction_expectations(manifest)
-            self.assertEqual(expected, output["interactions"])
+            self.assertEqual(expected, [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
             self.assertEqual(navigation, output["navigation"])
             self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
             self.assertEqual(12, len(sidecar["interactions"]))
@@ -1843,7 +1843,7 @@ class RealBrowserTests(unittest.TestCase):
             sidecar = json.loads((root / "docs/evidence/ghost" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
             self.assertEqual(4, len(sidecar["interactions"]))
             self.assertEqual({"FAIL"}, {r["result"] for r in sidecar["interactions"]})
-            self.assertIn("missing or not unique", sidecar["interactions"][0]["reasons"][0])
+            self.assertIn("missing or hidden", sidecar["interactions"][0]["reasons"][0])
 
     def test_every_image_input_changes_the_fingerprint_and_a_capped_probe_is_incomplete(self):
         module = self.playwright()

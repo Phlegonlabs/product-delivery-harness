@@ -8,11 +8,11 @@ Run it from the repository root. Relative `--package`, `--out`, `--carry-from`, 
 
 ## What a run does
 
-Every manifest page path must be a plain file inside the package folder: `..`, absolute and drive paths, backslashes and links fail the run (exit 2) before anything is read. The package bytes are served from one closed same-origin context. Every other request, popup, form submit and download is blocked and recorded. The tool clicks no product control, so any document request after its own page open is a navigation: a declared page is still served, but the transcript records it (`allowlisted: true`) and the case fails. CDP `Log` and `Runtime` are on before the first load and are never cleared.
+Every manifest page path must be a plain file inside the package folder: `..`, absolute and drive paths, backslashes and links fail the run (exit 2) before anything is read. The package bytes are served from one closed same-origin context. Every other request, popup, form submit and download is blocked and recorded. The matrix pass clicks no product control, so any document request after its own page open is a navigation: a declared page is still served, but the transcript records it (`allowlisted: true`) and the case fails. CDP `Log` and `Runtime` are on before the first load and are never cleared.
 
 Each page loads once. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. After three restarts the rest are BLOCKED.
 
-`n/a` states are skipped. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, a measured canvas width more than 1 px from a numeric viewport target (a size class records `geometry.canvasWidth` only), horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
+States ending in `:n/a` need no product marker or state/target case. Overview still records their reason. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, a measured canvas width more than 1 px from a numeric viewport target (a size class records `geometry.canvasWidth` only), horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
 
 ## Outputs
 
@@ -43,6 +43,22 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 
 `--only` writes a smaller matrix than the Approved target scope, so its output is diagnostic. `--derived-once` does not: with `derivedStates` the checker expects exactly the reduced matrix it writes (derived states once, at the smallest target). The sidecar records the derived set and its source, `--ui-design` or `--derived`. After the matrix, the run clicks and Enter/Space-activates every manifest interaction at every source target and writes the `interactions` rows and `navigation` events; a failed attempt fails the run. It then measures the `reviewer` object (see below).
 
+## Product interactions
+
+Feedback interactions keep their source surface and state. The driver compares source DOM and form values before and after activation. Focus alone does not count. Each feedback row records different `observed.change.beforeSha256` and `afterSha256` values; an inert control fails.
+
+An equal-endpoint `state` attempt fails. An unselected legacy row does not block a diagnostic `--only` run; full static validation still rejects it.
+
+Empty navigation or control arrays create no interaction attempts. A PRD surface with `operations: none — <reason>` has both arrays empty and renders no product control. Its applicable state/target cases still run.
+
+When no control instance is visible, the driver searches attached instances in DOM order for the first reachable instance. Every hidden ancestor must be a panel with exactly one declared same-surface opener. Inactive state or target variants and unrelated hiding make an instance unreachable. The driver opens that instance's menu, tab or disclosure panels from outermost to innermost. Openers may omit IDs and interactions. Each panel stays inside its opener's product surface and must become visible. `observed.openers` lists the clicked panel IDs. Focus may visit those openers, in order, then the operation control once; unrelated product focus still fails.
+
+Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.
+
+Repeated control IDs may appear on multiple rows. The driver activates the first visible instance and records the visible count in `observed.instances`. Every navigate instance remains an anchor to its declared page. A missing or entirely hidden control still fails.
+
+`state` may cross pages through an anchor to the exact destination page and encoded state fragment. The driver checks arrival page, surface, state and URL. Its navigation row names the page filename; any extra navigation fails.
+
 ## Reviewer object
 
 `hifi_reviewer.reviewer_contract` derives the expected viewport and specimen rows from the package bytes, and the run measures every row in that order. Each page is opened again from scratch (the reviewer's stored selections are cleared first), so the entry observations and the specimen source reads happen at the default target, surface and state. Only reviewer shell controls are clicked; the pass never touches a product control, and its fresh opens are not navigation attempts.
@@ -57,7 +73,7 @@ The fingerprint also covers the canvas's own paint and every visible element ins
 
 ## Axes
 
-The sample, once per page, is `ready` (or the first state) and the non-derived state with the most product DOM nodes, at the smallest and largest target. A derived state takes no axis. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the product surface: roughly 200% browser zoom at the same container width, with container queries still at the nominal target. `reflow-320` re-runs the same sampled states once each, driven from the surface's smallest target with the canvas overridden inline to 320 CSS px; a row fails on horizontal overflow or a canvas width more than 1 px from 320. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page. Long and localized copy is judged from the authored copy of each surface ([ui-grading-rubric.md](ui-grading-rubric.md#reading-and-cross-screen-cases)), not from a flag.
+The sample, once per page, is `ready` (or the first state) and the non-derived state with the most product DOM nodes, at the smallest and largest target. A derived state takes no axis. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the canvas and halves its CSS inline size. The rendered box keeps the target width, while container queries see half that width. `geometry.containerInlineSize` records the query-container width; reset restores the nominal width. `reflow-320` re-runs the same sampled states once each, driven from the surface's smallest target with the canvas overridden inline to 320 CSS px; a row fails on horizontal overflow or a canvas width more than 1 px from 320. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page. Long and localized copy is judged from the authored copy of each surface ([ui-grading-rubric.md](ui-grading-rubric.md#reading-and-cross-screen-cases)), not from a flag.
 
 Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
 

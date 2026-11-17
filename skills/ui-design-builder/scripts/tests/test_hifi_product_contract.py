@@ -32,6 +32,148 @@ def documents(inventory, markup):
 
 
 class HiFiProductContractTests(unittest.TestCase):
+    def test_terminal_surface_rejects_custom_interactive_roles_and_inline_widgets(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        passive = markup.replace('<a ', '<p ').replace('</a>', '</p>')
+        roles = ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
+                 'slider', 'spinbutton', 'textbox', 'combobox')
+        for attributes in tuple(f'role="{role}" tabindex="0" aria-checked="false"' for role in roles) + (
+                'tabindex="0" onclick="this.dataset.changed=true"',
+                'tabindex="-1" onclick="this.dataset.changed=true"',
+                'onclick="this.dataset.changed=true"',
+                'tabindex="-1" onkeydown="this.dataset.changed=true"',
+                'role="checkbox" tabindex="-1" onclick="this.dataset.changed=true"'):
+            with self.subTest(attributes=attributes):
+                widget = passive.replace('<p ', '<p ' + attributes + ' ', 1)
+                findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
+                self.assertIn('renders a product control', '\n'.join(findings))
+        self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+
+    def test_passive_focus_targets_remain_valid_on_terminal_surfaces(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        inventory['surfaces'][0]['items'][0]['copy'].update(
+            text='Receipt', role='heading', source='Owner receipt heading')
+        for attributes in ('tabindex="-1" onanimationend="this.classList.remove(\'entering\')"',
+                           'tabindex="-1" onfocus="this.classList.remove(\'entering\')"',
+                           'tabindex="0" onanimationend="this.classList.remove(\'entering\')"',
+                           'tabindex="0" onfocus="this.classList.remove(\'entering\')"'):
+            with self.subTest(attributes=attributes):
+                passive = markup.replace('<a ', '<h2 ' + attributes + ' ').replace('>Home</a>', '>Receipt</h2>')
+                self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+                parser = ui._HiFiProductControls()
+                parser.feed(passive)
+                parser.close()
+                self.assertEqual([], parser.errors)
+                self.assertFalse(parser.controls)
+
+    def test_handler_discovery_separates_pointer_keyboard_and_passive_handlers(self):
+        groups = (
+            (('onclick', 'ondblclick', 'onpointerdown', 'onpointerup', 'onmousedown', 'onmouseup',
+              'ontouchstart', 'ontouchend'),
+             (('0', True), ('-1', True), ('invalid', True), ('', True), (None, True))),
+            (('onkeydown', 'onkeyup', 'onkeypress'),
+             (('0', True), ('-1', True), ('invalid', True), ('', True), (None, False))),
+            (('onanimationend', 'onfocus', 'onblur', 'ontransitionend', 'onload', 'onscroll',
+              'onpointermove', 'onmouseenter', 'ondragstart', 'oninput'),
+             (('0', False), ('-1', False), ('invalid', False), ('', False), (None, False))),
+        )
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        for handlers, cases in groups:
+            for handler in handlers:
+                for tabindex, expected in cases:
+                    with self.subTest(handler=handler, tabindex=tabindex):
+                        binding = '' if tabindex is None else f'tabindex="{tabindex}"'
+                        widget = markup.replace('<a ', f'<p {binding} {handler}="activate()" ').replace('</a>', '</p>')
+                        parser = ui._HiFiProductControls()
+                        parser.feed(widget)
+                        parser.close()
+                        self.assertEqual(expected, 'needs a navigation/control ID' in '\n'.join(parser.errors))
+                        findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
+                        if expected:
+                            self.assertIn('renders a product control', '\n'.join(findings))
+                        else:
+                            self.assertEqual([], findings)
+        for markup in ('<button onclick="activate()">Action</button>',
+                       '<input onkeydown="activate()">', '<a href="details.html" onclick="activate()">Action</a>'):
+            parser = ui._HiFiProductControls()
+            parser.feed('<main data-ui-surface="UI-001">' + markup + '</main>')
+            parser.close()
+            self.assertIn('needs a navigation/control ID', '\n'.join(parser.errors))
+
+    def test_keyboard_discovery_includes_native_focusability_only_with_a_handler(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        cases = (('summary', '', True), ('area', 'href="details.html"', True), ('area', '', False),
+                 ('iframe', '', True), ('audio', 'controls', True), ('audio', '', False),
+                 ('video', 'controls', True), ('video', '', False), ('p', 'contenteditable', True),
+                 ('p', 'contenteditable="plaintext-only"', True), ('p', 'contenteditable="false"', False),
+                 ('p', 'contenteditable="FALSE"', False))
+        for tag, attributes, focusable in cases:
+            for handler in ('', 'onkeydown="activate()"', 'onfocus="observe()"'):
+                with self.subTest(tag=tag, attributes=attributes, handler=handler):
+                    widget = markup.replace('<a ', f'<{tag} {attributes} {handler} ').replace('</a>', f'</{tag}>')
+                    if tag == 'summary':
+                        widget = widget.replace('<summary ', '<details><summary ').replace('</summary>', '</summary></details>')
+                    elif tag == 'area':
+                        widget = widget.replace('>Home</area>', ' alt="Home">')
+                    expected = focusable and handler.startswith('onkeydown=')
+                    parser = ui._HiFiProductControls()
+                    parser.feed(widget)
+                    parser.close()
+                    self.assertEqual(expected, 'needs a navigation/control ID' in '\n'.join(parser.errors))
+                    findings = hifi_prd_findings(product, manifest, documents(inventory, widget))
+                    if expected:
+                        self.assertIn('renders a product control', '\n'.join(findings))
+                    else:
+                        self.assertEqual([], findings)
+
+    def test_all_interactive_roles_use_the_same_control_discovery(self):
+        for role in ('button', 'link', 'menuitem', 'tab', 'checkbox', 'radio', 'switch',
+                     'slider', 'spinbutton', 'textbox', 'combobox'):
+            with self.subTest(role=role):
+                markup = f'<main data-ui-surface="UI-001"><p role="{role}" data-control-id="toggle">Toggle</p></main>'
+                parser = ui._HiFiProductControls()
+                parser.feed(markup)
+                parser.close()
+                self.assertEqual([], parser.errors)
+                self.assertIn(('UI-001', 'toggle'), parser.controls)
+                surface_parser = ui._HiFiSurfaceParser()
+                surface_parser.feed(markup)
+                surface_parser.close()
+                self.assertIn('toggle', surface_parser.surfaces['UI-001']['controls'])
+                unbound = ui._HiFiProductControls()
+                unbound.feed(markup.replace(' data-control-id="toggle"', ''))
+                unbound.close()
+                self.assertIn('needs a navigation/control ID', '\n'.join(unbound.errors))
+
+    def test_terminal_prd_surface_has_empty_lists_and_no_product_control(self):
+        product, manifest, inventory, markup = fixture()
+        anchor = next(line for line in product.splitlines() if '`operations`:' in line)
+        product = product.replace(anchor, '- `operations`: none — read-only receipt with no product controls')
+        manifest['surfaces'][0].update(navigation=[], controls=[])
+        manifest['interactions'] = []
+        passive = markup.replace('<a ', '<p ').replace('</a>', '</p>')
+        self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, passive)))
+        self.assertIn('renders a product control', '\n'.join(hifi_prd_findings(product, manifest, documents(inventory, markup))))
+        manifest['surfaces'][0]['controls'] = ['home']
+        self.assertIn('has controls but PRD operations are none', '\n'.join(
+            hifi_prd_findings(product, manifest, documents(inventory, passive))))
+
     def test_direct_join_needs_no_wireframe(self):
         product, manifest, inventory, markup = fixture()
         self.assertEqual([], hifi_prd_findings(product, manifest, documents(inventory, markup)))
