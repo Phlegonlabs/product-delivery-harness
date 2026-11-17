@@ -139,15 +139,16 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
     const platform = config.platform ? String(config.platform) : "shared";
     const statesBySurface = normaliseTargetMap(config.statesBySurface);
     const initialPage = pages.includes(String(config.page)) ? String(config.page) : (pages[0] || "index.html");
-    const storageKey = (base, page) => packageId ? `${base}:${packageId}:${platform}:${page}` : base;
+    const storageKey = (base, page) => packageId ? `${base}:${packageId}:${platform}:${page}`
+      : (base === TARGET_KEY ? base : `${base}:${page}`);
     const readStorage = key => {
       try { return storage ? (storage.getItem(storageKey(key, initialPage)) ?? null) : null; } catch (_) { return null; }
     };
     let storedTarget = null;
     let storedSurface = null;
     storedTarget = readStorage(TARGET_KEY);
-    storedSurface = readStorage(SURFACE_KEY);
-    const storedState = readStorage(STATE_KEY);
+    storedSurface = config.restoreProductSelection === false ? null : readStorage(SURFACE_KEY);
+    const storedState = config.restoreProductSelection === false ? null : readStorage(STATE_KEY);
     const targetsForPage = page => targetsByPage[page] && targetsByPage[page].length ? targetsByPage[page] : targets;
     const initialTargets = targetsForPage(initialPage);
     const state = {
@@ -288,8 +289,15 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       if (!statesBySurface[surface]) statesBySurface[surface] = [];
       statesBySurface[surface].push(control.dataset.hifiStateControl);
     }
+    const storage = Object.prototype.hasOwnProperty.call(config, "storage") ? safeStorage(config.storage) : browserSessionStorage();
+    const arrivalKey = page => `hifi-reviewer:arrival:${config.packageId || ""}:${page}`;
+    let productArrival = false;
+    try {
+      productArrival = storage && storage.getItem(arrivalKey(currentPage)) === "product";
+      if (productArrival) storage.setItem(arrivalKey(currentPage), "");
+    } catch (_) {}
     const runtime = createHifiReviewerRuntime({
-      storage: Object.prototype.hasOwnProperty.call(config, "storage") ? config.storage : browserSessionStorage(),
+      storage, restoreProductSelection: !productArrival,
       packageId: config.packageId, platform, statesBySurface,
       page: currentPage, defaultSurface, pages, surfaces: surfaces.map(item => item.dataset.uiSurface), targets,
       targetsByPage,
@@ -388,9 +396,20 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       try {
         const surface = decodeURIComponent(requestedState[0]);
         const productState = decodeURIComponent(requestedState[1]);
+        if (!(statesBySurface[surface] || []).includes(productState)) return;
         if (runtime.snapshot().surface !== surface) runtime.selectSurface(surface);
         if (runtime.snapshot().productState !== productState) runtime.selectState(productState);
       } catch (_) {}
+    }
+    for (const surface of surfaces) for (const link of surface.querySelectorAll('a[href]')) {
+      link.addEventListener("click", () => {
+        try {
+          const destination = new URL(link.getAttribute("href"), window.location.href);
+          const page = destination.pathname.split("/").pop();
+          if (storage && destination.origin === window.location.origin && pages.includes(page))
+            storage.setItem(arrivalKey(page), "product");
+        } catch (_) {}
+      });
     }
     for (const link of stateCoverageLinks) link.addEventListener("click", event => {
       const [surface, ...stateParts] = (link.getAttribute("data-hifi-state-coverage") || "").trim().split(/\s+/);

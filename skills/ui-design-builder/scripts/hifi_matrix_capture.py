@@ -114,6 +114,7 @@ let browser, context, page, pages = {};
 let currentPage = null;
 let baseColorScheme = 'light';   // the run's context theme; an axis reset returns to it, not to plain light
 let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
+let surfaceDefaults = {}, observingNavigation = false;
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 const level = type => (type === 'error' || type === 'assert') ? 'error' : (type === 'warning' ? 'warning' : 'info');
@@ -239,6 +240,7 @@ const PROBE = ({ surfaceId, state, limit, reportLimit, props }) => {
 
 async function start(request) {
   for (const [name, file] of Object.entries(request.files)) pages[name] = fs.readFileSync(file);
+  surfaceDefaults = request.surfaceDefaults;
   baseColorScheme = request.colorScheme === 'dark' ? 'dark' : 'light';
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({
@@ -285,6 +287,10 @@ async function start(request) {
   const cdp = await context.newCDPSession(page);
   await cdp.send('Log.enable');
   await cdp.send('Runtime.enable');
+  await cdp.send('Page.enable');
+  cdp.on('Page.navigatedWithinDocument', event => {
+    if (observingNavigation) events.navigation.push({ url: event.url, method: 'GET', resourceType: 'document', allowlisted: true });
+  });
   cdp.on('Log.entryAdded', ({ entry }) => events.console.push({ source: entry.source, level: entry.level, message: entry.text }));
   cdp.on('Runtime.consoleAPICalled', p => events.console.push({
     source: 'console-api', level: level(p.type),
@@ -298,6 +304,7 @@ async function start(request) {
 }
 
 async function openPage(name, timeoutMs) {
+  observingNavigation = false;
   page.setDefaultTimeout(timeoutMs);
   opening = name;
   let response;
@@ -422,8 +429,12 @@ async function interact(request) {
     if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
     else {
       const handle = product.first();
-      if (request.kind === 'navigate' && !await attached.evaluateAll((list, href) =>
-          list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), request.destinationPage))
+      const stateHref = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
+        + '/' + encodeURIComponent(request.destination.state);
+      const navigateHrefs = [stateHref];
+      if (request.destination.state === surfaceDefaults[request.destination.surface]) navigateHrefs.push(request.destinationPage);
+      if (request.kind === 'navigate' && !await attached.evaluateAll((list, hrefs) =>
+          list.every(el => el.tagName === 'A' && hrefs.includes(el.getAttribute('href'))), navigateHrefs))
         return { problems: ['navigate controls must link to the declared page'], visible: false, focusCorrect: false, observed };
       if (request.kind === 'state' && request.page !== request.destinationPage) {
         const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
@@ -442,6 +453,7 @@ async function interact(request) {
         await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
         before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
       }
+      observingNavigation = true;
       if (request.trigger === 'keyboard') {
         const tag = await handle.evaluate(el => el.tagName.toLowerCase());
         await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
@@ -469,12 +481,15 @@ async function interact(request) {
       }
       const url = page.url();
       arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
-      if (request.kind === 'state' && request.page !== request.destinationPage) {
+      if (request.kind === 'navigate') {
+        if (!navigateHrefs.some(href => url === BASE + href)) problems.push('browser did not reach the declared navigation URL');
+      } else if (request.kind === 'state' && request.page !== request.destinationPage) {
         const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
           + '/' + encodeURIComponent(request.destination.state);
         if (url !== BASE + href) problems.push('browser did not reach the declared state URL');
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
+      observingNavigation = false;
       // Declared opener clicks may precede the one operation-control focus event.
       focusCorrect = events.focus.length === opened.length + 1
         && opened.every((panel, index) => events.focus[index].opener === panel)
@@ -800,6 +815,9 @@ class NodeDriver:
         threading.Thread(target=self._pump, args=(proc.stdout, self._lines), daemon=True).start()
         threading.Thread(target=self._pump, args=(proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
+                          surfaceDefaults={row["id"]: next((s for s in row["states"] if not _is_na_state(s)), None)
+                                           for row in json.loads(HIFI_MANIFEST_RE.search(
+                                               self.files["index.html"].read_text(encoding="utf-8")).group("data"))["surfaces"]},
                           viewport={"width": 1920, "height": 1080}, colorScheme=self.color_scheme)
         self.environment = reply["result"]["environment"]
 
@@ -1506,8 +1524,7 @@ class Runner:
         crosses_page = action["kind"] == "state" and action["page"] != action["destinationPage"]
         if action["kind"] == "navigate" or crosses_page:
             urls = {DRIVER_BASE + action["destinationPage"]}
-            if crosses_page:
-                urls.add(DRIVER_BASE + _hifi_state_href(action["destinationPage"], action["destination"]))
+            urls.add(DRIVER_BASE + _hifi_state_href(action["destinationPage"], action["destination"]))
             arrived = [row for row in stray if row.get("url") in urls]
             if len(arrived) == 1:
                 record["arrived"] = action["destinationPage"]

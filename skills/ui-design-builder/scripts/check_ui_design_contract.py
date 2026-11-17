@@ -32,7 +32,7 @@ from review_evidence import (
     line_ending_note,
     score_findings,
 )
-from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import ReviewerParser, _is_na_state, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1522,7 +1522,11 @@ def _validate_hifi_bundle(
         if not controls or control not in source["navigation"] + source["controls"]:
             _add(problems, f"HiFi interaction {identifier} is not bound to a product control")
         if action["kind"] == "navigate":
-            if any(item.get("tag") != "a" or item.get("href") != destination["page"] for item in controls):
+            hrefs = {_hifi_state_href(destination["page"], action["destination"])}
+            default = next((state for state in destination["states"] if not _is_na_state(state)), None)
+            if action["destination"]["state"] == default:
+                hrefs.add(destination["page"])
+            if any(item.get("tag") != "a" or item.get("href") not in hrefs for item in controls):
                 _add(problems, f"HiFi interaction {identifier} link must reach its declared page")
         elif action["kind"] == "state":
             if source["page"] != destination["page"]:
