@@ -193,7 +193,8 @@ def _read_product_css(path: Path) -> str:
     if _linked_path(path):
         _fail(f"linked product stylesheet is not allowed: {path}")
     try:
-        css = path.read_bytes().decode("utf-8")
+        # Pages are written with LF; the checker reads the entry in text mode and children as bytes.
+        css = path.read_bytes().decode("utf-8").replace("\r\n", "\n")
     except (OSError, UnicodeError) as exc:
         _fail(f"cannot read product stylesheet {path}: {exc}")
     if not css.strip():

@@ -491,6 +491,12 @@ class AssembleProductCssTests(unittest.TestCase):
         stripped = re.sub(r"<!-- hifi-product:css:start -->[\s\S]*?<!-- hifi-product:css:end -->\n", "", self.page("details.html"))
         self.assertEqual(plain, stripped)
 
+    def test_a_crlf_stylesheet_is_embedded_with_lf_endings(self):
+        self.css_path.write_bytes(self.CSS.replace("\n", "\r\n").encode("utf-8"))
+        self.assemble_with_css()
+        for name in ("index.html", "details.html"):
+            self.assertNotIn(b"\r", (self.output / name).read_bytes(), name)
+
     def test_a_repeated_assembly_gives_the_same_bytes(self):
         self.assemble_with_css()
         first = {name: (self.output / name).read_bytes() for name in ("index.html", "details.html")}
