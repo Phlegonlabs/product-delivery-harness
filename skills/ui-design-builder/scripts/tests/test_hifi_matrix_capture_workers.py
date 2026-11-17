@@ -462,6 +462,22 @@ class FakeWorkersTests(unittest.TestCase):
         kept = {r["capture"]["path"].rsplit("/", 1)[-1] for r in sidecar["cases"] + axes if r["capture"]}
         self.assertEqual(kept, {p.name for p in out.glob("*.png")})                # a blocked row's capture file is gone
 
+    def test_a_row_that_already_failed_stays_failed_when_another_worker_cannot_open_its_page(self):
+        cases = ((m.axis_unopened("dark"), "horizontal overflow 40px"),
+                 (m.INTERACTIONS_UNOPENED, "product control was not visible"),
+                 (m.REVIEWER_UNOPENED, "measured width differs"))
+        for page_reason, own_reason in cases:
+            with self.subTest(reason=page_reason):
+                failed = {"result": "FAIL", "reasons": [own_reason]}
+                m.Runner.unopen(None, failed, "BLOCKED", [page_reason])
+                self.assertEqual(("FAIL", [page_reason, own_reason]), (failed["result"], failed["reasons"]))
+                passed = {"result": "PASS", "reasons": []}
+                m.Runner.unopen(None, passed, "BLOCKED", [page_reason])
+                self.assertEqual(("BLOCKED", [page_reason]), (passed["result"], passed["reasons"]))
+                blocked = {"result": "BLOCKED", "reasons": ["browser driver restart limit (3) reached"]}
+                m.Runner.unopen(None, blocked, "BLOCKED", [page_reason])
+                self.assertEqual(["browser driver restart limit (3) reached"], blocked["reasons"])
+
     def test_a_repeated_axis_is_refused_before_any_browser_starts_for_every_worker_count(self):
         for workers in ("1", "2", "4"):
             with self.subTest(workers=workers):
