@@ -1429,7 +1429,8 @@ class Runner:
                 self.unopen(record, "BLOCKED", [REVIEWER_UNOPENED])
 
     def unopen(self, record, result, reasons):
-        """Rewrite one row as its page not having opened. A PASS loses what it measured (and its capture file)."""
+        """Rewrite one row as its page not having opened. A PASS loses what it measured (and its capture file);
+        a row that already failed stays FAIL and keeps its own reasons after the page reasons."""
         if record["result"] == "BLOCKED":
             return
         own = [r for r in record["reasons"] if r not in reasons] if record["result"] == "FAIL" else []
@@ -1447,7 +1448,8 @@ class Runner:
                 record["fingerprintIncomplete"] = False
             for key in ("pixelDiff", "observed"):
                 record.pop(key, None)
-        record["result"], record["reasons"] = result, list(reasons) + own
+        record["result"] = "FAIL" if record["result"] == "FAIL" else result
+        record["reasons"] = list(reasons) + own
 
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
