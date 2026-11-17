@@ -47,7 +47,15 @@ class PreDeliverySelfReviewTests(unittest.TestCase):
                          "not a fifth authored target", "parent semantic handoff check",
                          "A repair self-check covers the ledger rows, changed sources, direct consumers",
                          "it does not rerun the complete matrix",
-                         "builds the complete matrix receipt once per candidate",
+                         "is the candidate's one matrix capture: nobody captures those bytes again",
+                         "the receipt is built from that output",
+                         "an undisposed measured failure is a finding",
+                         "the driver with `--carry-from` and `--measure-a11y`",
+                         "an after-capture for every ledger row",
+                         "no review is spent",
+                         "`--only` for the pilot pages",
+                         "on the pilot pages, after each journey, and on the whole package",
+                         "read its `reference/craft-floor.md` after `frontend-design`",
                          "only for approved scope whose bytes changed since approval",
                          "or when its UI contract version changed"):
             self.assertIn(boundary, source)
