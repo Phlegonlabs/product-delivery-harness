@@ -1,16 +1,16 @@
 # HiFi Matrix Capture
 
-`scripts/hifi_matrix_capture.py` observes the surface × state × target matrix of an assembled `ui-hifi/2` package in one browser session. It replaces the per-project browser harness for the case matrix of the HiFi surface check.
+`scripts/hifi_matrix_capture.py` observes the surface × state × target matrix of an assembled `ui-hifi/2` package in one browser session, or on several at once with `--workers`. It replaces the per-project browser harness for the case matrix of the HiFi surface check.
 
-    python "<ui-design-builder-skill-root>/scripts/hifi_matrix_capture.py" --repo-root . --package docs/design/ui-references/<run-id> --out docs/evidence/<run-id>/surface-1
+    python "<ui-design-builder-skill-root>/scripts/hifi_matrix_capture.py" --repo-root . --package docs/design/ui-references/<run-id> --out docs/evidence/<run-id>/surface-1 --workers 4
 
-Run it from the repository root. Relative `--package`, `--out`, `--carry-from`, `--ui-design` and `--diff-against` paths are repo-root relative. `--package` and `--out` stay inside the repository, and `--out` must be new unless `--overwrite` is given. The browser is Node Playwright with Chromium (`npm ci`, `npx playwright install chromium`, or `PLAYWRIGHT_MODULE`).
+Run it from the repository root. Each `--workers` browser is one headless Chromium, so lower the count on a loaded machine. Relative `--package`, `--out`, `--carry-from`, `--ui-design` and `--diff-against` paths are repo-root relative. `--package` and `--out` stay inside the repository, and `--out` must be new unless `--overwrite` is given. The browser is Node Playwright with Chromium (`npm ci`, `npx playwright install chromium`, or `PLAYWRIGHT_MODULE`).
 
 ## What a run does
 
 Every manifest page path must be a plain file inside the package folder: `..`, absolute and drive paths, backslashes and links fail the run (exit 2) before anything is read. The package bytes are served from one closed same-origin context. Every other request, popup, form submit and download is blocked and recorded. The matrix pass clicks no product control, so any document request after its own page open is a navigation: a declared page is still served, but the transcript records it (`allowlisted: true`) and the case fails. CDP `Log` and `Runtime` are on before the first load and are never cleared.
 
-Each page loads once. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. After three restarts the rest are BLOCKED.
+A browser loads a page once for each run of cases on it and never reloads between cases; with `--workers` that is once per browser that runs cases on the page. Every interaction attempt and every reviewer pass starts from a fresh load, so no attempt depends on an earlier one. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. After three restarts of one browser the rest of its work is BLOCKED.
 
 States ending in `:n/a` need no product marker or state/target case. Overview still records their reason. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, a measured canvas width more than 1 px from a numeric viewport target (a size class records `geometry.canvasWidth` only), horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
 
@@ -30,6 +30,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 
 | Flag | Effect |
 | --- | --- |
+| `--workers N` | Run on N browsers at once, 1 to 4 (default 1); a higher value exits 2. Each worker is one headless Chromium. The work is split before the run from the package alone, so the same package and N always give the same split and the same output order. Cases, interactions, axis rows and reviewer rows match a one-browser run; the transcript lists can hold more page-load rows. A browser that runs out of restarts blocks only its own share. Never more browsers than work items: `run.workers` in `matrix-capture.json` records the count used, and the printed `restarts` totals all of them. |
 | `--only UI-003,UI-004` | Only these surfaces. |
 | `--carry-from <ui-output.json>` | Carry unchanged cases from an earlier output of this tool. |
 | `--recapture-carried` | Screenshot carried cases too. |
