@@ -1,6 +1,6 @@
 # EPIC-design-flow: carry the owner's references across projects and compare directions side by side
 
-Status: reviewed and verified on `design-flow`; release surfaces set to 0.87.0; pull request open, not merged
+Status: published as 0.87.0 on 2026-11-17 (PR #194, `main` `6b545763`, tag `v0.87.0`); installed the same day (five-skill contract `996be146…`); consumers not yet re-pinned
 Design workflow: enhancement
 UI impact: none in a product. One reviewer page is new: a round of three direction studies gets `_compare.html`.
 
@@ -67,6 +67,8 @@ Two scoped reviews then each found one more collision between the page's file na
 
 Security lens: the title injection (CWE-79) and the library write without consent were the two security findings; both are resolved and re-checked.
 
+Pull-request review (Codex, on `c4bf9a8d`), one P1: assembling the journey map as a one-direction profile into the round folder, which Workflow step 4 prescribes, removed the valid `_compare.html`, and the checker then reported it missing. None of the four earlier review passes joined the page to that later step. Repair `d9c427a0`: a one-study assembly that names a compared direction and none of the compared study files leaves the page in place. Scoped review on `d9c427a0`: PASS.
+
 Known limits, not acted on: a variant round that leaves out its table cannot be told from an ordinary new round, so it is not caught; a backdated direction decision lets a round omit the page, though a page that is present is always checked; in `_compare.html`, Escape returns to the comparison only when focus is outside the study frame, and a long study scrolls in its column without a visible scrollbar.
 
 ## Verification
@@ -77,19 +79,20 @@ Known limits, not acted on: a variant round that leaves out its table cannot be 
 
 ## Change Log
 
+- 2026-11-17: published as 0.87.0 and installed. CI passed 14 of 14 on `d9c427a0`; the merge commit is tree-equal to the candidate (`promotion_readback.py post`: `tree_equal_S`).
 - 2026-11-17: reviewed, repaired and verified; the comparison page renamed `_compare.html`; release surfaces set to 0.87.0.
 - 2026-11-17: round opened and integrated.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / design-flow / the release commit after 93dc6ed7 and the merge of main 0.86.0 / none
-Stage and skill: source maintenance; candidate reviewed, pull request open
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / 6b545763 (v0.87.0) plus this record / none
+Stage and skill: source maintenance; release complete
 Inputs consumed (path + hash or revision): main 176be53b (v0.86.0)
 Approvals in force (gate, owner, date, candidate): owner 2026-11-17, four items picked in the question dialog; the publication path follows the same day's go-ahead for the parallel checks round
-Done and verified (command, exit code): ui suite with browsers on 93dc6ed7, exit 0; scoped review PASS on 93dc6ed7
-Remaining: CI on the pull request head; merge; tag v0.87.0; install; consumer re-pins after the owner says so
+Done and verified (command, exit code): PR #194 checks, 14 of 14 pass; install.sh exit 0, contract 996be1469755f85b9e6653967d987a3b744ecdc624a1b277ae33a2a39ba4d9be (previous ace80228…)
+Remaining: consumer re-pins for 0.86.0 and 0.87.0 after the owner says so. Proposed, not started: the tweak panel on the Design Tokens view; the gallery runtime race recorded in EPIC-parallel-checks
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): merge the pull request when its checks pass
-Next owner (skill or human): Harness parent
+Next action (one command or one owner decision): the owner decides when consumers re-pin
+Next owner (skill or human): owner
 ```
