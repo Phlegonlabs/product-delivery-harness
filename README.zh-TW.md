@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.87.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.88.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -201,6 +201,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.88.0** — HiFi matrix driver 和 reviewer runtime 補上四個缺口，這些缺口原本會把正確的產品行為判成失敗。`navigate` 互動現在可以指定目的狀態：控制項連到 `<page>#hifi-state=<surface>/<state>`，同一頁也適用；目的狀態不是該頁預設狀態時必須用這個寫法。抵達時由 fragment 決定 surface 和狀態，抵達結果會被記住，其他頁面存下的選擇不再決定產品導覽之後頁面顯示什麼。多個可到達的實例共用一個 control ID 時，driver 會啟動第一個尚未選取的實例並記錄其索引，所以分段控制會真的產生變化。操作的控制項是文字欄位、textarea 或 select 時，driver 會像使用者一樣輸入資料，仍然要求觀察到變化；停用或唯讀的欄位判失敗。一直逾時的頁面現在只會讓自己剩下的工作失敗或被擋，base 和 intermediate 的執行都一樣，所以整個 package 用 `--workers 4` 可以跑完：一個 52 頁、入口頁 6.9 MB 的 package，被擋的案例從 345 個降到 0。`HIFI_REVIEWER.template.html` 裡的 reviewer runtime 有變，package 要用新範本重建頁面才算採用這一版；compiler 接受新的 runtime 和先前兩個版本。
+
 - **0.87.0** — `ui-design-builder` 的參考與方向步驟少了來回輪次，也能把 owner 的品味帶到下一個專案。owner 可以在任何專案之外維護一個參考庫（預設 `~/.agents/design-references/`，截圖放在分類資料夾，加一張 `index.md` 表格）。參考板先從參考庫開始：選中的項目連同 `REF-*` 記錄與 hash 複製進該輪，研究只補參考庫沒涵蓋的用途。Visual Approval 之後，agent 只詢問一次是否把該輪採用的參考加入參考庫；只有 owner 答應才寫入，而且絕不覆寫既有項目。研究得到的參考板、提議的 Adopt / Adapt / Avoid 原則和方向研究現在一輪就交給 owner：owner 在同一次回覆中確認原則並選定、混合或否決方向，被否決的原則在混合或修改的修訂中處理。三個研究的一輪另外會產生 `_compare.html`，這是該先開的頁面：所有研究在同一情境與寬度下並排即時呈現，可放大單一研究並有上一個、下一個與返回。檢查器會從該輪的研究重新產生這個頁面，方向決定日期在 2026-11-18 或之後的輪次必須完全相符；更早的輪次沒有它仍然有效。owner 在選擇的回覆中可以要求一次變體輪：針對某個研究的三個版本，各改變一個指明的軸，記錄在 `### Variant round` 表格，其母方向必須是上一輪保留的研究。階段卡拆成短步驟，規則全部保留。
 
 - **0.86.0** — 慢的檢查現在可以同時跑。`hifi_matrix_capture.py --workers N`（1 到 4，預設 1）用固定的切分方式，把基本案例、互動操作、reviewer 量測和軸量測分給 N 個 headless Chromium，最後寫出一份合併輸出，列的內容與單一瀏覽器的結果相同；一個 222 個案例的真實 package 用 4 個瀏覽器從 1803 秒降到 697 秒。不論幾個 worker，每次互動操作現在都從重新載入的來源頁開始：前一次操作留下的產品狀態不再影響下一次。這在該 package 上消除了 109 筆假的互動失敗，所以同一個 package 舊的失敗數可能比新跑的高。任一瀏覽器打不開的頁面整頁判失敗，重複的 `--axes` 值以退出碼 2 拒絕，執行結束後不留下任何瀏覽器進程。一個審查點現在以同時派出的唯讀呼叫送出，每個 lens（code、security、visual）一個；parent 把結果合併成一份 finding、一個判定和一個修補迴圈。同一個 lens 派多個審查員仍需要 owner 要求，需要瀏覽器的 managed 節點把 security 與 visual lens 放在同一個呼叫。在 direct 路線上，全量最終驗證可以和審查在同一個未變動的候選版本上同時開始；修補後不沿用其中任何結果，managed 的最終 gate 仍然等待它的審查節點。在本倉庫中，`ci_test_shards.py matrix` 以每個測試模組一個進程的方式跑 product、ui 和 design-system 套件，瀏覽器套件同時最多三個，跑了零個測試的模組判失敗，並印出失敗模組的最後幾行；CI 的瀏覽器工作使用同一個 runner。
@@ -208,7 +210,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.85.0** — HiFi 檢查現在接受已核准 PRD 所描述的行為。目的地與來源相同的 PRD 操作（儲存、篩選、排序）對應到新的 manifest kind `feedback`，matrix driver 只在啟動後來源 surface 真的有變化時才判為通過；只有焦點移動不算。`state` 互動可以落在另一頁，條件是該控制項的每個實例都連到 `<page>#hifi-state=<surface>/<state>`。宣告為 `:n/a` 的狀態不需要頁面標記。同一個操作可以畫很多次：driver 啟動第一個可見的實例，並記錄數量。表單欄位可以用 `data-control-for` 指明所屬的按鈕，不必自己帶一個操作；動作型 input 以及 button、link role 不能用這個屬性。`data-product-disclosure` 加入選單與分頁這兩種開關，開關本身不需要操作，driver 會先打開已宣告的開關，再啟動被收起的控制項。PRD 操作為 `none` 的 surface 可以不宣告 navigation 和 controls。`zoom-200` 軸現在把 query container 的寬度減半，和瀏覽器縮放一致。互動列可以帶一個選填的 `observed` 物件（`change`、`instances`、`openers`）；`ui-output/3` 和舊收據仍然有效。控制項偵測變嚴了：所有互動型 ARIA role、帶指標事件處理的任何元素，以及帶鍵盤事件處理的可聚焦元素，現在都需要 control ID；以前畫了這類元素卻沒有綁定的套件，要補上綁定才會通過。
 
 - **0.84.0** — mission 只是多需要一個路徑時，managed run 不再為此停下來做 PLAN 修訂。某個 consumer 的一次交付裡，寫入範圍的修正佔了 53 小時中的約 21 小時，並造成六次 PLAN 修訂和六個新 RUN。這一版用三個改動拿掉這個成本。task 的 commit 可以碰 mission 寫入範圍內、且有該 mission 任一 task 列出的路徑；task 的 `write_scope` 是規劃提示，mission 範圍仍是邊界。`harness_transition.py amend-scope --mission-id <id> --path <path> --reason <text>` 把路徑記進執行中 RUN 的 `scope_amendments`：PLAN、修訂號和 digest 都不變，目前這次嘗試的結果隨即可以通過驗證。parent 直接執行，不需要 owner 回覆。它會拒絕 parent 擁有的檔案、coordination 路徑、acceptance register、被 deny 的路徑、凍結的來源檔、與尚未整合的 mission 重疊的路徑、security review 為 `not_applicable` 時的可執行路徑，以及會讓非 UI mission 變成 UI authoring 的路徑；這些仍然要走 PLAN 修訂。`record-worker-result` 和 `record-node-result` 新增 `--check`，跑同樣的驗證但不寫入任何東西，所以 packet 寫錯 lease 時改正後重送即可，不會用掉該節點的嘗試次數。必讀內容也變少：入口、managed 階段和 Product Definition 階段原本整份連到 `verification-gates.md`、`execution-state-model.md`、`contract-and-traceability.md` 和 `output-contract.md`，現在改連到章節（delivery-harness 由 32,017 字降到 26,137 字，product-definition-builder 由 38,169 字降到 35,889 字）。沒有刪除任何規則文字。
-
-- **0.83.2** — 獨立 skills 新增 Logo Studio。`logo-studio` 由品牌簡報開始設計或重做產品 logo：先看同行的標誌，再畫至少 36 個黑白草圖，分四類，單純首字母的草圖最多佔九分之一；每個草圖按五項測試評分，把三至五個構思精修成只含路徑的 SVG，然後做壓力測試：16 像素、單色、app 圖示，以及產品裡實際出現的位置。原則文件引用 Chermayeff & Geismar & Haviv 的三項標準和 Apple、Android 的圖示指引，查核日期 2026-11-16。標誌由 owner 選定；這個 skill 不核准任何東西、不做商標查冊、不替換線上資產。它和其他獨立 skills 一樣須另行向 host 註冊，`install.sh` 仍然只安裝五個核心 skills。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
