@@ -528,6 +528,17 @@ class DirectionAssemblyTests(unittest.TestCase):
         self.retained_round(("compare.html",))
         self.assertEqual([], self.package_problems(("compare.html",)))
 
+    def test_a_retained_one_study_package_named_with_another_case_validates_and_reassembles(self) -> None:
+        # Filesystems that ignore case see Compare.html and compare.html as one file, so the study must not be taken
+        # for a stale comparison page by the package check or by reassembly.
+        self.pages = {"Compare.html": source_html("compare")}
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": "VD-R1-01", "file": "Compare.html",
+                                   "sourceSha256": hashlib.sha256(self.pages["Compare.html"].encode("utf-8")).hexdigest()}]}
+        self.run_assembly(profile)
+        self.run_assembly(profile, overwrite=True)
+        self.assertEqual([], self.package_problems(("Compare.html",)))
+
     def one_study_profile(self) -> dict:
         self.pages = {"vd-04.html": source_html("vd-04")}
         return {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),

@@ -409,7 +409,7 @@ def compare_package_findings(folder: Path, files: list[str], *, required: bool =
     A round decided before the page existed (``required`` false) may lack it, but a page that is there must match.
     """
 
-    if files == [COMPARE_FILE]:  # a retained one-study package whose own study has this name
+    if len(files) == 1 and files[0].casefold() == COMPARE_FILE:  # a retained one-study package whose study has this name
         return []
     page, label = folder / COMPARE_FILE, f"Comparison page {folder.name}/{COMPARE_FILE}"
     profiles: set[str | None] = set()
