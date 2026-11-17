@@ -541,5 +541,20 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("Do not commit evidence of earlier attempts", evidence)
 
 
+class OneTurnAndLibraryConsentTests(unittest.TestCase):
+    def test_no_document_requires_confirmed_principles_before_the_studies_or_writes_the_library_unasked(self):
+        references = Path(__file__).resolve().parents[2] / "references"
+        guide = (references / "design-reference-guide.md").read_text(encoding="utf-8")
+        design_pass = (references / "ui-design-pass.md").read_text(encoding="utf-8")
+        for text in (guide, design_pass):
+            self.assertNotIn("confirmed `REF-*` and `RP-*` evidence", text)
+            self.assertIn("proposed until the owner confirms it with the studies", text)
+        self.assertNotIn("adds its row when it first uses the image", guide)
+        self.assertIn("leaves the library unchanged", guide)
+        self.assertIn("written only on that yes", guide)
+        self.assertNotIn("the reply that also carries the journey set", guide)
+        self.assertIn("The journey set and font pairings follow selection", guide)
+
+
 if __name__ == "__main__":
     unittest.main()

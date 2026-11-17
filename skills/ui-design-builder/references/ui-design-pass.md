@@ -91,7 +91,7 @@ For each direction, record:
 
 - a versioned `VD-*` ID and concise design intent;
 - product and audience fit, including the accepted Design Brief page-purpose/profile and type/density/headline constraints;
-- confirmed `REF-*` and `RP-*` evidence, including useful composition/typography/motion roles and avoid rationale;
+- `REF-*` and `RP-*` evidence with each principle's recorded status (proposed until the owner confirms it with the studies), including useful composition/typography/motion roles and avoid rationale;
 - layout, composition, typography, color, surface, shape, icon, imagery, and motion rules;
 - tradeoffs and an avoid list; and
 - how it respects the approved component foundation and styling approach.
