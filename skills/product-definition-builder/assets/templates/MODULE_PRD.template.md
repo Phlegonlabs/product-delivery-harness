@@ -69,7 +69,7 @@ Trace: [PRD/UI/TEST IDs for this complete journey]
 - `copy`: [draft / approved / revision_requested / blocked] — [copy responsibility]
 - Responsive obligations: [Content and actions that never drop; long-content and overlay behavior]
 - Accessibility: [Focus, labels, announcements, heading order, and alt text]
-- SEO metadata: [`<title>`, meta description, canonical URL, or `n/a — <reason>`]
+- SEO metadata: [`<title>` and meta description with their character limits and `KW-*`, canonical URL, or `n/a — <reason>`]
 - Trace IDs: [PRD-<SCOPE>-*, UX-<SCOPE>-*, ARCH-<SCOPE>-*, TEST-<SCOPE>-*]
 
 <!-- ui-surface-contract:end -->
