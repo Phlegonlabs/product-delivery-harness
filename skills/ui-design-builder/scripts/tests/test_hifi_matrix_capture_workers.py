@@ -234,6 +234,14 @@ class FakeWorkersTests(unittest.TestCase):
                 self.assertEqual((2, []), (code, fleet.drivers))
                 self.assertEqual("--workers must be from 1 to 4", summary["error"])
 
+    def test_a_repeated_axis_is_refused_before_any_browser_starts_for_every_worker_count(self):
+        for workers in ("1", "2", "4"):
+            with self.subTest(workers=workers):
+                fleet = Fleet(self)
+                code, summary, _ = fleet.go("--axes", "dark,reflow-320,dark", "--workers", workers)
+                self.assertEqual((2, []), (code, fleet.drivers))
+                self.assertEqual("axis dark is repeated; name each axis once", summary["error"])
+
     def test_carry_only_derived_diff_recapture_intermediate_and_dark_work_under_workers(self):
         fleet = Fleet(self)
         _, _, first = fleet.go(out="docs/evidence/first")

@@ -1960,6 +1960,9 @@ def execute(args, make_driver=node_driver):
     unknown = [a for a in axes if a not in AXES]
     if unknown:
         raise UsageError(f"unknown axis {unknown[0]}; choose from {', '.join(AXES)}")
+    repeated = [a for index, a in enumerate(axes) if a in axes[:index]]
+    if repeated:
+        raise UsageError(f"axis {repeated[0]} is repeated; name each axis once")     # two passes would share capture names
     for flag, value in (("--derived", args.derived), ("--ui-design", args.ui_design)):
         if value and not args.derived_once:
             raise UsageError(f"{flag} needs --derived-once")
