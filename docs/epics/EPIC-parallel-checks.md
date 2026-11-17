@@ -80,7 +80,9 @@ Review notes not acted on: the browser-suite cap test asserts the printed worker
 
 - Full matrix on `2a8a2fb2`: `ci_test_shards.py matrix --base origin/main --workers 8`, result pass. Harness 789.2 s (128 modules), golden path 5.5 s, product 28.2 s, ui 74.5 s, design-system 58.2 s, skill spec, pyflakes, docs weight and diff check pass.
 - On `d897060c` (the two-line repair after it): both capture test modules with browser tests required, 134 tests, exit 0; pyflakes exit 0; `git diff --check origin/main HEAD` exit 0.
-- CI on the pull request head is the candidate's full run.
+- CI on the pull request head is the candidate's full run. Its first two runs failed in `linux-required-browser` on one test, `test_demo_gallery_runs_sandboxed_and_interactive`: the first gallery frame never became ready. A longer wait (`aa28b742`) did not help, which showed the cause: the gallery page marks a frame ready when the frame reports its size, and on a loaded runner the first frame reports before the page listens and never reports again. That is a defect in the `design-system-compiler` gallery runtime that the serial suite had been hiding. This round does not fix it, because the fix changes the generated preview bytes of every `design-system/4` package; the module now runs alone after the parallel batch (`SERIAL_FILES`).
+
+Open defect for a later round: the gallery runtime can miss the first frame's size report under load, leaving that plate at its default height.
 
 ## Change Log
 
