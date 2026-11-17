@@ -52,6 +52,20 @@ class NavigationBrowserTests(unittest.TestCase):
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
 
+    def test_same_page_state_hashes_keep_the_existing_non_navigation_contract(self):
+        actions = copy.deepcopy(matrix.INTERACTIONS)
+        actions[0].update(kind="state", destination={"surface": "UI-001", "state": "loading"})
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = matrix.build_interactions_package(root, interactions=actions, page_edit=lambda html:
+                html.replace('href="details.html" data-navigation-id="to-details"',
+                             'href="index.html#hifi-state=UI-001/loading" data-navigation-id="to-details"'))
+            code, message = self.run_main(self.playwright(), root, package, "--out", "evidence", "--only", "UI-001")
+            self.assertEqual(0, code, message)
+            output = json.loads((root / "evidence/ui-output.json").read_text(encoding="utf-8"))
+            self.assertEqual([], output["navigation"])
+            self.assertEqual({"PASS"}, {row["result"] for row in output["interactions"]})
+
     def test_browser_load_timeout_is_bounded_and_a_fresh_browser_opens_the_next_page(self):
         driver = self.driver(edit=lambda html: html.replace('</head>',
             '<script>while(true){}</script></head>') if 'Harbor desk' in html else html)

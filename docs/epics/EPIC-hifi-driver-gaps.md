@@ -47,6 +47,7 @@ Existing passing packages must keep passing.
 | G3 data entry | Driver and two contracts | G2 commit `9ea7f18e`; focused field tests | User input retains source-change and focus proof. Parent review pending. |
 | G4 page recovery | Driver, matrix suites and two contracts | G3 commit `b7b3ac0d`; focused recovery tests | Failed pages remain failed; unrelated pages continue. Parent review pending. |
 | G1 compiler adoption | Exact runtime pin and historical-runtime regression fixture | G4 commit `fe0ff5db`; compiler compatibility suite | Preserve both older runtimes; reject modified bodies. Parent review pending. |
+| G1 event compatibility | Record same-document arrivals only for navigate attempts | Pin follow-up `48758372`; state-hash Chromium regression | Same-page state hashes retain their existing transcript contract. Exact navigation links still require arrival proof. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -72,7 +73,7 @@ Consumer edits belong to the consumer author. This work changes no consumer byte
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / fe0ff5db plus G1 pin follow-up / scoped compiler files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / 48758372 plus G1 event repair / scoped driver files
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope

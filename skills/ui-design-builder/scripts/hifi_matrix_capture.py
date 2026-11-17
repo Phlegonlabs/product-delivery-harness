@@ -470,7 +470,7 @@ async function interact(request) {
         await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
         before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
       }
-      observingNavigation = true;
+      observingNavigation = request.kind === 'navigate';
       if (field) {
         if (request.trigger !== 'keyboard') await handle.click({ timeout });
         if (field === 'text') {
