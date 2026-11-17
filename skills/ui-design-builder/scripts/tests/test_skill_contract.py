@@ -181,7 +181,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         intake = stage.index("Combine unanswered design, imagery and motion questions into one intake")
         wireframe = stage.index("produce direction studies")
         style = stage.index("author the complete connected `ui-hifi/2` package")
-        review = stage.index("Run Impeccable critique/audit under the existing authorization")
+        review = stage.index("Run Impeccable critique/audit under the intake's authorization")
         self.assertLess(intake, wireframe)
         self.assertLess(wireframe, style)
         self.assertLess(style, review)
