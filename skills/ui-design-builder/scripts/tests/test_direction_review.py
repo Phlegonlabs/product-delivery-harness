@@ -563,6 +563,30 @@ class DirectionAssemblyTests(unittest.TestCase):
         # Three rows from different assemblies, one of them revised, have no current page either.
         self.assertIn("does not belong", " ".join(self.package_problems(("vd-01.html", "vd-03.html", "vd-04.html"))))
 
+    def test_the_journey_map_keeps_the_comparison_page_and_a_revised_study_removes_it(self) -> None:
+        # Workflow step 4 assembles journeys.html as a one-direction profile into the round folder. It replaces no
+        # compared study, so the three-study comparison page must survive and the package must stay valid.
+        self.run_assembly()
+        page = self.out / "_compare.html"
+        generated = page.read_bytes()
+        studies = dict(self.pages)
+        selected = self.profile()["directions"][1]
+        self.pages = {"journeys.html": source_html("journeys")}
+        journeys = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                    "directions": [{"id": selected["id"], "file": "journeys.html",
+                                    "sourceSha256": hashlib.sha256(self.pages["journeys.html"].encode("utf-8")).hexdigest()}]}
+        self.run_assembly(journeys)
+        self.assertTrue((self.out / "journeys.html").exists())
+        self.assertEqual(generated, page.read_bytes())
+        self.assertEqual([], self.package_problems())
+        # A revised study takes a compared study's file: the page no longer describes the round and goes.
+        self.pages = {selected["file"]: studies[selected["file"]].replace("</title>", " revised</title>")}
+        revised = {"schema": "ui-direction-review/1", "round": "round-1", "cases": copy.deepcopy(CASES),
+                   "directions": [{"id": selected["id"], "file": selected["file"],
+                                   "sourceSha256": hashlib.sha256(self.pages[selected["file"]].encode("utf-8")).hexdigest()}]}
+        self.run_assembly(revised, overwrite=True)
+        self.assertFalse(page.exists())
+
     def test_the_assembler_never_deletes_a_compare_page_it_cannot_prove_it_wrote(self) -> None:
         self.out.mkdir(parents=True)
         (self.out / "_compare.html").write_text("<html>mine</html>", encoding="utf-8", newline="")

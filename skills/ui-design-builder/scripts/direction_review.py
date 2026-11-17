@@ -404,6 +404,23 @@ def is_generated_compare(html: str) -> bool:
     return not assembled_compare_findings(html, COMPARE_FILE)
 
 
+def is_beside_compared_studies(html: str, row: dict[str, Any]) -> bool:
+    """Whether a one-study assembly adds a page beside the studies this comparison page compares.
+
+    The journey map is assembled as a one-direction profile into the round folder: it names a compared
+    direction's ID and a file that is none of the compared studies. It replaces no study, so the page stays
+    current. A revised study names a compared study's file, and another round names an unknown direction.
+    """
+
+    found = COMPARE_RE.search(html)
+    try:
+        compared = json.loads(found.group(1))["profile"]["directions"] if found else []
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return False
+    return (any(item["id"] == row["id"] for item in compared)
+            and all(item["file"].casefold() != row["file"].casefold() for item in compared))
+
+
 def compare_package_findings(folder: Path, files: list[str], *, required: bool = True) -> list[str]:
     """What a round folder must hold: the comparison page regenerated from its current studies, or none.
 
