@@ -84,6 +84,8 @@ The sample, once per page, is `ready` (or the first state) and the non-derived s
 
 Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
 
+Intermediate work inherits the base run's page budgets, including when its items move to another worker. Exhausted pages stay BLOCKED; other pages continue.
+
 ## What it does not prove
 
 - Appearance. A fingerprint or pixel diff shows change, not correctness. A screenshot is evidence for a reviewer and grades nothing.

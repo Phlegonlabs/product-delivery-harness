@@ -1911,6 +1911,7 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
         phase(runner, runner.axis_items(cases))
     if intermediate_runner is not None:
         intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
+        intermediate_runner.page_restarts = dict(runner.page_restarts)
         phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
 
 

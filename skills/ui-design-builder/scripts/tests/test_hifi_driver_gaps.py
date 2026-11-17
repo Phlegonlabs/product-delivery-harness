@@ -177,6 +177,32 @@ class NavigationBrowserTests(unittest.TestCase):
 
 
 class PageRecoveryTests(unittest.TestCase):
+    def test_f2_exhausted_page_stays_blocked_when_intermediate_work_changes_workers(self):
+        def configure(driver):
+            for target in ("390", "1200"):
+                driver.overrides[("UI-001", "ready", target)] = {"raise": capture.DriverTimeout("slow page")}
+
+        fleet = workers.Fleet(self, configure)
+        entry = fleet.package / "index.html"
+        manifest = capture.read_package(fleet.package).manifest
+        manifest["interactions"] = []
+        alignment.write_manifest(entry, manifest)
+        with mock.patch.object(capture, "MAX_RESTARTS", 1):
+            code, _, out = fleet.go("--workers", "4", "--intermediate")
+        self.assertEqual(1, code)
+        base, _ = workers.load(out)
+        intermediate, details = workers.load(out / capture.INTERMEDIATE_DIR)
+        self.assertIn("BLOCKED", {r["result"] for r in base["results"] if r["surface"] == "UI-001"})
+        self.assertEqual({"BLOCKED"}, {r["result"] for r in intermediate["results"] if r["surface"] == "UI-001"})
+        self.assertEqual({"PASS"}, {r["result"] for r in intermediate["results"] if r["surface"] == "UI-002"})
+        self.assertTrue(all("restart limit" in r["reasons"][0]
+                            for r in details["cases"] if r["surface"] == "UI-001"))
+        # With no interactions, the three source-page intermediate cases span workers 0 and 1.
+        shares = capture.partition([(("case", c.page, c), 1) for c in capture.intermediate_plan(
+            capture.read_package(fleet.package))], 4)
+        self.assertEqual({0, 1}, {i for i, share in enumerate(shares)
+                                 if any(item[2].surface == "UI-001" for item in share)})
+
     def test_recovery_load_failure_does_not_abort_unrelated_pages(self):
         driver = matrix.FakeDriver()
         driver.overrides[("UI-001", "ready", "390")] = {"raise": capture.DriverTimeout("hung case")}
