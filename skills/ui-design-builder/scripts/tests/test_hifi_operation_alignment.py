@@ -400,7 +400,10 @@ class OperationBrowserTests(unittest.TestCase):
         nested = ('<button data-product-disclosure aria-controls="outer" aria-expanded="false">Editor</button>'
                   '<div id="outer" hidden><button data-product-disclosure aria-controls="inner" '
                   'aria-expanded="false">Details</button><div id="inner" hidden>' + save + '</div></div>')
-        for markup, openers in ((menu, ["menu"]), (nested, ["outer", "inner"])):
+        visibility = ('<button data-product-disclosure aria-controls="editor" aria-expanded="false" '
+                      'onclick="document.getElementById(\'editor\').style.visibility=\'visible\'">Editor</button>'
+                      '<div id="editor" style="visibility:hidden">' + save + '</div>')
+        for markup, openers in ((menu, ["menu"]), (nested, ["outer", "inner"]), (visibility, ["editor"])):
             driver = self.driver(markup)
             for trigger in ("click", "keyboard"):
                 reply = self.attempt(driver, trigger=trigger)
@@ -417,6 +420,48 @@ class OperationBrowserTests(unittest.TestCase):
             reply = self.attempt(driver)
             self.assertIn(reason, "\n".join(reply["result"]["problems"]), reply)
             driver.stop()
+
+    def test_opener_search_uses_the_reachable_instance_in_the_active_variant(self):
+        save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'
+        opener = '<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
+        for state, target in (("ready", "1200"), ("error", "390")):
+            inactive = (f'<section data-hifi-state-view="{state}" data-responsive-target="{target}">'
+                        + save + '</section>')
+            for active in ("disclosure", "no-opener", "absent"):
+                with self.subTest(state=state, target=target, active=active):
+                    markup = inactive
+                    if active != "absent":
+                        markup += ('<section data-hifi-state-view="ready" data-responsive-target="390">'
+                                   + (opener if active == "disclosure" else '')
+                                   + '<div id="editor" hidden>' + save + '</div></section>')
+                    driver = self.driver(markup)
+                    for trigger in ("click", "keyboard"):
+                        reply = self.attempt(driver, trigger=trigger)["result"]
+                        if active == "disclosure":
+                            self.assertEqual([], reply["problems"], reply)
+                            self.assertTrue(reply["focusCorrect"], reply)
+                            self.assertEqual(["editor"], reply["observed"]["openers"])
+                            self.assertEqual(1, reply["observed"]["instances"])
+                        else:
+                            self.assertIn("no instance is reachable", "\n".join(reply["problems"]), reply)
+                            self.assertEqual({"instances": 0}, reply["observed"])
+                    driver.stop()
+
+    def test_opener_search_rejects_unowned_hiding_and_keeps_opener_failures(self):
+        save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'
+        opener = '<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
+        panel = '<div id="editor" hidden>' + save + '</div>'
+        for markup, reason in ((opener + '<div hidden>' + panel + '</div>', 'no instance is reachable'),
+                               (opener + '<div style="display:none">' + panel + '</div>', 'no instance is reachable'),
+                               (opener + opener + panel, 'no instance is reachable'),
+                               (opener.replace('<button ', '<button hidden ') + panel, 'declared opener is hidden'),
+                               (opener + panel.replace(' hidden', ' style="display:none"'), 'did not reveal its panel')):
+            with self.subTest(reason=reason, markup=markup):
+                driver = self.driver(markup)
+                reply = self.attempt(driver)["result"]
+                self.assertIn(reason, "\n".join(reply["problems"]), reply)
+                self.assertEqual(0, reply["observed"]["instances"])
+                driver.stop()
 
     def test_opener_exemption_does_not_allow_unrelated_product_focus(self):
         for field in ('<button id="thief" data-control-id="thief">Other</button>',

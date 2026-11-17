@@ -170,6 +170,8 @@ The handoff report records the final results without changing that tested SHA.
 
 ## Change Log
 
+- 2026-11-16: R6 repair from the Codex PR review: find the first reachable control instance before opening its declared panel chain.
+
 - 2026-11-16: Correct instruction attribution to the jolvex-platform Harness parent. The owner supplied only the two statements quoted above.
 
 - 2026-11-16: N3 (R7) repair: add native focusability to keyboard discovery and preserve plain summaries. No independent review; PR review must cover `is_product_control`.

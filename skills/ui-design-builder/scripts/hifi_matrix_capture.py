@@ -360,17 +360,36 @@ async function interact(request) {
       + surface + ' [data-control-id=' + quote(request.control) + ']:visible');
     const opened = [];
     if (await product.count() === 0 && await attached.count() > 0) {
-      const chain = await attached.first().evaluate(el => {
-        const surface = el.closest('[data-ui-surface]');
-        const buttons = Array.from(surface.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]'));
-        const panels = [];
-        for (let panel = el.parentElement; panel && panel !== surface; panel = panel.parentElement) {
-          const opener = buttons.find(button => button.getAttribute('aria-controls') === panel.id && panel.id
-            && button.closest('[data-ui-surface]') === surface && !panel.contains(button));
-          if (opener && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1)
-            panels.unshift({ panel: panel.id, index: buttons.indexOf(opener), selected: opener.hasAttribute('data-product-tab') });
+      const chain = await attached.evaluateAll(list => {
+        for (const el of list) {
+          const surface = el.closest('[data-ui-surface]');
+          const target = surface.closest('[data-hifi-canvas]').dataset.hifiTarget;
+          const buttons = Array.from(surface.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]'));
+          const panels = [];
+          let reachable = true;
+          for (let panel = el; panel; panel = panel.parentElement) {
+            if ((panel.hasAttribute('data-hifi-state-view') && panel.dataset.hifiStateView !== surface.dataset.hifiState)
+                || (panel.hasAttribute('data-responsive-target') && panel.dataset.responsiveTarget !== target)) {
+              reachable = false; break;
+            }
+            const openers = panel !== el && panel !== surface && panel.id
+              ? buttons.filter(button => button.getAttribute('aria-controls') === panel.id
+                && button.closest('[data-ui-surface]') === surface && !panel.contains(button)) : [];
+            const opener = openers.length === 1 && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1
+              ? openers[0] : null;
+            const style = getComputedStyle(panel);
+            const hidesVisibility = (style.visibility === 'hidden' || style.visibility === 'collapse')
+              && (!panel.parentElement || getComputedStyle(panel.parentElement).visibility !== style.visibility);
+            if ((panel.hidden || style.display === 'none' || hidesVisibility) && !opener) {
+              reachable = false; break;
+            }
+            if (opener)
+              panels.unshift({ panel: panel.id, index: buttons.indexOf(opener), selected: opener.hasAttribute('data-product-tab') });
+            if (panel === surface) break;
+          }
+          if (reachable) return panels;
         }
-        return panels;
+        return [];
       });
       const buttons = page.locator(surface + ' button[data-product-menu],'
         + surface + ' button[data-product-tab],' + surface + ' button[data-product-disclosure]');
@@ -389,7 +408,7 @@ async function interact(request) {
     }
     const instances = await product.count();
     observed = { instances, ...(opened.length ? { openers: opened } : {}) };
-    if (instances < 1) problems.push('product control is missing or hidden: ' + request.control);
+    if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
     else {
       const handle = product.first();
       if (request.kind === 'navigate' && !await attached.evaluateAll((list, href) =>
