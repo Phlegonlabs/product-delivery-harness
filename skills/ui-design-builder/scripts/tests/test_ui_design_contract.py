@@ -2009,5 +2009,68 @@ class VariantRoundRecordTests(unittest.TestCase):
                              problems_for(root, "VD-R1-09"))
 
 
+class ComparisonPageDateRuleTests(unittest.TestCase):
+    """A round decided before 2026-11-18 may lack compare.html; any page that is present must still match."""
+
+    FILES = ("vd-01.html", "vd-02.html", "vd-03.html")
+
+    def setUp(self):
+        import assemble_ui_review
+        from test_direction_review import CASES, source_html
+        self.temp = tempfile.TemporaryDirectory()
+        self.root = Path(self.temp.name)
+        pages = {file: source_html(file[:-5]) for file in self.FILES}
+        (self.root / "src").mkdir()
+        for file, html in pages.items():
+            (self.root / "src" / file).write_text(html, encoding="utf-8", newline="")
+        profile = {"schema": "ui-direction-review/1", "round": "round-1", "cases": CASES, "directions": [
+            {"id": f"VD-R1-0{n}", "file": file, "sourceSha256": hashlib.sha256(pages[file].encode("utf-8")).hexdigest()}
+            for n, file in enumerate(self.FILES, 1)]}
+        (self.root / "profile.json").write_text(json.dumps(profile), encoding="utf-8")
+        self.out = self.root / "docs/design/directions/round-1"
+        assemble_ui_review.assemble_direction(
+            self.root / "profile.json", [f"{file}={self.root / 'src' / file}" for file in self.FILES], self.out)
+        self.page = self.out / "compare.html"
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def problems(self, decided):
+        rows = "".join(
+            f"| VD-R1-0{n} | docs/design/directions/round-1/{file} @ sha256:"
+            f"{hashlib.sha256((self.out / file).read_bytes()).hexdigest()} | Author | Author | pass |\n"
+            for n, file in enumerate(self.FILES, 1))
+        comparison = "".join(
+            f"| VD-R1-0{n} | UI-001 | ready | 390 | primary | Approved copy | docs/design/directions/primary.png @ sha256:{'a' * 64} | Same case |\n"
+            for n in (1, 2, 3))
+        style = ((f"Direction decided on: {decided}\n" if decided else "")
+                 + "\n### Direction comparison\n\n| Direction | UI surface | State | Target | Scenario | Content basis | Screenshot | Rationale |\n"
+                 "| --- | --- | --- | --- | --- | --- | --- | --- |\n" + comparison
+                 + "\n### Direction studies\n\n| Direction | Study | Author | Self-check by | Self-check |\n| --- | --- | --- | --- | --- |\n" + rows)
+        found = []
+        checker._resolve_direction_studies(style, self.root, found)
+        return " ".join(item for item in found if "Comparison page" in item)
+
+    def test_the_constant_is_the_first_required_date(self):
+        self.assertEqual("2026-11-18", checker.COMPARISON_PAGE_REQUIRED_FROM.isoformat())
+
+    def test_an_older_round_passes_without_the_page(self):
+        self.page.unlink()
+        self.assertEqual("", self.problems("2026-11-17"))
+
+    def test_a_round_decided_on_the_constant_date_or_undecided_needs_the_page(self):
+        self.page.unlink()
+        self.assertIn("compare.html is missing", self.problems("2026-11-18"))
+        self.assertIn("compare.html is missing", self.problems("2027-01-05"))
+        self.assertIn("compare.html is missing", self.problems(None))
+        self.assertIn("compare.html is missing", self.problems("not a date"))
+
+    def test_a_present_page_must_match_whatever_the_date(self):
+        self.assertEqual("", self.problems("2026-11-17"))
+        self.page.write_bytes(self.page.read_bytes().replace(b"<h1>round-1</h1>", b"<h1>round-1 edited</h1>"))
+        self.assertIn("must exactly match the page regenerated", self.problems("2026-11-17"))
+        self.assertIn("must exactly match the page regenerated", self.problems("2026-11-18"))
+
+
 if __name__ == "__main__":
     unittest.main()

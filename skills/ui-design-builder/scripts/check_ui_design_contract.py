@@ -392,6 +392,9 @@ def _date(value: str | None) -> bool:
 # and the approval date is author-entered, so HiFi receipt times count too.
 CURRENT_HIFI_CUTOVER = date(2026, 9, 27)
 CURRENT_HIFI_CUTOVER_INSTANT = datetime(2026, 9, 27, tzinfo=timezone.utc)
+# A three-study direction round decided before this date was approved without a comparison page and stays valid
+# without one. The recorded decision date is taken as written; a page that is present must always match.
+COMPARISON_PAGE_REQUIRED_FROM = date(2026, 11, 18)
 
 
 def current_hifi_cutover_applies(decided_on: str | None, receipt_times: list[datetime]) -> bool:
@@ -859,7 +862,10 @@ def _resolve_direction_studies(
                 _add(problems, finding)
     paths = [repo_root / study["path"] for study in _direction_study_identities(style, [])]
     if paths and all(path.is_file() for path in paths) and len({path.parent for path in paths}) == 1:
-        for finding in direction_review.compare_package_findings(paths[0].parent, [path.name for path in paths]):
+        decided = _field(style, "Direction decided on")
+        required = not _date(decided) or date.fromisoformat(decided.strip()) >= COMPARISON_PAGE_REQUIRED_FROM
+        for finding in direction_review.compare_package_findings(
+                paths[0].parent, [path.name for path in paths], required=required):
             _add(problems, finding)
 
 

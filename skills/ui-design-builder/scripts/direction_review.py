@@ -401,11 +401,12 @@ def is_generated_compare(html: str) -> bool:
     return not assembled_compare_findings(html, COMPARE_FILE)
 
 
-def compare_package_findings(folder: Path, files: list[str]) -> list[str]:
+def compare_package_findings(folder: Path, files: list[str], *, required: bool = True) -> list[str]:
     """What a round folder must hold: the comparison page regenerated from its current studies, or none.
 
     The page belongs to a round whose studies all come from one assembly of several; a one-study round, or a round
     whose studies were reassembled one at a time, has no current page, so a file left in the folder is stale.
+    A round decided before the page existed (``required`` false) may lack it, but a page that is there must match.
     """
 
     if COMPARE_FILE in files:  # an older package whose own study has this name
@@ -430,7 +431,7 @@ def compare_package_findings(folder: Path, files: list[str]) -> list[str]:
     if expected is None:
         return [f"{label} does not belong to this round's studies; remove it"] if page.exists() else []
     if not page.is_file():
-        return [f"{label} is missing; reassemble the round with --overwrite to write it"]
+        return [f"{label} is missing; reassemble the round with --overwrite to write it"] if required else []
     if page.read_text(encoding="utf-8", errors="replace") != expected:
         return [f"{label} must exactly match the page regenerated from the round's current studies"]
     return []
