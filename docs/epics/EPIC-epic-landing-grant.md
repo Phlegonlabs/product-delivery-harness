@@ -54,9 +54,44 @@ Outside judge: `test_landing_gate.py` refusing each attack the reviews named (wr
 | Landing gate script | LG-3, LG-4. `landing_gate.py` (record, revoke, check, cleanup-plan) and 51 tests, written by a GLM-5.3 worker in its own worktree | `8e7b9ff7` | 51 tests pass; pyflakes clean on the four script trees. |
 | Parent inspection before review | Four gaps the parent found by reading the script. It refused every ssh remote of the form `git@host:owner/repo.git` as a credential, although the shared push-URL helper already accepts a passwordless ssh identity and rejects a password. A renamed owner-only file showed only its new name and passed the owner-only check. A failed diff read as "nothing changed". A merge check with no `--evidence` raised instead of refusing. The review carry-forward also accepted any `.md` path, which in this repository includes rule text; it now accepts only `docs/` and top-level `README*.md` and `CHANGELOG.md` | `8c93cd64` | 55 tests pass, four of them new. |
 
+## Review And Repairs
+
+One review point on `70c87857`, two read-only calls launched together (GPT-6.1 Sol, effort high): the rule text (318 s) and the script with the security lens (455 s). Both returned FIX_REQUIRED. Fifteen blocking findings, each with the line and the input that showed it. Most trace to the parent's rule text and brief, not to the worker's implementation of that brief.
+
+Rule text, five findings, repaired in `ad7994d3` (and in the script where the rule needed enforcement, `6abee2a4`):
+
+| Finding | Repair |
+| --- | --- |
+| The order put push before the review, which moved the review boundary | Review comes before push again. `push` and `pull_request` now need a review PASS that binds the candidate |
+| A review PASS carried across any later change under `docs/`, wider than the existing carry-forward rule | It carries only across a commit that changes the Epic record alone (`docs/epics/*.md`, `docs/DOCUMENTS.md`) |
+| "CI workflow files" covered only `.github/workflows/` | Owner-only now covers `.github/`, the standard CI paths of five other systems, and instruction files at any depth; a repository lists any other check definition itself |
+| The repair budget was recorded and never enforced | The parent reports repair rounds in the evidence; the check refuses a count above the budget |
+| `cleanup-plan` did not check the repository, so a grant could print deletions for a fork | It applies the same grant, repository and policy checks as `check` |
+
+Script, ten findings, repaired in `6abee2a4` by rewriting the gate fail-closed:
+
+| Finding | Repair |
+| --- | --- |
+| `refs/heads/Main` passed the protected-branch test although Windows resolves it to `main` | Protected names compare case-insensitively in `record`, in grant validation and in the worktree match |
+| Cleanup was not bound to the repository or to a grant outside the checkout | One shared binding check serves `check` and `cleanup-plan` |
+| Three owner-only bypasses: a quoted non-ASCII path, a case variant, a directory replaced by a submodule | Paths are read with `-z`, matched case-insensitively, and a directory pattern also matches the directory entry |
+| A fenced example, a second section or a repeated key could make a repository eligible; `Landing` alone was enough | Fences are skipped; exactly one section, no repeated key and all six lines filled are required |
+| Code under `docs/` inherited an older review | See the carry-forward repair above |
+| A symlink alias of the grant hid its revocation marker | The marker is looked up beside the canonical grant path |
+| `--now` revived an expired grant | The flag is gone; tests replace the clock function |
+| A missing `observed_main` or a git error led to `git branch -D` | A read-back needs every field; a git error is an error; `-D` is planned only for `tree_equal_S` |
+| A grant with no `repository` and an unreadable remote compared equal | The grant's fields are validated after the hash; an unreadable remote is a refusal |
+| A missing `--action` and a git timeout escaped as tracebacks | Both now return the structured error or refusal |
+
+`cleanup-plan` is also all or nothing now: one refused target leaves no command to run.
+
+Each repair has a test: 72 tests in `test_landing_gate.py`, 21 of them new. One, the revocation alias, needs a symbolic link and is skipped on a Windows host without that privilege; CI runs it on Linux and macOS.
+
+Targeted re-check: pending.
+
 ## Results And Remaining Work
 
-Remaining: one review point, PR, CI matrix. Merge, tag and install wait for the owner, because this repository's own policy is `Landing: owner_each_time`.
+Remaining: the targeted re-check, PR, CI matrix. Merge, tag and install wait for the owner, because this repository's own policy is `Landing: owner_each_time`.
 
 ## Handoff
 
