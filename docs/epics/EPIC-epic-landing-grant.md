@@ -1,6 +1,6 @@
 # EPIC-epic-landing-grant: one owner approval covers an Epic's push, merge, deployment and cleanup
 
-Status: in_progress
+Status: candidate prepared as 0.92.0; review and PR pending
 Design workflow: enhancement
 UI impact: none
 
@@ -51,21 +51,24 @@ Outside judge: `test_landing_gate.py` refusing each attack the reviews named (wr
 | --- | --- | --- | --- |
 | Rule text, templates and pointers | LG-1, LG-2, LG-4. `branch-promotion-contract.md`, `SKILL.md`, `stages/direct-cards.md`, `stages/stage-cards.md`, `trusted-host-publication.md`, `direct-fan-out.md`, the three governance files, `EPIC.template.md`, `PROJECT_AGENTS.template.md`, `AGENTS.md`, the four READMEs | `4c403761` | Doc-asserting modules pass (241 tests). Direct route must-read 3,828 to 3,878 words; the grant section is read only when an Epic records a grant. |
 
+| Landing gate script | LG-3, LG-4. `landing_gate.py` (record, revoke, check, cleanup-plan) and 51 tests, written by a GLM-5.3 worker in its own worktree | `8e7b9ff7` | 51 tests pass; pyflakes clean on the four script trees. |
+| Parent inspection before review | Four gaps the parent found by reading the script. It refused every ssh remote of the form `git@host:owner/repo.git` as a credential, although the shared push-URL helper already accepts a passwordless ssh identity and rejects a password. A renamed owner-only file showed only its new name and passed the owner-only check. A failed diff read as "nothing changed". A merge check with no `--evidence` raised instead of refusing. The review carry-forward also accepted any `.md` path, which in this repository includes rule text; it now accepts only `docs/` and top-level `README*.md` and `CHANGELOG.md` | `8c93cd64` | 55 tests pass, four of them new. |
+
 ## Results And Remaining Work
 
-Remaining: LG-3 (worker in a separate worktree), release preparation for 0.92.0, one review point, PR, CI matrix.
+Remaining: one review point, PR, CI matrix. Merge, tag and install wait for the owner, because this repository's own policy is `Landing: owner_each_time`.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / epic-landing-grant / 4c403761 / task/ (untracked, not part of this round)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / epic-landing-grant / release commit for 0.92.0 / task/ (untracked, not part of this round)
 Stage and skill: source maintenance of delivery-harness; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main a3b547dd (v0.91.0); owner-approved plan of 2026-11-18
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
 Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: work branch, local commits, push and PR. Merge, tag and install for this round are not yet approved.
-Done and verified (command, exit code): pytest on the doc-asserting modules, exit 0
-Remaining: landing_gate.py, release preparation, review, PR
+Done and verified (command, exit code): pytest on the doc-asserting modules and test_landing_gate.py, exit 0; pyflakes on the four script trees, exit 0; prepare_release.py --check, exit 0
+Remaining: review, PR, CI matrix
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): integrate the worker's landing_gate.py commit
+Next action (one command or one owner decision): run the read-only review on the candidate diff
 Next owner (skill or human): parent agent
 ```
