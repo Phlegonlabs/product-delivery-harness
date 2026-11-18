@@ -42,6 +42,7 @@ from pathlib import Path
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view, _hifi_state_href
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
+from reviewer_shell import runtime_source
 from ui_design_v3 import intermediate_width_findings
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
@@ -114,7 +115,7 @@ let browser, context, page, pages = {};
 let currentPage = null;
 let baseColorScheme = 'light';   // the run's context theme; an axis reset returns to it, not to plain light
 let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
-let surfaceDefaults = {}, observingNavigation = false;
+let surfaceDefaults = {}, observingNavigation = false, observingFocus = false;
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 const level = type => (type === 'error' || type === 'assert') ? 'error' : (type === 'warning' ? 'warning' : 'info');
@@ -262,24 +263,71 @@ async function start(request) {
     if (req.resourceType() === 'document') events.navigation.push(row); else events.network.push(row);
     return route.abort('blockedbyclient');
   });
-  await context.addInitScript(() => {
+  await context.addInitScript(reviewerFocusSites => {
     const record = form => window.__pdhForm && window.__pdhForm({ action: String(form.action), method: String(form.method) });
     addEventListener('submit', event => { event.preventDefault(); record(event.target); }, true);
     HTMLFormElement.prototype.submit = function () { record(this); };
+    const shown = panel => panel.isConnected && !panel.hidden && Boolean(panel.getClientRects().length)
+      && getComputedStyle(panel).visibility === 'visible';
+    let focusStep = null;
+    window.__pdhFocusTrace = {
+      begin(target, [step, destination, activate]) {
+        const root = target.closest('[data-ui-surface]');
+        const layers = new Map();
+        if (activate) {
+          const unique = panel => panel.id && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1;
+          for (const opener of root.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')) {
+            const id = opener.getAttribute('aria-controls');
+            const panel = id && document.getElementById(id);
+            const peers = Array.from(root.querySelectorAll('button[aria-controls]'))
+              .filter(el => el.getAttribute('aria-controls') === id);
+            if (!panel || !unique(panel) || panel.closest('[data-ui-surface]') !== root
+                || panel.contains(opener) || peers.length !== 1) continue;
+            const expanded = opener.getAttribute(opener.hasAttribute('data-product-tab') ? 'aria-selected' : 'aria-expanded');
+            layers.set(panel, { id, panel, opener, visible: shown(panel), open: expanded === 'true' && shown(panel),
+              entry: opener === target });
+          }
+          for (const panel of document.querySelectorAll('dialog,[role="dialog"],[role="alertdialog"]')) {
+            if (!unique(panel) || panel.closest('[data-ui-surface]')?.dataset.uiSurface !== destination) continue;
+            if (layers.has(panel)) layers.get(panel).entry = true;
+            else layers.set(panel, { id: panel.id, panel, visible: shown(panel), open: false, entry: true });
+          }
+        }
+        focusStep = { step, target, layers: Array.from(layers.values()) };
+      },
+      outcome() {
+        const layers = focusStep?.layers || [];
+        return {
+          entered: layers.filter(layer => layer.entry && !layer.visible && shown(layer.panel)
+            && layer.panel.contains(document.activeElement)).map(layer => layer.id),
+          returned: layers.filter(layer => layer.open && !shown(layer.panel)
+            && layer.opener === document.activeElement).map(layer => layer.id),
+        };
+      },
+    };
     addEventListener('focusin', event => {
       const el = event.target;
+      if (!el?.closest('[data-ui-surface]')) return;
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
       const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
         ? el.getAttribute('aria-controls') : null;
-      const product = el && el.closest && el.closest('[data-ui-surface]');
-      const supporting = product ? el.getAttribute('data-control-for') : null;
-      const nativeControl = product && el.matches('button,input,select,textarea,a[href]');
-      if (id || opener || supporting || nativeControl) window.__pdhFocus({ control: id || null, opener, supporting });
+      const layers = focusStep?.layers || [];
+      // These facts must be captured synchronously, before a focus handler continues.
+      const returned = layers.find(layer => layer.open && layer.opener === el && !shown(layer.panel));
+      const entered = layers.find(layer => layer.entry && !layer.visible && shown(layer.panel) && layer.panel.contains(el));
+      // Only the direct focus call in an exact supported runtime is reviewer setup.
+      const caller = String(new Error().stack).split('\n').map(line =>
+        line.match(/(https:\/\/hifi\.invalid\/pkg\/[^()\s]+):(\d+):(\d+)/)).find(Boolean);
+      const site = caller && reviewerFocusSites[decodeURIComponent(new URL(caller[1]).pathname.slice(5))];
+      const reviewer = Boolean(site && Number(caller[2]) === site.line && Number(caller[3]) === site.column);
+      window.__pdhFocus({ control: id || null, opener, supporting: el.getAttribute('data-control-for'),
+        step: focusStep?.step, target: focusStep?.target === el,
+        returned: returned?.id || null, entered: entered?.id || null, reviewer });
     }, true);
-  });
+  }, request.reviewerFocusSites || {});
   page = await context.newPage();
   await page.exposeFunction('__pdhForm', info => { events.forms.push(info); });
-  await page.exposeFunction('__pdhFocus', info => { events.focus.push(info); });
+  await page.exposeFunction('__pdhFocus', info => { if (observingFocus) events.focus.push(info); });
   context.on('page', popup => { if (popup !== page) { events.popups.push({ url: popup.url() }); popup.close().catch(() => {}); } });
   page.on('dialog', dialog => {
     events.console.push({ source: 'dialog', level: 'error', message: 'dialog ' + dialog.type() + ': ' + dialog.message() });
@@ -306,6 +354,7 @@ async function start(request) {
 
 async function openPage(name, timeoutMs) {
   observingNavigation = false;
+  observingFocus = false;
   page.setDefaultTimeout(timeoutMs);
   page.setDefaultNavigationTimeout(timeoutMs);
   opening = name;
@@ -328,13 +377,24 @@ async function open(request) {
 
 // One interaction attempt: reload the page, reset target/source state through the
 // reviewer shell, then activate the declared product control by click or keyboard. The
-// destination surface/state must apply. Focus follows declared openers, the control,
-// and at most one return to the opener of a layer closed by activation.
+// destination surface/state must apply. Each activation focuses its control once,
+// then may enter its new layer; the operation may instead return after closure.
 const FEEDBACK_SNAPSHOT = surfaceId => {
   const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
   return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
     .map(el => [el.value, el.checked, el.selectedIndex])]) : null;
 };
+
+async function assessFocus(step, from, allowReturn) {
+  const outcome = await page.evaluate(() => window.__pdhFocusTrace.outcome()).catch(() => ({ entered: [], returned: [] }));
+  const focus = events.focus.slice(from).filter(event => !event.reviewer);
+  const last = focus[1];
+  const entered = last?.entered && outcome.entered.includes(last.entered) ? last.entered : null;
+  const returned = allowReturn && last?.returned && outcome.returned.includes(last.returned) ? last.returned : null;
+  return { correct: (focus.length === 1 || (focus.length === 2 && Boolean(entered || returned)))
+      && focus.every(event => event.step === step) && focus[0]?.target === true,
+    entered, returned, next: events.focus.length };
+}
 
 async function interact(request) {
   const problems = [];
@@ -374,6 +434,8 @@ async function interact(request) {
   }
   let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
   if (!problems.length) {
+    observingFocus = true;
+    let focusCursor = events.focus.length, openerFocusCorrect = true;
     const surface = '[data-ui-surface=' + quote(request.surface) + ']';
     const attached = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + '],'
       + surface + ' [data-control-id=' + quote(request.control) + ']');
@@ -419,12 +481,17 @@ async function interact(request) {
         if (await panel.isVisible()) continue;
         const opener = buttons.nth(step.index);
         if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
+        const focusStep = 'opener:' + opened.length;
+        await opener.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), [focusStep, request.surface, true]);
         await opener.click({ timeout });
         opened.push(step.panel);
         try { await panel.waitFor({ state: 'visible', timeout }); }
         catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
         if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
             || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+        const focus = await assessFocus(focusStep, focusCursor, false);
+        openerFocusCorrect = openerFocusCorrect && focus.correct;
+        focusCursor = focus.next;
       }
     }
     const instances = await product.count();
@@ -463,6 +530,7 @@ async function interact(request) {
         return { problems: ['data-entry control is disabled or read-only'], visible, focusCorrect: false, observed };
       let pressedFocused = null;
       let before = null;
+      await handle.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), ['operation', request.destination.surface, false]);
       if (request.trigger === 'keyboard' || request.kind === 'feedback') {
         await handle.focus({ timeout });
         pressedFocused = await handle.evaluate(el => el === document.activeElement);
@@ -471,20 +539,7 @@ async function interact(request) {
         await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
         before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
       }
-      // Retain the actual nodes so a replacement opener cannot claim the return.
-      const openLayers = await page.locator(surface).evaluateHandle(root =>
-        Array.from(root.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]'))
-          .flatMap(opener => {
-            const id = opener.getAttribute('aria-controls');
-            const panels = Array.from(document.querySelectorAll('[id]')).filter(el => el.id === id);
-            const panel = panels.length === 1 ? panels[0] : null;
-            const peers = Array.from(root.querySelectorAll('button[aria-controls]'))
-              .filter(el => el.getAttribute('aria-controls') === id);
-            const expanded = opener.getAttribute(opener.hasAttribute('data-product-tab') ? 'aria-selected' : 'aria-expanded');
-            return panel && panel !== opener && panel.closest('[data-ui-surface]') === root && peers.length === 1
-              && expanded === 'true' && !panel.hidden && panel.getClientRects().length
-              && getComputedStyle(panel).visibility !== 'hidden' ? [{ id, opener, panel }] : [];
-          }));
+      await handle.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), ['operation', request.destination.surface, true]);
       observingNavigation = request.kind === 'navigate';
       if (field) {
         if (request.trigger !== 'keyboard') await handle.click({ timeout });
@@ -547,24 +602,11 @@ async function interact(request) {
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
       observingNavigation = false;
-      const operationFocusCount = opened.length + 1;
-      let focusReturn = null;
-      if (events.focus.length === operationFocusCount + 1) {
-        focusReturn = await openLayers.evaluate((layers, last) => {
-          const layer = layers.find(({ id, opener, panel }) => last.opener === id
-            && opener.isConnected && document.activeElement === opener
-            && (!panel.isConnected || panel.hidden || !panel.getClientRects().length
-              || getComputedStyle(panel).visibility === 'hidden'));
-          return layer ? layer.id : null;
-        }, events.focus[operationFocusCount]).catch(() => null);
-      }
-      await openLayers.dispose();
-      // Only a closed layer's own opener may follow the operation-control focus.
-      focusCorrect = (events.focus.length === operationFocusCount || Boolean(focusReturn))
-        && opened.every((panel, index) => events.focus[index].opener === panel)
-        && events.focus[opened.length]?.control === request.control
+      const focus = await assessFocus('operation', focusCursor, true);
+      focusCorrect = openerFocusCorrect && focus.correct
         && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
-      if (focusCorrect && focusReturn) observed.focusReturn = focusReturn;
+      if (focusCorrect && focus.returned) observed.focusReturn = focus.returned;
+      if (focusCorrect && focus.entered) observed.focusEntry = focus.entered;
     }
   }
   return { problems, visible, focusCorrect, arrivedTo, observed };
@@ -850,6 +892,7 @@ lines.on('line', line => {
       reply = { id: message.id, ok: false, timedOut: error && error.name === 'TimeoutError',
         error: String((error && error.message) || error).split('\n')[0] };
     }
+    observingFocus = false;
     reply.events = drain();
     process.stdout.write(JSON.stringify(reply) + '\n');
     if (message.op === 'close') process.exit(0);
@@ -857,6 +900,28 @@ lines.on('line', line => {
 });
 lines.on('close', () => { chain.then(() => (browser ? browser.close().catch(() => {}) : null)).then(() => process.exit(0)); });
 """
+
+
+def reviewer_focus_sites(files):
+    """Recognize only the heading-focus call in current or accepted historical bytes."""
+    script_re = re.compile(r"<script\b[^>]*>(?P<body>[\s\S]*?)</script>", re.IGNORECASE)
+    canonical = script_re.search(runtime_source()).group("body")
+    trusted = {hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+               "854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597",
+               "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146"}
+    sites = {}
+    for name, path in files.items():
+        html = path.read_text(encoding="utf-8")
+        for script in script_re.finditer(html):
+            body = script.group("body")
+            if hashlib.sha256(body.encode("utf-8")).hexdigest() not in trusted:
+                continue
+            call = re.search(r"(?m)^(?P<indent>[ \t]*)heading\.focus\(\);[ \t]*$", body)
+            if call:
+                offset = script.start("body") + call.start() + len(call.group("indent")) + len("heading.")
+                sites[name] = {"line": html.count("\n", 0, offset) + 1,
+                               "column": offset - html.rfind("\n", 0, offset)}
+    return sites
 
 
 class NodeDriver:
@@ -886,6 +951,7 @@ class NodeDriver:
         threading.Thread(target=self._pump, args=(proc.stdout, self._lines), daemon=True).start()
         threading.Thread(target=self._pump, args=(proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
+                          reviewerFocusSites=reviewer_focus_sites(self.files),
                           surfaceDefaults={row["id"]: next((s for s in row["states"] if not _is_na_state(s)), None)
                                            for row in json.loads(HIFI_MANIFEST_RE.search(
                                                self.files["index.html"].read_text(encoding="utf-8")).group("data"))["surfaces"]},

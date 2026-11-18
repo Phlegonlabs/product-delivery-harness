@@ -2455,7 +2455,7 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
             observations_valid = False
             continue
         observed = row.get("observed", {})
-        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "instanceIndex", "openers", "focusReturn"}:
+        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "instanceIndex", "openers", "focusReturn", "focusEntry"}:
             observations_valid = False
         else:
             if "instances" in observed and (type(observed["instances"]) is not int or observed["instances"] < 1):
@@ -2469,9 +2469,11 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
                 if (not isinstance(openers, list) or any(not isinstance(value, str) or not value.strip() for value in openers)
                     or len(openers) != len(set(openers))):
                     observations_valid = False
-            if "focusReturn" in observed and (not isinstance(observed["focusReturn"], str)
-                                              or not observed["focusReturn"].strip()):
+            if "focusReturn" in observed and "focusEntry" in observed:
                 observations_valid = False
+            for key in ("focusReturn", "focusEntry"):
+                if key in observed and (not isinstance(observed[key], str) or not observed[key].strip()):
+                    observations_valid = False
             change = observed.get("change")
             if "change" in observed or row.get("id") in feedback_ids:
                 if (not isinstance(change, dict) or set(change) != {"beforeSha256", "afterSha256"}
