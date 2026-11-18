@@ -321,13 +321,24 @@ class LandingGateTests(unittest.TestCase):
         self.assertEqual(1, code, value)
         self.assertTrue(any("credentials" in reason for reason in value["reasons"]))
 
-    def test_record_refuses_scp_userinfo_in_push_url(self) -> None:
+    def test_record_accepts_a_passwordless_ssh_remote(self) -> None:
+        # git@host:owner/repo.git names a user, not a credential; most
+        # repositories that push over ssh use exactly this form.
+        for url in ("git@example.com:owner/repo.git", "ssh://git@example.com/owner/repo.git"):
+            with self.subTest(url=url):
+                fixture = self._landed()
+                root = Path(fixture["root"])
+                git(root, "remote", "set-url", "origin", url)
+                code, value, _grant = self._record(fixture)
+                self.assertEqual(0, code, value)
+
+    def test_record_refuses_an_http_user_without_a_password(self) -> None:
         fixture = self._landed()
         root = Path(fixture["root"])
-        git(root, "remote", "set-url", "origin", "git@example.com:owner/repo.git")
+        git(root, "remote", "set-url", "origin", "https://user@example.com/repo.git")
         code, value, _grant = self._record(fixture)
         self.assertEqual(1, code, value)
-        self.assertTrue(any("userinfo" in reason for reason in value["reasons"]))
+        self.assertTrue(any("credentials" in reason for reason in value["reasons"]))
 
     # check passes
 
@@ -546,6 +557,47 @@ class LandingGateTests(unittest.TestCase):
         matching = [reason for reason in value["reasons"] if "owner-only paths changed" in reason]
         self.assertEqual(1, len(matching))
         self.assertIn(".github/workflows/ci.yml", matching[0])
+
+    def test_check_refuses_an_owner_only_file_renamed_away(self) -> None:
+        # With rename detection a moved file shows only its new name, which
+        # would hide that AGENTS.md left its place.
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        git(root, "mv", "AGENTS.md", "notes.md")
+        git(root, "commit", "-qm", "move the policy file")
+        candidate = git(root, "rev-parse", "HEAD")
+        code, _value, grant = self._record(fixture)
+        self.assertEqual(0, code)
+        code, value = self._check(fixture, grant, candidate, "push")
+        self.assertEqual(1, code, value)
+        matching = [reason for reason in value["reasons"] if "owner-only paths changed" in reason]
+        self.assertEqual(1, len(matching))
+        self.assertIn("AGENTS.md", matching[0])
+
+    def test_check_refuses_merge_without_an_evidence_file(self) -> None:
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        code, _value, grant = self._record(fixture, actions=("merge",))
+        self.assertEqual(0, code)
+        code, value = self._check(fixture, grant, candidate, "merge")
+        self.assertEqual(1, code, value)
+        self.assertTrue(any("requires --evidence" in reason for reason in value["reasons"]))
+
+    def test_check_refuses_review_on_ancestor_with_rule_text_change_since(self) -> None:
+        # A Markdown file outside docs/ can be a rule or a skill; a review
+        # PASS does not carry across it.
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        reviewed = self._commit(root, {"src/app.py": "print('landing')\n"}, "code")
+        candidate = self._commit(root, {"skills/rules/SKILL.md": "# Rule\n"}, "rule text")
+        code, _value, grant = self._record(fixture, actions=("merge",))
+        self.assertEqual(0, code)
+        evidence = self._evidence(candidate, review_sha=reviewed)
+        code, value = self._check(fixture, grant, candidate, "merge", evidence=evidence)
+        self.assertEqual(1, code, value)
+        matching = [reason for reason in value["reasons"] if "after the reviewed SHA" in reason]
+        self.assertEqual(1, len(matching))
+        self.assertIn("skills/rules/SKILL.md", matching[0])
 
     def test_check_refuses_owner_only_directory_pattern(self) -> None:
         fixture = self._landed(AGENTS_INTERNAL_OWNED)

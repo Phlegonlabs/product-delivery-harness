@@ -21,7 +21,6 @@ from datetime import datetime, timezone
 from fnmatch import fnmatchcase
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlsplit
 
 from harness_core import ManifestError, is_full_sha
 from harness_git import GitMetadataError, run_git
@@ -97,14 +96,6 @@ def _valid_branch_ref(value: str) -> bool:
     return not any(part in ("", ".") or part.startswith(".") or part.endswith(".lock") for part in parts)
 
 
-def _has_userinfo(url: str) -> bool:
-    parts = urlsplit(url)
-    if parts.username is not None or parts.password is not None:
-        return True
-    # scp-style ssh syntax (user@host:path) embeds a user identity inline
-    return "@" in re.split(r"[:/\\]", url, maxsplit=1)[0]
-
-
 def _is_commit(root: Path, sha: str) -> bool:
     return _git_or_none(root, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}") is not None
 
@@ -118,10 +109,23 @@ def _is_ancestor(root: Path, older: str, younger: str) -> bool:
 
 
 def _diff_names(root: Path, older: str, younger: str) -> list[str]:
-    output = _git_or_none(root, "diff", "--name-only", older, younger)
-    if output is None:
-        return []
+    """Every path that differs, with a rename reported as its old and new path.
+
+    Without --no-renames a renamed owner-only file would show only its new
+    name and slip past the owner-only check. A git failure raises: an unknown
+    diff must never read as "nothing changed".
+    """
+
+    output = _git(root, "diff", "--name-only", "--no-renames", older, younger)
     return [line.strip().replace("\\", "/") for line in output.splitlines() if line.strip()]
+
+
+def _is_record_only(path: str) -> bool:
+    """Paths a review PASS may carry across: project records, not rules or code."""
+
+    if path.startswith("docs/"):
+        return True
+    return "/" not in path and (path.startswith("README") or path == "CHANGELOG.md") and path.endswith(".md")
 
 
 def _split_policy_list(value: str | None) -> list[str] | None:
@@ -244,13 +248,13 @@ def _record(args: argparse.Namespace) -> dict[str, Any]:
         reasons.append(f"unknown actions: {', '.join(unknown)}; allowed: {', '.join(ALLOWED_ACTIONS)}")
     if not args.source.strip():
         reasons.append("--source must quote the owner instruction and its date")
+    # _configured_push_url rejects a password or an http(s) user and accepts a
+    # passwordless ssh identity such as git@host:owner/repo.git.
     push_url: str | None = None
     try:
         push_url = _configured_push_url(root, args.remote)
     except ManifestError as exc:
         reasons.append(f"the push URL of remote {args.remote!r} cannot be read or carries credentials: {exc}")
-    if push_url is not None and _has_userinfo(push_url):
-        reasons.append(f"the push URL of remote {args.remote!r} contains userinfo credentials")
     if reasons:
         return {"status": "REFUSED", "reasons": reasons}
     grant = {
@@ -298,6 +302,8 @@ def _evidence_reasons(
 ) -> list[str]:
     reasons: list[str] = []
     evidence: Any = None
+    if evidence_path is None:
+        return [f"action {action!r} requires --evidence with the parent-observed checks, review and acceptance"]
     try:
         evidence = json.loads(Path(evidence_path).read_bytes().decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
@@ -337,7 +343,7 @@ def _evidence_reasons(
             {
                 path
                 for path in _diff_names(root, review_sha, candidate)
-                if not path.endswith(".md") and not path.startswith("docs/")
+                if not _is_record_only(path)
             }
         )
         if off_policy:
