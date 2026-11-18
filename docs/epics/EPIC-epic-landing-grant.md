@@ -133,12 +133,17 @@ Review summary for this candidate:
 | Scoped review, `1788442c` | script | FIX_REQUIRED, 2 on the policy reader |
 | Scoped review, `b5188c91` | policy reader | FIX_REQUIRED, 3 more; premise changed |
 | Scoped review, `cbdeeb98` | policy file as JSON | PASS |
+| Pull-request review, `a1d8a990` | whole diff (Codex) | 1 finding: ignored files |
+| Scoped review, `e1974841` | ignored-file repair | FIX_REQUIRED, 1 in the repair |
+| Scoped review, `13ea7b97` | path-name correction | PASS |
 
 Pull-request review (Codex, on `a1d8a990`), one P1: `cleanup-plan` called a worktree clean when `git status --porcelain` printed nothing, but `git worktree remove` deletes ignored files silently, and the reviewer lost an ignored `local.db` that way. None of the seven earlier passes looked at ignored files. Repair `40996cf5`: the plan reads `git status --ignored`, and a worktree holding any ignored file outside five regenerable cache directories (`node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) is refused with the files named.
 
-Scoped review of that repair on `e1974841` (223 s): the finding resolved, one defect in the repair itself. The listing turned backslashes into slashes, so on POSIX an ignored file named `private\node_modules\local.db` looked as if it sat in a cache directory. Git prints `/` between directories on every platform, so the rewrite was wrong wherever it stood; it is removed from the ignored-file listing and from the changed-path listing (`2c7f38a6`). Scoped review of that correction: pending.
+Scoped review of that repair on `e1974841` (223 s): the finding resolved, one defect in the repair itself. The listing turned backslashes into slashes, so on POSIX an ignored file named `private\node_modules\local.db` looked as if it sat in a cache directory. Git prints `/` between directories on every platform, so the rewrite was wrong wherever it stood; it is removed from the ignored-file listing and from the changed-path listing (`2c7f38a6`). Scoped review of that correction on `13ea7b97` (127 s): PASS. The reviewer also confirmed, against git's own path handling, that using names as printed does not weaken the owner-only check on Windows or POSIX.
 
-CI on `a1d8a990`: `linux-required-browser` failed in `test_surface_capability.CapabilityBrowserTests.test_missing_or_unestablished_denial_fails_closed_before_product_activation` of design-system-compiler, which read an empty status before the page had written it. This branch changes nothing under `skills/design-system-compiler` or `skills/ui-design-builder`, and the test passed on PR #201 and on `main`. Treated as a timing flake pending the next run.
+CI on `a1d8a990`: `linux-required-browser` failed in `test_surface_capability.CapabilityBrowserTests.test_missing_or_unestablished_denial_fails_closed_before_product_activation` of design-system-compiler, which read an empty status before the page had written it. This branch changes nothing under `skills/design-system-compiler` or `skills/ui-design-builder`, and the test passed on PR #201 and on `main`. Treated as a timing flake. On `e1974841` the same job passed.
+
+CI on `13ea7b97`: `linux-harness-3` failed in `test_harness_transition_lease_packet.LeasePacketCli.test_unfilled_placeholders_refuse_before_the_run_write`, where `acquire-run-lock` returned 2 in `setUp`; the six other tests of that class passed with the same `setUp`, and this branch does not touch `harness_transition.py`. Also treated as a flake; the next push is the fresh run. Two unrelated flakes in two consecutive runs is worth its own look after this round.
 
 What cost the time: the gate was specified by listing what to refuse. Each review then found the next thing nobody had listed. Two changes ended it, and both replaced a list of bad cases with a rule about what is accepted: the gate recomputes what it can check instead of believing a label, and the policy has one spelling.
 
