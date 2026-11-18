@@ -56,6 +56,33 @@ class ConfigureProjectContextTests(unittest.TestCase):
                                      "--check", "--require-resolved"], capture_output=True)
             self.assertEqual(1, strict.returncode)
 
+    def test_security_reference_in_strict_context_check(self) -> None:
+        reference = "delivery-harness/references/security-review.md"
+        pin = "a" * 64
+        cases = [
+            ("backend", "code_security_verification", reference, pin, True),
+            ("product-definition", "code_security_verification", reference, pin, True),
+            ("backend", "code_security_verification", "delivery-harness/references/other.md", pin, False),
+            ("backend", "code_security_verification", "code-security-review", pin, False),
+            ("backend", "code_security_verification", "pending", "pending", False),
+            ("backend", "code_security_verification", reference, "invalid", False),
+            ("product-definition", "frontend_implementation", reference, pin, False),
+        ]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            agents = root / "AGENTS.md"
+            for stage, slot, target, digest, expected in cases:
+                with self.subTest(stage=stage, slot=slot, target=target, digest=digest):
+                    agents.write_text(
+                        "## Skill Bindings\n"
+                        "| Slot | Stage | Bound skill | Pinned SHA-256 |\n"
+                        "| --- | --- | --- | --- |\n"
+                        f"| {slot} | verification | `{target}` | `{digest}` |\n",
+                        encoding="utf-8",
+                    )
+                    findings = configure_project_context.unresolved_placeholders(root, stage=stage)
+                    self.assertEqual(expected, not findings, findings)
+
     def make_templates(self, root: Path) -> tuple[Path, Path]:
         agents_template = root / "agents-template.md"
         claude_template = root / "claude-template.md"
