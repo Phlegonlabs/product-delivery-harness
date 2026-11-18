@@ -21,7 +21,7 @@ This is the entry checklist for an explicitly requested skill workflow. Run it a
 4. Record the goal, write scope, design source, dependencies and acceptance checks in the existing task record or PLAN/RUN. Preserve valid decisions and authorizations; ask only about a concrete missing dependency.
 5. Read these contracts on their trigger:
    - [bounded-enhancement](../bounded-enhancement.md): the owner accepts an enhancement scope, or a repair, module replacement or next-round handoff starts.
-   - [delegation-contract](../delegation-contract.md): before you assign work to another executor or launch one. Before a frontend author dispatch, also [frontend-visual-inputs](../frontend-visual-inputs.md).
+   - [delegation-contract](../delegation-contract.md): when you assign work to another executor or launch one. When that is a frontend author dispatch, also [frontend-visual-inputs](../frontend-visual-inputs.md).
    - [gen-verify-correct](../gen-verify-correct.md): a checkpoint verifier or review fails or returns findings.
    - [prd-refinement](../../../product-definition-builder/references/prd-refinement.md): a stage checkpoint finds new product evidence.
    - [Product Contracts](product-contracts.md#consumer-keep-product-contracts-current): an English PRD or architecture has no Chinese copy.

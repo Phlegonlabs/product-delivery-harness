@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """Measure how many words an agent must read before it can act at each stage.
 
-Entry points are every skills/<skill>/SKILL.md and each "## " section of
-skills/delivery-harness/references/stages/stage-cards.md (plus that file's
-lead paragraph). From each entry the script follows links to Markdown files
+Entry points are every skills/<skill>/SKILL.md and each "## " section of the
+two card files under skills/delivery-harness/references/stages/, stage-cards.md
+and direct-cards.md (plus that file's lead paragraph). From each entry the script follows links to Markdown files
 under skills/ and counts words. References under references/legacy/, links
 outside skills/ and external URLs are skipped.
 
@@ -51,6 +51,8 @@ from typing import Any, NamedTuple
 from urllib.parse import unquote
 
 STAGE_CARDS = "skills/delivery-harness/references/stages/stage-cards.md"
+DIRECT_CARDS = "skills/delivery-harness/references/stages/direct-cards.md"
+CARD_FILES = (STAGE_CARDS, DIRECT_CARDS)
 MANDATORY_HEADINGS = (
     "required reading",
     "required skills and inputs",
@@ -302,12 +304,15 @@ class Corpus:
         for skill in sorted((self.root / "skills").glob("*/SKILL.md")):
             path = skill.relative_to(self.root).as_posix()
             found.append((skill.parent.name, path, [(0, len(self.doc(path).lines))]))
-        if (self.root / STAGE_CARDS).is_file():
-            doc = self.doc(STAGE_CARDS)
+        for card_file in CARD_FILES:
+            if not (self.root / card_file).is_file():
+                continue
+            doc = self.doc(card_file)
             cards = [h for h in doc.headings if h[1] == 2]
             lead = (0, cards[0][0] if cards else len(doc.lines))
+            name = Path(card_file).stem
             for line, _level, _title, slug in cards:
-                found.append((f"stage-cards#{slug}", STAGE_CARDS, [lead, (line, doc.section(slug)[1])]))
+                found.append((f"{name}#{slug}", card_file, [lead, (line, doc.section(slug)[1])]))
         return found
 
 

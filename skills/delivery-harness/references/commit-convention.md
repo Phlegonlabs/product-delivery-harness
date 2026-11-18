@@ -1,6 +1,6 @@
 # Atomic Commit Convention
 
-Use this convention for every authorized commit. Direct work follows Direct Commits below; managed work also follows the run and trailer rules. Commit permission is an independent authorization action; implementation permission alone does not grant it.
+Use this convention for every authorized commit. `scripts/check_commit_message.py` checks the subject and, with `--managed`, the trailers, and its error lines state the fix. No script checks Atomic Boundary below; it applies to every commit. Direct work follows Direct Commits below; managed work also follows the run and trailer rules. Commit permission is an independent authorization action; implementation permission alone does not grant it.
 
 ## Run-Wide Atomicity
 
@@ -9,7 +9,7 @@ Atomicity binds the whole run, not only worker task commits. Every commit any pa
 - a worker task commit: one verified task outcome, per the Atomic Boundary below;
 - a repair commit: one root-cause fix attributed to exactly one task;
 - an integration commit: reviewed mission heads only; coordination updates use a separate bookkeeping commit — never an unrelated fix, cleanup, or formatting;
-- a bookkeeping commit: `PLAN.md`/`RUN.md` and other coordination files only, never product code.
+- a bookkeeping commit: `PLAN.md`/`RUN.md` and other coordination files only, never product code. It carries no task trailers; check its message without `--managed`.
 
 No layer of the run — task, repair, integration, wave close, or closeout — lands a catch-all or mixed commit. When two kinds of change are needed, land two commits in dependency order.
 
@@ -53,7 +53,7 @@ Rules:
 - Write the complete message in English.
 - Keep the subject at 72 characters or fewer, use lowercase `type` and `scope`, use an imperative summary, and omit the final period.
 - Use one of: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `build`, or `ci`.
-- Use a stable product or engineering area for `scope`, such as `auth`, `billing`, `api`, `db`, `dashboard`, `ui`, `harness`, or `prd`; do not use a filename.
+- Write `scope` in lowercase letters, digits, hyphens or underscores. Use a stable product or engineering area for `scope`, such as `auth`, `billing`, `api`, `db`, `dashboard`, `ui`, `harness`, or `prd`; do not use a filename.
 - Include exactly one planned task ID in `Task`. Split the task first if a commit would need multiple task IDs.
 - Treat the task ID as an opaque immutable reference. A readable alias may change without changing the ID.
 - Include every upstream trace covered by the commit in `Trace`. Use `HARNESS` only for an approved internal harness, maintenance, or cleanup task with no upstream trace.

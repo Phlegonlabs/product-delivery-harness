@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-design-flow](epics/EPIC-design-flow.md)
+Current Epic: [EPIC-entry-route-split](epics/EPIC-entry-route-split.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |

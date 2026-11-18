@@ -72,7 +72,7 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 | A task adds a hash-bound file class or root | `delivery-harness/references/gitattributes-contract.md` |
 | Product requirements, architecture, UI impact, redesign, pricing, or partner channel | `delivery-harness/references/governance/product-contracts.md#consumer-keep-product-contracts-current` |
 | Pricing, paid access, purchase-gated features, or outside sellers | `delivery-harness/references/project-operating-rules.md#monetization-and-partner-channels` |
-| Branch, commit, integration, archive, publication, cleanup, or protected-branch landing | `delivery-harness/references/governance/managed-delivery.md#git-safety` and `delivery-harness/references/commit-convention.md` |
+| Branch, commit, integration, archive, publication, cleanup, or protected-branch landing | `delivery-harness/references/governance/managed-delivery.md#git-safety` |
 | Managed PLAN/RUN | `delivery-harness/SKILL.md`, `delivery-harness/references/governance/managed-delivery.md#managed-product-delivery-harness-runs`, and `delivery-harness/references/project-operating-rules.md#managed-product-delivery-harness-runs` |
 | Deployment model, verification, or platform move | `delivery-harness/references/deployment-contract.md#deployment-contract` |
 | External setup and measurement sources | `delivery-harness/references/project-operating-rules.md#external-setup` |
