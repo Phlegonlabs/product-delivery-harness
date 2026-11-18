@@ -19,6 +19,7 @@ RECONFIGURE_CALL = 'stream.reconfigure(encoding="utf-8", errors="backslashreplac
 EXPECTED_CLI_ENTRYPOINTS = {
     "delivery-harness": {
         "archive_run.py", "build_delivery_results.py", "build_verifier_request.py",
+        "check_commit_message.py",
         "check_delivery_acceptance.py", "check_deployment.py",
         "check_document_sync.py", "check_eval_acceptance.py",
         "check_external_skill_dependencies.py", "check_launch_packet.py", "check_prd_delta_scope.py",
