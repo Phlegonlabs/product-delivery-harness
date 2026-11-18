@@ -5,9 +5,18 @@
 ``revoke`` drops a revocation marker beside it. ``check`` reports offline
 whether the grant covers one action at one exact candidate commit, reading the
 repository policy from the grant's frozen base commit. ``cleanup-plan`` prints
-the commands that would remove the landed branch and its worktrees. The script
-never contacts the network and never pushes, merges, deletes or writes inside
-the checkout; every result only reports, it performs no action.
+the commands that would remove the landed branch and its worktrees.
+
+The script is fail-closed. The grant file, the evidence file and the read-back
+are parent-written and live outside the checkout; the candidate's commits, the
+working tree and local refs are untrusted. Anything the script cannot read or
+decide is a refusal or an error, never a PASS. It never contacts the network
+and never pushes, merges, deletes or writes inside the checkout; every result
+only reports.
+
+It does not run the review, the required checks, the journey command, Preview
+or the production smoke. The parent performs those and reports what it
+observed in the evidence file.
 """
 
 from __future__ import annotations
@@ -16,6 +25,7 @@ import argparse
 import hashlib
 import json
 import re
+import subprocess
 import sys
 from datetime import datetime, timezone
 from fnmatch import fnmatchcase
@@ -32,37 +42,103 @@ AUTHORITY_NOTE = (
     "it performs no action"
 )
 ALLOWED_ACTIONS = ("push", "pull_request", "merge", "production_deploy", "cleanup", "review_threads")
+# A reviewed candidate may be published; a landing also needs checks and acceptance.
+REVIEW_EVIDENCE_ACTIONS = ("push", "pull_request")
+FULL_EVIDENCE_ACTIONS = ("merge", "production_deploy")
 PROTECTED_BRANCHES = ("refs/heads/main", "refs/heads/development")
 BRANCH_PREFIX = "refs/heads/"
 TARGET_REF = "refs/heads/main"
-EVIDENCE_ACTIONS = ("merge", "production_deploy")
-BUILTIN_OWNER_ONLY = ("AGENTS.md", "CLAUDE.md", ".github/workflows/*")
+# Instruction files at any depth, and CI configuration at its standard paths.
+OWNER_ONLY_BASENAMES = ("agents.md", "agents.override.md", "claude.md")
+BUILTIN_OWNER_ONLY = (
+    ".github/",
+    ".gitlab-ci.yml",
+    ".gitlab/",
+    ".circleci/",
+    ".buildkite/",
+    "azure-pipelines.yml",
+    "bitbucket-pipelines.yml",
+    "Jenkinsfile",
+)
+# The Epic record is the only thing a review PASS carries across.
+RECORD_ONLY_PREFIX = "docs/epics/"
+RECORD_ONLY_FILE = "docs/DOCUMENTS.md"
 POLICY_HEADING = "## Delivery Autonomy"
-POLICY_INELIGIBLE = (
-    "the repository is not eligible; its Delivery Autonomy section on the base commit "
-    "does not say `Landing: epic_grant`"
+POLICY_KEYS = (
+    "Landing",
+    "Required checks",
+    "Journey command",
+    "Production smoke command",
+    "Recovery",
+    "Owner-only paths",
 )
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
+_FENCE = re.compile(r"^\s*(```|~~~)")
 _BAD_BRANCH_CHARS = set(" ~^:?*[\\\x7f")
+
+
+def _now() -> datetime:
+    """The clock. Tests replace this function; the CLI offers no override."""
+
+    return datetime.now(timezone.utc)
 
 
 def _git(root: Path, *args: str) -> str:
     result = run_git(root, *args, capture_output=True, text=True, timeout=30, check=False)
     if result.returncode != 0:
         raise ManifestError(result.stderr.strip() or f"git {' '.join(args)} failed")
-    return result.stdout.strip()
+    return result.stdout
 
 
-def _git_or_none(root: Path, *args: str) -> str | None:
-    result = run_git(root, *args, capture_output=True, text=True, timeout=30, check=False)
+def _is_commit(root: Path, sha: str) -> bool:
+    result = run_git(
+        root, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}",
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    return result.returncode == 0
+
+
+def _ref_tip(root: Path, ref: str) -> str | None:
+    result = run_git(
+        root, "rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}",
+        capture_output=True, text=True, timeout=30, check=False,
+    )
     return result.stdout.strip() if result.returncode == 0 else None
+
+
+def _is_ancestor(root: Path, older: str, younger: str) -> bool:
+    """True or False from git; any other git exit is an error, not "no"."""
+
+    result = run_git(
+        root, "merge-base", "--is-ancestor", older, younger,
+        capture_output=True, text=True, timeout=30, check=False,
+    )
+    if result.returncode == 0:
+        return True
+    if result.returncode == 1:
+        return False
+    raise ManifestError(result.stderr.strip() or f"git merge-base --is-ancestor {older} {younger} failed")
+
+
+def _diff_names(root: Path, older: str, younger: str) -> list[str]:
+    """Every path that differs between two commits.
+
+    -z keeps names unquoted, so a non-ASCII path is compared as it is.
+    --no-renames reports a rename as its old and its new path, so a moved
+    owner-only file still shows where it left. A git failure raises.
+    """
+
+    output = _git(root, "diff", "--name-only", "--no-renames", "-z", older, younger)
+    return [name.replace("\\", "/") for name in output.split("\0") if name]
 
 
 def _utc_z(moment: datetime) -> str:
     return moment.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
-def _parse_utc(value: str) -> datetime | None:
+def _parse_utc(value: Any) -> datetime | None:
+    if not isinstance(value, str):
+        return None
     text = value.strip()
     if text.endswith(("Z", "z")):
         text = text[:-1] + "+00:00"
@@ -70,20 +146,19 @@ def _parse_utc(value: str) -> datetime | None:
         parsed = datetime.fromisoformat(text)
     except ValueError:
         return None
-    if parsed.tzinfo is None or parsed.utcoffset() is None or parsed.utcoffset().total_seconds() != 0:
+    offset = parsed.utcoffset()
+    if offset is None or offset.total_seconds() != 0:
         return None
     return parsed
 
 
-def _required_utc(value: str, flag: str) -> datetime:
-    parsed = _parse_utc(value)
-    if parsed is None:
-        raise ManifestError(f"{flag} requires an ISO-8601 UTC timestamp such as 2026-11-25T00:00:00Z")
-    return parsed
+def _is_protected(ref: str) -> bool:
+    # Windows and macOS resolve refs/heads/Main to the same ref as main.
+    return ref.casefold() in PROTECTED_BRANCHES
 
 
-def _valid_branch_ref(value: str) -> bool:
-    if not value.startswith(BRANCH_PREFIX) or value in PROTECTED_BRANCHES:
+def _valid_branch_ref(value: Any) -> bool:
+    if not isinstance(value, str) or not value.startswith(BRANCH_PREFIX) or _is_protected(value):
         return False
     name = value[len(BRANCH_PREFIX):]
     if not name or name.startswith(("-", "/")) or name.endswith(("/", ".")):
@@ -96,39 +171,33 @@ def _valid_branch_ref(value: str) -> bool:
     return not any(part in ("", ".") or part.startswith(".") or part.endswith(".lock") for part in parts)
 
 
-def _is_commit(root: Path, sha: str) -> bool:
-    return _git_or_none(root, "rev-parse", "--verify", "--quiet", f"{sha}^{{commit}}") is not None
+def _owner_only_match(pattern: str, path: str) -> bool:
+    """Case-insensitive, because the same file has two spellings on Windows."""
+
+    folded_path = path.casefold()
+    folded_pattern = pattern.casefold()
+    if folded_pattern.endswith("/"):
+        # The directory entry itself changes when it becomes a submodule or symlink.
+        return folded_path == folded_pattern[:-1] or folded_path.startswith(folded_pattern)
+    return fnmatchcase(folded_path, folded_pattern)
 
 
-def _is_ancestor(root: Path, older: str, younger: str) -> bool:
-    result = run_git(
-        root, "merge-base", "--is-ancestor", older, younger,
-        capture_output=True, text=True, timeout=30, check=False,
-    )
-    return result.returncode == 0
-
-
-def _diff_names(root: Path, older: str, younger: str) -> list[str]:
-    """Every path that differs, with a rename reported as its old and new path.
-
-    Without --no-renames a renamed owner-only file would show only its new
-    name and slip past the owner-only check. A git failure raises: an unknown
-    diff must never read as "nothing changed".
-    """
-
-    output = _git(root, "diff", "--name-only", "--no-renames", older, younger)
-    return [line.strip().replace("\\", "/") for line in output.splitlines() if line.strip()]
+def _owner_only_paths(changed: list[str], policy: dict[str, str]) -> list[str]:
+    patterns = list(BUILTIN_OWNER_ONLY) + (_policy_list(policy.get("Owner-only paths")) or [])
+    matching = set()
+    for path in changed:
+        if path.casefold().rsplit("/", 1)[-1] in OWNER_ONLY_BASENAMES:
+            matching.add(path)
+        elif any(_owner_only_match(pattern, path) for pattern in patterns):
+            matching.add(path)
+    return sorted(matching)
 
 
 def _is_record_only(path: str) -> bool:
-    """Paths a review PASS may carry across: project records, not rules or code."""
-
-    if path.startswith("docs/"):
-        return True
-    return "/" not in path and (path.startswith("README") or path == "CHANGELOG.md") and path.endswith(".md")
+    return path == RECORD_ONLY_FILE or (path.startswith(RECORD_ONLY_PREFIX) and path.endswith(".md"))
 
 
-def _split_policy_list(value: str | None) -> list[str] | None:
+def _policy_list(value: str | None) -> list[str] | None:
     if value is None:
         return None
     items = [item.strip() for item in value.split(",") if item.strip()]
@@ -136,78 +205,137 @@ def _split_policy_list(value: str | None) -> list[str] | None:
 
 
 def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
-    """Read the Delivery Autonomy policy exactly as the base commit records it."""
+    """The Delivery Autonomy policy exactly as the base commit records it.
+
+    Returns the policy and None, or an empty policy and the reason the
+    repository is not eligible. Fenced examples are not policy. A second
+    section or a repeated key makes the policy ambiguous, which is ineligible.
+    """
 
     result = run_git(
         root, "show", "--format=", f"{base}:AGENTS.md",
         capture_output=True, text=False, timeout=30, check=False,
     )
     if result.returncode != 0:
-        return {}, POLICY_INELIGIBLE
+        return {}, "the repository is not eligible: AGENTS.md cannot be read at the grant base"
     try:
         text = bytes(result.stdout).decode("utf-8")
     except UnicodeDecodeError:
-        return {}, POLICY_INELIGIBLE
+        return {}, "the repository is not eligible: AGENTS.md at the grant base is not UTF-8"
     policy: dict[str, str] = {}
+    sections = 0
     inside = False
+    fenced = False
     for line in text.replace("\r\n", "\n").split("\n"):
+        if _FENCE.match(line):
+            fenced = not fenced
+            continue
+        if fenced:
+            continue
         stripped = line.strip()
         if stripped.startswith("## "):
-            if inside:
-                break
             inside = stripped == POLICY_HEADING
+            sections += inside
             continue
         if not inside or not stripped.startswith("- "):
             continue
         key, separator, item = stripped[2:].partition(":")
-        if separator:
-            policy.setdefault(key.strip(), item.strip())
-    if not inside or policy.get("Landing") != "epic_grant":
-        return {}, POLICY_INELIGIBLE
+        if not separator:
+            continue
+        key = key.strip()
+        if key in policy:
+            return {}, f"the repository is not eligible: its Delivery Autonomy section repeats `{key}`"
+        policy[key] = item.strip()
+    if sections != 1:
+        return {}, (
+            "the repository is not eligible: AGENTS.md at the grant base has "
+            f"{sections} Delivery Autonomy sections, not one"
+        )
+    if policy.get("Landing") != "epic_grant":
+        return {}, (
+            "the repository is not eligible; its Delivery Autonomy section on the base commit "
+            "does not say `Landing: epic_grant`"
+        )
+    unfilled = [key for key in POLICY_KEYS if not policy.get(key) or "<fill>" in policy[key]]
+    if unfilled:
+        return {}, "the repository is not eligible: Delivery Autonomy leaves unset: " + ", ".join(unfilled)
+    if not _policy_list(policy["Required checks"]):
+        return {}, "the repository is not eligible: an eligible repository names its required checks"
     return policy, None
 
 
-def _pattern_match(pattern: str, path: str) -> bool:
-    if pattern.endswith("/"):
-        return path.startswith(pattern)
-    return fnmatchcase(path, pattern)
+def _grant_fields_reason(grant: Any) -> str | None:
+    if not isinstance(grant, dict) or grant.get("schema") != GRANT_SCHEMA:
+        return f"the grant file is not schema {GRANT_SCHEMA}"
+    for key in ("repository", "remote", "epic", "source"):
+        if not isinstance(grant.get(key), str) or not grant[key].strip():
+            return f"the grant file has no usable `{key}`"
+    if not _valid_branch_ref(grant.get("branch")):
+        return "the grant file names no valid unprotected refs/heads/ branch"
+    if grant.get("target") != TARGET_REF:
+        return f"the grant file target is not {TARGET_REF}"
+    if not is_full_sha(grant.get("base")):
+        return "the grant file base is not a full 40-character SHA"
+    actions = grant.get("actions")
+    if not isinstance(actions, list) or not actions or any(action not in ALLOWED_ACTIONS for action in actions):
+        return "the grant file actions are missing or unknown"
+    if _parse_utc(grant.get("expires")) is None:
+        return "the grant file has no parsable ISO-8601 UTC expiry"
+    budget = grant.get("repair_budget")
+    if isinstance(budget, bool) or not isinstance(budget, int) or budget < 0:
+        return "the grant file repair_budget is not an integer >= 0"
+    return None
 
 
-def _owner_only_patterns(policy: dict[str, str]) -> list[str]:
-    extra = _split_policy_list(policy.get("Owner-only paths"))
-    return list(BUILTIN_OWNER_ONLY) + (extra or [])
+def _load_grant(grant_path: Path, expected_sha256: str) -> tuple[dict[str, Any] | None, Path, str | None]:
+    """The grant, its canonical path, and the single reason it cannot be used."""
 
-
-def _grant_string(grant: dict[str, Any], key: str) -> str:
-    value = grant.get(key)
-    return value if isinstance(value, str) else ""
-
-
-def _load_grant(grant_path: Path, expected_sha256: str) -> tuple[dict[str, Any] | None, str | None]:
     if not _HEX64.fullmatch(expected_sha256):
         raise ManifestError("--grant-sha256 requires 64 lowercase hex characters")
+    canonical = grant_path.resolve(strict=False)
     try:
-        raw = grant_path.read_bytes()
+        raw = canonical.read_bytes()
     except OSError:
-        return None, f"the grant file is missing or unreadable: {grant_path}"
+        return None, canonical, f"the grant file is missing or unreadable: {grant_path}"
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        return None, canonical, "the grant file bytes do not hash to --grant-sha256"
     try:
         grant = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError):
-        return None, f"the grant file is not valid JSON and so is not {GRANT_SCHEMA}"
-    if not isinstance(grant, dict) or grant.get("schema") != GRANT_SCHEMA:
-        return None, f"the grant file is not schema {GRANT_SCHEMA}"
-    if hashlib.sha256(raw).hexdigest() != expected_sha256:
-        return None, "the grant file bytes do not hash to --grant-sha256"
-    return grant, None
+        return None, canonical, f"the grant file is not valid JSON and so is not {GRANT_SCHEMA}"
+    reason = _grant_fields_reason(grant)
+    return (None, canonical, reason) if reason else (grant, canonical, None)
 
 
-def _expiry_reason(grant: dict[str, Any], now: datetime) -> str | None:
-    expires = _parse_utc(_grant_string(grant, "expires"))
-    if expires is None:
-        return "the grant records no parsable ISO-8601 UTC expiry"
-    if expires <= now:
-        return f"the grant expired at {_grant_string(grant, 'expires')}"
-    return None
+def _binding_reasons(root: Path, grant: dict[str, Any], canonical: Path) -> tuple[list[str], dict[str, str]]:
+    """What must hold for any use of the grant, and the base policy when eligible."""
+
+    reasons: list[str] = []
+    # The marker sits beside the real file, whatever alias the caller used.
+    if canonical.with_name(canonical.name + ".revoked").exists():
+        reasons.append("the grant is revoked")
+    expires = _parse_utc(grant["expires"])
+    if expires is None or expires <= _now():
+        reasons.append(f"the grant expired at {grant['expires']}")
+    if canonical.is_relative_to(root):
+        reasons.append("the grant file lives inside the repository checkout")
+    try:
+        configured: str | None = _configured_push_url(root, grant["remote"])
+    except ManifestError as exc:
+        configured = None
+        reasons.append(f"the push URL of remote {grant['remote']!r} cannot be read: {exc}")
+    if configured is not None and configured != grant["repository"]:
+        reasons.append(
+            f"the push URL of remote {grant['remote']!r} differs from the grant repository {grant['repository']!r}"
+        )
+    policy: dict[str, str] = {}
+    if not _is_commit(root, grant["base"]):
+        reasons.append(f"the grant base {grant['base']} is not a commit in the repository")
+    else:
+        policy, policy_reason = _policy_at_base(root, grant["base"])
+        if policy_reason is not None:
+            reasons.append(policy_reason)
+    return reasons, policy
 
 
 def _write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
@@ -223,12 +351,13 @@ def _write_json_exclusive(path: Path, value: dict[str, Any]) -> None:
 def _record(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve()
     out = Path(args.out).resolve(strict=False)
+    actions = list(args.action or [])
     reasons: list[str] = []
     if out.is_relative_to(root):
         reasons.append("--out must resolve outside --repo-root; a grant never lives in the checkout")
     if out.exists():
         reasons.append("--out already exists; a recorded grant is never overwritten")
-    if args.branch in PROTECTED_BRANCHES:
+    if isinstance(args.branch, str) and _is_protected(args.branch):
         reasons.append(f"--branch {args.branch} is protected; grants never cover main or development")
     elif not _valid_branch_ref(args.branch):
         reasons.append(f"--branch {args.branch} is not a full refs/heads/<name> ref")
@@ -239,15 +368,16 @@ def _record(args: argparse.Namespace) -> dict[str, Any]:
     expires = _parse_utc(args.expires)
     if expires is None:
         reasons.append(f"--expires {args.expires!r} is not an ISO-8601 UTC timestamp")
-    elif expires <= datetime.now(timezone.utc):
+    elif expires <= _now():
         reasons.append(f"--expires {args.expires} is not in the future")
-    unknown = [action for action in args.action if action not in ALLOWED_ACTIONS]
-    if not args.action:
+    unknown = [action for action in actions if action not in ALLOWED_ACTIONS]
+    if not actions:
         reasons.append("at least one --action is required")
     if unknown:
         reasons.append(f"unknown actions: {', '.join(unknown)}; allowed: {', '.join(ALLOWED_ACTIONS)}")
-    if not args.source.strip():
-        reasons.append("--source must quote the owner instruction and its date")
+    for flag, value in (("--epic", args.epic), ("--source", args.source)):
+        if not value.strip():
+            reasons.append(f"{flag} must not be empty")
     # _configured_push_url rejects a password or an http(s) user and accepts a
     # passwordless ssh identity such as git@host:owner/repo.git.
     push_url: str | None = None
@@ -265,11 +395,11 @@ def _record(args: argparse.Namespace) -> dict[str, Any]:
         "branch": args.branch,
         "target": TARGET_REF,
         "base": args.base,
-        "actions": sorted(set(args.action)),
+        "actions": sorted(set(actions)),
         "expires": _utc_z(expires),
         "repair_budget": args.repair_budget,
         "source": args.source,
-        "recorded_at": _utc_z(datetime.now(timezone.utc)),
+        "recorded_at": _utc_z(_now()),
     }
     _write_json_exclusive(out, grant)
     return {
@@ -280,307 +410,224 @@ def _record(args: argparse.Namespace) -> dict[str, Any]:
 
 
 def _revoke(args: argparse.Namespace) -> dict[str, Any]:
-    grant = Path(args.grant)
+    grant = Path(args.grant).resolve(strict=False)
     if not grant.is_file():
-        return {"status": "REFUSED", "reasons": [f"the grant file does not exist: {grant}"]}
+        return {"status": "REFUSED", "reasons": [f"the grant file does not exist: {args.grant}"]}
     marker = grant.with_name(grant.name + ".revoked")
     if marker.exists():
         return {"status": "revoked", "marker": str(marker), "already_revoked": True}
-    _write_json_exclusive(
-        marker,
-        {"source": args.source, "revoked_at": _utc_z(datetime.now(timezone.utc))},
-    )
+    _write_json_exclusive(marker, {"source": args.source, "revoked_at": _utc_z(_now())})
     return {"status": "revoked", "marker": str(marker), "already_revoked": False}
 
 
-def _evidence_reasons(
-    root: Path,
-    candidate: str,
-    evidence_path: str | None,
-    policy: dict[str, str],
-    action: str,
-) -> list[str]:
-    reasons: list[str] = []
-    evidence: Any = None
-    if evidence_path is None:
-        return [f"action {action!r} requires --evidence with the parent-observed checks, review and acceptance"]
+def _load_json_object(path: str | None, label: str) -> tuple[dict[str, Any] | None, str | None]:
+    if path is None:
+        return None, f"this action requires the parent-observed {label} file"
     try:
-        evidence = json.loads(Path(evidence_path).read_bytes().decode("utf-8"))
+        value = json.loads(Path(path).read_bytes().decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        return [f"the evidence file is missing or malformed: {evidence_path}"]
-    if not isinstance(evidence, dict) or not all(
-        isinstance(evidence.get(key), dict) for key in ("checks", "review", "acceptance")
-    ):
-        return ["the evidence file is malformed: checks, review and acceptance objects are required"]
-    checks = evidence["checks"]
-    review = evidence["review"]
-    acceptance = evidence["acceptance"]
-    if checks.get("sha") != candidate:
-        reasons.append(f"evidence checks.sha {checks.get('sha')!r} is not the candidate")
-    required = _split_policy_list(policy.get("Required checks"))
-    if not required:
-        reasons.append("an eligible repository names its checks; the policy at the base names none")
-    else:
-        results = checks.get("results") if isinstance(checks.get("results"), dict) else {}
-        absent = [name for name in required if results.get(name) != "pass"]
-        if absent:
-            reasons.append("required checks absent or not pass: " + ", ".join(absent))
+        return None, f"the {label} file is missing or malformed: {path}"
+    if not isinstance(value, dict):
+        return None, f"the {label} file is not a JSON object: {path}"
+    return value, None
+
+
+def _readback_reasons(root: Path, readback: Any, candidate: str | None) -> list[str]:
+    """A read-back proves a landing only when every field it rests on is present."""
+
+    if not isinstance(readback, dict):
+        return ["the promotion read-back object is missing"]
+    problems: list[str] = []
+    if readback.get("status") != "PASS":
+        problems.append("status is not PASS")
+    if readback.get("landing") not in ("exact", "tree_equal_S"):
+        problems.append("landing is not exact or tree_equal_S")
+    if not is_full_sha(readback.get("candidate")):
+        problems.append("candidate is not a full 40-character SHA")
+    elif candidate is not None and readback["candidate"] != candidate:
+        problems.append("candidate is not this candidate")
+    observed = readback.get("observed_main")
+    if not is_full_sha(observed):
+        problems.append("observed_main is not a full 40-character SHA")
+    elif not _is_commit(root, observed):
+        problems.append("observed_main is not a commit in this repository")
+    return ["the promotion read-back does not prove the landing: " + "; ".join(problems)] if problems else []
+
+
+def _review_reasons(root: Path, review: Any, candidate: str) -> list[str]:
+    if not isinstance(review, dict):
+        return ["the evidence has no review object"]
+    reasons: list[str] = []
     if review.get("verdict") != "PASS":
         reasons.append(f"evidence review.verdict {review.get('verdict')!r} is not PASS")
     review_sha = review.get("sha")
-    if not isinstance(review_sha, str):
-        review_sha = ""
     if review_sha == candidate:
-        pass
-    elif not (
-        is_full_sha(review_sha)
-        and _is_commit(root, review_sha)
-        and _is_ancestor(root, review_sha, candidate)
-    ):
-        reasons.append(f"evidence review.sha {review.get('sha')!r} is neither the candidate nor an ancestor of it")
+        return reasons
+    if not (is_full_sha(review_sha) and _is_commit(root, review_sha) and _is_ancestor(root, review_sha, candidate)):
+        reasons.append(f"evidence review.sha {review_sha!r} is neither the candidate nor an ancestor of it")
+        return reasons
+    unreviewed = sorted(path for path in _diff_names(root, review_sha, candidate) if not _is_record_only(path))
+    if unreviewed:
+        reasons.append("changed after the reviewed SHA without a review that binds it: " + ", ".join(unreviewed))
+    return reasons
+
+
+def _evidence_reasons(
+    root: Path, candidate: str, evidence_path: str | None, grant: dict[str, Any],
+    policy: dict[str, str], action: str,
+) -> list[str]:
+    evidence, problem = _load_json_object(evidence_path, "evidence")
+    if evidence is None:
+        return [str(problem)]
+    reasons = _review_reasons(root, evidence.get("review"), candidate)
+    rounds = evidence.get("repair_rounds")
+    if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 0:
+        reasons.append("evidence repair_rounds must be an integer >= 0")
+    elif rounds > grant["repair_budget"]:
+        reasons.append(f"repair rounds {rounds} exceed the grant's repair budget {grant['repair_budget']}")
+    if action not in FULL_EVIDENCE_ACTIONS:
+        return reasons
+    checks = evidence.get("checks")
+    if not isinstance(checks, dict):
+        reasons.append("the evidence has no checks object")
     else:
-        off_policy = sorted(
-            {
-                path
-                for path in _diff_names(root, review_sha, candidate)
-                if not _is_record_only(path)
-            }
-        )
-        if off_policy:
-            reasons.append("code changed after the reviewed SHA: " + ", ".join(off_policy))
-    status = acceptance.get("status")
+        if checks.get("sha") != candidate:
+            reasons.append(f"evidence checks.sha {checks.get('sha')!r} is not the candidate")
+        results = checks.get("results") if isinstance(checks.get("results"), dict) else {}
+        absent = [name for name in _policy_list(policy.get("Required checks")) or [] if results.get(name) != "pass"]
+        if absent or not policy:
+            reasons.append("required checks absent or not pass: " + (", ".join(absent) or "policy unavailable"))
+    acceptance = evidence.get("acceptance")
+    status = acceptance.get("status") if isinstance(acceptance, dict) else None
     if status == "pass":
         if acceptance.get("sha") != candidate:
             reasons.append(f"evidence acceptance.sha {acceptance.get('sha')!r} is not the candidate")
     elif status != "not_applicable":
-        reasons.append(
-            f"evidence acceptance.status {status!r} is neither pass nor not_applicable"
-        )
+        reasons.append(f"evidence acceptance.status {status!r} is neither pass nor not_applicable")
     if action == "production_deploy":
-        readback = evidence.get("readback")
-        if not isinstance(readback, dict):
-            reasons.append("production_deploy requires the promotion readback object in the evidence")
-        else:
-            problems = []
-            if readback.get("status") != "PASS":
-                problems.append("status is not PASS")
-            if readback.get("landing") not in ("exact", "tree_equal_S"):
-                problems.append("landing is not exact or tree_equal_S")
-            if readback.get("candidate") != candidate:
-                problems.append("candidate is not the candidate")
-            if problems:
-                reasons.append("the promotion readback does not prove the landing: " + "; ".join(problems))
+        reasons.extend(_readback_reasons(root, evidence.get("readback"), candidate))
     return reasons
 
 
 def _check(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve()
-    grant_path = Path(args.grant)
-    now = _required_utc(args.now, "--now") if args.now else datetime.now(timezone.utc)
-    grant, refusal = _load_grant(grant_path, args.grant_sha256)
-    policy_base = _grant_string(grant, "base") if grant is not None else None
-    if refusal is not None:
-        return _check_result("REFUSED", args, policy_base, [refusal])
-    reasons: list[str] = []
-    if grant_path.with_name(grant_path.name + ".revoked").exists():
-        reasons.append("the grant is revoked")
-    expiry = _expiry_reason(grant, now)
-    if expiry is not None:
-        reasons.append(expiry)
-    granted = grant.get("actions") if isinstance(grant.get("actions"), list) else []
-    if args.action == "cleanup":
-        reasons.append("cleanup is never checked here; use `landing_gate.py cleanup-plan`")
-    elif args.action not in granted:
-        reasons.append(f"the grant does not cover action {args.action!r}; granted: {', '.join(map(str, granted))}")
-    if grant_path.resolve(strict=False).is_relative_to(root):
-        reasons.append("the grant file lives inside the repository checkout")
-    try:
-        configured = _configured_push_url(root, _grant_string(grant, "remote"))
-    except ManifestError:
-        configured = None
-    if configured != grant.get("repository"):
-        reasons.append(
-            f"the push URL of remote {_grant_string(grant, 'remote')!r} differs from the grant "
-            f"repository {grant.get('repository')!r}"
-        )
-    candidate = args.candidate
-    base = policy_base or ""
-    if not is_full_sha(candidate):
-        reasons.append("--candidate requires one full 40-character Git SHA")
-        candidate_ok = False
-    elif not _is_commit(root, candidate):
-        reasons.append(f"--candidate {candidate} is not a commit in the repository")
-        candidate_ok = False
-    else:
-        candidate_ok = True
-    base_ok = is_full_sha(base) and _is_commit(root, base)
-    if candidate_ok and not base_ok:
-        reasons.append(f"the grant base {base!r} is not a commit in the repository")
-    elif candidate_ok and base_ok and not _is_ancestor(root, base, candidate):
-        reasons.append(f"the grant base {base} is not an ancestor of the candidate")
-    branch_ref = _grant_string(grant, "branch")
-    tip = _git_or_none(root, "rev-parse", "--verify", "--quiet", branch_ref) if branch_ref else None
-    if tip != candidate:
-        reasons.append(
-            f"the local tip of {branch_ref} is {tip or 'missing'}; it must be the candidate"
-        )
-    policy, policy_reason = _policy_at_base(root, base) if base_ok else ({}, POLICY_INELIGIBLE)
-    if policy_reason is not None:
-        reasons.append(policy_reason)
-    if candidate_ok and base_ok:
-        changed = _diff_names(root, base, candidate)
-        matching = sorted(
-            {path for path in changed for pattern in _owner_only_patterns(policy) if _pattern_match(pattern, path)}
-        )
-        if matching:
-            reasons.append("owner-only paths changed: " + ", ".join(matching))
-    if args.action in EVIDENCE_ACTIONS:
-        reasons.extend(_evidence_reasons(root, candidate, args.evidence, policy, args.action))
-    return _check_result("REFUSED" if reasons else "PASS", args, policy_base, reasons)
-
-
-def _check_result(
-    status: str, args: argparse.Namespace, policy_base: str | None, reasons: list[str]
-) -> dict[str, Any]:
-    return {
-        "status": status,
+    result = {
         "action": args.action,
         "candidate": args.candidate,
         "grant_sha256": args.grant_sha256,
-        "policy_base": policy_base,
-        "reasons": reasons,
+        "policy_base": None,
     }
+    grant, canonical, refusal = _load_grant(Path(args.grant), args.grant_sha256)
+    if grant is None:
+        return {**result, "status": "REFUSED", "reasons": [refusal]}
+    result["policy_base"] = grant["base"]
+    reasons, policy = _binding_reasons(root, grant, canonical)
+    if args.action == "cleanup":
+        reasons.append("cleanup is never checked here; use `landing_gate.py cleanup-plan`")
+    elif args.action not in grant["actions"]:
+        reasons.append(f"the grant does not cover action {args.action!r}; granted: {', '.join(grant['actions'])}")
+    candidate = args.candidate
+    candidate_ok = is_full_sha(candidate) and _is_commit(root, candidate)
+    base_ok = _is_commit(root, grant["base"])
+    if not is_full_sha(candidate):
+        reasons.append("--candidate requires one full 40-character Git SHA")
+    elif not candidate_ok:
+        reasons.append(f"--candidate {candidate} is not a commit in the repository")
+    elif base_ok and not _is_ancestor(root, grant["base"], candidate):
+        reasons.append(f"the grant base {grant['base']} is not an ancestor of the candidate")
+    tip = _ref_tip(root, grant["branch"])
+    if tip != candidate:
+        reasons.append(f"the local tip of {grant['branch']} is {tip or 'missing'}; it must be the candidate")
+    if candidate_ok and base_ok:
+        matching = _owner_only_paths(_diff_names(root, grant["base"], candidate), policy)
+        if matching:
+            reasons.append("owner-only paths changed: " + ", ".join(matching))
+        if args.action in REVIEW_EVIDENCE_ACTIONS + FULL_EVIDENCE_ACTIONS:
+            reasons.extend(_evidence_reasons(root, candidate, args.evidence, grant, policy, args.action))
+    return {**result, "status": "REFUSED" if reasons else "PASS", "reasons": reasons}
 
 
 def _worktree_entries(root: Path) -> list[dict[str, Any]]:
-    output = _git(root, "worktree", "list", "--porcelain")
     entries: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
-    for line in output.splitlines():
+    for line in _git(root, "worktree", "list", "--porcelain").splitlines():
         if not line.strip():
-            if current is not None:
-                entries.append(current)
-                current = None
+            current = None
             continue
         key, _, value = line.partition(" ")
         if key == "worktree":
             current = {"path": Path(value), "branch": None}
+            entries.append(current)
         elif current is not None and key == "branch":
             current["branch"] = value
-    if current is not None:
-        entries.append(current)
+    if not entries:
+        raise ManifestError("git worktree list returned no worktree; refusing to plan a cleanup")
     return entries
 
 
 def _worktree_clean(path: Path) -> bool:
-    output = _git_or_none(path, "status", "--porcelain")
-    return output is not None and output.strip() == ""
+    return _git(path, "status", "--porcelain").strip() == ""
 
 
 def _cleanup_plan(args: argparse.Namespace) -> dict[str, Any]:
     root = Path(args.repo_root).resolve()
-    grant_path = Path(args.grant)
     if args.remote_tip is not None and not is_full_sha(args.remote_tip):
         raise ManifestError("--remote-tip requires one full 40-character Git SHA")
-    now = _required_utc(args.now, "--now") if args.now else datetime.now(timezone.utc)
-    value: dict[str, Any] = {"commands": [], "refused": [], "notes": []}
-    grant, refusal = _load_grant(grant_path, args.grant_sha256)
-    if refusal is not None:
-        return {**value, "status": "REFUSED", "reasons": [refusal]}
-    reasons: list[str] = []
-    if grant_path.with_name(grant_path.name + ".revoked").exists():
-        reasons.append("the grant is revoked")
-    expiry = _expiry_reason(grant, now)
-    if expiry is not None:
-        reasons.append(expiry)
-    granted = grant.get("actions") if isinstance(grant.get("actions"), list) else []
-    if "cleanup" not in granted:
+    empty: dict[str, Any] = {"commands": [], "refused": [], "notes": []}
+    grant, canonical, refusal = _load_grant(Path(args.grant), args.grant_sha256)
+    if grant is None:
+        return {**empty, "status": "REFUSED", "reasons": [refusal]}
+    reasons, _policy = _binding_reasons(root, grant, canonical)
+    if "cleanup" not in grant["actions"]:
         reasons.append("the grant does not cover cleanup")
-    readback: Any = None
-    try:
-        readback = json.loads(Path(args.readback).read_bytes().decode("utf-8"))
-    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
-        reasons.append(f"the readback file is missing or malformed: {args.readback}")
-    candidate = readback.get("candidate") if isinstance(readback, dict) else None
-    observed_main = readback.get("observed_main") if isinstance(readback, dict) else None
-    if not isinstance(readback, dict):
-        readback = {}
-    if readback.get("status") != "PASS":
-        reasons.append("the readback status is not PASS")
-    if readback.get("landing") not in ("exact", "tree_equal_S"):
-        reasons.append("the readback landing is not exact or tree_equal_S")
-    if not is_full_sha(candidate):
-        reasons.append("the readback candidate is not a full 40-character SHA")
-        candidate = None
-    branch_ref = _grant_string(grant, "branch")
-    branch_name = branch_ref[len(BRANCH_PREFIX):] if branch_ref.startswith(BRANCH_PREFIX) else ""
-    if branch_ref in PROTECTED_BRANCHES:
-        reasons.append(f"{branch_ref} is protected; cleanup never removes main or development")
-    elif not branch_name:
-        reasons.append(f"the grant branch {branch_ref!r} is not a refs/heads/ ref")
-    tip = _git_or_none(root, "rev-parse", "--verify", "--quiet", branch_ref) if branch_ref else None
-    if candidate is not None and tip != candidate:
-        reasons.append(
-            f"the local tip of {branch_ref} is {tip or 'missing'}; the branch moved after landing"
-        )
+    readback, problem = _load_json_object(str(args.readback), "read-back")
+    if readback is None:
+        reasons.append(str(problem))
+    else:
+        reasons.extend(_readback_reasons(root, readback, None))
     if reasons:
-        return {**value, "status": "REFUSED", "reasons": reasons}
+        return {**empty, "status": "REFUSED", "reasons": reasons}
+    candidate = readback["candidate"]
+    branch_ref = grant["branch"]
+    branch_name = branch_ref[len(BRANCH_PREFIX):]
+    tip = _ref_tip(root, branch_ref)
+    if tip != candidate:
+        reasons.append(f"the local tip of {branch_ref} is {tip or 'missing'}; the branch moved after landing")
+    merged = _is_ancestor(root, candidate, readback["observed_main"])
+    if not merged and readback["landing"] != "tree_equal_S":
+        reasons.append("the read-back says `exact`, but the candidate is not an ancestor of the observed main")
+    if reasons:
+        return {**empty, "status": "REFUSED", "reasons": reasons}
     commands: list[list[str]] = []
     refused: list[dict[str, str]] = []
     notes: list[str] = []
     entries = _worktree_entries(root)
-    for worktree in entries[1:]:
-        if worktree["branch"] != branch_ref:
-            continue
-        worktree_path = Path(worktree["path"])
-        if _worktree_clean(worktree_path):
-            commands.append(["git", "worktree", "remove", str(worktree_path)])
+    # Refs compare case-insensitively: Main and main are one ref on Windows.
+    same_branch = [entry for entry in entries if (entry["branch"] or "").casefold() == branch_ref.casefold()]
+    for entry in same_branch:
+        if entry is entries[0]:
+            refused.append({"target": branch_ref, "reason": "switch the primary checkout to another branch first"})
+        elif _worktree_clean(entry["path"]):
+            commands.append(["git", "worktree", "remove", str(entry["path"])])
         else:
-            refused.append(
-                {
-                    "target": str(worktree_path),
-                    "reason": "the worktree is dirty; clean it before planning its removal",
-                }
-            )
-    if entries and entries[0]["branch"] == branch_ref:
-        refused.append(
-            {
-                "target": branch_ref,
-                "reason": "switch the primary checkout to another branch first",
-            }
-        )
+            refused.append({"target": str(entry["path"]), "reason": "the worktree is dirty; nothing is removed"})
+    if merged:
+        commands.append(["git", "branch", "-d", branch_name])
     else:
-        merged = (
-            is_full_sha(observed_main)
-            and candidate is not None
-            and _is_ancestor(root, candidate, observed_main)
-        )
-        if merged:
-            commands.append(["git", "branch", "-d", branch_name])
-        else:
-            commands.append(["git", "branch", "-D", branch_name])
-            notes.append(
-                f"tree equality, not ancestry, proves the landing; {branch_ref} needs git branch -D"
-            )
+        commands.append(["git", "branch", "-D", branch_name])
+        notes.append(f"tree equality, not ancestry, proves the landing; {branch_ref} needs git branch -D")
     if args.remote_tip is not None:
         if args.remote_tip == candidate:
-            commands.append(["git", "push", _grant_string(grant, "remote"), "--delete", branch_name])
+            commands.append(["git", "push", grant["remote"], "--delete", branch_name])
         else:
-            refused.append(
-                {
-                    "target": f"{_grant_string(grant, 'remote')}:{branch_ref}",
-                    "reason": (
-                        f"the remote tip is {args.remote_tip}; it must be the landed candidate {candidate}"
-                    ),
-                }
-            )
-    return {
-        "status": "REFUSED" if refused else "PASS",
-        "commands": commands,
-        "refused": refused,
-        "notes": notes,
-        "reasons": [],
-    }
+            refused.append({
+                "target": f"{grant['remote']}:{branch_ref}",
+                "reason": f"the remote tip is {args.remote_tip}; it must be the landed candidate {candidate}",
+            })
+    if refused:
+        # All or nothing: a partial plan would leave the parent to guess.
+        return {"status": "REFUSED", "commands": [], "refused": refused, "notes": [], "reasons": []}
+    return {"status": "PASS", "commands": commands, "refused": [], "notes": notes, "reasons": []}
 
 
 def _non_negative_int(value: str) -> int:
@@ -603,7 +650,7 @@ def main(argv: list[str] | None = None) -> int:
     record_parser.add_argument("--epic", required=True)
     record_parser.add_argument("--branch", required=True)
     record_parser.add_argument("--base", required=True)
-    record_parser.add_argument("--action", action="append")
+    record_parser.add_argument("--action", action="append", default=[])
     record_parser.add_argument("--expires", required=True)
     record_parser.add_argument("--repair-budget", required=True, type=_non_negative_int)
     record_parser.add_argument("--source", required=True)
@@ -617,25 +664,17 @@ def main(argv: list[str] | None = None) -> int:
     check_parser.add_argument("--candidate", required=True)
     check_parser.add_argument("--action", required=True)
     check_parser.add_argument("--evidence", default=None)
-    check_parser.add_argument("--now", default=None)
     cleanup_parser = sub.add_parser("cleanup-plan", help="print the commands that would clean up the landed branch")
     cleanup_parser.add_argument("--repo-root", required=True, type=Path)
     cleanup_parser.add_argument("--grant", required=True, type=Path)
     cleanup_parser.add_argument("--grant-sha256", required=True)
     cleanup_parser.add_argument("--readback", required=True, type=Path)
     cleanup_parser.add_argument("--remote-tip", default=None)
-    cleanup_parser.add_argument("--now", default=None)
     args = parser.parse_args(argv)
+    handlers = {"record": _record, "revoke": _revoke, "check": _check, "cleanup-plan": _cleanup_plan}
     try:
-        if args.command == "record":
-            value = _record(args)
-        elif args.command == "revoke":
-            value = _revoke(args)
-        elif args.command == "check":
-            value = _check(args)
-        else:
-            value = _cleanup_plan(args)
-    except (OSError, ManifestError, ValueError, KeyError, GitMetadataError) as exc:
+        value = handlers[args.command](args)
+    except (OSError, ManifestError, ValueError, KeyError, TypeError, GitMetadataError, subprocess.SubprocessError) as exc:
         print(json.dumps({"authority": AUTHORITY_NOTE, "status": "ERROR", "errors": [str(exc)]}, sort_keys=True))
         return 2
     print(json.dumps({"authority": AUTHORITY_NOTE, **value}, sort_keys=True))

@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -24,8 +25,11 @@ AGENTS_EPIC_GRANT = """# Test Repo
 ## Delivery Autonomy
 
 - Landing: epic_grant
-- Owner-only paths: none
 - Required checks: build, test
+- Journey command: python -m pytest tests/journey
+- Production smoke command: none
+- Recovery: revert the landing commit
+- Owner-only paths: none
 
 ## Unrelated
 
@@ -40,6 +44,16 @@ AGENTS_INTERNAL_OWNED = AGENTS_EPIC_GRANT.replace(
     "- Owner-only paths: none", "- Owner-only paths: docs/internal/"
 )
 FORBIDDEN_GIT_VERBS = {"clone", "fetch", "pull", "push", "merge", "tag"}
+AUTO = object()
+
+
+def clock(moment: str | None):
+    """Fix the gate's clock; the CLI itself offers no override."""
+
+    if moment is None:
+        return contextlib.nullcontext()
+    fixed = datetime.fromisoformat(moment.replace("Z", "+00:00")).astimezone(timezone.utc)
+    return patch.object(subject, "_now", lambda: fixed)
 
 
 def git(root: Path, *args: str) -> str:
@@ -148,7 +162,7 @@ class LandingGateTests(unittest.TestCase):
         candidate: str,
         action: str,
         *,
-        evidence: Path | None = None,
+        evidence: object = AUTO,
         now: str | None = None,
         grant_sha: str | None = None,
     ) -> tuple[int, dict]:
@@ -160,11 +174,13 @@ class LandingGateTests(unittest.TestCase):
             "--candidate", candidate,
             "--action", action,
         ]
+        if evidence is AUTO:
+            needs = action in ("push", "pull_request", "merge", "production_deploy")
+            evidence = self._evidence(candidate) if needs else None
         if evidence is not None:
             argv += ["--evidence", str(evidence)]
-        if now is not None:
-            argv += ["--now", now]
-        return self._run(*argv)
+        with clock(now):
+            return self._run(*argv)
 
     def _cleanup(
         self,
@@ -198,9 +214,8 @@ class LandingGateTests(unittest.TestCase):
         ]
         if remote_tip is not None:
             argv += ["--remote-tip", remote_tip]
-        if now is not None:
-            argv += ["--now", now]
-        return self._run(*argv)
+        with clock(now):
+            return self._run(*argv)
 
     def _evidence(
         self,
@@ -213,8 +228,10 @@ class LandingGateTests(unittest.TestCase):
         acceptance_status: str = "pass",
         acceptance_sha: str | None = None,
         readback: dict | None = None,
+        repair_rounds: object = 0,
     ) -> Path:
         value: dict = {
+            "repair_rounds": repair_rounds,
             "checks": {
                 "sha": checks_sha or candidate,
                 "results": results if results is not None else {"build": "pass", "test": "pass"},
@@ -385,11 +402,13 @@ class LandingGateTests(unittest.TestCase):
         self.assertEqual(0, code, value)
         self.assertEqual("PASS", value["status"])
 
-    def test_check_passes_review_on_ancestor_with_docs_change_only(self) -> None:
+    def test_check_passes_review_on_ancestor_when_only_the_epic_record_changed(self) -> None:
         fixture = self._fixture()
         root = Path(fixture["root"])
         reviewed = self._commit(root, {"src/app.py": "print('landing')\n"}, "code")
-        candidate = self._commit(root, {"docs/guide.md": "# Guide\n"}, "docs only")
+        candidate = self._commit(
+            root, {"docs/epics/EPIC-7.md": "# Epic\n", "docs/DOCUMENTS.md": "# Documents\n"}, "record"
+        )
         code, _value, grant = self._record(fixture, actions=("merge",))
         self.assertEqual(0, code)
         evidence = self._evidence(candidate, review_sha=reviewed)
@@ -577,11 +596,14 @@ class LandingGateTests(unittest.TestCase):
     def test_check_refuses_merge_without_an_evidence_file(self) -> None:
         fixture = self._landed()
         candidate = str(fixture["candidate"])
-        code, _value, grant = self._record(fixture, actions=("merge",))
+        code, _value, grant = self._record(fixture, actions=("merge", "push", "pull_request"))
         self.assertEqual(0, code)
-        code, value = self._check(fixture, grant, candidate, "merge")
-        self.assertEqual(1, code, value)
-        self.assertTrue(any("requires --evidence" in reason for reason in value["reasons"]))
+        for action in ("merge", "push", "pull_request"):
+            code, value = self._check(fixture, grant, candidate, action, evidence=None)
+            self.assertEqual(1, code, value)
+            self.assertTrue(
+                any("requires the parent-observed evidence file" in reason for reason in value["reasons"]), action
+            )
 
     def test_check_refuses_review_on_ancestor_with_rule_text_change_since(self) -> None:
         # A Markdown file outside docs/ can be a rule or a skill; a review
@@ -692,32 +714,74 @@ class LandingGateTests(unittest.TestCase):
         )
         code, value = self._check(fixture, grant, candidate, "production_deploy", evidence=evidence)
         self.assertEqual(1, code, value)
-        self.assertTrue(any("promotion readback" in reason for reason in value["reasons"]))
+        self.assertTrue(any("promotion read-back" in reason for reason in value["reasons"]))
         evidence = self._evidence(candidate)
         code, value = self._check(fixture, grant, candidate, "production_deploy", evidence=evidence)
         self.assertEqual(1, code, value)
-        self.assertTrue(any("promotion readback" in reason for reason in value["reasons"]))
+        self.assertTrue(any("promotion read-back" in reason for reason in value["reasons"]))
+        # A read-back that names no observed main proves no landing.
+        evidence = self._evidence(
+            candidate, readback={"status": "PASS", "landing": "exact", "candidate": candidate}
+        )
+        code, value = self._check(fixture, grant, candidate, "production_deploy", evidence=evidence)
+        self.assertEqual(1, code, value)
+        self.assertTrue(any("observed_main is not a full" in reason for reason in value["reasons"]))
 
-    def test_check_ignores_evidence_for_push(self) -> None:
+    def test_check_refuses_publishing_a_candidate_without_a_passing_review(self) -> None:
+        # Review comes before push: a grant changes who names the SHA, not
+        # the order of the review boundary.
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        code, _value, grant = self._record(fixture, actions=("push", "pull_request"))
+        self.assertEqual(0, code)
+        evidence = self._evidence(candidate, verdict="FIX_REQUIRED")
+        for action in ("push", "pull_request"):
+            code, value = self._check(fixture, grant, candidate, action, evidence=evidence)
+            self.assertEqual(1, code, value)
+            self.assertTrue(any("review.verdict" in reason for reason in value["reasons"]), action)
+
+    def test_check_needs_no_checks_or_acceptance_to_publish(self) -> None:
+        # CI runs on the pushed branch, so checks cannot exist before push.
         fixture = self._landed()
         candidate = str(fixture["candidate"])
         code, _value, grant = self._record(fixture, actions=("push",))
         self.assertEqual(0, code)
-        evidence = self._evidence(candidate, verdict="FIX_REQUIRED")
+        evidence = self._temp("landing-evidence-") / "review-only.json"
+        write_file(evidence, json.dumps({"repair_rounds": 0, "review": {"sha": candidate, "verdict": "PASS"}}))
         code, value = self._check(fixture, grant, candidate, "push", evidence=evidence)
         self.assertEqual(0, code, value)
-        self.assertEqual("PASS", value["status"])
+        code, value = self._check(fixture, grant, candidate, "review_threads", evidence=None)
+        self.assertEqual(1, code, value)  # not granted here, and it needs no evidence
+        self.assertEqual(1, len(value["reasons"]))
+
+    def test_check_enforces_the_repair_budget(self) -> None:
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        code, _value, grant = self._record(fixture, actions=("merge", "push"))
+        self.assertEqual(0, code)  # the helper records a budget of 1
+        for action in ("merge", "push"):
+            within = self._evidence(candidate, repair_rounds=1)
+            self.assertEqual(0, self._check(fixture, grant, candidate, action, evidence=within)[0], action)
+            code, value = self._check(
+                fixture, grant, candidate, action, evidence=self._evidence(candidate, repair_rounds=2)
+            )
+            self.assertEqual(1, code, value)
+            self.assertTrue(any("exceed the grant's repair budget 1" in reason for reason in value["reasons"]))
+            for bad in (None, "0", True, -1):
+                code, value = self._check(
+                    fixture, grant, candidate, action, evidence=self._evidence(candidate, repair_rounds=bad)
+                )
+                self.assertEqual(1, code, (bad, value))
+                self.assertTrue(any("repair_rounds must be an integer" in reason for reason in value["reasons"]))
 
     def test_bad_arguments_exit_2(self) -> None:
         fixture = self._landed()
         candidate = str(fixture["candidate"])
         code, _value, grant = self._record(fixture)
         self.assertEqual(0, code)
-        code, value = self._check(fixture, grant, candidate, "push", now="not-a-date")
-        self.assertEqual(2, code, value)
-        self.assertEqual("ERROR", value["status"])
         code, value = self._check(fixture, grant, candidate, "push", grant_sha="zz")
         self.assertEqual(2, code, value)
+        self.assertEqual("ERROR", value["status"])
         with self.assertRaises(SystemExit) as caught:
             subject.main(
                 [
@@ -766,7 +830,8 @@ class LandingGateTests(unittest.TestCase):
         code, value = self._cleanup(fixture, grant, candidate)
         self.assertEqual(1, code, value)
         self.assertEqual("REFUSED", value["status"])
-        self.assertEqual([["git", "branch", "-d", "epic-7"]], value["commands"])
+        # All or nothing: one refused target leaves no command to run.
+        self.assertEqual([], value["commands"])
         self.assertEqual(1, len(value["refused"]))
         self.assertEqual(str(worktree_path), value["refused"][0]["target"])
 
@@ -839,7 +904,7 @@ class LandingGateTests(unittest.TestCase):
         code, value = self._cleanup(fixture, grant, candidate, remote_tip=str(fixture["base"]))
         self.assertEqual(1, code, value)
         self.assertEqual("REFUSED", value["status"])
-        self.assertEqual([["git", "branch", "-d", "epic-7"]], value["commands"])
+        self.assertEqual([], value["commands"])
         self.assertEqual(1, len(value["refused"]))
         self.assertIn("remote tip", value["refused"][0]["reason"])
 
@@ -924,6 +989,265 @@ class LandingGateTests(unittest.TestCase):
         verbs = [verb(call.args[0]) for call in spy.call_args_list]
         self.assertNotIn(None, verbs)
         self.assertEqual([], [item for item in verbs if item in FORBIDDEN_GIT_VERBS])
+
+    # review findings on 70c87857
+
+    def _handmade_grant(self, fixture: dict[str, object], **overrides: object) -> Path:
+        code, _value, grant = self._record(fixture, actions=("cleanup", "merge", "push"))
+        self.assertEqual(0, code)
+        data = json.loads(grant.read_text(encoding="utf-8"))
+        for key, value in overrides.items():
+            if value is None:
+                data.pop(key, None)
+            else:
+                data[key] = value
+        forged = self._temp("landing-grant-") / "forged.json"
+        write_file(forged, json.dumps(data, sort_keys=True, indent=2) + "\n")
+        return forged
+
+    def test_case_variants_of_a_protected_branch_are_protected(self) -> None:
+        # On Windows refs/heads/Main is the same ref as refs/heads/main.
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        for branch in ("refs/heads/Main", "refs/heads/MAIN", "refs/heads/Development"):
+            code, value, _grant = self._record(fixture, branch=branch)
+            self.assertEqual(1, code, value)
+            self.assertTrue(any("protected" in reason for reason in value["reasons"]), branch)
+            forged = self._handmade_grant(fixture, branch=branch)
+            code, value = self._check(fixture, forged, candidate, "push")
+            self.assertEqual(1, code, value)
+            self.assertEqual(["the grant file names no valid unprotected refs/heads/ branch"], value["reasons"])
+            code, value = self._cleanup(fixture, forged, candidate)
+            self.assertEqual(1, code, value)
+            self.assertEqual([], value["commands"])
+
+    def test_a_grant_without_its_identity_fields_is_refused(self) -> None:
+        # A missing repository must not compare equal to an unreadable remote.
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        for missing in ("repository", "remote", "epic", "source", "base", "actions", "expires", "repair_budget"):
+            forged = self._handmade_grant(fixture, **{missing: None})
+            code, value = self._check(fixture, forged, candidate, "merge")
+            self.assertEqual(1, code, (missing, value))
+            self.assertEqual(1, len(value["reasons"]), missing)
+
+    def test_cleanup_plan_is_bound_to_the_granted_repository(self) -> None:
+        fixture = self._landed()
+        root = Path(fixture["root"])
+        candidate = str(fixture["candidate"])
+        git(root, "checkout", "-q", "main")
+        code, _value, grant = self._record(fixture, actions=("cleanup",))
+        self.assertEqual(0, code)
+        other = self._temp("landing-other-") / "other.git"
+        subprocess.run(["git", "init", "--bare", "-q", "-b", "main", str(other)], check=True)
+        git(root, "remote", "set-url", "origin", str(other))
+        code, value = self._cleanup(fixture, grant, candidate, remote_tip=candidate)
+        self.assertEqual(1, code, value)
+        self.assertEqual([], value["commands"])
+        self.assertTrue(any("differs from the grant repository" in reason for reason in value["reasons"]))
+
+    def test_cleanup_plan_refuses_a_grant_inside_the_checkout(self) -> None:
+        fixture = self._landed()
+        root = Path(fixture["root"])
+        candidate = str(fixture["candidate"])
+        git(root, "checkout", "-q", "main")
+        code, _value, grant = self._record(fixture, actions=("cleanup",))
+        self.assertEqual(0, code)
+        inside = root / "grant.json"
+        inside.write_bytes(grant.read_bytes())
+        code, value = self._cleanup(fixture, inside, candidate)
+        self.assertEqual(1, code, value)
+        self.assertEqual([], value["commands"])
+        self.assertTrue(any("inside the repository checkout" in reason for reason in value["reasons"]))
+
+    def test_cleanup_plan_refuses_a_policy_that_is_no_longer_eligible(self) -> None:
+        fixture = self._landed(AGENTS_OWNER_EACH_TIME)
+        root = Path(fixture["root"])
+        candidate = str(fixture["candidate"])
+        git(root, "checkout", "-q", "main")
+        code, _value, grant = self._record(fixture, actions=("cleanup",))
+        self.assertEqual(0, code)
+        code, value = self._cleanup(fixture, grant, candidate)
+        self.assertEqual(1, code, value)
+        self.assertEqual([], value["commands"])
+
+    def test_cleanup_plan_never_force_deletes_without_a_complete_read_back(self) -> None:
+        fixture = self._landed()
+        root = Path(fixture["root"])
+        candidate = str(fixture["candidate"])
+        git(root, "checkout", "-q", "main")
+        code, _value, grant = self._record(fixture, actions=("cleanup",))
+        self.assertEqual(0, code)
+        sha = self._sha256(grant)
+        cases = {
+            "no observed main": {"status": "PASS", "landing": "exact", "candidate": candidate},
+            "observed main unknown here": {
+                "status": "PASS", "landing": "tree_equal_S", "candidate": candidate, "observed_main": "0" * 40,
+            },
+            "exact but not merged": {
+                "status": "PASS", "landing": "exact", "candidate": candidate,
+                "observed_main": str(fixture["base"]),
+            },
+        }
+        for name, readback in cases.items():
+            with self.subTest(name=name):
+                path = self._temp("landing-readback-") / "readback.json"
+                write_file(path, json.dumps(readback))
+                code, value = self._run(
+                    "cleanup-plan", "--repo-root", str(root), "--grant", str(grant),
+                    "--grant-sha256", sha, "--readback", str(path),
+                )
+                self.assertEqual(1, code, value)
+                self.assertEqual([], value["commands"])
+
+    def test_a_git_error_during_ancestry_is_an_error_not_a_force_delete(self) -> None:
+        fixture = self._landed()
+        root = Path(fixture["root"])
+        candidate = str(fixture["candidate"])
+        git(root, "checkout", "-q", "main")
+        code, _value, grant = self._record(fixture, actions=("cleanup",))
+        self.assertEqual(0, code)
+        real = subject.run_git
+
+        def failing(repo, *args, **kwargs):
+            if args[:2] == ("merge-base", "--is-ancestor"):
+                return subprocess.CompletedProcess(args, 128, "", "fatal: bad object")
+            return real(repo, *args, **kwargs)
+
+        with patch.object(subject, "run_git", failing):
+            code, value = self._cleanup(fixture, grant, candidate)
+        self.assertEqual(2, code, value)
+        self.assertEqual("ERROR", value["status"])
+        self.assertNotIn("commands", value)
+
+    def test_a_git_timeout_is_a_structured_error(self) -> None:
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        code, _value, grant = self._record(fixture)
+        self.assertEqual(0, code)
+        real = subject.run_git
+
+        def slow(repo, *args, **kwargs):
+            if args and args[0] == "diff":
+                raise subprocess.TimeoutExpired(["git", *args], 30)
+            return real(repo, *args, **kwargs)
+
+        with patch.object(subject, "run_git", slow):
+            code, value = self._check(fixture, grant, candidate, "push")
+        self.assertEqual(2, code, value)
+        self.assertEqual("ERROR", value["status"])
+
+    def test_record_without_an_action_refuses_instead_of_raising(self) -> None:
+        fixture = self._landed()
+        code, value, _grant = self._record(fixture, actions=())
+        self.assertEqual(1, code, value)
+        self.assertTrue(any("at least one --action" in reason for reason in value["reasons"]))
+
+    def test_the_clock_cannot_be_set_from_the_command_line(self) -> None:
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        code, _value, grant = self._record(fixture)
+        self.assertEqual(0, code)
+        argv = [
+            "check", "--repo-root", str(fixture["root"]), "--grant", str(grant),
+            "--grant-sha256", self._sha256(grant), "--candidate", candidate, "--action", "push",
+        ]
+        with contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:
+            subject.main([*argv, "--now", "2019-01-01T00:00:00Z"])
+        self.assertEqual(2, caught.exception.code)
+
+    def test_owner_only_paths_ignore_case_quoting_and_depth(self) -> None:
+        # A case-insensitive file system cannot hold agents.md beside AGENTS.md,
+        # so the spelling variants are checked on the matcher itself.
+        self.assertEqual(
+            ["Claude.MD", "agents.md", "sub/Agents.Override.md"],
+            subject._owner_only_paths(["agents.md", "Claude.MD", "sub/Agents.Override.md", "src/app.py"], {}),
+        )
+        cases = {
+            "nested instruction file": "packages/api/AGENTS.md",
+            "nested Claude file": "packages/api/CLAUDE.md",
+            "upper-case workflow directory": ".GITHUB/WORKFLOWS/ci.yml",
+            "non-ASCII workflow name": ".github/workflows/\u00e9.yml",
+            "code owners": ".github/CODEOWNERS",
+            "GitLab CI": ".gitlab-ci.yml",
+            "CircleCI": ".circleci/config.yml",
+            "Azure Pipelines": "azure-pipelines.yml",
+            "Jenkins": "Jenkinsfile",
+        }
+        for name, path in cases.items():
+            with self.subTest(name=name):
+                fixture = self._landed()
+                root = Path(fixture["root"])
+                candidate = self._commit(root, {path: "changed\n"}, "touch " + name)
+                code, _value, grant = self._record(fixture)
+                self.assertEqual(0, code)
+                code, value = self._check(fixture, grant, candidate, "push")
+                self.assertEqual(1, code, value)
+                matching = [reason for reason in value["reasons"] if "owner-only paths changed" in reason]
+                self.assertEqual(1, len(matching), value)
+
+    def test_a_directory_pattern_also_covers_the_directory_entry_itself(self) -> None:
+        # A directory replaced by a submodule or symlink is reported by its
+        # own name, without a trailing slash.
+        fixture = self._landed(AGENTS_EPIC_GRANT.replace("- Owner-only paths: none", "- Owner-only paths: vendor/"))
+        root = Path(fixture["root"])
+        candidate = self._commit(root, {"vendor": "now a file\n"}, "replace the directory")
+        code, _value, grant = self._record(fixture)
+        self.assertEqual(0, code)
+        code, value = self._check(fixture, grant, candidate, "push")
+        self.assertEqual(1, code, value)
+        self.assertTrue(any("owner-only paths changed: vendor" in reason for reason in value["reasons"]))
+
+    def test_only_one_unfenced_complete_policy_section_makes_a_repository_eligible(self) -> None:
+        fenced = "# Repo\n\nAn example:\n\n```markdown\n" + AGENTS_EPIC_GRANT.split("\n", 2)[2] + "```\n"
+        cases = {
+            "fenced example only": fenced,
+            "two sections": AGENTS_EPIC_GRANT + "\n## Delivery Autonomy\n\n- Landing: owner_each_time\n",
+            "repeated key": AGENTS_EPIC_GRANT.replace(
+                "- Landing: epic_grant\n", "- Landing: epic_grant\n- Landing: owner_each_time\n"
+            ),
+            "landing line alone": "# Repo\n\n## Delivery Autonomy\n\n- Landing: epic_grant\n",
+            "unfilled journey": AGENTS_EPIC_GRANT.replace("python -m pytest tests/journey", "<fill>"),
+            "no required checks": AGENTS_EPIC_GRANT.replace("- Required checks: build, test", "- Required checks: none"),
+        }
+        for name, agents in cases.items():
+            with self.subTest(name=name):
+                fixture = self._landed(agents)
+                candidate = str(fixture["candidate"])
+                code, _value, grant = self._record(fixture)
+                self.assertEqual(0, code)
+                code, value = self._check(fixture, grant, candidate, "push")
+                self.assertEqual(1, code, value)
+                self.assertTrue(any("not eligible" in reason for reason in value["reasons"]), value)
+
+    def test_a_review_does_not_carry_across_code_or_documents_under_docs(self) -> None:
+        for path in ("docs/runtime.py", "docs/guide.md", "docs/epics/tool.py", "README.md"):
+            with self.subTest(path=path):
+                fixture = self._fixture()
+                root = Path(fixture["root"])
+                reviewed = self._commit(root, {"src/app.py": "print('landing')\n"}, "code")
+                candidate = self._commit(root, {path: "changed\n"}, "after review")
+                code, _value, grant = self._record(fixture, actions=("merge",))
+                self.assertEqual(0, code)
+                evidence = self._evidence(candidate, review_sha=reviewed)
+                code, value = self._check(fixture, grant, candidate, "merge", evidence=evidence)
+                self.assertEqual(1, code, value)
+                self.assertTrue(any("without a review that binds it" in reason for reason in value["reasons"]))
+
+    def test_revocation_holds_through_an_alias_of_the_grant(self) -> None:
+        fixture = self._landed()
+        candidate = str(fixture["candidate"])
+        code, _value, grant = self._record(fixture)
+        self.assertEqual(0, code)
+        self.assertEqual(0, self._run("revoke", "--grant", str(grant), "--source", "owner, 2026-11-18")[0])
+        alias = self._temp("landing-alias-") / "alias.json"
+        try:
+            alias.symlink_to(grant)
+        except (OSError, NotImplementedError):
+            self.skipTest("symbolic links are not available on this host")
+        code, value = self._check(fixture, alias, candidate, "push")
+        self.assertEqual(1, code, value)
+        self.assertIn("the grant is revoked", value["reasons"])
 
 
 if __name__ == "__main__":
