@@ -23,6 +23,9 @@ def current_publication(root):
     for action in manifest['interactions']:
         action['id'] = 'OP-' + action['id']
     html = html[:match.start('data')] + json.dumps(manifest) + html[match.end('data'):]
+    html = html.replace('<h1>', '<h1 data-hifi-state-view="ready">', 1)
+    html = html.replace('<section class="product-feedback"',
+                        '<section data-hifi-state-view="updated" class="product-feedback"', 1)
     items = []
     for copy_id, value, marker in (
         ('home', 'Pages', 'data-navigation-id="home"'),
@@ -36,6 +39,11 @@ def current_publication(root):
                                             'status': 'approved', 'source': 'Synthetic approved fixture'}})
     inventory = {'schema': 'ui-hifi-copy/1', 'locale': 'en-US', 'surfaces': [
         {'id': 'UI-001', 'copyStatus': 'approved', 'items': items}]}
+    html = html.replace('</body>', '''<script>
+document.querySelector('[data-control-id="filter"]').addEventListener('input', function () {
+    document.__hifiReviewerRuntime.selectState('updated');
+});
+</script></body>''', 1)
     html = html.replace('</body>', '<script id="ui-hifi-copy" type="application/json">' + json.dumps(inventory) + '</script></body>')
     hifi.write_text(html, encoding='utf-8')
     text = text.replace(old_hifi, digest(hifi))
