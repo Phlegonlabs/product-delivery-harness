@@ -652,6 +652,44 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         return text.split(heading, 1)[1].split("\n## ", 1)[0]
 
 
+    def test_blocking_findings_carry_proof_and_a_second_reader_adds_no_pass(self) -> None:
+        gates = self.read("references/verification-gates.md")
+        topology = self.owner_section(gates, "## Review Topology")
+        # A code finding blocks only with something a second party can rerun.
+        self.assertIn("A blocking code finding carries its proof: the command or input, the result observed", topology)
+        self.assertIn("the parent runs it before it authorizes a repair", topology)
+        self.assertIn("A code finding without proof is a note", topology)
+        self.assertIn("states how many findings it recorded as notes for that reason", topology)
+        self.assertIn("a security finding keeps the source-to-sink validation", topology)
+        # The second reader is on demand, another vendor, and inside the one review point.
+        self.assertIn("Second reader. When the diff touches a trust boundary", topology)
+        self.assertIn("or when the owner names a contested design", topology)
+        self.assertIn("an executor of another vendor than the first reader", topology)
+        self.assertIn("It is the same review point and adds no review pass", topology)
+        self.assertIn("only findings with proof block", topology)
+        self.assertIn("record `second_reader: unavailable (<reason>)` and proceed with one reader", topology)
+        self.assertIn("apart from the second reader below", topology)
+        # Model choice stays with the host; the skill names only the role.
+        delegation = self.read("references/delegation-contract.md")
+        self.assertIn("host policy names it", delegation)
+        self.assertIn("never replaced by a same-vendor reader", delegation)
+        # The packet tells the reviewer the same rule.
+        renderer = (SKILL_ROOT / "scripts/render_review_packet.py").read_text(encoding="utf-8")
+        self.assertIn("Give every blocking code finding its proof", renderer)
+        self.assertIn("A code finding without proof is a note", renderer)
+
+    def test_a_repeated_correction_is_fixed_at_the_highest_level_that_works(self) -> None:
+        owner = self.read("references/governance/task-and-handoff.md")
+        audit = self.owner_section(owner, "## Handoff Documentation Audit")
+        self.assertIn("Repeated corrections.", audit)
+        self.assertIn(
+            "change the structure so the mistake cannot be made, add a check whose error names the fix, "
+            "add a test, and only then add or sharpen a rule",
+            audit,
+        )
+        self.assertIn("A rule nothing enforces fails silently", audit)
+        self.assertIn("why a higher one did not work", audit)
+
     def test_epic_landing_grant_replaces_the_sha_instruction_and_no_gate(self) -> None:
         promotion = self.read("references/branch-promotion-contract.md")
         grant = self.owner_section(promotion, "## Epic Landing Grant")

@@ -472,6 +472,11 @@ def render_packet(
         "- Classify every observation as a blocking finding (defect against"
         " accepted scope, TEST obligations, security, or correctness) or a"
         " non-blocking note; notes never block.",
+        "- Give every blocking code finding its proof: the command or input,"
+        " the result you observed and the result the accepted scope requires."
+        " If you cannot run code, give the exact command and the required"
+        " result. A code finding without proof is a note; say how many you"
+        " recorded as notes for that reason.",
         f"- Scope: {', '.join(review['scope'])}",
     ]
     if recheck is not None:
