@@ -20,7 +20,7 @@ Owner decision, 2026-11-18: three rounds, one theme and one PR each. Round one c
 - ER-2: clauses in the entry file that apply only to managed runs or only to UI work state that trigger.
 - ER-3: `docs_reading_budget.py` reports each direct card as an entry, and a test caps the direct route.
 - ER-4: the Gitignore contract is read only when a task introduces or retires a local-only file class.
-- ER-5: a script checks a commit message, so the commit convention is read when the check fails, not before every commit.
+- ER-5: a script checks a commit message, so the message rules of the commit convention are read when the check fails. Atomic Boundary, which no script can check, is still read before every commit.
 
 Not done in this round, with the reason:
 
@@ -38,7 +38,7 @@ Outside judge: `docs_reading_budget.py` on the candidate, and the ceiling test i
 | ER-2 | No rule text is lost: every phrase the contract tests pinned is still asserted, in the entry file or in the card it moved to | `test_skill_contract.py` (three assertions now read the card) | ER-1 |
 | ER-3 | `direct-cards#...` rows appear in the report; entry file plus D1 stays under 5,000 words, D2 and D3 under 3,500 each | `test_docs_reading_budget.py` | ER-1 |
 | ER-4 | The System Review still records `Gitignore impact`; the contract is named with its trigger | `test_skill_contract.py` | none |
-| ER-5 | The script rejects each malformed subject with a message that states the fix; the Git rules name the script | `test_check_commit_message.py`, `test_governance_entry_routes.py` | worker commit |
+| ER-5 | The script rejects each malformed subject with a message that states the fix; the Git rules name the script and keep the Atomic Boundary read | `test_check_commit_message.py`, `test_governance_entry_routes.py` | worker commit |
 
 ## Measured Result
 
@@ -52,7 +52,7 @@ Outside judge: `docs_reading_budget.py` on the candidate, and the ceiling test i
 
 Reads that fire on a trigger are not in these numbers. The common ones for a direct task: `delegation-contract.md` when the parent assigns the work to another executor (1,558 words), `gen-verify-correct.md` when a review returns findings (813), and the promotion sections of `branch-promotion-contract.md` when the task lands on `main`.
 
-Total normative words rose by 301 (`docs_weight.py`: 205,514 to 205,815): the new card file's lead paragraph, the trigger wording and the sentences that name the commit check.
+Total normative words rose by 317 (`docs_weight.py`: 205,514 to 205,831): the new card file's lead paragraph, the trigger wording and the sentences that name the commit check.
 
 ## Change Log
 
@@ -63,9 +63,23 @@ Total normative words rose by 301 (`docs_weight.py`: 205,514 to 205,815): the ne
 | Commit message check | ER-5. `check_commit_message.py` and its tests, written by a GLM-5.3 worker in its own worktree; the parent added the script to the CLI inventory in `test_cli_utf8_output.py`, which the worker's brief did not let it edit | `6696fbba` | 45 tests pass; the script accepts every commit on this branch. |
 | Git rules name the check | ER-5. `governance/source-maintenance.md`, `governance/managed-delivery.md`, `commit-convention.md`; the route rows in `AGENTS.md` and `PROJECT_AGENTS.template.md` drop the unconditional convention link | `1aa2be47` | Doc-asserting modules pass (282 tests). Consumers see the template row as a difference at their next adoption. |
 
+## Review And Repairs
+
+One review point on `dac27345`, code and security in one read-only call (GPT-6.1 Sol, effort high, 348 s). Verdict FIX_REQUIRED, five blocking findings, each with a reproduction. The route split itself had no finding: the reviewer found no lost rule in the moved steps, no weaker assertion, and no broken target among 108 references.
+
+| Finding | Repair |
+| --- | --- |
+| Reading the convention only on a failed check dropped the rules no script checks, such as inspecting the staged diff and adding a new variable to `.env.example` in the same commit | The Git rules again require reading Atomic Boundary before every commit; only the message rules wait for a failed check (`4654386e`) |
+| Any subject starting with `Merge ` passed every check, also with `--managed` | A message file is never exempt. With `--rev` and without `--managed`, only a commit with two or more parents passes as a merge (`0b67aaf3`) |
+| A scope with an underscore was rejected, a restriction the convention did not have | Underscores are allowed, and the convention now states the allowed characters (`0b67aaf3`, `4654386e`) |
+| `feat(auth):add login` passed without the space after the colon | The missing space is an error (`0b67aaf3`) |
+| An empty `BREAKING CHANGE:` line counted as the required paragraph | The marker needs text after it (`0b67aaf3`) |
+
+Each script repair has a test that failed before it. Targeted re-check: pending.
+
 ## Results And Remaining Work
 
-Remaining: one review point on the candidate, CI matrix on the PR. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
+Remaining: the targeted re-check of the five findings, CI matrix on the PR. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
 
 ## Handoff
 
