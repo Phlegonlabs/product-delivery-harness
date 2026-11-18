@@ -67,6 +67,7 @@ The parent authorizes one atomic G5 repair and one last scoped re-review for thi
 | G5 closed-layer focus return | Parent-requested driver, receipt validation, two contracts and regressions; based on `79df5eaa` | `test_g5_cancel_returns_focus_only_to_the_closed_layer_opener`, `test_g5_focus_return_rejects_unrelated_focus_and_still_open_layers`, `test_g5_focus_return_observation_names_one_panel` | First development check exposed reviewer heading focus in the expanded listener. Corrected driver-gap tests (18) and operation-alignment tests (32) exit 0. Final exact-head exits belong to the G5 ledger below. Scoped protected re-review follows this commit. |
 | N1 / N2, isolated G5 repair | Event-time closure and complete product-focus recording; proved entry into a newly opened layer; driver, receipt schema, two contracts and focused tests | `test_hifi_focus_capture.py`; based on reviewed head `f4463dc6` | Focus tests (10), existing driver-gap tests (18), full UI suite (728) and compiler suite (240) exit 0. A development navigation failure exposed reviewer heading setup; exact runtime hashes and direct call locations now identify it. Final matrix and four-surface consumer results belong to the repair ledger below. One scoped re-review follows this repair. |
 | N3 / G5 repair | Restrict return eligibility to panels containing the control before activation; preserve nested outer returns when both containing panels close | `test_n3_closing_two_siblings_cannot_return_to_the_unrelated_opener`, `test_n3_return_to_the_containing_panel_leaves_the_sibling_open`, `test_n3_nested_returns_accept_closed_containing_panels_from_inner_to_outer` | The unchanged driver reproduced false acceptance for click and keyboard, including control reparenting during activation. Corrected focus tests (13) and driver-gap tests (18) exit 0. Final exact-head command exits belong to the N3 ledger below. One last scoped re-review remains. |
+| Codex PR #197 review, P2 / G1 | Ignore cancelled product-link arrivals after all click handlers; flush fast document arrivals on pagehide; refresh the runtime pin and fixture | `test_cancelled_product_click_preserves_saved_state_after_reload`, `test_cancelled_click_can_reload_during_dispatch_without_an_arrival`, `test_uncancelled_arrival_does_not_depend_on_timer_or_click_propagation`; based on `31dba09d` | Six cancellation variants reproduced the saved-state reset before repair. Five arrival tests and seven compiler compatibility tests exit 0. F3/F4 remain covered. Final requested command exits belong to the G1 cancellation ledger below. Parent owns push and merge. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -98,7 +99,9 @@ This repair snapshots only open panels containing the operated control before ac
 If the activation closes inner and outer containing panels, either panel's opener may receive the single return.
 A panel that did not contain the control is never eligible, even if the operation closes it or moves the control into it.
 The receipt still records one nonempty panel ID; its validation needs no change.
-The next scoped re-review is the last one for this focus-rule family, as instructed by the parent.
+The parent reports the final scoped G5 re-review of `8371ee0a` returned PASS.
+On 2026-11-18 the owner said 「發佈」; the parent pushed `31dba09d` and opened PR #197.
+The parent then requested the local G1 repair for the valid Codex PR review finding recorded in the Change Log.
 
 | Finding / requirement | Repair and regression | Verification |
 | --- | --- | --- |
@@ -107,14 +110,14 @@ The next scoped re-review is the last one for this focus-rule family, as instruc
 | F3 / G1 | Persist the resolved arrival before reload. `test_f3_product_arrival_replaces_saved_selection_before_reload` covers bare, default-fragment and different-fragment arrivals. | Bare arrival/reload failed before repair; all cases and seven compiler compatibility tests now exit 0. |
 | F4 / G1 | Clear same-document arrival markers. `test_f4_same_page_arrival_preserves_later_reviewer_selection_on_reload` covers fragment navigation, Overview, reviewer selection and reload. | Pre-repair reset reproduced. Repaired selection survives reload; bare same-page document links still reset correctly. All 15 focused tests and seven compiler compatibility tests exit 0. |
 
-The repaired runtime body digest is `3c016dead62a116b6c527604aa3480a5327d5887a94dad096928a6f49768bbe3`.
+The repaired runtime body digest is `dd2bfce3eafc311011ad89f0b64bb99a59e6f50bf1140e62e4432b850bb4400a`.
 Final exact-head suite exits and cleanup results belong to the repair ledger linked below.
 Earlier full-matrix and consumer results belong to `5247a3cb`; they are not fresh repair evidence.
 
 ## Adoption Note
 
 Consumer edits belong to the consumer author. This work changes no consumer bytes.
-F3 and F4 require the final repaired runtime, even if an earlier candidate runtime was copied.
+F3, F4 and the Codex PR cancellation repair require the final runtime, even if an earlier candidate runtime was copied.
 The current compiler fixture pins that runtime's exact digest; the frozen 0.87.0 fixture preserves the two historical runtimes.
 
 | Requirement | Required adoption and evidence-package example |
@@ -128,15 +131,15 @@ The current compiler fixture pins that runtime's exact digest; the frozen 0.87.0
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / N3 repair after 7d9a911b; exact head and dirty paths in N3 ledger / driver, focused regression suite, two contracts and this Epic
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / G1 cancellation repair after 31dba09d; exact head and dirty paths in cancellation ledger / runtime template, compiler pin and fixture, browser regressions and this Epic
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
-Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes one atomic local N3 repair attributed to G5 and the listed checks, with no version change
-Done and verified (command, exit code): parent reports G5 scoped review FAIL on f4463dc6 (N1/N2), then re-review FAIL on 7d9a911b (N3; N1/N2 resolved); baseline N3 regressions reproduce the wrong sibling return; corrected focus tests (13) and driver-gap tests (18) exit 0; final command exits belong to the N3 ledger
-Remaining: one last scoped re-review of this focus-rule family and parent release; no consumer edit or runtime rebuild is needed
-Blocked / waiting (gate name or owner decision): the last scoped G5 re-review follows local verification
-Next action (one command or one owner decision): read exact head and final command exits from the N3 ledger, then run the last scoped re-review
+Approvals in force (gate, owner, date, candidate): owner said 發佈 on 2026-11-18; parent authorizes one atomic local G1 repair for the Codex PR finding and listed checks; parent retains push, merge and release
+Done and verified (command, exit code): parent reports final G5 review PASS on 8371ee0a; six cancelled-click cases reproduce the P2 finding before repair; five arrival tests and seven compiler compatibility tests exit 0; final requested exits belong to the cancellation ledger
+Remaining: parent push and PR #197 merge/release checks; consumers rebuild with the corrected G1 runtime
+Blocked / waiting (gate name or owner decision): parent push and merge after local verification
+Next action (one command or one owner decision): read exact head and final command exits from the cancellation ledger, then push the local G1 repair
 Next owner (skill or human): jolvex-platform Harness parent after local verification
 ```
 
@@ -160,3 +163,7 @@ Its ledger retains development failures, final command exits, source identity, p
 The N3 repair evidence is retained at:
 `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-g5-n3-c50d10dd6bd24a189da724d829360d74/`.
 Its ledger retains the failing baseline regressions, corrected checks, exact final head and process cleanup.
+
+The Codex PR #197 G1 cancellation repair evidence is retained at:
+`C:/Users/mps19/AppData/Local/Temp/pdh-hifi-g1-cancel-d562ab6e565b4806a315a760d9936fd3/`.
+Its ledger retains the failing cancellation baseline, corrected browser cases, exact final head and requested command exits.

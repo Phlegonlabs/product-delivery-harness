@@ -401,18 +401,29 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
         if (runtime.snapshot().productState !== productState) runtime.selectState(productState);
       } catch (_) {}
     }
+    const pendingArrivals = new Set();
+    function recordProductArrival(arrival) {
+      if (!pendingArrivals.delete(arrival) || arrival.event.defaultPrevented) return;
+      try {
+        const destination = new URL(arrival.link.getAttribute("href"), window.location.href);
+        const page = destination.pathname.split("/").pop();
+        if (storage && destination.origin === window.location.origin && pages.includes(page)) {
+          const sameDocument = destination.pathname === window.location.pathname
+            && destination.search === window.location.search && destination.href.includes("#");
+          storage.setItem(arrivalKey(page), sameDocument ? "" : "product");
+        }
+      } catch (_) {}
+    }
+    if (typeof window === "object" && window.addEventListener) window.addEventListener("pagehide", () => {
+      for (const arrival of pendingArrivals) recordProductArrival(arrival);
+    });
     for (const surface of surfaces) for (const link of surface.querySelectorAll('a[href]')) {
-      link.addEventListener("click", () => {
-        try {
-          const destination = new URL(link.getAttribute("href"), window.location.href);
-          const page = destination.pathname.split("/").pop();
-          if (storage && destination.origin === window.location.origin && pages.includes(page)) {
-            const sameDocument = destination.pathname === window.location.pathname
-              && destination.search === window.location.search && destination.href.includes("#");
-            storage.setItem(arrivalKey(page), sameDocument ? "" : "product");
-          }
-        } catch (_) {}
-      });
+      link.addEventListener("click", event => {
+        const arrival = {link, event};
+        pendingArrivals.add(arrival);
+        // Wait for all click listeners; pagehide records navigations that unload first.
+        setTimeout(() => recordProductArrival(arrival), 0);
+      }, true);
     }
     for (const link of stateCoverageLinks) link.addEventListener("click", event => {
       const [surface, ...stateParts] = (link.getAttribute("data-hifi-state-coverage") || "").trim().split(/\s+/);

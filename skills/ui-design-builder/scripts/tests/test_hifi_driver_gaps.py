@@ -259,19 +259,81 @@ const BASE = 'https://hifi.invalid/pkg/';
 class ReviewerArrivalBrowserTests(unittest.TestCase):
     playwright = alignment.OperationBrowserTests.playwright
 
-    def run_scenario(self, scenario):
+    def run_scenario(self, scenario, edit=None):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             def manifest_edit(manifest):
                 manifest["surfaces"][0]["states"][-1] = "error"
                 manifest["interactions"] = copy.deepcopy(matrix.INTERACTIONS)
-            package = matrix.build_package(root, manifest_edit=manifest_edit, page_edit=lambda html:
-                html.replace('data-hifi-state-view="empty"', 'data-hifi-state-view="error"').replace('</main>',
-                    '<a data-navigation-id="same-bare" href="index.html">Start</a></main>'))
+            def page_edit(html):
+                html = html.replace('data-hifi-state-view="empty"', 'data-hifi-state-view="error"').replace('</main>',
+                    '<a data-navigation-id="same-bare" href="index.html">Start</a></main>')
+                return edit(html) if edit else html
+            package = matrix.build_package(root, manifest_edit=manifest_edit, page_edit=page_edit)
             result = reviewer_tests.run_browser_script(
                 [shutil.which("node"), "-", str(package), self.playwright()],
                 REVIEWER_BROWSER.replace("__SCENARIO__", scenario), 45)
             self.assertEqual(0, result.returncode, result.stderr or result.stdout)
+
+    def test_cancelled_product_click_preserves_saved_state_after_reload(self):
+        for handler in ("link", "ancestor", "stop-immediate", "ancestor-stop", "return-false", "capture"):
+            with self.subTest(handler=handler):
+                self.run_scenario("""
+                  await open('index.html');
+                  await choose('UI-001', 'error');
+                  await page.locator('a[data-navigation-id="same-bare"]').evaluate((link, kind) => {
+                    if (kind === 'return-false') { link.onclick = () => false; return; }
+                    const target = kind.startsWith('ancestor') ? link.closest('[data-ui-surface]') : link;
+                    target.addEventListener('click', event => {
+                      event.preventDefault();
+                      if (kind === 'stop-immediate') event.stopImmediatePropagation();
+                      if (kind === 'ancestor-stop') event.stopPropagation();
+                    }, {capture: kind === 'capture'});
+                  }, %s);
+                  await page.locator('a[data-navigation-id="same-bare"]').click();
+                  await page.reload();
+                  await expectState('UI-001', 'error');
+                """ % json.dumps(handler))
+
+    def test_cancelled_click_can_reload_during_dispatch_without_an_arrival(self):
+        for ancestor in (False, True):
+            with self.subTest(ancestor=ancestor):
+                self.run_scenario("""
+                  await open('index.html');
+                  await choose('UI-001', 'error');
+                  await page.locator('a[data-navigation-id="same-bare"]').evaluate((link, ancestor) => {
+                    const target = ancestor ? link.closest('[data-ui-surface]') : link;
+                    target.addEventListener('click', event => {
+                      event.preventDefault();
+                      event.stopImmediatePropagation();
+                      window.location.reload();
+                    });
+                  }, %s);
+                  await Promise.all([page.waitForNavigation(), page.locator('a[data-navigation-id="same-bare"]').click()]);
+                  await expectState('UI-001', 'error');
+                """ % json.dumps(ancestor))
+
+    def test_uncancelled_arrival_does_not_depend_on_timer_or_click_propagation(self):
+        for handler in ("none", "link", "ancestor", "early"):
+            with self.subTest(handler=handler):
+                self.run_scenario("""
+                  await open('details.html');
+                  await choose('UI-002', 'error');
+                  await open('index.html');
+                  await page.locator('a[data-navigation-id="to-details"]').evaluate((link, kind) => {
+                    window.setTimeout = () => 0;
+                    if (kind !== 'none' && kind !== 'early') {
+                      const target = kind === 'ancestor' ? link.closest('[data-ui-surface]') : link;
+                      target.addEventListener('click', event => event.stopImmediatePropagation());
+                    }
+                  }, %s);
+                  await page.locator('a[data-navigation-id="to-details"]').click();
+                  await expectState('UI-002', 'ready');
+                  await page.reload();
+                  await expectState('UI-002', 'ready');
+                """ % json.dumps(handler), edit=(lambda html: html.replace('data-navigation-id="to-details"',
+                    'data-navigation-id="to-details" onclick="event.stopImmediatePropagation()"'))
+                    if handler == "early" else None)
 
     def test_f3_product_arrival_replaces_saved_selection_before_reload(self):
         for fragment, state in (("", "ready"), ("#hifi-state=UI-002/ready", "ready"),
