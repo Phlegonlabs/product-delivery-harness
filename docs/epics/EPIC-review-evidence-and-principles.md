@@ -1,6 +1,6 @@
 # EPIC-review-evidence-and-principles: findings carry proof, a second reader on demand, and the principles in AGENTS.md
 
-Status: in_progress
+Status: candidate prepared as 0.93.0; re-check and PR pending
 Design workflow: enhancement
 UI impact: none
 
@@ -19,7 +19,7 @@ Baseline: `main` `82d91fad` (v0.92.0). Earlier rounds: [EPIC-entry-route-split](
 
 Owner decisions, 2026-11-18: a second model reads on demand, not at every review point; all 24 principles go into `AGENTS.md` in full.
 
-- RE-1: a blocking code finding carries its proof: the command or input, the observed result and the required result. A reviewer that cannot run code gives the exact command, and the parent runs it before authorizing a repair. Without proof it is a note. The review packet says so.
+- RE-1: a blocking code finding carries its proof: the command or input, the observed result and the required result. A reviewer that cannot run code still reports it as blocking, marked `unrun`, with the exact command; the parent runs it before it accepts any verdict. Only a finding with no command or input at all is a note. The review packet says so.
 - RE-2: a second reader from another vendor joins the same review point when the diff touches a trust boundary or the owner names a contested design. It adds no review pass. Agent policy names the executor; a missing one is recorded, not substituted.
 - RE-3: `PROJECT_AGENTS.template.md` and this repository's `AGENTS.md` gain `## Engineering Principles` with the 24 PStack principles: title, when it applies, text. The section grants no action and yields to every rule. The MIT license and the source commit are recorded in `assets/third-party/PSTACK-LICENSE`.
 - RE-4: the handoff audit asks that a repeated correction be fixed at the highest level that works: structure, a check, a test, and a rule last.
@@ -41,7 +41,7 @@ Outside judge: one independent review of the candidate; the principles section c
 ## Measured
 
 - The principles section is 3,215 words. `AGENTS.md` in this repository goes from about 890 to 4,103 words, the project template from about 1,610 to 4,827. Every agent session in a repository that adopts the template reads those words. This is the cost the owner accepted; round one cut the direct route by about 22,600 words.
-- Direct-route required reading, `docs_reading_budget.py`: 3,890 to 4,101 words. The two new paragraphs sit in Review Topology, which every direct task reads. The ceiling test allows 5,000.
+- Direct-route required reading, `docs_reading_budget.py`: 3,890 to 4,173 words. The two new paragraphs sit in Review Topology, which every direct task reads. The ceiling test allows 5,000.
 
 ## Change Log
 
@@ -51,9 +51,19 @@ Outside judge: one independent review of the candidate; the principles section c
 | Proof for blocking findings; second reader | RE-1, RE-2. `verification-gates.md`, `delegation-contract.md`, `render_review_packet.py`, the four READMEs | `4eec4f08` | Doc-asserting modules and the packet tests pass. |
 | Engineering Principles | RE-3. `PROJECT_AGENTS.template.md`, `AGENTS.md`, `assets/third-party/PSTACK-LICENSE` | `23fe2bd5` | Template tests pass. Built by a script from the pinned copy at `cursor/plugins` `93b916d4`; two sentences replaced, one limit added. |
 
+## Review And Repairs
+
+One review point on `cd65dfb5`, code and security in one read-only call (GPT-6.1 Sol, effort high, 319 s). Verdict FIX_REQUIRED with one blocking finding. The reviewer compared all 24 principle entries with their PStack originals and found only the three stated changes; it found the full MIT license present, no principle that overrides a Harness rule under the section's precedence sentence, no extra review pass and no named model in the second-reader rule, and the packet line in the right place for every packet form.
+
+The finding: RE-1 said a code finding without an observed result is a note. A reviewer that cannot run code can only give the command, so a real defect became a note, and a PASS with notes could be accepted with the command never run. Repair `22f7810b`: such a finding stays blocking and is marked `unrun`; the parent runs every `unrun` command before it accepts the verdict, PASS included; a command nobody can run stays open as an unavailable check. Only a finding with no command or input at all is a note.
+
+Two notes from the same review, taken in the same commit: the consolidated-repair sentence now names the second reader as the exception to "parallel reviewers only on an owner request"; the principles text is pinned by its SHA-256 and the two opening paragraphs are compared, since the earlier test compared only the two local copies from `### Core` on.
+
+Targeted re-check: pending.
+
 ## Results And Remaining Work
 
-Remaining: release preparation for 0.93.0, one review point, PR, CI matrix. Merge, tag and install wait for the owner.
+Remaining: the targeted re-check, PR, CI matrix. Merge, tag and install wait for the owner.
 
 ## Handoff
 
