@@ -87,7 +87,19 @@ Script, ten findings, repaired in `6abee2a4` by rewriting the gate fail-closed:
 
 Each repair has a test: 72 tests in `test_landing_gate.py`, 21 of them new. One, the revocation alias, needs a symbolic link and is skipped on a Windows host without that privilege; CI runs it on Linux and macOS.
 
-Targeted re-check: pending.
+Targeted re-check on `4254dc57`, the same two lenses (194 s and 398 s): eleven of the fifteen findings resolved. Four remained or were sharpened, and the repair had introduced two more. All six went into one isolated repair (`6d96c7d6`, `e60ed588`):
+
+| Finding | Repair |
+| --- | --- |
+| The narrowed carry-forward still let a review stand after a change to an Epic record that was itself in the reviewed scope | No later commit inherits a review. `review.sha` must be the candidate |
+| That narrowing contradicted the existing rule that archive child A inherits C's review | The one inheritance is stated and enforced: A's only parent is C and the parent reports the receipt-bound C-to-A verification as passed |
+| `review_threads` could authorize fixes without the repair budget | It needs the repair-round count like the other actions |
+| The policy reader still accepted an indented example, a nested fence and a second heading with closing hashes | It no longer interprets Markdown. It accepts one plain shape: the heading written exactly, once in the file under any spelling or level, above every code fence, with unindented lines; anything else is not eligible |
+| New in the repair: matching worktrees case-insensitively could select the worktree of another branch | The worktree match is exact again; case-insensitive comparison stays only on the protected names |
+| A read-back was believed by its label: `exact` with main still at the base, or `tree_equal_S` with another tree | The gate recomputes the classification from the two commits and refuses a label that disagrees |
+| Evidence and read-back files inside the checkout were accepted | Both must resolve outside the checkout |
+
+`test_landing_gate.py` now holds 78 tests. Scoped review of this repair: pending.
 
 ## Results And Remaining Work
 
