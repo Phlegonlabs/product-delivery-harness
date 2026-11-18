@@ -205,7 +205,7 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
-- **0.92.0** — owner 一次批准現在可以涵蓋一個 Epic 的推送、pull request、review 留言、合併、正式環境部署和清理。符合資格的 repository 在 `AGENTS.md` 新增的 `Delivery Autonomy` 段落設定 `Landing: epic_grant`，owner 的授權記錄在 checkout 之外，新增的 `landing_gate.py` 在每個動作之前對照確切候選版本檢查。所有 review、檢查和讀回關卡不變，新建立的 repository 預設每次落地都由 owner 決定。
+- **0.92.0** — owner 一次批准現在可以涵蓋一個 Epic 的推送、pull request、review 留言、合併、正式環境部署和清理。符合資格的 repository 在新增的 `.harness/landing-policy.json` 設定 `"landing": "epic_grant"`，owner 的授權記錄在 checkout 之外，新增的 `landing_gate.py` 在每個動作之前對照確切候選版本檢查。所有 review、檢查和讀回關卡不變，新建立的 repository 預設每次落地都由 owner 決定。
 
 - **0.91.0** — 直接任務現在只需讀入口檔和一張短卡，不必讀遍所有契約。直接路線的步驟拆成三張卡：每個直接任務一張，首次交付另加一張，改動介面另加一張。只屬於 managed run 或只屬於介面工作的閱讀要求，現在都寫明觸發條件。新增的 `check_commit_message.py` 會檢查提交訊息並指出修正方法，因此只有檢查失敗時才需要讀提交規範。
 

@@ -20,29 +20,29 @@ if str(SCRIPTS) not in sys.path:
 
 import landing_gate as subject  # noqa: E402
 
-AGENTS_EPIC_GRANT = """# Test Repo
+POLICY_EPIC_GRANT: dict[str, object] = {
+    "schema": "landing-policy/1",
+    "landing": "epic_grant",
+    "required_checks": ["build", "test"],
+    "journey_command": "python -m pytest tests/journey",
+    "production_smoke_command": "none",
+    "recovery": "revert the landing commit",
+    "owner_only_paths": [],
+}
+POLICY_OWNER_EACH_TIME = {**POLICY_EPIC_GRANT, "landing": "owner_each_time"}
+POLICY_INTERNAL_OWNED = {**POLICY_EPIC_GRANT, "owner_only_paths": ["docs/internal/"]}
+POLICY_ABSENT = None
+POLICY_PATH = ".harness/landing-policy.json"
 
-## Delivery Autonomy
 
-- Landing: epic_grant
-- Required checks: build, test
-- Journey command: python -m pytest tests/journey
-- Production smoke command: none
-- Recovery: revert the landing commit
-- Owner-only paths: none
+def policy_bytes(policy: object) -> bytes:
+    if isinstance(policy, bytes):
+        return policy
+    if isinstance(policy, str):
+        return policy.encode("utf-8")
+    return (json.dumps(policy, indent=2) + "\n").encode("utf-8")
 
-## Unrelated
 
-- Note: ignored
-"""
-
-AGENTS_OWNER_EACH_TIME = AGENTS_EPIC_GRANT.replace(
-    "- Landing: epic_grant", "- Landing: owner_each_time"
-)
-AGENTS_NO_SECTION = "# Test Repo\n\nNo policy here.\n"
-AGENTS_INTERNAL_OWNED = AGENTS_EPIC_GRANT.replace(
-    "- Owner-only paths: none", "- Owner-only paths: docs/internal/"
-)
 FORBIDDEN_GIT_VERBS = {"clone", "fetch", "pull", "push", "merge", "tag"}
 AUTO = object()
 
@@ -71,135 +71,87 @@ def write_file(path: Path, text: str) -> None:
         handle.write(text)
 
 
-def policy_matrix() -> list[tuple[str, str, bool]]:
-    """Every known way to write, repeat or wrap the policy: (name, text, eligible).
+def policy_matrix() -> list[tuple[str, bytes, bool]]:
+    """Every known way to write the policy file wrongly: (name, bytes, eligible).
 
-    One list serves the test below and the old-versus-new comparison recorded
-    in the Epic. The family is the policy reader; its classes are the heading
-    spelling, the policy-line spelling, a second occurrence anywhere in the
-    file, a wrapper above the policy, and an incomplete policy.
+    The policy used to be a section of AGENTS.md, and four reviews each found
+    one more Markdown spelling that a line reader took for policy. As strict
+    JSON with a fixed field set the family is small enough to list.
     """
 
-    heading = "## Delivery Autonomy"
-    keys = {
-        "Landing": "epic_grant",
-        "Required checks": "build, test",
-        "Journey command": "python -m pytest tests/journey",
-        "Production smoke command": "none",
-        "Recovery": "revert the landing commit",
-        "Owner-only paths": "none",
-    }
+    good = dict(POLICY_EPIC_GRANT)
+    canonical = json.dumps(good)
 
-    def section(lines: dict[str, str] | None = None, head: str = heading) -> str:
-        body = "".join(f"- {key}: {value}\n" for key, value in (lines or keys).items())
-        return f"{head}\n\n{body}"
+    def text(value: object) -> bytes:
+        return json.dumps(value).encode("utf-8")
 
-    def doc(policy: str, before: str = "", after: str = "") -> str:
-        return f"# Repo\n\n{before}{policy}\n## Other\n\n- Note: unrelated\n{after}"
-
-    cases: list[tuple[str, str, bool]] = [
-        ("canonical", doc(section()), True),
-        ("CRLF line endings", doc(section()).replace("\n", "\r\n"), True),
-        ("trailing spaces after the heading", doc(section(head=heading + "  ")), True),
-        ("lines in another order", doc(section(dict(reversed(list(keys.items()))))), True),
-        ("prose and an unknown bullet inside the section", doc(section() + "\nWhy: see the contract.\n- Note: x\n"), True),
-        ("a code fence below the policy", doc(section(), after="\n```sh\nmake test\n```\n"), True),
-        ("an HTML comment below the policy", doc(section(), after="\n<!-- note -->\n"), True),
-        ("the name in prose elsewhere", doc(section(), after="\nSee the Delivery Autonomy section above.\n"), True),
+    cases: list[tuple[str, bytes, bool]] = [
+        ("canonical", text(good), True),
+        ("pretty printed", policy_bytes(good), True),
+        ("CRLF line endings", policy_bytes(good).replace(b"\n", b"\r\n"), True),
+        ("fields in another order", text(dict(reversed(list(good.items())))), True),
+        ("one owner-only path", text({**good, "owner_only_paths": ["vendor/"]}), True),
+        ("non-ASCII text", text({**good, "recovery": "回退這次落地"}), True),
+        ("smoke command none", text({**good, "production_smoke_command": "none"}), True),
     ]
 
-    heading_variants = {
-        "exact": heading,
-        "two inner spaces": "## Delivery  Autonomy",
-        "inner tab": "## Delivery\tAutonomy",
-        "lower case": "## delivery autonomy",
-        "closing hashes": "## Delivery Autonomy ###",
-        "two inner spaces and closing hashes": "## Delivery  Autonomy ###",
-        "level one": "# Delivery Autonomy",
-        "level three": "### Delivery Autonomy",
-        "level six": "###### Delivery Autonomy",
-        "indented": "   ## Delivery Autonomy",
-        "tab indented": "\t## Delivery Autonomy",
-        "bold": "## **Delivery Autonomy**",
-        "emphasis": "## _Delivery Autonomy_",
-        "code span": "## `Delivery Autonomy`",
-        "quoted": "> ## Delivery Autonomy",
-        "no space after the hashes": "##Delivery Autonomy",
-        "setext with dashes": "Delivery Autonomy\n-----------------",
-        "setext with equals": "Delivery Autonomy\n=================",
-    }
-    for name, variant in heading_variants.items():
-        second = f"{variant}\n\n- Landing: owner_each_time\n"
-        cases.append((f"second heading after, {name}", doc(section(), after="\n" + second), False))
-        cases.append((f"second heading before, {name}", doc(section(), before=second + "\n"), False))
-        if name != "exact":
-            cases.append((f"only heading, {name}", doc(section(head=variant)), False))
+    def bad(name: str, value: object) -> None:
+        cases.append((name, value if isinstance(value, bytes) else text(value), False))
 
-    prefixes = {
-        "one space": " - ", "two spaces": "  - ", "four spaces": "    - ", "tab": "\t- ",
-        "star": "* ", "plus": "+ ", "numbered": "1. ", "numbered paren": "2) ", "quoted": "> - ",
-        "no marker": "", "heading": "### ",
-    }
-    spellings = {
-        "plain": "{key}:", "lower case": "{lower}:", "upper case": "{upper}:",
-        "space before the colon": "{key} :", "bold": "**{key}**:", "code span": "`{key}`:",
-        "emphasis": "_{key}_:", "tab before the colon": "{key}\t:",
-    }
-    for key in keys:
-        forms = {"key": key, "lower": key.lower(), "upper": key.upper()}
-        for prefix_name, prefix in prefixes.items():
-            line = f"{prefix}{key}: something else\n"
-            label = f"second `{key}` line, {prefix_name}"
-            cases.append((label + ", inside the section", doc(section() + line), False))
-            cases.append((label + ", in another section", doc(section(), after=line), False))
-            cases.append((label + ", above the heading", doc(section(), before=line + "\n"), False))
-        for spelling_name, spelling in spellings.items():
-            written = spelling.format(**forms)
-            cases.append((
-                f"second `{key}` line, {spelling_name}", doc(section() + f"- {written} something else\n"), False,
-            ))
-            if spelling_name != "plain":
-                only = section().replace(f"- {key}:", f"- {written}")
-                cases.append((f"only `{key}` line, {spelling_name}", doc(only), False))
-        for prefix_name, prefix in prefixes.items():
-            if prefix != "- ":
-                only = section().replace(f"- {key}:", f"{prefix}{key}:")
-                cases.append((f"only `{key}` line, {prefix_name}", doc(only), False))
-        if " " in key:
-            doubled = key.replace(" ", "  ", 1)
-            cases.append((f"second `{key}` line, two inner spaces", doc(section() + f"- {doubled}: x\n"), False))
-        cases.append((f"missing `{key}`", doc(section({k: v for k, v in keys.items() if k != key})), False))
-        cases.append((f"empty `{key}`", doc(section({**keys, key: ""})), False))
-        cases.append((f"placeholder `{key}`", doc(section({**keys, key: "<fill>"})), False))
-        cases.append((f"line outside the section, `{key}`", doc(
-            section({k: v for k, v in keys.items() if k != key}), after=f"- {key}: {keys[key]}\n"
-        ), False))
-
-    indented = "".join("    " + line + "\n" for line in section().splitlines())
-    wrappers = {
-        "three backticks": ("```markdown\n", "```\n"),
-        "four backticks around three": ("````markdown\n```\n", "```\n````\n"),
-        "tildes": ("~~~\n", "~~~\n"),
-        "tildes around backticks": ("~~~\n```\n", "```\n~~~\n"),
-        "indented fence": ("  ```\n", "  ```\n"),
-        "HTML comment": ("<!--\n", "-->\n"),
-    }
-    for name, (opening, closing) in wrappers.items():
-        cases.append((f"whole policy inside {name}", doc(opening + section() + closing), False))
-        cases.append((f"closed {name} above the policy", doc(section(), before=opening + "x\n" + closing + "\n"), False))
-        cases.append((f"{name} opened after the heading", doc(
-            f"{heading}\n\n{opening}" + section().split("\n", 2)[2] + closing
-        ), False))
-    cases += [
-        ("indented code example only", doc("An example:\n\n" + indented), False),
-        ("indented example beside the real policy", doc(section(), after="\n" + indented), False),
-        ("no policy at all", "# Repo\n\nNothing here.\n", False),
-        ("heading alone", doc(heading + "\n"), False),
-        ("landing is owner_each_time", doc(section({**keys, "Landing": "owner_each_time"})), False),
-        ("landing is Epic_Grant", doc(section({**keys, "Landing": "Epic_Grant"})), False),
-        ("required checks none", doc(section({**keys, "Required checks": "none"})), False),
-        ("required checks only commas", doc(section({**keys, "Required checks": " , "})), False),
-    ]
+    for field in good:
+        bad(f"missing `{field}`", {key: value for key, value in good.items() if key != field})
+        bad(f"`{field}` in another case", {(key.upper() if key == field else key): value for key, value in good.items()})
+        bad(f"`{field}` with a trailing space", {(key + " " if key == field else key): value for key, value in good.items()})
+        for label, wrong in (("null", None), ("a number", 1), ("true", True), ("an object", {"value": good[field]})):
+            bad(f"`{field}` is {label}", {**good, field: wrong})
+        same = canonical[:-1] + f", {json.dumps(field)}: {json.dumps(good[field])}}}"
+        other = canonical[:-1] + f", {json.dumps(field)}: " + json.dumps("owner_each_time") + "}"
+        first = "{" + f"{json.dumps(field)}: " + json.dumps("owner_each_time") + ", " + canonical[1:]
+        bad(f"`{field}` repeated with the same value", same.encode("utf-8"))
+        bad(f"`{field}` repeated with another value after", other.encode("utf-8"))
+        bad(f"`{field}` repeated with another value before", first.encode("utf-8"))
+    for field in ("journey_command", "production_smoke_command", "recovery"):
+        for label, wrong in (("empty", ""), ("only spaces", "  "), ("padded", " x "), ("a placeholder", "<fill>"),
+                             ("a list", ["x"])):
+            bad(f"`{field}` is {label}", {**good, field: wrong})
+    for field in ("required_checks", "owner_only_paths"):
+        for label, wrong in (("a string", "build, test"), ("a list with a number", ["build", 1]),
+                             ("a list with an empty string", ["build", ""]), ("a list with a padded string", [" build"]),
+                             ("a list with a repeat", ["build", "build"]), ("a list with a nested list", [["build"]]),
+                             ("a list with a placeholder", ["<fill>"])):
+            bad(f"`{field}` is {label}", {**good, field: wrong})
+    bad("no required check", {**good, "required_checks": []})
+    for label, wrong in (("owner_each_time", "owner_each_time"), ("another case", "Epic_Grant"),
+                         ("padded", " epic_grant"), ("a list", ["epic_grant"]), ("empty", "")):
+        bad(f"landing is {label}", {**good, "landing": wrong})
+    bad("another schema", {**good, "schema": "landing-policy/2"})
+    bad("an extra field", {**good, "note": "x"})
+    bad("an extra landing-like field", {**good, "Landing": "epic_grant"})
+    bad("wrapped in an object", {"policy": good})
+    bad("wrapped in a list", [good])
+    bad("a string holding the object", canonical)
+    for label, raw in {
+        "empty file": b"",
+        "only whitespace": b"  \n",
+        "null": b"null",
+        "a number": b"1",
+        "two objects": (canonical + canonical).encode("utf-8"),
+        "trailing text": (canonical + " epic_grant").encode("utf-8"),
+        "a line comment": ("// policy\n" + canonical).encode("utf-8"),
+        "a block comment": ("/* policy */" + canonical).encode("utf-8"),
+        "a trailing comma": (canonical[:-1] + ",}").encode("utf-8"),
+        "single quotes": canonical.replace('"', "'").encode("utf-8"),
+        "unquoted keys": canonical.replace('"landing"', "landing").encode("utf-8"),
+        "a byte order mark": b"\xef\xbb\xbf" + canonical.encode("utf-8"),
+        "UTF-16": canonical.encode("utf-16"),
+        "invalid UTF-8": canonical.encode("utf-8").replace(b"none", b"\xff\xfe"),
+        "NaN": canonical.replace('"none"', "NaN").encode("utf-8"),
+        "Infinity": canonical.replace('"none"', "Infinity").encode("utf-8"),
+        "YAML": b"landing: epic_grant\nrequired_checks: [build, test]\n",
+        "a Markdown section": b"## Delivery Autonomy\n\n- Landing: epic_grant\n- Required checks: build, test\n",
+        "deeply nested": b"[" * 100000,
+    }.items():
+        bad(label, raw)
     return cases
 
 
@@ -216,7 +168,7 @@ class LandingGateTests(unittest.TestCase):
         self._temps.append(holder)
         return Path(holder.name).resolve()
 
-    def _fixture(self, agents: str = AGENTS_EPIC_GRANT) -> dict[str, object]:
+    def _fixture(self, policy: object = POLICY_EPIC_GRANT) -> dict[str, object]:
         holder = self._temp("landing-repo-")
         remote = holder / "remote.git"
         subprocess.run(["git", "init", "--bare", "-q", "-b", "main", str(remote)], check=True)
@@ -226,8 +178,12 @@ class LandingGateTests(unittest.TestCase):
         git(root, "config", "user.email", "test@example.com")
         git(root, "config", "user.name", "Harness Test")
         git(root, "config", "core.autocrlf", "false")
-        write_file(root / "AGENTS.md", agents)
+        write_file(root / "AGENTS.md", "# Test Repo\n")
         git(root, "add", "AGENTS.md")
+        if policy is not POLICY_ABSENT:
+            (root / ".harness").mkdir()
+            (root / POLICY_PATH).write_bytes(policy_bytes(policy))
+            git(root, "add", POLICY_PATH)
         git(root, "commit", "-qm", "base policy")
         base = git(root, "rev-parse", "HEAD")
         git(root, "remote", "add", "origin", str(remote))
@@ -241,8 +197,8 @@ class LandingGateTests(unittest.TestCase):
         git(root, "commit", "-qm", message)
         return git(root, "rev-parse", "HEAD")
 
-    def _landed(self, agents: str = AGENTS_EPIC_GRANT) -> dict[str, object]:
-        fixture = self._fixture(agents)
+    def _landed(self, policy: object = POLICY_EPIC_GRANT) -> dict[str, object]:
+        fixture = self._fixture(policy)
         fixture["candidate"] = self._commit(
             Path(fixture["root"]), {"src/app.py": "print('landing')\n"}, "feature"
         )
@@ -672,16 +628,16 @@ class LandingGateTests(unittest.TestCase):
         self.assertTrue(any("is not an ancestor" in reason for reason in value["reasons"]))
 
     def test_check_refuses_landing_owner_each_time(self) -> None:
-        fixture = self._landed(AGENTS_OWNER_EACH_TIME)
+        fixture = self._landed(POLICY_OWNER_EACH_TIME)
         candidate = str(fixture["candidate"])
         code, _value, grant = self._record(fixture)
         self.assertEqual(0, code)
         code, value = self._check(fixture, grant, candidate, "push")
         self.assertEqual(1, code, value)
-        self.assertIn("does not say `Landing: epic_grant`", value["reasons"][0])
+        self.assertIn('does not say "landing": "epic_grant"', value["reasons"][0])
 
     def test_check_refuses_missing_delivery_autonomy_section(self) -> None:
-        fixture = self._landed(AGENTS_NO_SECTION)
+        fixture = self._landed(POLICY_ABSENT)
         candidate = str(fixture["candidate"])
         code, _value, grant = self._record(fixture)
         self.assertEqual(0, code)
@@ -690,11 +646,10 @@ class LandingGateTests(unittest.TestCase):
         self.assertTrue(any("not eligible" in reason for reason in value["reasons"]))
 
     def test_check_reads_policy_at_the_base_not_the_candidate(self) -> None:
-        fixture = self._landed(AGENTS_OWNER_EACH_TIME)
+        fixture = self._landed(POLICY_OWNER_EACH_TIME)
         root = Path(fixture["root"])
-        agents = (root / "AGENTS.md").read_text(encoding="utf-8")
-        write_file(root / "AGENTS.md", agents.replace("owner_each_time", "epic_grant"))
-        git(root, "add", "AGENTS.md")
+        (root / POLICY_PATH).write_bytes(policy_bytes(POLICY_EPIC_GRANT))
+        git(root, "add", POLICY_PATH)
         git(root, "commit", "-qm", "flip policy on the candidate only")
         candidate = git(root, "rev-parse", "HEAD")
         code, _value, grant = self._record(fixture, base=str(fixture["base"]))
@@ -776,7 +731,7 @@ class LandingGateTests(unittest.TestCase):
         self.assertEqual(1, len(matching))
 
     def test_check_refuses_owner_only_directory_pattern(self) -> None:
-        fixture = self._landed(AGENTS_INTERNAL_OWNED)
+        fixture = self._landed(POLICY_INTERNAL_OWNED)
         root = Path(fixture["root"])
         candidate = self._commit(
             root, {"docs/internal/notes.md": "internal\n"}, "internal note"
@@ -1232,7 +1187,7 @@ class LandingGateTests(unittest.TestCase):
         self.assertTrue(any("inside the repository checkout" in reason for reason in value["reasons"]))
 
     def test_cleanup_plan_refuses_a_policy_that_is_no_longer_eligible(self) -> None:
-        fixture = self._landed(AGENTS_OWNER_EACH_TIME)
+        fixture = self._landed(POLICY_OWNER_EACH_TIME)
         root = Path(fixture["root"])
         candidate = str(fixture["candidate"])
         git(root, "checkout", "-q", "main")
@@ -1360,7 +1315,7 @@ class LandingGateTests(unittest.TestCase):
     def test_a_directory_pattern_also_covers_the_directory_entry_itself(self) -> None:
         # A directory replaced by a submodule or symlink is reported by its
         # own name, without a trailing slash.
-        fixture = self._landed(AGENTS_EPIC_GRANT.replace("- Owner-only paths: none", "- Owner-only paths: vendor/"))
+        fixture = self._landed({**POLICY_EPIC_GRANT, "owner_only_paths": ["vendor/"]})
         root = Path(fixture["root"])
         candidate = self._commit(root, {"vendor": "now a file\n"}, "replace the directory")
         code, _value, grant = self._record(fixture)
@@ -1368,28 +1323,6 @@ class LandingGateTests(unittest.TestCase):
         code, value = self._check(fixture, grant, candidate, "push")
         self.assertEqual(1, code, value)
         self.assertTrue(any("owner-only paths changed: vendor" in reason for reason in value["reasons"]))
-
-    def test_only_one_unfenced_complete_policy_section_makes_a_repository_eligible(self) -> None:
-        fenced = "# Repo\n\nAn example:\n\n```markdown\n" + AGENTS_EPIC_GRANT.split("\n", 2)[2] + "```\n"
-        cases = {
-            "fenced example only": fenced,
-            "two sections": AGENTS_EPIC_GRANT + "\n## Delivery Autonomy\n\n- Landing: owner_each_time\n",
-            "repeated key": AGENTS_EPIC_GRANT.replace(
-                "- Landing: epic_grant\n", "- Landing: epic_grant\n- Landing: owner_each_time\n"
-            ),
-            "landing line alone": "# Repo\n\n## Delivery Autonomy\n\n- Landing: epic_grant\n",
-            "unfilled journey": AGENTS_EPIC_GRANT.replace("python -m pytest tests/journey", "<fill>"),
-            "no required checks": AGENTS_EPIC_GRANT.replace("- Required checks: build, test", "- Required checks: none"),
-        }
-        for name, agents in cases.items():
-            with self.subTest(name=name):
-                fixture = self._landed(agents)
-                candidate = str(fixture["candidate"])
-                code, _value, grant = self._record(fixture)
-                self.assertEqual(0, code)
-                code, value = self._check(fixture, grant, candidate, "push")
-                self.assertEqual(1, code, value)
-                self.assertTrue(any("not eligible" in reason for reason in value["reasons"]), value)
 
     def test_a_review_carries_across_no_later_change_not_even_the_epic_record(self) -> None:
         for path in ("docs/runtime.py", "docs/guide.md", "docs/epics/EPIC-7.md", "docs/DOCUMENTS.md", "README.md"):
@@ -1421,51 +1354,6 @@ class LandingGateTests(unittest.TestCase):
         self.assertIn("the grant is revoked", value["reasons"])
 
     # findings of the targeted re-check on 4254dc57
-
-    def test_a_policy_the_gate_would_have_to_interpret_is_not_eligible(self) -> None:
-        body = AGENTS_EPIC_GRANT.split("## Delivery Autonomy\n", 1)[1].split("\n## ", 1)[0]
-        section = "## Delivery Autonomy\n" + body
-        indented = "".join("    " + line + "\n" for line in section.splitlines())
-        cases = {
-            "indented code example only": "# Repo\n\nAn example:\n\n" + indented,
-            "four-backtick fence around a three-backtick line": (
-                "# Repo\n\n````markdown\n```\n" + section + "\n````\n"
-            ),
-            "tilde fence holding backticks": "# Repo\n\n~~~\n```\n" + section + "\n~~~\n",
-            "a fence above the real section": "# Repo\n\n```sh\nmake test\n```\n\n" + section,
-            "second heading with closing hashes": (
-                AGENTS_EPIC_GRANT + "\n## Delivery Autonomy ###\n\n- Landing: owner_each_time\n"
-            ),
-            "second heading at another level": AGENTS_EPIC_GRANT + "\n### delivery autonomy\n\n- Landing: no\n",
-            "heading with a trailing hash only": AGENTS_EPIC_GRANT.replace(
-                "## Delivery Autonomy\n", "## Delivery Autonomy ##\n"
-            ),
-            "indented policy lines": AGENTS_EPIC_GRANT.replace("- Landing: epic_grant", "  - Landing: epic_grant"),
-            "a fence inside the section": AGENTS_EPIC_GRANT.replace(
-                "- Landing: epic_grant\n", "- Landing: epic_grant\n```\n- Landing: owner_each_time\n```\n"
-            ),
-        }
-        for name, agents in cases.items():
-            with self.subTest(name=name):
-                fixture = self._landed(agents)
-                candidate = str(fixture["candidate"])
-                code, _value, grant = self._record(fixture)
-                self.assertEqual(0, code)
-                code, value = self._check(fixture, grant, candidate, "push")
-                self.assertEqual(1, code, value)
-                self.assertTrue(any("not eligible" in reason for reason in value["reasons"]), value)
-
-    def test_a_fence_below_the_section_and_crlf_line_endings_stay_eligible(self) -> None:
-        for name, agents in {
-            "fence after the section": AGENTS_EPIC_GRANT + "\n```sh\nmake test\n```\n",
-            "CRLF": AGENTS_EPIC_GRANT.replace("\n", "\r\n"),
-        }.items():
-            with self.subTest(name=name):
-                fixture = self._landed(agents)
-                candidate = str(fixture["candidate"])
-                code, _value, grant = self._record(fixture)
-                self.assertEqual(0, code)
-                self.assertEqual(0, self._check(fixture, grant, candidate, "push")[0])
 
     def test_cleanup_plan_leaves_a_worktree_on_a_case_variant_branch_alone(self) -> None:
         # EPIC-7 can be another branch than epic-7 in a case-sensitive repository.
@@ -1530,22 +1418,55 @@ class LandingGateTests(unittest.TestCase):
         self.assertEqual([], value["commands"])
         self.assertTrue(any("read-back file lives inside the repository checkout" in r for r in value["reasons"]))
 
-    # the policy reader as one family
+
+    # the policy file
 
     def test_policy_reader_acceptance_matrix(self) -> None:
         cases = policy_matrix()
-        self.assertGreater(len(cases), 300)
-        self.assertEqual(len(cases), len({name for name, _text, _eligible in cases}), "case names repeat")
-        for name, text, eligible in cases:
+        self.assertGreater(len(cases), 100)
+        self.assertEqual(len(cases), len({name for name, _raw, _eligible in cases}), "case names repeat")
+        for name, raw, eligible in cases:
             with self.subTest(name=name):
-                policy, reason = subject._read_policy(text)
+                policy, reason = subject._read_policy(raw)
                 if eligible:
                     self.assertIsNone(reason, name)
-                    self.assertEqual("epic_grant", policy["Landing"])
-                    self.assertEqual(sorted(subject.POLICY_KEYS), sorted(policy))
+                    self.assertEqual("epic_grant", policy["landing"])
+                    self.assertEqual(subject.POLICY_FIELDS, set(policy))
                 else:
                     self.assertEqual({}, policy, name)
                     self.assertIn("not eligible", str(reason))
+
+    def test_the_policy_is_read_only_from_its_own_file_at_the_base(self) -> None:
+        # A Markdown section in AGENTS.md is not policy, however it is written.
+        section = "## Delivery Autonomy\n\n- Landing: epic_grant\n- Required checks: build, test\n"
+        fixture = self._fixture(POLICY_ABSENT)
+        root = Path(fixture["root"])
+        write_file(root / "AGENTS.md", "# Test Repo\n\n" + section)
+        git(root, "add", "AGENTS.md")
+        git(root, "commit", "-qm", "a section that looks like policy")
+        fixture["base"] = git(root, "rev-parse", "HEAD")
+        candidate = self._commit(root, {"src/app.py": "print('landing')\n"}, "feature")
+        code, _value, grant = self._record(fixture)
+        self.assertEqual(0, code)
+        code, value = self._check(fixture, grant, candidate, "push")
+        self.assertEqual(1, code, value)
+        self.assertTrue(any(f"{POLICY_PATH} does not exist at the grant base" in r for r in value["reasons"]))
+
+    def test_a_candidate_may_not_touch_the_policy_directory(self) -> None:
+        self.assertEqual(
+            [".HARNESS/landing-policy.json", ".Harness/x"],
+            subject._owner_only_paths([".HARNESS/landing-policy.json", ".Harness/x", "harness/x"], {}),
+        )
+        for path in (POLICY_PATH, ".harness/notes.md"):
+            with self.subTest(path=path):
+                fixture = self._landed()
+                root = Path(fixture["root"])
+                candidate = self._commit(root, {path: policy_bytes(POLICY_OWNER_EACH_TIME).decode("utf-8")}, "touch")
+                code, _value, grant = self._record(fixture)
+                self.assertEqual(0, code)
+                code, value = self._check(fixture, grant, candidate, "push")
+                self.assertEqual(1, code, value)
+                self.assertTrue(any("owner-only paths changed" in reason for reason in value["reasons"]), value)
 
 
 if __name__ == "__main__":

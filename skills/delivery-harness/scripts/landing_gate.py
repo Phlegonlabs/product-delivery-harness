@@ -4,8 +4,13 @@
 ``record`` writes the owner's pre-recorded landing grant outside the checkout.
 ``revoke`` drops a revocation marker beside it. ``check`` reports offline
 whether the grant covers one action at one exact candidate commit, reading the
-repository policy from the grant's frozen base commit. ``cleanup-plan`` prints
-the commands that would remove the landed branch and its worktrees.
+repository policy from ``.harness/landing-policy.json`` at the grant's frozen
+base commit. ``cleanup-plan`` prints the commands that would remove the landed
+branch and its worktrees.
+
+The policy is strict JSON, not a section of AGENTS.md: a Markdown file has
+many spellings that render alike, and four reviews each found one more that a
+line reader took for policy. JSON with a fixed field set has one spelling.
 
 The script is fail-closed. The grant file, the evidence file and the read-back
 are parent-written and live outside the checkout; the candidate's commits, the
@@ -53,6 +58,7 @@ TARGET_REF = "refs/heads/main"
 # Instruction files at any depth, and CI configuration at its standard paths.
 OWNER_ONLY_BASENAMES = ("agents.md", "agents.override.md", "claude.md")
 BUILTIN_OWNER_ONLY = (
+    ".harness/",
     ".github/",
     ".gitlab-ci.yml",
     ".gitlab/",
@@ -62,28 +68,12 @@ BUILTIN_OWNER_ONLY = (
     "bitbucket-pipelines.yml",
     "Jenkinsfile",
 )
-POLICY_HEADING = "## Delivery Autonomy"
-POLICY_KEYS = (
-    "Landing",
-    "Required checks",
-    "Journey command",
-    "Production smoke command",
-    "Recovery",
-    "Owner-only paths",
-)
+POLICY_PATH = ".harness/landing-policy.json"
+POLICY_SCHEMA = "landing-policy/1"
+POLICY_TEXT_FIELDS = ("journey_command", "production_smoke_command", "recovery")
+POLICY_LIST_FIELDS = ("required_checks", "owner_only_paths")
+POLICY_FIELDS = frozenset(("schema", "landing", *POLICY_TEXT_FIELDS, *POLICY_LIST_FIELDS))
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
-_HEADING = re.compile(r"^#{1,6}(\s|$)")
-# Markers that can make text above them mean something else: a code fence or
-# an HTML comment. The policy must stand above all of them.
-_WRAPPER = re.compile(r"^\s*(```|~~~)|<!--|-->")
-# Characters Markdown wraps around a heading or a list item. Stripping them
-# lets one test see every spelling of the heading and of a policy line.
-_MARKUP = re.compile(r"[#*_`~>\s]+")
-_ITEM_PREFIX = r"^[\s>#*+\-_`~\d.)\]\[]*"
-_KEY_MENTIONS = {
-    key: re.compile(_ITEM_PREFIX + r"\s+".join(map(re.escape, key.split())) + r"[\s*_`]*:", re.IGNORECASE)
-    for key in POLICY_KEYS
-}
 _BAD_BRANCH_CHARS = set(" ~^:?*[\\\x7f")
 
 
@@ -192,8 +182,8 @@ def _owner_only_match(pattern: str, path: str) -> bool:
     return fnmatchcase(folded_path, folded_pattern)
 
 
-def _owner_only_paths(changed: list[str], policy: dict[str, str]) -> list[str]:
-    patterns = list(BUILTIN_OWNER_ONLY) + (_policy_list(policy.get("Owner-only paths")) or [])
+def _owner_only_paths(changed: list[str], policy: dict[str, Any]) -> list[str]:
+    patterns = [*BUILTIN_OWNER_ONLY, *policy.get("owner_only_paths", [])]
     matching = set()
     for path in changed:
         if path.casefold().rsplit("/", 1)[-1] in OWNER_ONLY_BASENAMES:
@@ -211,102 +201,62 @@ def _parents(root: Path, sha: str) -> list[str]:
     return _git(root, "rev-list", "--parents", "-n", "1", sha).split()[1:]
 
 
-def _policy_list(value: str | None) -> list[str] | None:
-    if value is None:
-        return None
-    items = [item.strip() for item in value.split(",") if item.strip()]
-    return [] if items == ["none"] else items
+def _unique_object(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    keys = [key for key, _value in pairs]
+    if len(set(keys)) != len(keys):
+        raise ValueError("a key repeats")
+    return dict(pairs)
 
 
-def _names_policy_heading(line: str) -> bool:
-    return _MARKUP.sub(" ", line).strip().casefold() == "delivery autonomy"
+def _no_constant(name: str) -> Any:
+    raise ValueError(f"{name} is not JSON")
 
 
-def _read_policy(text: str) -> tuple[dict[str, str], str | None]:
-    """The Delivery Autonomy policy in AGENTS.md text, or why it is not eligible.
+def _text_ok(value: Any) -> bool:
+    return isinstance(value, str) and bool(value) and value == value.strip() and "<fill>" not in value
 
-    This does not parse Markdown. It checks an invariant over the whole file:
-    the heading and each of the six policy lines occur exactly once under any
-    spelling, indentation or list marker, and that one occurrence is written
-    in the plain form below, in order heading then lines, above every code
-    fence and HTML comment.
 
-        ## Delivery Autonomy
-        - Landing: epic_grant
-        - Required checks: build, test
-        ...
+def _read_policy(raw: bytes) -> tuple[dict[str, Any], str | None]:
+    """The landing policy in the bytes of the policy file, or why it is not eligible.
 
-    A second heading, a repeated line, an example elsewhere in the file or
-    any other spelling is a refusal, because the gate cannot tell which one
-    the owner meant.
+    One spelling is accepted: a UTF-8 JSON object with exactly the fields in
+    POLICY_FIELDS, no key repeated, every text a non-empty string and every
+    list a list of distinct non-empty strings. Anything else is a refusal.
     """
 
-    lines = text.replace("\r\n", "\n").split("\n")
-    headings = [index for index, line in enumerate(lines) if _names_policy_heading(line)]
-    if len(headings) != 1:
-        return {}, (
-            "the repository is not eligible: AGENTS.md at the grant base names "
-            f"Delivery Autonomy as a heading {len(headings)} times, not once"
-        )
-    start = headings[0]
-    if lines[start].rstrip() != POLICY_HEADING:
-        return {}, (
-            "the repository is not eligible: write the heading exactly as "
-            f"`{POLICY_HEADING}` at the start of a line"
-        )
-    end = next(
-        (index for index in range(start + 1, len(lines)) if _HEADING.match(lines[index])), len(lines)
-    )
-    policy: dict[str, str] = {}
-    last = start
-    for key in POLICY_KEYS:
-        found = [index for index, line in enumerate(lines) if _KEY_MENTIONS[key].match(line)]
-        if len(found) != 1:
-            return {}, (
-                f"the repository is not eligible: AGENTS.md at the grant base has {len(found)} "
-                f"`{key}:` lines, not one; the policy line must be the only such line in the file"
-            )
-        index = found[0]
-        prefix = f"- {key}:"
-        if not lines[index].startswith(prefix) or not start < index < end:
-            return {}, (
-                f"the repository is not eligible: write `{prefix} <value>` at the start of a line "
-                "inside the Delivery Autonomy section"
-            )
-        policy[key] = lines[index][len(prefix):].strip()
-        last = max(last, index)
-    if any(_WRAPPER.search(line) for line in lines[: last + 1]):
-        return {}, (
-            "the repository is not eligible: the Delivery Autonomy section must stand "
-            "above every code fence and HTML comment in AGENTS.md"
-        )
-    if policy["Landing"] != "epic_grant":
-        return {}, (
-            "the repository is not eligible; its Delivery Autonomy section on the base commit "
-            "does not say `Landing: epic_grant`"
-        )
-    unfilled = [key for key in POLICY_KEYS if not policy[key] or "<fill>" in policy[key]]
-    if unfilled:
-        return {}, "the repository is not eligible: Delivery Autonomy leaves unset: " + ", ".join(unfilled)
-    if not _policy_list(policy["Required checks"]):
-        return {}, "the repository is not eligible: an eligible repository names its required checks"
-    return policy, None
+    prefix = f"the repository is not eligible: {POLICY_PATH} at the grant base "
+    try:
+        value = json.loads(raw.decode("utf-8"), object_pairs_hook=_unique_object, parse_constant=_no_constant)
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        return {}, prefix + "is not strict UTF-8 JSON with unique keys"
+    if not isinstance(value, dict) or set(value) != POLICY_FIELDS:
+        return {}, prefix + "must be one object with exactly these fields: " + ", ".join(sorted(POLICY_FIELDS))
+    if value["schema"] != POLICY_SCHEMA:
+        return {}, prefix + f"is not schema {POLICY_SCHEMA}"
+    for field in POLICY_TEXT_FIELDS:
+        if not _text_ok(value[field]):
+            return {}, prefix + f"leaves `{field}` unset; it must be a non-empty string"
+    for field in POLICY_LIST_FIELDS:
+        items = value[field]
+        if not isinstance(items, list) or not all(_text_ok(item) for item in items) or len(set(items)) != len(items):
+            return {}, prefix + f"must give `{field}` as a list of distinct non-empty strings"
+    if not value["required_checks"]:
+        return {}, prefix + "names no required check; an eligible repository names its checks"
+    if value["landing"] != "epic_grant":
+        return {}, prefix + 'does not say "landing": "epic_grant"'
+    return value, None
 
 
-def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
+def _policy_at_base(root: Path, base: str) -> tuple[dict[str, Any], str | None]:
     """The policy exactly as the base commit records it, never the candidate's."""
 
     result = run_git(
-        root, "show", "--format=", f"{base}:AGENTS.md",
+        root, "show", "--format=", f"{base}:{POLICY_PATH}",
         capture_output=True, text=False, timeout=30, check=False,
     )
     if result.returncode != 0:
-        return {}, "the repository is not eligible: AGENTS.md cannot be read at the grant base"
-    try:
-        text = bytes(result.stdout).decode("utf-8")
-    except UnicodeDecodeError:
-        return {}, "the repository is not eligible: AGENTS.md at the grant base is not UTF-8"
-    return _read_policy(text)
+        return {}, f"the repository is not eligible: {POLICY_PATH} does not exist at the grant base"
+    return _read_policy(bytes(result.stdout))
 
 
 def _grant_fields_reason(grant: Any) -> str | None:
@@ -352,7 +302,7 @@ def _load_grant(grant_path: Path, expected_sha256: str) -> tuple[dict[str, Any] 
     return (None, canonical, reason) if reason else (grant, canonical, None)
 
 
-def _binding_reasons(root: Path, grant: dict[str, Any], canonical: Path) -> tuple[list[str], dict[str, str]]:
+def _binding_reasons(root: Path, grant: dict[str, Any], canonical: Path) -> tuple[list[str], dict[str, Any]]:
     """What must hold for any use of the grant, and the base policy when eligible."""
 
     reasons: list[str] = []
@@ -373,7 +323,7 @@ def _binding_reasons(root: Path, grant: dict[str, Any], canonical: Path) -> tupl
         reasons.append(
             f"the push URL of remote {grant['remote']!r} differs from the grant repository {grant['repository']!r}"
         )
-    policy: dict[str, str] = {}
+    policy: dict[str, Any] = {}
     if not _is_commit(root, grant["base"]):
         reasons.append(f"the grant base {grant['base']} is not a commit in the repository")
     else:
@@ -553,7 +503,7 @@ def _review_reasons(root: Path, evidence: dict[str, Any], candidate: str) -> lis
 
 def _evidence_reasons(
     root: Path, candidate: str, evidence_path: str | None, grant: dict[str, Any],
-    policy: dict[str, str], action: str,
+    policy: dict[str, Any], action: str,
 ) -> list[str]:
     evidence, problem = _load_json_object(root, evidence_path, "evidence")
     if evidence is None:
@@ -573,7 +523,7 @@ def _evidence_reasons(
         if checks.get("sha") != candidate:
             reasons.append(f"evidence checks.sha {checks.get('sha')!r} is not the candidate")
         results = checks.get("results") if isinstance(checks.get("results"), dict) else {}
-        absent = [name for name in _policy_list(policy.get("Required checks")) or [] if results.get(name) != "pass"]
+        absent = [name for name in policy.get("required_checks", []) if results.get(name) != "pass"]
         if absent or not policy:
             reasons.append("required checks absent or not pass: " + (", ".join(absent) or "policy unavailable"))
     acceptance = evidence.get("acceptance")

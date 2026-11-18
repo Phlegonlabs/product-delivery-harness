@@ -666,15 +666,18 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A fix made for a thread is a repair round", grant)
         self.assertIn("it refuses an evidence or read-back file inside the checkout", grant)
         self.assertIn("a read-back whose label disagrees with the commits it names", grant)
-        self.assertIn("above any code fence or HTML comment", grant)
-        self.assertIn("each as the only line of that name in the file", grant)
         self.assertIn("the check refuses a count above the budget", grant)
         # The script decides; it runs none of the gates itself.
         self.assertIn("It runs nothing itself", grant)
-        self.assertIn("exactly one `## Delivery Autonomy` section", grant)
-        self.assertIn("`Landing: epic_grant`", grant)
+        # The policy is a JSON file with one spelling, not a Markdown section.
+        self.assertIn("Its `.harness/landing-policy.json` on the frozen remote `main` base is strict JSON", grant)
+        self.assertIn('`"landing": "epic_grant"`', grant)
+        self.assertIn("The policy is a JSON file, not prose", grant)
+        self.assertIn('"schema": "landing-policy/1"', grant)
+        self.assertIn("keeps every landing with the owner", grant)
+        self.assertIn("anything under `.harness/`", grant)
         # Policy and grant both live where the candidate cannot edit them.
-        self.assertIn("reads this section from the base commit, never from the candidate or the working tree", grant)
+        self.assertIn("reads this file from the base commit, never from the candidate or the working tree", grant)
         self.assertIn("an output path outside the checkout", grant)
         self.assertIn("writes only the grant's SHA-256 and a summary into the Epic", grant)
         for action in ("`push`", "`pull_request`", "`review_threads`", "`merge`", "`production_deploy`", "`cleanup`"):
@@ -711,12 +714,19 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         template = self.read("assets/templates/PROJECT_AGENTS.template.md")
         autonomy = self.owner_section(template, "## Delivery Autonomy")
         # A seeded repository starts with every landing under the owner.
-        self.assertIn("- Landing: owner_each_time\n", autonomy)
-        for key in ("Required checks", "Journey command", "Production smoke command", "Recovery", "Owner-only paths"):
-            self.assertIn(f"- {key}: ", autonomy)
+        self.assertIn("Landing policy: `.harness/landing-policy.json`", autonomy)
+        self.assertIn('Without that file, or while it says `"landing": "owner_each_time"`', autonomy)
+        import json
+
+        import landing_gate
+
+        seeded = json.loads(self.read("assets/templates/LANDING_POLICY.template.json"))
+        self.assertEqual(set(landing_gate.POLICY_FIELDS), set(seeded))
+        self.assertEqual("owner_each_time", seeded["landing"])
+        # The seed is not eligible until the owner fills it and sets epic_grant.
+        self.assertIsNotNone(landing_gate._read_policy(self.read("assets/templates/LANDING_POLICY.template.json").encode("utf-8"))[1])
+        self.assertIsNotNone(landing_gate._read_policy(json.dumps({**seeded, "landing": "epic_grant"}).encode("utf-8"))[1])
         self.assertIn("takes effect only after it lands on `main` under the owner's own instruction", autonomy)
-        self.assertIn("keep the section above any code fence or HTML comment", autonomy)
-        self.assertIn("use these six line names nowhere else in this file", autonomy)
         epic = self.read("assets/templates/EPIC.template.md")
         self.assertIn("Landing grant: none | SHA-256 <hex>", epic)
         self.assertIn("This line records it and grants nothing", epic)

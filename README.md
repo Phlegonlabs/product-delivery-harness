@@ -205,7 +205,7 @@ Keep credentials and user data out of the repository. Preserve unrelated files, 
 
 ## Version history
 
-- **0.92.0** — One owner approval can now cover an Epic's push, pull request, review threads, merge, production deployment and cleanup. An eligible repository sets `Landing: epic_grant` in a new `Delivery Autonomy` section of its `AGENTS.md`, the owner's grant is recorded outside the checkout, and the new `landing_gate.py` checks it against the exact candidate before each action. Every review, check and read-back gate stays, and a seeded repository starts with every landing under the owner.
+- **0.92.0** — One owner approval can now cover an Epic's push, pull request, review threads, merge, production deployment and cleanup. An eligible repository sets `"landing": "epic_grant"` in a new `.harness/landing-policy.json`, the owner's grant is recorded outside the checkout, and the new `landing_gate.py` checks it against the exact candidate before each action. Every review, check and read-back gate stays, and a seeded repository starts with every landing under the owner.
 
 - **0.91.0** — A direct task now reads the entry file and one short card instead of every contract. The direct steps moved into three cards: one for every direct task, one added for an initial delivery, one added for a UI change. Reading that serves only managed runs or only UI work now states its trigger. The new `check_commit_message.py` checks a commit message and states the fix, so the commit convention is read only when that check fails.
 

@@ -1,0 +1,13 @@
+{
+  "schema": "landing-policy/1",
+  "landing": "owner_each_time",
+  "required_checks": [
+    "validate"
+  ],
+  "journey_command": "python -m pytest skills/delivery-harness/scripts/tests/test_golden_path.py",
+  "production_smoke_command": "none",
+  "recovery": "revert the landing commit through a reviewed PR",
+  "owner_only_paths": [
+    "install.sh"
+  ]
+}

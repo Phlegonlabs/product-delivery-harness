@@ -108,7 +108,21 @@ The owner may approve the landing of one Epic before its candidate exists. The g
 
 Two things must both hold:
 
-1. The repository is eligible. Its `AGENTS.md` on the frozen remote `main` base has exactly one `## Delivery Autonomy` section, written as that plain heading at the start of a line and above any code fence or HTML comment, with `Landing: epic_grant` and every other line filled, each as the only line of that name in the file: the required check names, the journey command, the production smoke command, the recovery step and the owner-only paths. The parent reads this section from the base commit, never from the candidate or the working tree. The owner sets it once per repository, after the journey command has failed on a known defect and passed on the intended behaviour, the required checks cover the affected behaviour, an independent reviewer route exists, and condition 2 of Promote To Main has a recorded protection read-back. Recheck eligibility when one of those inputs changes.
+1. The repository is eligible. Its `.harness/landing-policy.json` on the frozen remote `main` base is strict JSON with `"landing": "epic_grant"` and every other field filled: the required check names, the journey command, the production smoke command, the recovery step and the owner-only paths. The parent reads this file from the base commit, never from the candidate or the working tree. A repository without the file, or with `"landing": "owner_each_time"`, keeps every landing with the owner. The owner sets it once per repository, after the journey command has failed on a known defect and passed on the intended behaviour, the required checks cover the affected behaviour, an independent reviewer route exists, and condition 2 of Promote To Main has a recorded protection read-back. Recheck eligibility when one of those inputs changes.
+   The policy is a JSON file, not prose, because a Markdown section has many spellings that render alike and a reader that is not a Markdown parser cannot tell them apart. The file has exactly these fields, each key once:
+
+   ```json
+   {
+     "schema": "landing-policy/1",
+     "landing": "owner_each_time",
+     "required_checks": ["<check name>"],
+     "journey_command": "<command>",
+     "production_smoke_command": "<command or none>",
+     "recovery": "<step>",
+     "owner_only_paths": []
+   }
+   ```
+
 2. The Epic has a recorded grant. When the owner accepts the Epic's scope and says to land it, the parent runs `scripts/landing_gate.py record` with an output path outside the checkout, and writes only the grant's SHA-256 and a summary into the Epic. The grant names the repository, remote, Epic, work branch, frozen base, covered actions, expiry and repair budget. The frozen base is the remote `main` SHA the parent observed when it recorded the grant.
 
 Before each covered action except `cleanup`, the parent runs `scripts/landing_gate.py check` for that action and the exact candidate. PASS is the authorization for that action at that SHA: it satisfies condition 5 of Promote To Main, the owner's exact instruction in [Archive publication](trusted-host-publication.md), and the push a direct task otherwise leaves to a separate instruction. REFUSED stops that action; report the reasons and continue work that does not depend on it.
@@ -128,7 +142,7 @@ Order: atomic local commits, one review point on the exact candidate, push, pull
 
 The repair budget is the number of repair rounds the grant allows after the first review. The parent counts them in the evidence, and the check refuses a count above the budget; the work then waits for the owner.
 
-The check refuses a candidate that touches an owner-only path: an instruction file at any depth (`AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`), anything under `.github/`, the standard CI configuration of GitLab, CircleCI, Buildkite, Azure Pipelines, Bitbucket and Jenkins, and every path the Delivery Autonomy section lists. A repository whose required checks are defined anywhere else lists those files there. Owner-only changes land under the owner's own instruction, which is also how the section itself changes.
+The check refuses a candidate that touches an owner-only path: anything under `.harness/`, an instruction file at any depth (`AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`), anything under `.github/`, the standard CI configuration of GitLab, CircleCI, Buildkite, Azure Pipelines, Bitbucket and Jenkins, and every path the policy file lists. A repository whose required checks are defined anywhere else lists those files there. Owner-only changes land under the owner's own instruction, which is also how the policy file itself changes.
 
 After a PASS read-back, `cleanup-plan` applies the same grant, repository and policy checks and then lists the work branch and its linked worktrees that are safe to remove: tip unchanged since landing, worktree clean, not the primary checkout, never `main` or `development` under any spelling. It prints commands only when every target is safe; one refused target leaves nothing to run. The parent runs only the printed commands of a PASS plan. A dirty, moved or unlisted branch or worktree stays and is reported.
 
