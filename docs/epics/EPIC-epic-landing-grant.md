@@ -23,7 +23,7 @@ Owner decisions, 2026-11-18:
 Included:
 
 - LG-1: the rule. `branch-promotion-contract.md` gains `## Epic Landing Grant`; condition 5 and the publication rule accept a passing grant check in place of the SHA-naming instruction. No gate changes.
-- LG-2: repository eligibility. `PROJECT_AGENTS.template.md` and this repository's `AGENTS.md` gain `## Delivery Autonomy`, default `Landing: owner_each_time`. The parent reads it from the frozen `main` base.
+- LG-2: repository eligibility. A repository states its landing policy in `.harness/landing-policy.json`, strict JSON, default `"landing": "owner_each_time"`; the parent reads it from the frozen `main` base. `PROJECT_AGENTS.template.md` and this repository's `AGENTS.md` gain a `## Delivery Autonomy` section that points at the file. The policy began as lines in that section and moved to JSON during review; see Review And Repairs.
 - LG-3: `scripts/landing_gate.py` with `record`, `revoke`, `check` and `cleanup-plan`. It is offline, performs no action and never writes inside the checkout.
 - LG-4: the standing cleanup exception, limited to the commands `cleanup-plan` prints.
 
@@ -41,7 +41,7 @@ Outside judge: `test_landing_gate.py` refusing each attack the reviews named (wr
 | ID | Expected outcome | Verification | Dependency |
 | --- | --- | --- | --- |
 | LG-1 | The section states the two conditions, the six actions, the order, what stays the owner's and the managed-RUN limits; every pointer resolves | `test_skill_contract.py::test_epic_landing_grant_replaces_the_sha_instruction_and_no_gate`, `test_governance_entry_routes.py` | none |
-| LG-2 | A seeded repository starts at `owner_each_time`; this repository states its own policy | `test_skill_contract.py`, `test_project_template_rules.py` | none |
+| LG-2 | A repository without the file, or with the seeded template, is not eligible; this repository states its own policy; the reader accepts one spelling of the file and refuses every other | `test_skill_contract.py`, `test_project_template_rules.py`, `test_landing_gate.py::test_policy_reader_acceptance_matrix` | none |
 | LG-3 | `check` passes a valid grant and refuses: hash mismatch, revoked, expired, action not granted, wrong repository, stale head, base not an ancestor, policy not `epic_grant`, policy changed only on the candidate, an owner-only path, a missing or failed required check, checks for another SHA, a review that is not PASS or binds an older code state, failed acceptance, a deployment without a passing read-back | `test_landing_gate.py` | worker commit |
 | LG-4 | `cleanup-plan` plans a merged branch and its clean linked worktree; refuses a dirty worktree, a branch that moved, the primary checkout and a protected branch; no planned command holds a force flag | `test_landing_gate.py` | worker commit |
 
@@ -114,7 +114,11 @@ Acceptance matrix for the family, `policy_matrix()` in `test_landing_gate.py`: 4
 
 This repository's own `AGENTS.md` and the project template both read as one complete section under the new reader.
 
-Scoped review of the reader repair: pending.
+Scoped review of the reader repair on `b5188c91` (375 s): FIX_REQUIRED again. The reviewer reproduced the 469 cases and the transition counts, confirmed both earlier findings resolved, and then found three more texts the reader accepted: a linked heading `## [Delivery Autonomy](#delivery-autonomy)` with an escaped `- Landing\\:` line, a whole policy inside `<pre>`, and a value wrapped onto a second line, which silently dropped a required check and an owner-only path.
+
+Four reviews had now each found another spelling. The premise shared by every repair was that a policy written in Markdown can be read safely by something that is not a Markdown parser. It cannot: Markdown has many texts that render alike. So the policy left Markdown (`bb6f7eb8`). It is now `.harness/landing-policy.json`, read from the frozen base with the standard JSON parser plus four checks: UTF-8, no repeated key, exactly the seven fields, and each value of its one allowed type. `AGENTS.md` keeps a `## Delivery Autonomy` section, but it is prose that points at the file and is never parsed. `.harness/` is an owner-only path. The 469-case Markdown matrix is gone with the reader it tested; `policy_matrix()` now lists 137 ways to write the JSON file, 7 accepted and 130 refused, including each field missing, repeated, mistyped or respelled, comments, trailing text, a byte order mark, NaN and a Markdown section in place of JSON.
+
+`test_landing_gate.py` holds 78 tests. Scoped review of the move to JSON: pending.
 
 ## Results And Remaining Work
 
