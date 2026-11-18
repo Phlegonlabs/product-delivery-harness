@@ -292,15 +292,17 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
     const MEDIA = ['IMG', 'VIDEO', 'CANVAS', 'PICTURE', 'SVG', 'OBJECT', 'EMBED', 'IFRAME'];
     const layers = scanned.filter(el => MEDIA.includes(el.tagName.toUpperCase()) || getComputedStyle(el).backgroundImage !== 'none');
     const background = el => {
+      let found = null;     // the walk goes on past the background: an ancestor's opacity still fades text and background
       for (let n = el; n; n = n.parentElement) {
         const s = getComputedStyle(n);
-        if (parseFloat(s.opacity) < 1) return { why: 'an opacity below 1 sits between the text and its background' };
+        if (parseFloat(s.opacity) < 1) return { why: 'an opacity below 1 applies to the text or one of its ancestors' };
+        if (found) continue;
         if (s.backgroundImage !== 'none') return { why: 'a background image or gradient sits between the text and its background' };
         const c = parse(s.backgroundColor);
-        if (c.a === 1) return { color: c, css: s.backgroundColor };
-        if (c.a > 0) return { why: 'a translucent background color sits between the text and its background' };
+        if (c.a === 1) found = { color: c, css: s.backgroundColor };
+        else if (c.a > 0) return { why: 'a translucent background color sits between the text and its background' };
       }
-      return { why: 'no ancestor has an opaque background color' };
+      return found || { why: 'no ancestor has an opaque background color' };
     };
     const textPoint = el => {
       let r = rect(el);
@@ -419,9 +421,13 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
     }
   }
 
+  // text whose size is compared across the 200% axis: text elements and the form controls that render text
+  const sized = texts.concat(els.filter(el => el.tagName === 'TEXTAREA' || el.tagName === 'SELECT'
+    || (el.tagName === 'INPUT' && TEXT_INPUTS.includes(el.type))));
+
   if (measures.includes('text-growth') && baseFonts) {
     const zoom = canvas.style.zoom === '2' ? 2 : 1;
-    for (const el of texts) {
+    for (const el of sized) {
       const was = baseFonts[selector(el)];
       if (!was) continue;
       checked['text-growth']++;
@@ -432,7 +438,7 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
   }
 
   const sizes = {};
-  if (fonts) for (const el of texts) sizes[selector(el)] = parseFloat(getComputedStyle(el).fontSize);
+  if (fonts) for (const el of sized) sizes[selector(el)] = parseFloat(getComputedStyle(el).fontSize);
   return { rows, checked, incomplete: all.length > limit, fonts: fonts ? sizes : null };
 };
 

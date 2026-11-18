@@ -2054,6 +2054,7 @@ A11Y_EXTRA = f"""<style>
 <p id="large" style="color:#8a8a8a;font-size:24px">Large text</p>
 <p id="grad" style="color:#aaa;background:linear-gradient(#fff,#eee)">Gradient text</p>
 <p id="faded" style="color:#aaa;opacity:.5">Faded text</p>
+<div style="opacity:.1"><p id="veiled" style="color:#000;background:#fff">Veiled text</p></div>
 <div style="position:relative;height:40px"><img alt="" width="100" height="40" style="display:block" src="{data_svg('#16324f')}"><p id="onimg" style="position:absolute;top:0;left:0;margin:0;color:#aaa">Over image</p></div>
 <button id="off" class="ctl" disabled style="color:#ccc">Disabled</button>
 <input id="ph" class="faint" placeholder="Berths" style="width:100px">
@@ -2068,6 +2069,7 @@ A11Y_EXTRA = f"""<style>
 <input id="phclip" placeholder="Search the harbour berth directory by name" style="width:100px">
 <p id="zoomclip" style="overflow:hidden;white-space:nowrap">Next arrival is at eighteen forty tonight</p>
 <p id="shrinks" class="shrinks">Shrinking text</p>
+<input id="shrinkfield" class="ctl shrinks" value="42" style="width:100px">
 <button id="nofocus" class="ctl nofocus">No ring</button>
 <button id="ring" class="ctl ring">Box ring</button>
 <button id="default" class="ctl">Default ring</button>
@@ -2151,7 +2153,9 @@ class MeasuredAccessibilityBrowserTests(unittest.TestCase):
     def test_contrast_that_cannot_be_measured_is_unmeasured_with_a_reason(self):
         found = {f["selector"]: f for f in self.rows("contrast", axis="base", surface="UI-002", state="ready", target="390")
                  if f["level"] == "unmeasured"}
-        self.assertEqual({"p#grad", "p#faded", "p#onimg"}, set(found))
+        self.assertEqual({"p#grad", "p#faded", "p#veiled", "p#onimg"}, set(found))
+        # an opaque background does not end the walk: a translucent ancestor still fades the text
+        self.assertIn("opacity below 1", found["p#veiled"]["reason"])
         self.assertIn("background image or gradient", found["p#grad"]["reason"])
         self.assertIn("opacity below 1", found["p#faded"]["reason"])
         self.assertIn("media element", found["p#onimg"]["reason"])
@@ -2197,8 +2201,10 @@ class MeasuredAccessibilityBrowserTests(unittest.TestCase):
 
     def test_text_growth_reports_text_that_does_not_grow_with_the_zoom(self):
         growth = self.rows("text-growth")
+        # form controls render text too: an input that shrinks is reported like a paragraph
         self.assertEqual([{"measure": "text-growth", "surface": "UI-002", "state": "ready", "target": "1200", "axis": "zoom-200",
-                           "selector": "p#shrinks", "level": "fail", "baseFontPx": 16, "fontPx": 8, "zoom": 2, "ratio": 1, "limit": 1.9}],
+                           "selector": selector, "level": "fail", "baseFontPx": 16, "fontPx": 8, "zoom": 2, "ratio": 1, "limit": 1.9}
+                          for selector in ("p#shrinks", "input#shrinkfield")],
                          growth)
         self.assertGreater(self.runs["one"]["sidecar"]["a11y"]["summary"]["text-growth"]["checked"], 8)
 
