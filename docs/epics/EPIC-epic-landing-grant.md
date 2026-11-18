@@ -1,6 +1,6 @@
 # EPIC-epic-landing-grant: one owner approval covers an Epic's push, merge, deployment and cleanup
 
-Status: candidate prepared as 0.92.0; review and PR pending
+Status: published as 0.92.0 on 2026-11-18 (PR #202, `main` `82d91fad`, tag `v0.92.0`); installed the same day (five-skill contract `afdd15e0…`); consumers not yet adopted; no repository is set to `epic_grant`
 Design workflow: enhancement
 UI impact: none
 
@@ -149,19 +149,21 @@ What cost the time: the gate was specified by listing what to refuse. Each revie
 
 ## Results And Remaining Work
 
-Remaining: PR, CI matrix. Merge, tag and install wait for the owner, because this repository's own policy is `Landing: owner_each_time`.
+CI on `a02601bc`: all 14 jobs pass, including the two that had flaked. The owner said to continue on 2026-11-18 after being asked whether to merge, tag and install. PR #202 merged as `82d91fad`; `promotion_readback.py post` reports `tree_equal_S` against candidate `a02601bc`. Installed contract `afdd15e07f899c5f04794f12704a5cd4c86d4b492d367b609ddabca9d3562a03`, replacing `97e2afba…`.
+
+Remaining: consumer adoption of 0.92.0; choosing a pilot repository and setting it to `epic_grant`, which is the owner's edit; a look at the two CI flakes.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / epic-landing-grant / the commit after cbdeeb98 / task/ (untracked, not part of this round)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / 82d91fad / task/ (untracked, not part of this round)
 Stage and skill: source maintenance of delivery-harness; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main a3b547dd (v0.91.0); owner-approved plan of 2026-11-18
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
-Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: work branch, local commits, push and PR. Merge, tag and install for this round are not yet approved.
-Done and verified (command, exit code): pytest on the doc-asserting modules, test_landing_gate.py and test_install_script.py, exit 0; pyflakes on the four script trees, exit 0; prepare_release.py --check, exit 0; scoped review PASS on cbdeeb98
-Remaining: PR, CI matrix
-Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): push the branch and open the PR
-Next owner (skill or human): parent agent
+Approvals in force (gate, owner, date, candidate): none open; merge, tag and install were approved and done on 2026-11-18
+Done and verified (command, exit code): CI matrix on a02601bc, 14 of 14 pass; promotion_readback.py post, PASS; install.sh, exit 0; installed harness_contract.py digest equals the source digest
+Remaining: consumer adoption; a pilot repository
+Blocked / waiting (gate name or owner decision): both wait for the owner
+Next action (one command or one owner decision): none for this Epic; round three continues in EPIC-review-evidence-and-principles
+Next owner (skill or human): owner
 ```

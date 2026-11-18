@@ -1,5 +1,6 @@
 """Seeded project rules must agree with the canonical Harness contracts."""
 
+import hashlib
 import json
 import re
 import subprocess
@@ -381,11 +382,56 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         }
         template_only_headings = {
             "Skill Activation", "Runtime Boundary", "Mandatory Governance Routes", "Deployment",
-            "Behavior Specs", "Harness Version", "Delivery Autonomy",
+            "Behavior Specs", "Harness Version", "Delivery Autonomy", "Engineering Principles",
         }
         # The source repository states its own landing policy in AGENTS.md.
         self.assertIn("\n## Delivery Autonomy\n", root_agents)
         self.assertIn("Landing policy: `.harness/landing-policy.json`", root_agents)
+
+        # The principles are one text in two files; they must not drift apart.
+        agents_template = read("assets/templates/PROJECT_AGENTS.template.md")
+        def principles(text: str) -> str:
+            body = text.split("\n## Engineering Principles\n", 1)[1].split("\n## ", 1)[0]
+            return body.split("\n### Core\n", 1)[1]
+
+        self.assertEqual(principles(agents_template), principles(root_agents))
+        # The text is generated from the pinned PStack copy; a hand edit shows here.
+        self.assertEqual(
+            "53972776af8938f207bd59d8ce04b20b57dc8ab8b2cb21ca63f082187bc82dc2",
+            hashlib.sha256(principles(agents_template).encode("utf-8")).hexdigest(),
+        )
+
+        def opening(text: str) -> str:
+            head = text.split("\n## Engineering Principles\n", 1)[1].split("\n### Core\n", 1)[0]
+            return re.sub(r"`delivery-harness/assets/third-party/PSTACK-LICENSE`|\[PSTACK-LICENSE\]\([^)]*\)", "LICENSE", head)
+
+        # The two opening paragraphs differ only in how they link the license.
+        self.assertEqual(opening(agents_template), opening(root_agents))
+        entries = re.findall(r"^#### (.+)$", principles(agents_template), re.MULTILINE)
+        self.assertEqual(24, len(entries))
+        self.assertEqual(24, len(set(entries)))
+        self.assertEqual(
+            ["Core", "Architecture", "Verification", "Delegation", "Meta"],
+            re.findall(r"^### (.+)$", "### Core\n" + principles(agents_template), re.MULTILINE),
+        )
+        for entry in ("Prove It Works", "Fix Root Causes", "Attack the Premise", "Never Block on the Human",
+                      "Encode Lessons in Structure", "Subtract Before You Add"):
+            self.assertIn(entry, entries)
+        # No pointer to a skill a consumer repository does not have.
+        self.assertNotIn("../", principles(agents_template))
+        self.assertNotIn("benchmark-checklist", principles(agents_template))
+        self.assertNotIn("typescript-best-practices", principles(agents_template))
+        intro = agents_template.split("\n## Engineering Principles\n", 1)[1].split("\n### Core\n", 1)[0]
+        self.assertIn("They grant no action", intro)
+        self.assertIn("the rule wins", intro)
+        self.assertIn("MIT License", intro)
+        # The one principle that touches authority states its limit.
+        never_block = principles(agents_template).split("#### Never Block on the Human\n", 1)[1].split("\n#### ", 1)[0]
+        self.assertIn("inside a recorded Epic landing grant and never replaces an owner decision", never_block)
+        license_text = read("assets/third-party/PSTACK-LICENSE")
+        self.assertIn("MIT License", license_text)
+        self.assertIn("Copyright (c) 2026 Lauren Tan", license_text)
+        self.assertIn("93b916d4a1e806507e22f4716b352fa91f2b227e", license_text)
         policy = json.loads((REPO_ROOT / ".harness/landing-policy.json").read_text(encoding="utf-8"))
         self.assertEqual("owner_each_time", policy["landing"])
         self.assertEqual(["validate"], policy["required_checks"])

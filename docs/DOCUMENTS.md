@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-epic-landing-grant](epics/EPIC-epic-landing-grant.md)
+Current Epic: [EPIC-review-evidence-and-principles](epics/EPIC-review-evidence-and-principles.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
