@@ -7,7 +7,7 @@ These are the rule owners for local data, implementation discipline, documentati
 - Never delete, overwrite, or move important local data without explicit user approval.
 - Preserve unrelated dirty files, branches, and worktrees.
 - Avoid destructive Git and filesystem commands unless the user asked for that exact action.
-- One standing exception: after a verified landing under an [Epic Landing Grant](../branch-promotion-contract.md#epic-landing-grant) that names `cleanup`, the parent may run exactly the commands `landing_gate.py cleanup-plan` prints, and nothing else.
+- One standing exception: after a verified landing under an [Epic Landing Grant](../branch-promotion-contract.md#epic-landing-grant) that names `cleanup`, the parent may run exactly the commands a PASS `landing_gate.py cleanup-plan` prints, and nothing else.
 
 ## Keep Changes Simple
 

@@ -656,7 +656,16 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         promotion = self.read("references/branch-promotion-contract.md")
         grant = self.owner_section(promotion, "## Epic Landing Grant")
         # The grant changes who names the SHA, not what must pass.
-        self.assertIn("It replaces no gate", grant)
+        self.assertIn("It replaces no gate and moves no gate", grant)
+        # Review still comes before the candidate is published.
+        self.assertIn("one review point on the exact candidate, push, pull request", grant)
+        self.assertIn("Review comes before push, as on every direct task", grant)
+        self.assertIn("The evidence needs a review PASS that binds the candidate", grant)
+        self.assertIn("carries only across a later commit that changes the Epic record alone", grant)
+        self.assertIn("the check refuses a count above the budget", grant)
+        # The script decides; it runs none of the gates itself.
+        self.assertIn("It runs nothing itself", grant)
+        self.assertIn("exactly one `## Delivery Autonomy` section", grant)
         self.assertIn("`Landing: epic_grant`", grant)
         # Policy and grant both live where the candidate cannot edit them.
         self.assertIn("reads this section from the base commit, never from the candidate or the working tree", grant)
@@ -666,9 +675,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
             self.assertIn(f"- {action}:", grant)
         self.assertIn("A required human approval still waits", grant)
         self.assertIn("do not roll production back without the owner", grant)
-        self.assertIn("`AGENTS.md`, `CLAUDE.md`, CI workflow files", grant)
-        self.assertIn("The parent runs only the printed commands", grant)
-        self.assertIn("never `main` or `development`", grant)
+        self.assertIn("an instruction file at any depth (`AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`)", grant)
+        self.assertIn("anything under `.github/`", grant)
+        self.assertIn("lists those files there", grant)
+        self.assertIn("applies the same grant, repository and policy checks", grant)
+        self.assertIn("one refused target leaves nothing to run", grant)
+        self.assertIn("The parent runs only the printed commands of a PASS plan", grant)
+        self.assertIn("never `main` or `development` under any spelling", grant)
+        self.assertIn("`cleanup`: `scripts/landing_gate.py cleanup-plan` stands in for the check", grant)
         for owners in ("product scope and PRD changes", "a changed visual direction",
                        "destructive data operations and migrations", "protection or ruleset exceptions"):
             self.assertIn(owners, grant)
@@ -680,7 +694,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         skill = self.read("SKILL.md")
         self.assertIn("it does not authorize `push`", skill)
         self.assertIn("a passing `scripts/landing_gate.py check` is the authorization for each action the grant names", skill)
-        self.assertIn("covers only the commands `scripts/landing_gate.py cleanup-plan` prints", skill)
+        self.assertIn("covers only the commands a PASS `scripts/landing_gate.py cleanup-plan` prints", skill)
+        self.assertIn("the review in step 6 still comes before the push", self.read(DIRECT_CARDS))
+        self.assertIn("unless a recorded [Epic Landing Grant]", self.read("references/execution-state-model.md"))
         self.assertIn("run `scripts/landing_gate.py check` before each action it names", self.read(DIRECT_CARDS))
         self.assertIn("An Epic landing grant replaces both instructions", self.read("references/stages/stage-cards.md"))
         self.assertIn("`landing_gate.py check --action push` passes for A", self.read("references/trusted-host-publication.md"))

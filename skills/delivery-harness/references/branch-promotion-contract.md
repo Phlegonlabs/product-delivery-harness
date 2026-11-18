@@ -34,7 +34,7 @@ Empty optional directories are skipped because the receipt inventories regular f
 Commit only repository bookkeeping as A.
 Revalidate the archived PLAN/RUN, receipt, destinations, deterministic `docs/DOCUMENTS.md`, absent live sources, and unchanged outside paths.
 For separately authorized publication, follow [Archive publication](trusted-host-publication.md).
-The parent pushes A only after the owner's exact instruction naming the SHA and branch.
+The parent pushes A only after the owner's exact instruction naming the SHA and branch, or a passing check under an [Epic Landing Grant](#epic-landing-grant).
 Never use force.
 Read back the remote ref and record it in the Epic.
 The archived RUN grants nothing.
@@ -104,29 +104,33 @@ Separately authorized fixed-build external setup cannot claim release readiness.
 
 ## Epic Landing Grant
 
-The owner may approve the landing of one Epic before its candidate exists. The grant replaces the action-time instructions that name an exact SHA. It replaces no gate, and without it every rule in this contract applies as written.
+The owner may approve the landing of one Epic before its candidate exists. The grant replaces the action-time instructions that name an exact SHA. It replaces no gate and moves no gate, and without it every rule in this contract applies as written.
 
 Two things must both hold:
 
-1. The repository is eligible. Its `AGENTS.md` on the frozen remote `main` base has a `## Delivery Autonomy` section with `Landing: epic_grant`, the required check names, the journey command, the production smoke command, the recovery step and the owner-only paths. The parent reads this section from the base commit, never from the candidate or the working tree. The owner sets it once per repository, after the journey command has failed on a known defect and passed on the intended behaviour, the required checks cover the affected behaviour, an independent reviewer route exists, and condition 2 of Promote To Main has a recorded protection read-back. Recheck eligibility when one of those inputs changes.
-2. The Epic has a recorded grant. When the owner accepts the Epic's scope and says to land it, the parent runs `scripts/landing_gate.py record` with an output path outside the checkout, and writes only the grant's SHA-256 and a summary into the Epic. The grant names the repository, remote, Epic, work branch, frozen base, covered actions, expiry and repair budget.
+1. The repository is eligible. Its `AGENTS.md` on the frozen remote `main` base has exactly one `## Delivery Autonomy` section with `Landing: epic_grant` and every other line filled: the required check names, the journey command, the production smoke command, the recovery step and the owner-only paths. The parent reads this section from the base commit, never from the candidate or the working tree. The owner sets it once per repository, after the journey command has failed on a known defect and passed on the intended behaviour, the required checks cover the affected behaviour, an independent reviewer route exists, and condition 2 of Promote To Main has a recorded protection read-back. Recheck eligibility when one of those inputs changes.
+2. The Epic has a recorded grant. When the owner accepts the Epic's scope and says to land it, the parent runs `scripts/landing_gate.py record` with an output path outside the checkout, and writes only the grant's SHA-256 and a summary into the Epic. The grant names the repository, remote, Epic, work branch, frozen base, covered actions, expiry and repair budget. The frozen base is the remote `main` SHA the parent observed when it recorded the grant.
 
-Before each covered action the parent runs `scripts/landing_gate.py check` for that action and the exact candidate. PASS is the authorization for that action at that SHA: it satisfies condition 5 of Promote To Main, the owner's exact instruction in [Archive publication](trusted-host-publication.md), and the push a direct task otherwise leaves to a separate instruction. REFUSED stops that action; report the reasons and continue work that does not depend on it.
+Before each covered action except `cleanup`, the parent runs `scripts/landing_gate.py check` for that action and the exact candidate. PASS is the authorization for that action at that SHA: it satisfies condition 5 of Promote To Main, the owner's exact instruction in [Archive publication](trusted-host-publication.md), and the push a direct task otherwise leaves to a separate instruction. REFUSED stops that action; report the reasons and continue work that does not depend on it.
+
+The check decides from the grant, the base policy, the candidate's changed paths and an evidence file the parent writes outside the checkout. It runs nothing itself. The parent still performs the review with its required lenses, the required checks, the journey command, Preview where the delivery kind requires it, each read-back and the production smoke, and reports what it observed. The evidence holds the review verdict and its SHA, the number of repair rounds so far, and for a landing also the required check results at the candidate, the acceptance result and the promotion read-back.
 
 Grant actions:
 
-- `push`: the work branch, never with force.
-- `pull_request`: open it.
+- `push`: the work branch, never with force. The evidence needs a review PASS that binds the candidate.
+- `pull_request`: open it. Same evidence as `push`.
 - `review_threads`: fix a confirmed finding or post a concrete disproof, reply, resolve the thread, then read the thread state back. A required human approval still waits.
-- `merge`: through the required PR or merge-queue mechanism.
-- `production_deploy`: the deployment a `main` landing triggers, plus condition 9's smoke.
-- `cleanup`: only what `scripts/landing_gate.py cleanup-plan` prints.
+- `merge`: through the required PR or merge-queue mechanism. The evidence also needs every required check passing at the candidate and the acceptance result.
+- `production_deploy`: the deployment a `main` landing triggers, plus condition 9's smoke. The evidence also needs a PASS promotion read-back for the candidate.
+- `cleanup`: `scripts/landing_gate.py cleanup-plan` stands in for the check.
 
-Order: atomic local commits, push, one review point and the required checks on the exact candidate, Preview smoke where the delivery kind requires it, merge, `promotion_readback.py post`, production smoke, cleanup. A changed head needs fresh checks and a review that binds it. A failed step stops the sequence: report it in product terms, and do not roll production back without the owner.
+Order: atomic local commits, one review point on the exact candidate, push, pull request, the required checks on that candidate, Preview smoke where the delivery kind requires it, merge, `promotion_readback.py post`, production smoke, cleanup. Review comes before push, as on every direct task. A changed head needs fresh checks and a review that binds it; the earlier review carries only across a later commit that changes the Epic record alone (`docs/epics/` and `docs/DOCUMENTS.md`). A failed step stops the sequence: report it in product terms, and do not roll production back without the owner.
 
-The check refuses a candidate that touches an owner-only path: `AGENTS.md`, `CLAUDE.md`, CI workflow files, and every path the Delivery Autonomy section lists. Those changes land under the owner's own instruction, which is also how the section itself changes.
+The repair budget is the number of repair rounds the grant allows after the first review. The parent counts them in the evidence, and the check refuses a count above the budget; the work then waits for the owner.
 
-After a PASS read-back, `cleanup-plan` lists the work branch and its linked worktrees that are safe to remove: tip unchanged since landing, worktree clean, not the primary checkout, never `main` or `development`. The parent runs only the printed commands. A dirty, moved or unlisted branch or worktree stays and is reported.
+The check refuses a candidate that touches an owner-only path: an instruction file at any depth (`AGENTS.md`, `AGENTS.override.md`, `CLAUDE.md`), anything under `.github/`, the standard CI configuration of GitLab, CircleCI, Buildkite, Azure Pipelines, Bitbucket and Jenkins, and every path the Delivery Autonomy section lists. A repository whose required checks are defined anywhere else lists those files there. Owner-only changes land under the owner's own instruction, which is also how the section itself changes.
+
+After a PASS read-back, `cleanup-plan` applies the same grant, repository and policy checks and then lists the work branch and its linked worktrees that are safe to remove: tip unchanged since landing, worktree clean, not the primary checkout, never `main` or `development` under any spelling. It prints commands only when every target is safe; one refused target leaves nothing to run. The parent runs only the printed commands of a PASS plan. A dirty, moved or unlisted branch or worktree stays and is reported.
 
 Always the owner's: product scope and PRD changes, a changed visual direction, spending and paid resources, external console setup, destructive data operations and migrations, protection or ruleset exceptions, and any owner-only path. `scripts/landing_gate.py revoke` ends a grant, and so does its expiry. A grant never extends to another repository, Epic or branch.
 
