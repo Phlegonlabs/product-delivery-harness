@@ -1,6 +1,6 @@
 # EPIC-entry-route-split: a direct task reads only what its route needs
 
-Status: candidate prepared as 0.91.0; review and PR pending
+Status: published as 0.91.0 on 2026-11-18 (PR #201, `main` `a3b547dd`, tag `v0.91.0`); installed the same day (five-skill contract `97e2afba…`); consumers not yet adopted
 Design workflow: enhancement
 UI impact: none
 
@@ -85,19 +85,21 @@ Pull-request review (Codex, on `9fe53b3c`), one P2: the Git rules required `--ma
 
 ## Results And Remaining Work
 
-Remaining: CI matrix on the final head. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
+CI on `c138746c`: all 14 jobs pass. The owner approved the merge, tag and installation on 2026-11-18. PR #201 merged as `a3b547dd`; `promotion_readback.py post` reports `tree_equal_S` against candidate `c138746c`. Installed contract `97e2afbae5faadd46a8fd93b3602bdb916f803a88eb154aadbfae9b44736b2ca`, replacing `a355924c…`; prior copies are under `~/.agents/skill-backups/product-delivery-harness/20261118-045731/`.
+
+Remaining: consumer adoption of 0.91.0, which no one has asked for yet. The route-table row in `PROJECT_AGENTS.template.md` shows as a difference in each consumer at its next adoption.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / entry-route-split / release commit on top of 1aa2be47 / task/ (untracked, not part of this round)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / a3b547dd / task/ (untracked, not part of this round)
 Stage and skill: source maintenance of delivery-harness; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main a0d3bbe8 (v0.90.1); owner-approved plan of 2026-11-18
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
-Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: three work branches, local commits, push and PR. Merge to main, tag, install and consumer adoption are not approved.
-Done and verified (command, exit code): pytest on the doc-asserting modules and the new script, exit 0; docs_reading_budget.py, exit 0; prepare_release.py --check, exit 0
-Remaining: review, push, PR, CI matrix
-Blocked / waiting (gate name or owner decision): merge to main waits for the owner
-Next action (one command or one owner decision): run the read-only review on the candidate diff
-Next owner (skill or human): parent agent
+Approvals in force (gate, owner, date, candidate): none open; merge, tag and install were approved and done on 2026-11-18
+Done and verified (command, exit code): CI matrix on c138746c, 14 of 14 pass; promotion_readback.py post, PASS; install.sh, exit 0; installed harness_contract.py digest equals the source digest
+Remaining: consumer adoption
+Blocked / waiting (gate name or owner decision): consumer adoption waits for the owner
+Next action (one command or one owner decision): none for this Epic; round two continues in EPIC-epic-landing-grant
+Next owner (skill or human): owner
 ```
