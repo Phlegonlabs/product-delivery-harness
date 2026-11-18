@@ -68,6 +68,7 @@ class KeywordMapTemplateTests(unittest.TestCase):
         self.assertIn("Structural candidates.", method)
         self.assertIn("review-method.md#keyword-map-readback", stage)
         self.assertIn("do not plan the clusters again", stage)
+        self.assertIn("every surface outside the map are still planned", stage)
 
 
 if __name__ == "__main__":

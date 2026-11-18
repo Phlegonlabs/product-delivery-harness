@@ -96,7 +96,7 @@ For each cluster, open the result page for two or more of its queries in the tar
 
 ## Pre-Launch Planning Sequence
 
-For `pre_launch`, production data does not exist yet. When `docs/product/keyword-map.md` exists, take its clusters, mapped pages and content fields as the plan and check them against the launch window. Otherwise build the plan per surface in this order:
+For `pre_launch`, production data does not exist yet. When `docs/product/keyword-map.md` exists, its clusters, mapped pages and content fields stand in for steps 1 and 2 on the search and store-listing surfaces it covers; check them against the launch window. Steps 3 to 5 still run for every surface, and a surface the map does not cover still gets steps 1 and 2. Build the plan per surface in this order:
 
 1. Cluster the questions and tasks the product answers, from audience language, support material and public demand evidence.
 2. Assign each cluster one responsibility: a planned public page for web, listing text or screenshot for stores, README section or registry description for registries, a first post series for presence surfaces.
