@@ -134,6 +134,8 @@ Review summary for this candidate:
 | Scoped review, `b5188c91` | policy reader | FIX_REQUIRED, 3 more; premise changed |
 | Scoped review, `cbdeeb98` | policy file as JSON | PASS |
 
+Pull-request review (Codex, on `a1d8a990`), one P1: `cleanup-plan` called a worktree clean when `git status --porcelain` printed nothing, but `git worktree remove` deletes ignored files silently, and the reviewer lost an ignored `local.db` that way. None of the seven earlier passes looked at ignored files. Repair `40996cf5`: the plan reads `git status --ignored`, and a worktree holding any ignored file outside five regenerable cache directories (`node_modules`, `__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`) is refused with the files named. Scoped review of this repair: pending.
+
 What cost the time: the gate was specified by listing what to refuse. Each review then found the next thing nobody had listed. Two changes ended it, and both replaced a list of bad cases with a rule about what is accepted: the gate recomputes what it can check instead of believing a label, and the policy has one spelling.
 
 ## Results And Remaining Work
