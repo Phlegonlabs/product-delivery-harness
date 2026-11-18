@@ -1,6 +1,6 @@
 # Atomic Commit Convention
 
-Use this convention for every authorized commit. Direct work follows Direct Commits below; managed work also follows the run and trailer rules. Commit permission is an independent authorization action; implementation permission alone does not grant it.
+Use this convention for every authorized commit. `scripts/check_commit_message.py` checks the subject and, with `--managed`, the trailers; its error lines state the fix, so a direct commit needs this file only when the check fails. Direct work follows Direct Commits below; managed work also follows the run and trailer rules. Commit permission is an independent authorization action; implementation permission alone does not grant it.
 
 ## Run-Wide Atomicity
 

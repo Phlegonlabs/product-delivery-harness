@@ -42,7 +42,7 @@ Read the complete linked section before its applicable action. The links are man
 | Pricing, paid access, purchase-gated features, or outside sellers | [Monetization And Partner Channels](skills/delivery-harness/references/governance/product-contracts.md#monetization-and-partner-channels) |
 | Editing `skills/`, a documented flow, or running a seeded consumer flow | [Source Required Reading](skills/delivery-harness/references/governance/source-maintenance.md#required-reading) |
 | Decomposing PRD work into missions | [Mission Task Split](skills/delivery-harness/references/governance/source-maintenance.md#mission-task-split) |
-| Branch, commit, integration, archive, publication, cleanup, or source main landing | [Source Git Flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) and [Atomic Commit Convention](skills/delivery-harness/references/commit-convention.md) |
+| Branch, commit, integration, archive, publication, cleanup, or source main landing | [Source Git Flow](skills/delivery-harness/references/governance/source-maintenance.md#git-flow) |
 | Every atomic source task before verification | [Required Verification](skills/delivery-harness/references/governance/source-maintenance.md#required-verification) |
 | Formal release, version promotion, tag, bundle installation, or host reload | [Update Local Skills](skills/delivery-harness/references/governance/source-maintenance.md#update-local-skills) and [Required Verification](skills/delivery-harness/references/governance/source-maintenance.md#required-verification) |
 | Review or acceptance claim | [Source Review Guidelines](skills/delivery-harness/references/governance/source-maintenance.md#review-guidelines) |
