@@ -64,6 +64,27 @@ class DocumentSyncTests(unittest.TestCase):
         self.assertEqual(["parent semantic review"], impact["affected_stages"])
         self.assertTrue(impact["semantic_review_required"])
 
+    def test_optional_growth_and_messaging_handoffs_are_tracked_across_stages(self):
+        for name, owner in (("docs/product/keyword-map.md", "product"),
+                            ("docs/gtm/MESSAGING.md", "go-to-market")):
+            with self.subTest(name=name):
+                path = self.root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                before = self.observe(paths=default_inventory(self.root))["snapshot"]
+                path.write_text("Initial public wording", encoding="utf-8")
+                created = self.observe(before, default_inventory(self.root, before))
+                self.assertIn(name, created["snapshot"]["documents"])
+                path.write_text("Revised public wording", encoding="utf-8")
+                prior = created["snapshot"]
+                changed = self.observe(prior, default_inventory(self.root, prior))
+                impact = next(row for row in changed["impacts"] if row["source"] == name)
+                self.assertEqual("document_changed", impact["reason"])
+                self.assertIn(owner, impact["affected_stages"])
+                path.unlink()
+                prior = changed["snapshot"]
+                missing = self.observe(prior, default_inventory(self.root, prior))
+                self.assertIn({"kind": "missing_document", "path": name}, missing["findings"])
+
     def test_default_inventory_observes_epics_and_retains_missing_paths(self):
         folder = self.root / "docs/epics"
         folder.mkdir(parents=True)

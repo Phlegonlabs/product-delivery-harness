@@ -30,6 +30,7 @@ DEFAULT_PATHS = (
     "docs/DEPLOYMENT.md", "docs/goal/PLAN.md",
     "docs/goal/RUN.md",
 )
+OPTIONAL_HANDOFFS = ("docs/product/keyword-map.md", "docs/gtm/MESSAGING.md")
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 SESSION_MARKER = re.compile(r"[A-Za-z0-9._-]{1,128}:[0-9a-f]{64}\Z")
 # Skills that install.sh retires; keep the two lists in step.
@@ -150,6 +151,10 @@ def impact_for(name, reason):
         artifacts, stages, checks = ["scoped live documents"], ["intake", "affected stages"], ["required reading", "references and skill bindings"]
     elif name == "docs/product/PRD.md":
         artifacts, stages, checks = ["architecture", "stack", "HiFi", "legacy wireframes when pinned", "acceptance"], ["product", "design", "delivery"], ["product package", "affected UI gates", "requirement-linked tests"]
+    elif name == "docs/product/keyword-map.md":
+        artifacts, stages, checks = ["PRD discovery surfaces", "page metadata"], ["growth", "product", "delivery"], ["cluster IDs and mapped routes", "current titles and descriptions"]
+    elif name == "docs/gtm/MESSAGING.md":
+        artifacts, stages, checks = ["public claims", "README and listing copy"], ["go-to-market", "readme-studio", "growth"], ["approved claims and per-surface one-liners"]
     elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
         artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
     elif name.startswith("docs/product/deltas/"):
@@ -247,8 +252,11 @@ def current_epic_findings(root, index_text):
 
 
 def default_inventory(root, baseline=None):
-    """Include live Epic and PRD delta names without following links or scanning history."""
+    """Include live handoffs and retain previously inventoried paths to detect removal."""
     paths = list(DEFAULT_PATHS)
+    for name in OPTIONAL_HANDOFFS:
+        if safe_path(root, name, document=True).exists():
+            paths.append(name)
     _scoped_markdown_children(root, "docs/epics", "Epic", paths)
     _scoped_markdown_children(root, "docs/product/deltas", "PRD delta", paths)
     # Retain removed Epic and PRD delta paths so a missing document cannot disappear silently.
@@ -256,7 +264,7 @@ def default_inventory(root, baseline=None):
         for name in baseline["documents"]:
             if not isinstance(name, str) or name in paths:
                 continue
-            retained = is_epic(name) or (
+            retained = name in OPTIONAL_HANDOFFS or is_epic(name) or (
                 name.startswith("docs/product/deltas/") and name.count("/") == 3
             )
             if retained:
