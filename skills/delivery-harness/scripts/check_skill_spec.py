@@ -88,20 +88,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--skills-root",
         type=Path,
-        default=default_root,
-        help=f"directory holding the skills (default: {default_root})",
+        help="check only this directory (default: the core and standalone skill trees)",
     )
     args = parser.parse_args(argv)
-    root: Path = args.skills_root
-    if not root.is_dir():
-        print(f"skills root not found: {root}", file=sys.stderr)
-        return 2
-    findings = check_skills_root(root)
+    roots = [args.skills_root or default_root]
+    standalone = default_root.parent / "standalone-skills"
+    if args.skills_root is None and standalone.is_dir():
+        roots.append(standalone)
+    findings = []
+    for root in roots:
+        if not root.is_dir():
+            print(f"skills root not found: {root}", file=sys.stderr)
+            return 2
+        findings.extend(check_skills_root(root))
     for finding in findings:
         print(finding)
     if findings:
         return 1
-    print(f"all skills under {root} satisfy the Agent Skills specification checks")
+    print("Agent Skills specification checks passed for " + ", ".join(map(str, roots)))
     return 0
 
 

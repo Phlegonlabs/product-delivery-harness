@@ -7,6 +7,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -26,6 +27,17 @@ def write_skill(root: Path, name: str, frontmatter: str, body: str = "# Skill\n"
 
 
 class SkillSpecTests(unittest.TestCase):
+    def test_default_checks_standalone_skills_and_explicit_root_stays_scoped(self) -> None:
+        with tempfile.TemporaryDirectory() as temp:
+            source = Path(temp)
+            core = source / "skills"
+            write_skill(core, "delivery-harness", "name: delivery-harness\ndescription: Core")
+            write_skill(source / "standalone-skills", "demo", "name: demo")
+            script = core / "delivery-harness/scripts/check_skill_spec.py"
+            with patch.object(check_skill_spec, "__file__", str(script)):
+                self.assertEqual(1, check_skill_spec.main([]))
+                self.assertEqual(0, check_skill_spec.main(["--skills-root", str(core)]))
+
     def test_checker_accepts_a_conforming_skill(self) -> None:
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
