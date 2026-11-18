@@ -57,6 +57,7 @@ An equal-endpoint `state` attempt fails. An unselected legacy row does not block
 Empty navigation or control arrays create no interaction attempts. A PRD surface with `operations: none — <reason>` has both arrays empty and renders no product control. Its applicable state/target cases still run.
 
 When no control instance is visible, the driver searches attached instances in DOM order for the first reachable instance. Every hidden ancestor must be a panel with exactly one declared same-surface opener. Inactive state or target variants and unrelated hiding make an instance unreachable. The driver opens that instance's menu, tab or disclosure panels from outermost to innermost. Openers may omit IDs and interactions. Each panel stays inside its opener's product surface and must become visible. `observed.openers` lists the clicked panel IDs. Focus may visit those openers, in order, then the operation control once; unrelated product focus still fails.
+After activation, focus may return once to a declared opener whose panel changed from visible to hidden; `observed.focusReturn` names that panel.
 
 Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.
 

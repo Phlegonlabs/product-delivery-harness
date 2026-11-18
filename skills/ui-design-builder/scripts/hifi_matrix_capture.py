@@ -271,9 +271,10 @@ async function start(request) {
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
       const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
         ? el.getAttribute('aria-controls') : null;
-      const supporting = el && el.closest && el.closest('[data-ui-surface]')
-        ? el.getAttribute('data-control-for') : null;
-      if (id || opener || supporting) window.__pdhFocus({ control: id || null, opener, supporting });
+      const product = el && el.closest && el.closest('[data-ui-surface]');
+      const supporting = product ? el.getAttribute('data-control-for') : null;
+      const nativeControl = product && el.matches('button,input,select,textarea,a[href]');
+      if (id || opener || supporting || nativeControl) window.__pdhFocus({ control: id || null, opener, supporting });
     }, true);
   });
   page = await context.newPage();
@@ -327,8 +328,8 @@ async function open(request) {
 
 // One interaction attempt: reload the page, reset target/source state through the
 // reviewer shell, then activate the declared product control by click or keyboard. The
-// destination surface/state must apply; the control, and only the control, must
-// take product focus during the attempt.
+// destination surface/state must apply. Focus follows declared openers, the control,
+// and at most one return to the opener of a layer closed by activation.
 const FEEDBACK_SNAPSHOT = surfaceId => {
   const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
   return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
@@ -470,6 +471,20 @@ async function interact(request) {
         await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
         before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
       }
+      // Retain the actual nodes so a replacement opener cannot claim the return.
+      const openLayers = await page.locator(surface).evaluateHandle(root =>
+        Array.from(root.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]'))
+          .flatMap(opener => {
+            const id = opener.getAttribute('aria-controls');
+            const panels = Array.from(document.querySelectorAll('[id]')).filter(el => el.id === id);
+            const panel = panels.length === 1 ? panels[0] : null;
+            const peers = Array.from(root.querySelectorAll('button[aria-controls]'))
+              .filter(el => el.getAttribute('aria-controls') === id);
+            const expanded = opener.getAttribute(opener.hasAttribute('data-product-tab') ? 'aria-selected' : 'aria-expanded');
+            return panel && panel !== opener && panel.closest('[data-ui-surface]') === root && peers.length === 1
+              && expanded === 'true' && !panel.hidden && panel.getClientRects().length
+              && getComputedStyle(panel).visibility !== 'hidden' ? [{ id, opener, panel }] : [];
+          }));
       observingNavigation = request.kind === 'navigate';
       if (field) {
         if (request.trigger !== 'keyboard') await handle.click({ timeout });
@@ -532,11 +547,24 @@ async function interact(request) {
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
       observingNavigation = false;
-      // Declared opener clicks may precede the one operation-control focus event.
-      focusCorrect = events.focus.length === opened.length + 1
+      const operationFocusCount = opened.length + 1;
+      let focusReturn = null;
+      if (events.focus.length === operationFocusCount + 1) {
+        focusReturn = await openLayers.evaluate((layers, last) => {
+          const layer = layers.find(({ id, opener, panel }) => last.opener === id
+            && opener.isConnected && document.activeElement === opener
+            && (!panel.isConnected || panel.hidden || !panel.getClientRects().length
+              || getComputedStyle(panel).visibility === 'hidden'));
+          return layer ? layer.id : null;
+        }, events.focus[operationFocusCount]).catch(() => null);
+      }
+      await openLayers.dispose();
+      // Only a closed layer's own opener may follow the operation-control focus.
+      focusCorrect = (events.focus.length === operationFocusCount || Boolean(focusReturn))
         && opened.every((panel, index) => events.focus[index].opener === panel)
-        && events.focus[opened.length].control === request.control
+        && events.focus[opened.length]?.control === request.control
         && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
+      if (focusCorrect && focusReturn) observed.focusReturn = focusReturn;
     }
   }
   return { problems, visible, focusCorrect, arrivedTo, observed };

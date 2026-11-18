@@ -28,6 +28,9 @@ This writer commits locally on `hifi-driver-gaps` only.
 No delegation, model change, push, PR, tag, install or version bump is authorized.
 Review process documents, grading, copy rules and anchor-without-href discovery are excluded.
 Existing passing packages must keep passing.
+The parent added G5 after the protected repair recheck passed at `b1760b79`.
+G5 permits one proved focus return after an operation closes a declared layer.
+The parent's local release commit `79df5eaa` sets 0.88.0 and stays in place; this writer changes no version.
 
 ## Acceptance
 
@@ -37,6 +40,7 @@ Existing passing packages must keep passing.
 | G2 | Repeated controls prefer an unselected visible instance and record its index. | Chromium tests cover all four ARIA attributes and the all-selected inert fallback. |
 | G3 | Data-entry controls receive user input; disabled, read-only and unchanged fields fail. | Chromium regressions cover input, textarea, selects in both directions, and rejected fields. |
 | G4 | Repeated page timeouts cannot block unrelated pages; output order stays deterministic. | Serial, four-worker and Chromium timeout regressions; full stable-package run recorded in the handoff ledger. |
+| G5 | Closing a layer permits one focus return to its declared opener; other focus and still-open returns fail. | Chromium click and keyboard regressions record `observed.focusReturn`; existing focus-theft tests remain required. |
 
 ## Change Log
 
@@ -52,6 +56,7 @@ Existing passing packages must keep passing.
 | F2 / G4 repair | Inherit base page budgets before parallel intermediate dispatch | F1 commit `e86d6754`; `test_f2_exhausted_page_stays_blocked_when_intermediate_work_changes_workers` | Regression and all 27 worker tests exit 0. Protected recheck pending. |
 | F3 / G1 repair | Save the resolved product arrival before reload; refresh the current runtime pin and digest fixture | F2 commit `96ff70eb`; `test_f3_product_arrival_replaces_saved_selection_before_reload` | Browser regression and seven compiler compatibility tests exit 0. Both historical runtimes and altered-body rejection remain covered. |
 | F4 / G1 repair | Clear fragment-arrival markers; keep bare document-arrival handling; refresh the runtime pin and digest fixture | F3 commit `fa118a28`; `test_f4_same_page_arrival_preserves_later_reviewer_selection_on_reload` | All 15 focused tests and seven compiler compatibility tests exit 0. Targeted protected recheck pending. |
+| G5 closed-layer focus return | Parent-requested driver, receipt validation, two contracts and regressions; based on `79df5eaa` | `test_g5_cancel_returns_focus_only_to_the_closed_layer_opener`, `test_g5_focus_return_rejects_unrelated_focus_and_still_open_layers`, `test_g5_focus_return_observation_names_one_panel` | First development check exposed reviewer heading focus in the expanded listener. Corrected driver-gap tests (18) and operation-alignment tests (32) exit 0. Final exact-head exits belong to the G5 ledger below. Scoped protected re-review follows this commit. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -69,7 +74,8 @@ The jolvex-platform Harness parent reports two protected GPT-6.1-Sol reviews of 
 The reviewers used a `review_input.py` clone, with identity proved by its manifest.
 The protected review returned FAIL; the consolidated findings are F1-G3, F2-G4, F3-G1 and F4-G1 below.
 The protected reviewers supplied the findings. The parent supplied these repair instructions and the one-commit-per-finding boundary.
-This is one consolidated repair round. A targeted protected recheck follows on its exact final head.
+The parent reports the targeted protected recheck of `b1760b79` returned PASS: F1-F4 resolved, with no new finding.
+G5 is a later parent request; its scoped protected re-review remains pending.
 
 | Finding / requirement | Repair and regression | Verification |
 | --- | --- | --- |
@@ -94,19 +100,20 @@ The current compiler fixture pins that runtime's exact digest; the frozen 0.87.0
 | G2 | Keep one operation ID on every cycle segment of `OP-UI-IOS-TABS-cycle` in `ios-ledger.html`. Give segments their actual ARIA selection state. No manifest split or runtime rebuild is required for G2. Recapture with the new driver; it records `observed.instanceIndex`. |
 | G3 | Keep `OP-UI-IOS-DETAIL-note` on its note field and `OP-UI-IOS-SOURCE-currency` on its currency select. No artificial save button, manifest change or runtime rebuild is needed for G3. Ensure the field accepts entry and its real handlers run. Recapture both click and keyboard attempts. |
 | G4 | No HTML or manifest edit is needed. Run the candidate driver on the full package with `--workers 4`. Run the applicable intermediate sweep with the repaired driver too. Exhausted page budgets carry into that sweep across workers. A timed-out `index.html` leaves unrelated pages available. Retain failed and blocked rows. |
+| G5 | No consumer edit or runtime rebuild is needed. Recapture `OP-UI-IOS-SOURCE-picker-cancel` with the updated driver. The parent reports eight rows failed on the valid focus return. The driver now proves panel closure and records the returned panel ID in `observed.focusReturn`. |
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / F4 candidate after fa118a28; exact head in repair ledger / scoped runtime, pin, fixture and regression files
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / G5 candidate after 79df5eaa; exact head and dirty paths in G5 ledger / driver, checker, regression, two contracts and this Epic
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
-Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes one local repair commit per F1-F4 finding
-Done and verified (command, exit code): protected review FAIL on 5247a3cb; all four regressions reproduced before repair; all 15 focused tests and seven compiler compatibility tests exit 0
-Remaining: final-candidate suite results in repair ledger; targeted protected recheck and parent release
-Blocked / waiting (gate name or owner decision): protected recheck pending after repair
-Next action (one command or one owner decision): read exact head and final command exits from repair ledger, then run the targeted protected recheck
+Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes one local G5 commit and required checks, with no version change
+Done and verified (command, exit code): parent reports protected F1-F4 recheck PASS on b1760b79; working-tree driver-gap tests (18) and operation-alignment tests (32) exit 0; final G5 command results and exact source identity are retained in its ledger
+Remaining: scoped protected re-review and parent release; final local check exits belong to the G5 ledger; no consumer edit is needed for G5
+Blocked / waiting (gate name or owner decision): G5 protected re-review follows local verification
+Next action (one command or one owner decision): read exact head and final command exits from the G5 ledger, then run the scoped protected re-review
 Next owner (skill or human): jolvex-platform Harness parent after local verification
 ```
 
@@ -118,3 +125,7 @@ No local test result constitutes independent review or consumer approval.
 Consolidated repair evidence is retained at:
 `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-review-repair-2173cf2cffa149dab553015dec24a6d7/`.
 Its `commands.jsonl` and final `verification.md` preserve command exits, exact-head results and process cleanup.
+
+G5 evidence is retained at:
+`C:/Users/mps19/AppData/Local/Temp/pdh-hifi-g5-8a878fd2765c47769dddaafd85ee03a2/`.
+Its ledger retains the failed development run and fresh final checks; that failure also triggers a full-matrix rerun.

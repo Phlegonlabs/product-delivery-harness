@@ -17,6 +17,16 @@ import test_reviewer_browser as reviewer_tests
 
 
 class NavigateContractTests(unittest.TestCase):
+    def test_g5_focus_return_observation_names_one_panel(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            _, manifest, _ = contract.materialize_hifi_bundle(Path(temporary))
+            for panel, passes in (("picker", True), ("", False), ("  ", False),
+                                   (["picker"], False), (None, False), (True, False)):
+                with self.subTest(panel=panel):
+                    output = contract.bundle_output(manifest)
+                    output["interactions"][0]["observed"] = {"focusReturn": panel}
+                    self.assertEqual(passes, not checker._bundle_transcript_findings(output, manifest))
+
     def test_instance_index_requires_a_valid_visible_count(self):
         with tempfile.TemporaryDirectory() as temporary:
             _, manifest, _ = contract.materialize_hifi_bundle(Path(temporary))
@@ -53,6 +63,42 @@ class NavigationBrowserTests(unittest.TestCase):
     run_main = alignment.OperationBrowserTests.run_main
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
+
+    def test_g5_cancel_returns_focus_only_to_the_closed_layer_opener(self):
+        for initially_open in (False, True):
+            driver = self.driver('<button id="picker-opener" data-product-disclosure aria-controls="picker" '
+                'aria-expanded="' + str(initially_open).lower() + '">Pick</button>'
+                '<div id="picker"' + ('' if initially_open else ' hidden') + '>'
+                '<button data-control-id="save" onclick="document.getElementById(\'picker\').hidden=true;'
+                'const opener=document.getElementById(\'picker-opener\');'
+                'opener.setAttribute(\'aria-expanded\',\'false\');opener.focus()">Cancel</button></div>')
+            for trigger in ("click", "keyboard"):
+                with self.subTest(initially_open=initially_open, trigger=trigger):
+                    result = self.attempt(driver, trigger=trigger)["result"]
+                    self.assertEqual([], result["problems"], result)
+                    self.assertTrue(result["focusCorrect"], result)
+                    self.assertEqual("picker", result["observed"]["focusReturn"])
+                    self.assertEqual([] if initially_open else ["picker"], result["observed"].get("openers", []))
+                    change = result["observed"]["change"]
+                    self.assertNotEqual(change["beforeSha256"], change["afterSha256"])
+            driver.stop()
+
+    def test_g5_focus_return_rejects_unrelated_focus_and_still_open_layers(self):
+        for mode in ("unrelated", "still-open", "detour"):
+            close = "document.getElementById('picker').hidden=true;" if mode != "still-open" else ""
+            focus = "document.getElementById('" + ("thief" if mode == "unrelated" else "picker-opener") + "').focus();"
+            detour = "document.getElementById('thief').focus();" if mode == "detour" else ""
+            driver = self.driver('<button id="picker-opener" data-product-disclosure aria-controls="picker" '
+                'aria-expanded="false">Pick</button><div id="picker" hidden>'
+                '<button data-control-id="save" onclick="this.textContent+=\' changed\';' + close + detour + focus
+                + '">Cancel</button></div><button id="thief">Unrelated</button>')
+            for trigger in ("click", "keyboard"):
+                with self.subTest(mode=mode, trigger=trigger):
+                    result = self.attempt(driver, trigger=trigger)["result"]
+                    self.assertEqual([], result["problems"], result)
+                    self.assertFalse(result["focusCorrect"], result)
+                    self.assertNotIn("focusReturn", result["observed"])
+            driver.stop()
 
     def test_f1_field_activation_can_hide_the_source_before_entry(self):
         transition = "document.__hifiReviewerRuntime.selectState('loading')"
