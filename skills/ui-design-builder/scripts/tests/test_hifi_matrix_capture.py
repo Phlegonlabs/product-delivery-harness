@@ -2172,7 +2172,11 @@ class MeasuredAccessibilityBrowserTests(unittest.TestCase):
         clip = self.rows("text-clip", surface="UI-002", state="ready", target="390", axis="base")
         by_selector = {f["selector"]: f for f in clip}
         self.assertEqual({"p#clip", "p#clamp", "input#phclip::placeholder"}, set(by_selector))
-        self.assertEqual(("overflow-x", 150, 270, 120), tuple(by_selector["p#clip"][k] for k in ("kind", "overflow", "scroll", "client")))
+        # the text width depends on the platform font; the box width does not
+        cut = by_selector["p#clip"]
+        self.assertEqual(("overflow-x", 120), (cut["kind"], cut["client"]))
+        self.assertGreater(cut["scroll"], cut["client"] + 1)
+        self.assertEqual(cut["scroll"] - cut["client"], cut["overflow"])
         self.assertEqual("overflow-y", by_selector["p#clamp"]["kind"])
         self.assertEqual("placeholder", by_selector["input#phclip::placeholder"]["kind"])
         self.assertTrue(all(f["limit"] == 1 and f["level"] == "fail" for f in clip))
