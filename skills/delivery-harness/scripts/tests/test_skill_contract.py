@@ -652,6 +652,51 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         return text.split(heading, 1)[1].split("\n## ", 1)[0]
 
 
+    def test_epic_landing_grant_replaces_the_sha_instruction_and_no_gate(self) -> None:
+        promotion = self.read("references/branch-promotion-contract.md")
+        grant = self.owner_section(promotion, "## Epic Landing Grant")
+        # The grant changes who names the SHA, not what must pass.
+        self.assertIn("It replaces no gate", grant)
+        self.assertIn("`Landing: epic_grant`", grant)
+        # Policy and grant both live where the candidate cannot edit them.
+        self.assertIn("reads this section from the base commit, never from the candidate or the working tree", grant)
+        self.assertIn("an output path outside the checkout", grant)
+        self.assertIn("writes only the grant's SHA-256 and a summary into the Epic", grant)
+        for action in ("`push`", "`pull_request`", "`review_threads`", "`merge`", "`production_deploy`", "`cleanup`"):
+            self.assertIn(f"- {action}:", grant)
+        self.assertIn("A required human approval still waits", grant)
+        self.assertIn("do not roll production back without the owner", grant)
+        self.assertIn("`AGENTS.md`, `CLAUDE.md`, CI workflow files", grant)
+        self.assertIn("The parent runs only the printed commands", grant)
+        self.assertIn("never `main` or `development`", grant)
+        for owners in ("product scope and PRD changes", "a changed visual direction",
+                       "destructive data operations and migrations", "protection or ruleset exceptions"):
+            self.assertIn(owners, grant)
+        self.assertIn("A grant never extends to another repository, Epic or branch", grant)
+        # A managed RUN is unchanged inside; only the post-close steps move.
+        self.assertIn("keeps all 12 ledger keys, closes `local_only` at C with `push` false", grant)
+        self.assertIn("`landing_gate.py check --action merge` passes for that SHA", promotion)
+
+        skill = self.read("SKILL.md")
+        self.assertIn("it does not authorize `push`", skill)
+        self.assertIn("a passing `scripts/landing_gate.py check` is the authorization for each action the grant names", skill)
+        self.assertIn("covers only the commands `scripts/landing_gate.py cleanup-plan` prints", skill)
+        self.assertIn("run `scripts/landing_gate.py check` before each action it names", self.read(DIRECT_CARDS))
+        self.assertIn("An Epic landing grant replaces both instructions", self.read("references/stages/stage-cards.md"))
+        self.assertIn("`landing_gate.py check --action push` passes for A", self.read("references/trusted-host-publication.md"))
+        self.assertIn("One standing exception", self.read("references/governance/development-rules.md"))
+
+        template = self.read("assets/templates/PROJECT_AGENTS.template.md")
+        autonomy = self.owner_section(template, "## Delivery Autonomy")
+        # A seeded repository starts with every landing under the owner.
+        self.assertIn("- Landing: owner_each_time\n", autonomy)
+        for key in ("Required checks", "Journey command", "Production smoke command", "Recovery", "Owner-only paths"):
+            self.assertIn(f"- {key}: ", autonomy)
+        self.assertIn("takes effect only after it lands on `main` under the owner's own instruction", autonomy)
+        epic = self.read("assets/templates/EPIC.template.md")
+        self.assertIn("Landing grant: none | SHA-256 <hex>", epic)
+        self.assertIn("This line records it and grants nothing", epic)
+
     def test_direct_route_reads_only_the_cards_its_task_needs(self) -> None:
         skill = self.read("SKILL.md")
         cards = self.read(DIRECT_CARDS)

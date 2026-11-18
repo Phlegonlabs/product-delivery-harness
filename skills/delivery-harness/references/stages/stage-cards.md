@@ -226,7 +226,7 @@ python "<delivery-harness-skill-root>/scripts/harness_transition.py" --plan <PLA
 
 The RUN closed `local_only` at candidate C, and the owner asks to archive, publish or promote.
 
-Review the archive dry run, then apply it on the same run branch against a freshly read `main` SHA. Commit only the archive bookkeeping as A and revalidate the archive. Publish A only after the owner's exact instruction naming its SHA and branch: observe the remote ref, run the argv `prepare` prints, then read it back with `verify-receipt` and record it in the Epic. Promotion to `main` needs its own exact-SHA grant. Never force-push.
+Review the archive dry run, then apply it on the same run branch against a freshly read `main` SHA. Commit only the archive bookkeeping as A and revalidate the archive. Publish A only after the owner's exact instruction naming its SHA and branch: observe the remote ref, run the argv `prepare` prints, then read it back with `verify-receipt` and record it in the Epic. Promotion to `main` needs its own exact-SHA grant. An Epic landing grant replaces both instructions when `landing_gate.py check` passes for A. Never force-push.
 
 **Commands in order**
 
@@ -248,4 +248,5 @@ python "<delivery-harness-skill-root>/scripts/push_archived_candidate.py" verify
 
 - Archiving: `references/branch-promotion-contract.md` — "Managed RUN Archive Before Promotion"
 - Promoting: `references/branch-promotion-contract.md` — "Candidate Gate", "Promote To Main"
+- Landing under a grant: `references/branch-promotion-contract.md` — "Epic Landing Grant"
 - A post-A gate fails: `references/branch-promotion-contract.md` — "Post-A Candidate Or Preview Failure"

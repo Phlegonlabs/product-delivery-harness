@@ -380,8 +380,11 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         }
         template_only_headings = {
             "Skill Activation", "Runtime Boundary", "Mandatory Governance Routes", "Deployment",
-            "Behavior Specs", "Harness Version",
+            "Behavior Specs", "Harness Version", "Delivery Autonomy",
         }
+        # The source repository states its own landing policy in AGENTS.md.
+        self.assertIn("\n## Delivery Autonomy\n", root_agents)
+        self.assertIn("\n- Landing: owner_each_time\n", root_agents)
         template = read("assets/templates/PROJECT_AGENTS.template.md")
         for heading in re.findall(r"^## (.+)$", template, re.MULTILINE):
             with self.subTest(heading=heading):

@@ -80,6 +80,17 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 
 The Epic and index record observed work; neither record grants product approval, marks a test PASS without evidence, or authorizes a commit, branch, install, push, deployment, cleanup, publication, or external action.
 
+## Delivery Autonomy
+
+- Landing: owner_each_time
+- Required checks: none
+- Journey command: <fill>
+- Production smoke command: <fill>
+- Recovery: <fill>
+- Owner-only paths: none
+
+`owner_each_time` keeps every push, merge, deployment and cleanup under the owner's instruction at the time. The owner changes it to `epic_grant` once the repository meets `delivery-harness/references/branch-promotion-contract.md#epic-landing-grant`; one grant per Epic then covers the actions that grant names. The parent reads this section from the frozen `main` base, so a change here takes effect only after it lands on `main` under the owner's own instruction.
+
 ## Deployment
 
 - Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Product Delivery Harness `deployment-contract.md`.

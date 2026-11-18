@@ -70,7 +70,7 @@ Archive creation also binds its separately observed main SHA; later main movemen
 Run-branch publication and protected-main landing are separate actions. Publication is required only when Preview builds from the remote branch.
 Retain the publication read-back record; it never authorizes protected-main landing.
 
-One owner release instruction may name archive, publication, preview, exact-SHA promotion and deployment together. Record each grant from that statement and do not re-ask; stop only on drift or a failed gate. Deletion and cleanup stay separate grants.
+One owner release instruction may name archive, publication, preview, exact-SHA promotion and deployment together. Record each grant from that statement and do not re-ask; stop only on drift or a failed gate. Deletion and cleanup stay separate grants, unless an Epic Landing Grant names `cleanup`.
 
 For `initial_delivery`, the Preview gate in condition 1 and condition 3 do not apply; condition 9, the production deploy and smoke of the actual main SHA, is the deployed verification. Every other condition applies unchanged.
 
@@ -83,7 +83,7 @@ Promotion to main requires all these conditions:
    If the host refuses the protection or ruleset read, for example HTTP 403 on a private plan, record `unavailable` with the HTTP status and message. Condition 2 then stays unmet: landing waits for a recorded owner decision that names its scope, and every other condition still applies.
 3. Preview evidence records the PR or branch, immutable deployment identity, observed URL, deployed SHA and acceptance result.
 4. Fresh remote observation matches the recorded main pre-state and proves candidate ancestry from the frozen base. Run `promotion_readback.py pre` to read remote `refs/heads/main` once and record its JSON.
-5. Separate action-time authorization names main, remote and exact candidate SHA. Preview or run-branch authority never covers production.
+5. Separate action-time authorization names main, remote and exact candidate SHA, or `landing_gate.py check --action merge` passes for that SHA under an [Epic Landing Grant](#epic-landing-grant). Preview or run-branch authority never covers production.
 6. Use the required PR or merge-queue mechanism. A direct authorized update must be a fast-forward to that exact SHA.
 7. Fetch and read back main. After the separately authorized fetch, `promotion_readback.py post` proves main ancestry and tree equality. If the server creates SHA S, require its tree to equal the verified candidate tree; S then inherits the candidate's evidence with its original origin.
 8. A different tree is a new candidate: verify it as an exact SHA before promotion or release completion.
@@ -101,6 +101,36 @@ Hosted-browser production verifies deployed SHA and smoke; parity capture there 
 For a store-reviewed production target, the promotion pass ends after the main-SHA artifact and submission read-back, with its Release Target Status row `pending`. Report availability as pending the store decision; do not wait for review. A later read-only check of the same artifact moves the row to PASS without a new promotion; a changed artifact is a new candidate.
 External setup read-back, the growth review and the outcome review keep their separate post-production gates and authorization.
 Separately authorized fixed-build external setup cannot claim release readiness.
+
+## Epic Landing Grant
+
+The owner may approve the landing of one Epic before its candidate exists. The grant replaces the action-time instructions that name an exact SHA. It replaces no gate, and without it every rule in this contract applies as written.
+
+Two things must both hold:
+
+1. The repository is eligible. Its `AGENTS.md` on the frozen remote `main` base has a `## Delivery Autonomy` section with `Landing: epic_grant`, the required check names, the journey command, the production smoke command, the recovery step and the owner-only paths. The parent reads this section from the base commit, never from the candidate or the working tree. The owner sets it once per repository, after the journey command has failed on a known defect and passed on the intended behaviour, the required checks cover the affected behaviour, an independent reviewer route exists, and condition 2 of Promote To Main has a recorded protection read-back. Recheck eligibility when one of those inputs changes.
+2. The Epic has a recorded grant. When the owner accepts the Epic's scope and says to land it, the parent runs `scripts/landing_gate.py record` with an output path outside the checkout, and writes only the grant's SHA-256 and a summary into the Epic. The grant names the repository, remote, Epic, work branch, frozen base, covered actions, expiry and repair budget.
+
+Before each covered action the parent runs `scripts/landing_gate.py check` for that action and the exact candidate. PASS is the authorization for that action at that SHA: it satisfies condition 5 of Promote To Main, the owner's exact instruction in [Archive publication](trusted-host-publication.md), and the push a direct task otherwise leaves to a separate instruction. REFUSED stops that action; report the reasons and continue work that does not depend on it.
+
+Grant actions:
+
+- `push`: the work branch, never with force.
+- `pull_request`: open it.
+- `review_threads`: fix a confirmed finding or post a concrete disproof, reply, resolve the thread, then read the thread state back. A required human approval still waits.
+- `merge`: through the required PR or merge-queue mechanism.
+- `production_deploy`: the deployment a `main` landing triggers, plus condition 9's smoke.
+- `cleanup`: only what `scripts/landing_gate.py cleanup-plan` prints.
+
+Order: atomic local commits, push, one review point and the required checks on the exact candidate, Preview smoke where the delivery kind requires it, merge, `promotion_readback.py post`, production smoke, cleanup. A changed head needs fresh checks and a review that binds it. A failed step stops the sequence: report it in product terms, and do not roll production back without the owner.
+
+The check refuses a candidate that touches an owner-only path: `AGENTS.md`, `CLAUDE.md`, CI workflow files, and every path the Delivery Autonomy section lists. Those changes land under the owner's own instruction, which is also how the section itself changes.
+
+After a PASS read-back, `cleanup-plan` lists the work branch and its linked worktrees that are safe to remove: tip unchanged since landing, worktree clean, not the primary checkout, never `main` or `development`. The parent runs only the printed commands. A dirty, moved or unlisted branch or worktree stays and is reported.
+
+Always the owner's: product scope and PRD changes, a changed visual direction, spending and paid resources, external console setup, destructive data operations and migrations, protection or ruleset exceptions, and any owner-only path. `scripts/landing_gate.py revoke` ends a grant, and so does its expiry. A grant never extends to another repository, Epic or branch.
+
+A managed RUN keeps all 12 ledger keys, closes `local_only` at C with `push` false, and archives C as A. The grant covers only the post-close steps of stage Card 8, with A as the candidate.
 
 ## Protected Branches
 

@@ -18,6 +18,9 @@ module order and status.
 Record the owner's accepted outcome, included work, exclusions and decision source.
 Reference valid action grants in the existing task or RUN; this file grants none.
 
+Landing grant: none | SHA-256 <hex>; actions <list>; branch <ref>; expires <date>; repair budget <n>; source <owner instruction and date>.
+The grant file lives outside the checkout. This line records it and grants nothing.
+
 Ambition rung: <1|2|3> — <outcome>
 Outside judge: <what proves it, other than us>
 
