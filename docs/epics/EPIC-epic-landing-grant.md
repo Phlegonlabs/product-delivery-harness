@@ -99,7 +99,22 @@ Targeted re-check on `4254dc57`, the same two lenses (194 s and 398 s): eleven o
 | A read-back was believed by its label: `exact` with main still at the base, or `tree_equal_S` with another tree | The gate recomputes the classification from the two commits and refuses a label that disagrees |
 | Evidence and read-back files inside the checkout were accepted | Both must resolve outside the checkout |
 
-`test_landing_gate.py` now holds 78 tests. Scoped review of this repair: pending.
+Scoped review of that repair on `1788442c`: the rule-text lens PASS (204 s). The script lens FIX_REQUIRED (391 s): the worktree, read-back and placement repairs held, but the policy reader failed again in two more ways. It skipped an indented second `- Landing:` line before counting repeats, which the previous version had refused, and it did not see `## Delivery  Autonomy ###`, with two inner spaces, as a second heading.
+
+That was the third review to find a hole in the same reader, so the next repair changed the approach, not the patch (`2c540e82`). The reader no longer walks the file as Markdown. It checks one invariant over the whole file: the heading and each of the six policy lines occur exactly once under any spelling, indentation or list marker; that one occurrence is in the plain form; the lines sit inside the section; and nothing above them is a code fence or an HTML comment. Whatever it cannot place is a refusal.
+
+Acceptance matrix for the family, `policy_matrix()` in `test_landing_gate.py`: 469 cases over five classes (heading spelling, policy-line spelling, a second occurrence anywhere in the file, a wrapper above the policy, an incomplete policy). Old reader loaded from `1788442c` against the new one, on the same texts:
+
+| Transition | Cases |
+| --- | --- |
+| old accept, new accept (retained) | 8 |
+| old accept, new reject (closed) | 265 |
+| old reject, new reject | 196 |
+| old reject, new accept | 0 |
+
+This repository's own `AGENTS.md` and the project template both read as one complete section under the new reader.
+
+Scoped review of the reader repair: pending.
 
 ## Results And Remaining Work
 
