@@ -75,11 +75,15 @@ One review point on `dac27345`, code and security in one read-only call (GPT-6.1
 | `feat(auth):add login` passed without the space after the colon | The missing space is an error (`0b67aaf3`) |
 | An empty `BREAKING CHANGE:` line counted as the required paragraph | The marker needs text after it (`0b67aaf3`) |
 
-Each script repair has a test that failed before it. Targeted re-check: pending.
+Each script repair has a test that failed before it.
+
+Targeted re-check on `9fe53b3c` (same reviewer, 149 s): all five findings resolved; one more defect inside the repair range. With `--rev --managed`, a two-parent commit whose message carried task trailers still passed, because the trailer set was chosen from the subject alone. Isolated repair `fc47a98f`: a managed merge needs the mission-level trailers and no Task trailer, whatever its subject says. Scoped review of that repair: pending.
+
+CI on `9fe53b3c` (PR #201): the `quality` job failed on pyflakes, two `skill` locals left unused in `test_skill_contract.py` after their assertions moved to the card file. Removed in `c8b5a673`. The parent had run pyflakes on the changed scripts but not on that test file.
 
 ## Results And Remaining Work
 
-Remaining: the targeted re-check of the five findings, CI matrix on the PR. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
+Remaining: the scoped review of the managed-merge repair, CI matrix on the PR. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
 
 ## Handoff
 
