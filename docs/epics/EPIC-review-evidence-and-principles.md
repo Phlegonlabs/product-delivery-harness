@@ -1,6 +1,6 @@
 # EPIC-review-evidence-and-principles: findings carry proof, a second reader on demand, and the principles in AGENTS.md
 
-Status: candidate prepared as 0.93.0; re-check and PR pending
+Status: candidate prepared as 0.93.0; PR #203 open, re-check PASS, CI running
 Design workflow: enhancement
 UI impact: none
 
@@ -59,11 +59,13 @@ The finding: RE-1 said a code finding without an observed result is a note. A re
 
 Two notes from the same review, taken in the same commit: the consolidated-repair sentence now names the second reader as the exception to "parallel reviewers only on an owner request"; the principles text is pinned by its SHA-256 and the two opening paragraphs are compared, since the earlier test compared only the two local copies from `### Core` on.
 
-Targeted re-check: pending.
+Targeted re-check on `92df66cc` (189 s): PASS. The reviewer walked the reviewer-cannot-run case to both verdicts and to the case where neither side can run the command, and found the command is always run by the parent or left open as an unavailable check. It notes, correctly, that the changed tests pin the rule's text and do not exercise that lifecycle: the parent-run step is a procedure, not a script. `harness_transition.py` already rejects a PASS that carries findings.
+
+Pull-request review (Codex, on `92df66cc`): completed with no finding.
 
 ## Results And Remaining Work
 
-Remaining: the targeted re-check, PR, CI matrix. Merge, tag and install wait for the owner.
+Remaining: CI matrix on the final head. Merge, tag and install wait for the owner.
 
 ## Handoff
 
@@ -74,8 +76,8 @@ Inputs consumed (path + hash or revision): main 82d91fad (v0.92.0); owner-approv
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
 Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: work branch, local commits, push and PR. Merge, tag and install for this round are not yet approved.
 Done and verified (command, exit code): pytest on the doc-asserting modules, exit 0; pyflakes on the four script trees, exit 0
-Remaining: release preparation, review, PR
+Remaining: CI matrix; merge, tag and install on the owner's word
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): prepare the 0.93.0 release entries
+Next action (one command or one owner decision): the owner's word to merge PR #203
 Next owner (skill or human): parent agent
 ```
