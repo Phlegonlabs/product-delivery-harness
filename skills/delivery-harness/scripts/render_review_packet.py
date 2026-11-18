@@ -474,8 +474,10 @@ def render_packet(
         " non-blocking note; notes never block.",
         "- Give every blocking code finding its proof: the command or input,"
         " the result you observed and the result the accepted scope requires."
-        " If you cannot run code, give the exact command and the required"
-        " result. A code finding without proof is a note; say how many you"
+        " If you cannot run code, still report the finding as blocking, mark"
+        " it `unrun`, and give the exact command and the required result; the"
+        " parent runs it before it accepts your verdict. Only a code finding"
+        " with no command or input at all is a note; say how many you"
         " recorded as notes for that reason.",
         f"- Scope: {', '.join(review['scope'])}",
     ]

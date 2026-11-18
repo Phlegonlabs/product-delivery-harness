@@ -657,8 +657,14 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         topology = self.owner_section(gates, "## Review Topology")
         # A code finding blocks only with something a second party can rerun.
         self.assertIn("A blocking code finding carries its proof: the command or input, the result observed", topology)
-        self.assertIn("the parent runs it before it authorizes a repair", topology)
-        self.assertIn("A code finding without proof is a note", topology)
+        # A reproduction nobody ran can end neither in a repair nor in a PASS.
+        self.assertIn("still reports the finding as blocking, marks it `unrun`", topology)
+        self.assertIn("The parent runs every `unrun` command before it accepts the verdict, PASS included", topology)
+        self.assertIn("the required result turns the finding into a note with the parent's output recorded", topology)
+        self.assertIn("stays open as an unavailable check and blocks like any other missing evidence", topology)
+        self.assertIn("it never becomes a backlog note", topology)
+        self.assertIn("Only a code finding with no command or input at all is a note", topology)
+        self.assertNotIn("A code finding without proof is a note", gates)
         self.assertIn("states how many findings it recorded as notes for that reason", topology)
         self.assertIn("a security finding keeps the source-to-sink validation", topology)
         # The second reader is on demand, another vendor, and inside the one review point.
@@ -669,6 +675,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("only findings with proof block", topology)
         self.assertIn("record `second_reader: unavailable (<reason>)` and proceed with one reader", topology)
         self.assertIn("apart from the second reader below", topology)
+        self.assertIn("only on an owner request, apart from the second reader", gates)
         # Model choice stays with the host; the skill names only the role.
         delegation = self.read("references/delegation-contract.md")
         self.assertIn("host policy names it", delegation)
@@ -676,7 +683,9 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # The packet tells the reviewer the same rule.
         renderer = (SKILL_ROOT / "scripts/render_review_packet.py").read_text(encoding="utf-8")
         self.assertIn("Give every blocking code finding its proof", renderer)
-        self.assertIn("A code finding without proof is a note", renderer)
+        self.assertIn("still report the finding as blocking, mark", renderer)
+        self.assertIn("parent runs it before it accepts your verdict", renderer)
+        self.assertNotIn("A code finding without proof is a note", renderer)
 
     def test_a_repeated_correction_is_fixed_at_the_highest_level_that_works(self) -> None:
         owner = self.read("references/governance/task-and-handoff.md")

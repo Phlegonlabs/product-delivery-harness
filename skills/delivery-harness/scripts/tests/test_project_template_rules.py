@@ -1,5 +1,6 @@
 """Seeded project rules must agree with the canonical Harness contracts."""
 
+import hashlib
 import json
 import re
 import subprocess
@@ -394,6 +395,18 @@ class ProjectTemplateRuleTests(unittest.TestCase):
             return body.split("\n### Core\n", 1)[1]
 
         self.assertEqual(principles(agents_template), principles(root_agents))
+        # The text is generated from the pinned PStack copy; a hand edit shows here.
+        self.assertEqual(
+            "53972776af8938f207bd59d8ce04b20b57dc8ab8b2cb21ca63f082187bc82dc2",
+            hashlib.sha256(principles(agents_template).encode("utf-8")).hexdigest(),
+        )
+
+        def opening(text: str) -> str:
+            head = text.split("\n## Engineering Principles\n", 1)[1].split("\n### Core\n", 1)[0]
+            return re.sub(r"`delivery-harness/assets/third-party/PSTACK-LICENSE`|\[PSTACK-LICENSE\]\([^)]*\)", "LICENSE", head)
+
+        # The two opening paragraphs differ only in how they link the license.
+        self.assertEqual(opening(agents_template), opening(root_agents))
         entries = re.findall(r"^#### (.+)$", principles(agents_template), re.MULTILINE)
         self.assertEqual(24, len(entries))
         self.assertEqual(24, len(set(entries)))
