@@ -946,7 +946,7 @@ class ProductDefinitionBuilderSkillContractTests(unittest.TestCase):
         contract = self.read("references/output-contract.md")
 
         self.assertIn(
-            "complete actual current PRD, architecture, stack decisions, every produced market/research artifact, and its Platform Optimization Recommendations",
+            "complete actual current PRD, architecture, stack decisions, every produced market/research artifact, the keyword map when one exists, and its Platform Optimization Recommendations",
             skill,
         )
         self.assertIn(

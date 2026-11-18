@@ -171,7 +171,7 @@ Rungs are better, not bigger. The outside judge is never the model or the owner'
 | Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
 | --- | --- | --- | --- | --- | --- |
 
-Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `growth` (`seo` remains a legacy alias of `growth`); the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive, and each row names one real destination: a path, listing, account or `none (reason)`. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap; an agent, tool or content track records a mechanism or a `none` row with its reason. A discovery surface of kind seo-cluster, geo-page, store-listing, directory or landing maps to a UI surface, release target or landing path that exists in this PRD. A presence surface (social, video_channel, newsletter, community, docs_site) is written as `<platform>:<handle-or-url>`, such as `instagram:@handle` or `docs:https://docs.example.com`. Kinds and their default sources are listed in the [Surface Catalog](../../delivery-harness/references/surface-catalog.md). Channel classes: `owned` is an account, list or product surface the team controls; `earned` is a community, directory or press that decides independently; `search` is public pages and listing text that reach search and answer engines; `store` is store, registry or marketplace assets.
+Targets are hypotheses with a stated basis. `Owner stage` is `delivery`, `activation`, `gtm` or `growth` (`seo` remains a legacy alias of `growth`); the Launch Window needs at least one row whose day is within Day 0 to Day 7 inclusive, and each row names one real destination: a path, listing, account or `none (reason)`. The Day 7 and Day 30 reviews bind to the north-star targets. A missing re-engagement mechanism on a web or app track is a blocking gap; an agent, tool or content track records a mechanism or a `none` row with its reason. A discovery surface of kind seo-cluster, geo-page, store-listing, directory or landing maps to a UI surface, release target or landing path that exists in this PRD. When a keyword map exists, the `TEST or MS ID` cell of each seo-cluster, geo-page, store-listing or landing row also names the `KW-*` it serves. A presence surface (social, video_channel, newsletter, community, docs_site) is written as `<platform>:<handle-or-url>`, such as `instagram:@handle` or `docs:https://docs.example.com`. Kinds and their default sources are listed in the [Surface Catalog](../../delivery-harness/references/surface-catalog.md). Channel classes: `owned` is an account, list or product surface the team controls; `earned` is a community, directory or press that decides independently; `search` is public pages and listing text that reach search and answer engines; `store` is store, registry or marketplace assets.
 
 ## Non-Goals
 - [Explicitly out of scope]
@@ -231,7 +231,7 @@ The two HTML comments, each `UI-*` heading, and the backticked `` `route` ``, ``
 - `copy`: [draft / approved / revision_requested / blocked] — [Static strings are implementation-bound after copy completeness; dynamic values follow their approved source/order/format/count/length/fallback contracts]
 - Responsive obligations: [Content/actions that never drop, required interaction modes, long-content behavior, and overlay focus/dismissal requirements; layout order, grid, spans, and reflow remain UI-design decisions]
 - Accessibility: [Focus, labels, announcements, heading order, and alt text as applicable]
-- SEO metadata: [Per-route `<title>` and meta description; canonical URL or `n/a — <reason>`; Open Graph/social, robots, and structured-data decisions as applicable or `n/a — <reason>`]
+- SEO metadata: [Per-route `<title>` and meta description with their character limits and the `KW-*` they serve, or `n/a — <reason>` without a keyword map; canonical URL or `n/a — <reason>`; Open Graph/social, robots, and structured-data decisions as applicable or `n/a — <reason>`]
 - Trace IDs: [PRD-*, UX-*, ARCH-*, TEST-*]
 
 <!-- ui-surface-contract:end -->
@@ -240,10 +240,10 @@ Every route maps to exactly one `UI-*` entry. Every required content responsibil
 
 A derived state and its parent are both listed, non-`n/a` states of the same surface. A parent may itself be derived; an unknown or `n/a` parent, or a cycle, fails the checker. The UI review captures a derived state once, at the surface's smallest responsive target, as [First-Wave Audit Axes](../../ui-design-builder/references/ui-grading-rubric.md#first-wave-audit-axes) states. The state still needs its own HiFi state control.
 
-SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description. Site-level SEO obligations are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement.
+SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description at launch, with their character limits and the `KW-*` they serve. Both are content fields: the keyword map's Content fields table holds their current values. A later rewrite that keeps the route's cluster and what the page answers, stays inside the limits and stays unique per route is a content change, recorded in the map's change log, with no PRD delta and no UI review. A new route, a change of cluster, or a change to copy visible on the page is still a PRD delta. Without a keyword map the PRD line holds the current values. Site-level SEO obligations are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement. That row checks presence, uniqueness, the limit and equality with the current value (the map's, or the PRD's without a map), not a string frozen in the PRD.
 
 ## Frontend Delivery Requirements
-- [Target devices and browsers, content/interactivity profile, rendering, performance, accessibility, localization, offline, and deployment constraints; site-level SEO — indexing strategy, sitemap and robots policy, canonical policy, default structured data — while each route's own `<title>` and meta description live in its `UI-*` entry]
+- [Target devices and browsers, content/interactivity profile, rendering, performance, accessibility, localization, offline, and deployment constraints; site-level SEO — indexing strategy, sitemap and robots policy, canonical policy, default structured data — while each route's launch `<title>` and meta description live in its `UI-*` entry]
 
 Omit this section only when the product has no browser frontend.
 
@@ -388,6 +388,8 @@ This section is present for every product, including headless APIs and automatio
 
 Research Gate: [go / clarify / stop / skipped] — [assessment date and findings path, or skip reason], decided by [human owner]
 [For `clarify`, the questions asked and their resolutions, and the final gate value after re-assessment. For a skipped assessment, record whether the user declined it, no web tool was available, confidential context prevented a safe query, or the package is a trivial stub. Enhancement packages cite the prior package's gate unchanged.]
+
+Keyword map: [`docs/product/keyword-map.md` dated YYYY-MM-DD / n/a — no public search surface / not run — reason]
 
 <!-- product-definition-approval:start -->
 ### Product Definition Approval

@@ -74,9 +74,29 @@ Prioritize qualitatively with business and audience fit, observed first-party de
 
 Rank blockers before growth experiments. Among non-blockers, prefer a strong existing-page or existing-listing opportunity over a speculative new program. Do not use a universal position band, volume floor, difficulty score, authority target or install threshold as a hard gate.
 
+## Evidence Before A Site Exists
+
+`demand_research` and `pre_launch` run before any first-party data. The Source Catalog says what each source can and cannot show at that point. Apply the labels this way:
+
+- `observed`: only what you read directly on a result page, listing or registry page on the retrieval date, such as who ranks and with what kind of page. Record the date.
+- `estimated`: a Trends comparison or a store's search-popularity index. It shows relative interest, never a volume.
+- `hypothesis`: what the result pages imply about demand, intent or effort. It needs first-party validation after launch.
+
+Never invent a volume, a rank or a competitor fact. A claim you cannot trace to a retrieved source is not written. Say the source was not available.
+
+### Reading Result Pages
+
+For each cluster, open the result page for two or more of its queries in the target market and language. Read only a public, unpersonalized result. Do not scrape at scale.
+
+1. Record who ranks: the host and its type, such as vendor, publisher, directory, forum or marketplace.
+2. Record the kind of page each result is: landing page, comparison, guide, tool, listing, category or documentation.
+3. Record result features that change the answer: answer box, video, map, store pack or an answer-engine citation.
+4. Compare the page kinds with the cluster's intent. If the results are all guides and the intent is `buy`, change the intent, the mapped page or the cluster.
+5. Judge whether one page of the product could answer the cluster as well as the results do. If not, set the cluster aside and record why.
+
 ## Pre-Launch Planning Sequence
 
-For `pre_launch`, production data does not exist yet. Build the plan per surface in this order:
+For `pre_launch`, production data does not exist yet. When `docs/product/keyword-map.md` exists, its clusters, mapped pages and content fields stand in for steps 1 and 2 on the search and store-listing surfaces it covers; check them against the launch window. Steps 3 to 5 still run for every surface, and a surface the map does not cover still gets steps 1 and 2. Build the plan per surface in this order:
 
 1. Cluster the questions and tasks the product answers, from audience language, support material and public demand evidence.
 2. Assign each cluster one responsibility: a planned public page for web, listing text or screenshot for stores, README section or registry description for registries, a first post series for presence surfaces.
@@ -108,7 +128,18 @@ When the PRD has a `## Growth Contract`, run `growth_review` at its Day 7 and Da
 4. Check each `### Re-engagement` mechanism for a retention signal through its TEST ID or `MS-*` row.
 5. Return next-round PRD delta candidates, each with its evidence and one owner route.
 
+6. When `docs/product/keyword-map.md` exists, add the [Keyword Map Readback](#keyword-map-readback).
+
 The cadence is read-only. It reports evidence; the PRD owner accepts or rejects each candidate. A missed target is a finding, not a mandate to change the product or buy placement.
+
+## Keyword Map Readback
+
+Compare each `KW-*` row with first-party data: the queries and pages in `search_console`, the landing pages in `ga4`, or the listing data in the store console. Use complete periods. Return two lists, each row with its `KW-*`, evidence and follow-up metric:
+
+- Content-field rewrites. A rewrite of a page's `<title>` or meta description is a content change when it keeps the page's cluster and what the page answers, stays inside the recorded limits and stays unique per route. Route it `delivery`. The owner who applies it records it in the map's Change log.
+- Structural candidates. A new route, a change of cluster, or a change to copy that people see on the page needs a PRD delta. Route it `product_definition`.
+
+The review does not edit the map. A cluster with too little data to judge goes to `observe_later`.
 
 ## Gap Routing
 
@@ -144,7 +175,7 @@ Return the result inline unless the user asks to save it.
 | --- | --- | --- | --- | --- | --- |
 
 ## Opportunities By Surface
-[Rows routed `product_definition` are the next-round PRD delta candidates.]
+[Rows routed `product_definition` are the next-round PRD delta candidates. When a keyword map exists, add its two lists here, per [Keyword Map Readback](#keyword-map-readback).]
 | Surface | Priority | Query, topic or listing | Type | Evidence | Current page or listing | Action / route | Follow-up metric |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 
