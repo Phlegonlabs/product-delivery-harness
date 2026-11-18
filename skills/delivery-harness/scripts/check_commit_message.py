@@ -6,8 +6,10 @@ via ``git log -1 --format=%B``) and decides mechanically what a machine
 can: the ``<type>(<scope>): <summary>`` subject shape, the type and scope
 vocabulary, subject length and punctuation, the blank second line, the
 ``BREAKING CHANGE:`` paragraph behind a ``!`` subject and, with
---managed, the Task/Trace/Verified or integration trailer set. Subjects
-starting with ``Merge `` pass without further checks. Exit 0 prints
+--managed, the Task/Trace/Verified or integration trailer set. With --rev
+and without --managed, a commit that has two or more parents passes as a
+merge commit; a message file is never exempt, because text cannot prove
+that its commit is a merge. Exit 0 prints
 ``OK: <subject>``; exit 1 prints one ``ERROR: <what>. <fix>.`` line per
 problem; exit 2 reports bad arguments, an unreadable message file or a
 git failure. This script only checks text; it grants no commit
@@ -24,7 +26,7 @@ from pathlib import Path
 
 ALLOWED_TYPES = ("feat", "fix", "refactor", "test", "docs", "chore", "perf", "build", "ci")
 ALLOWED_TYPES_TEXT = ", ".join(ALLOWED_TYPES)
-SCOPE_PATTERN = "[a-z0-9][a-z0-9-]*"
+SCOPE_PATTERN = "[a-z0-9][a-z0-9_-]*"
 SCOPE_AREAS = "auth, billing, api, db, dashboard, ui, harness or prd"
 SHAPE_EXAMPLE = '"feat(harness): add commit message check"'
 SUBJECT_PREFIX = re.compile(r"^(?P<type>[^(]*?)(?:\((?P<scope>[^)]*)\))?(?P<breaking>!)?$")
@@ -40,6 +42,11 @@ def check_subject(subject: str) -> tuple[list[str], bool]:
     breaking = False
     head, colon, rest = subject.partition(":")
     summary = rest[1:] if rest.startswith(" ") else rest
+    if colon and rest.strip() and not rest.startswith(" "):
+        problems.append(
+            "ERROR: there is no space after the colon. Put exactly one space between the "
+            f"colon and the summary, as in {SHAPE_EXAMPLE}."
+        )
     if not colon:
         problems.append(
             'ERROR: the subject is not in the "<type>(<scope>): <summary>" shape with an '
@@ -105,11 +112,15 @@ def check_body(lines: list[str], breaking: bool) -> list[str]:
             "ERROR: the second line of the message is not blank. Separate the subject from "
             "the body with one blank line."
         )
-    if breaking and not any(line.startswith("BREAKING CHANGE:") for line in lines[1:]):
+    described = any(
+        line.startswith("BREAKING CHANGE:") and line[len("BREAKING CHANGE:"):].strip()
+        for line in lines[1:]
+    )
+    if breaking and not described:
         problems.append(
             'ERROR: the subject marks a breaking change with "!" but no body paragraph starts '
-            'with "BREAKING CHANGE:". Add a body paragraph starting with "BREAKING CHANGE: " '
-            "that describes what breaks and how to migrate."
+            'with "BREAKING CHANGE:" followed by text. Add a body paragraph starting with '
+            '"BREAKING CHANGE: " that describes what breaks and how to migrate.'
         )
     return problems
 
@@ -192,6 +203,7 @@ def main(argv: list[str] | None = None) -> int:
     if (args.message_file is None) == (args.rev is None):
         parser.error("provide exactly one of --message-file or --rev")
 
+    merge_commit = False
     if args.message_file is not None:
         try:
             message = args.message_file.read_text(encoding="utf-8")
@@ -202,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
         try:
             completed = subprocess.run(
                 [
-                    "git", "-C", str(args.repo_root), "log", "-1", "--format=%B",
+                    "git", "-C", str(args.repo_root), "log", "-1", "--format=%P%n%B",
                     "--end-of-options", args.rev,
                 ],
                 capture_output=True,
@@ -219,14 +231,15 @@ def main(argv: list[str] | None = None) -> int:
             detail = (completed.stderr or "").strip() or f"exit status {completed.returncode}"
             print(f"error: git log failed for {args.rev}: {detail}", file=sys.stderr)
             return 2
-        message = completed.stdout
+        parents, _, message = completed.stdout.partition("\n")
+        merge_commit = len(parents.split()) >= 2
 
     lines = message.replace("\r\n", "\n").split("\n")
     while lines and lines[-1] == "":
         lines.pop()
     subject = lines[0] if lines else ""
 
-    if subject.startswith("Merge "):
+    if merge_commit and not args.managed:
         print(f"OK (merge commit): {subject}")
         return 0
 

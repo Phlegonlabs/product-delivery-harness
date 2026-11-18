@@ -105,7 +105,7 @@ class CheckCommitMessageTests(unittest.TestCase):
         code, out, _err = self.check("feat(Dashboard): fix save\n")
         self.assertEqual(1, code, out)
         self.assertEqual(
-            ['ERROR: scope "Dashboard" does not match [a-z0-9][a-z0-9-]*. Use a lowercase '
+            ['ERROR: scope "Dashboard" does not match [a-z0-9][a-z0-9_-]*. Use a lowercase '
              "product or engineering area such as "
              "auth, billing, api, db, dashboard, ui, harness or prd."],
             out.strip().splitlines(),
@@ -171,8 +171,8 @@ class CheckCommitMessageTests(unittest.TestCase):
         self.assertEqual(1, code, out)
         self.assertEqual(
             ['ERROR: the subject marks a breaking change with "!" but no body paragraph '
-             'starts with "BREAKING CHANGE:". Add a body paragraph starting with '
-             '"BREAKING CHANGE: " that describes what breaks and how to migrate.'],
+             'starts with "BREAKING CHANGE:" followed by text. Add a body paragraph starting '
+             'with "BREAKING CHANGE: " that describes what breaks and how to migrate.'],
             out.strip().splitlines(),
         )
 
@@ -196,20 +196,26 @@ class CheckCommitMessageTests(unittest.TestCase):
         self.assertIn('ERROR: scope "Dashboard" does not match', out)
         self.assertIn("ERROR: the subject ends with a period.", out)
 
-    def test_merge_subject_is_exempt(self) -> None:
-        subject = "Merge branch 'feature-login' into main"
-        code, out, _err = self.check(subject + "\n")
-        self.assertEqual(0, code, out)
-        self.assertEqual(f"OK (merge commit): {subject}\n", out)
+    def test_a_message_file_is_never_exempt_as_a_merge(self) -> None:
+        # Text cannot prove that its commit is a merge.
+        for extra in ((), ("--managed",)):
+            code, out, _err = self.check("Merge anything\n", *extra)
+            self.assertEqual(1, code, out)
+            self.assertIn("ERROR: the subject is not in the", out)
 
-    def test_merge_subject_is_exempt_even_with_managed(self) -> None:
-        code, out, _err = self.check(
-            "Merge pull request #12 from org/feature-login\n", "--managed"
-        )
+    def test_scope_may_hold_an_underscore(self) -> None:
+        code, out, _err = self.check("fix(user_profile): restore editing\n")
         self.assertEqual(0, code, out)
-        self.assertEqual(
-            "OK (merge commit): Merge pull request #12 from org/feature-login\n", out
-        )
+
+    def test_missing_space_after_the_colon(self) -> None:
+        code, out, _err = self.check("feat(auth):add login\n")
+        self.assertEqual(1, code, out)
+        self.assertIn("ERROR: there is no space after the colon.", out)
+
+    def test_empty_breaking_change_marker_is_not_a_paragraph(self) -> None:
+        code, out, _err = self.check("feat(api)!: remove legacy\n\nBREAKING CHANGE:\n")
+        self.assertEqual(1, code, out)
+        self.assertIn('"BREAKING CHANGE:" followed by text', out)
 
     def test_managed_task_commit_passes(self) -> None:
         code, out, _err = self.check(GOOD_MANAGED, "--managed")
@@ -367,11 +373,11 @@ class RevModeTests(unittest.TestCase):
         self.git("add", "-A")
         self.git("commit", "-q", "--allow-empty", "-F", message_path)
 
-    def run_rev(self, rev: str) -> tuple[int, str, str]:
+    def run_rev(self, rev: str, *extra: str) -> tuple[int, str, str]:
         stdout, stderr = io.StringIO(), io.StringIO()
         with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
             code = check_commit_message.main(
-                ["--rev", rev, "--repo-root", str(self.root)]
+                ["--rev", rev, "--repo-root", str(self.root), *extra]
             )
         return code, stdout.getvalue(), stderr.getvalue()
 
@@ -397,6 +403,15 @@ class RevModeTests(unittest.TestCase):
         code, out, _err = self.run_rev("HEAD")
         self.assertEqual(0, code, out)
         self.assertIn("OK (merge commit): Merge", out)
+        # A managed integration merge must carry the mission-level body.
+        code, out, _err = self.run_rev("HEAD", "--managed")
+        self.assertEqual(1, code, out)
+
+    def test_rev_merge_subject_on_an_ordinary_commit_is_checked(self) -> None:
+        self.commit_with_message("Merge anything\n")
+        code, out, _err = self.run_rev("HEAD")
+        self.assertEqual(1, code, out)
+        self.assertIn("ERROR: the subject is not in the", out)
 
     def test_rev_unknown_revision_exits_2(self) -> None:
         code, _out, err = self.run_rev("no-such-revision")
