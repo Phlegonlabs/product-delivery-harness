@@ -661,7 +661,12 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("one review point on the exact candidate, push, pull request", grant)
         self.assertIn("Review comes before push, as on every direct task", grant)
         self.assertIn("The evidence needs a review PASS that binds the candidate", grant)
-        self.assertIn("carries only across a later commit that changes the Epic record alone", grant)
+        self.assertIn("no later commit inherits an earlier review, not even one that changes only the Epic record", grant)
+        self.assertIn("A keeps C's review when A's only parent is C", grant)
+        self.assertIn("A fix made for a thread is a repair round", grant)
+        self.assertIn("it refuses an evidence or read-back file inside the checkout", grant)
+        self.assertIn("a read-back whose label disagrees with the commits it names", grant)
+        self.assertIn("above any code fence", grant)
         self.assertIn("the check refuses a count above the budget", grant)
         # The script decides; it runs none of the gates itself.
         self.assertIn("It runs nothing itself", grant)
@@ -709,6 +714,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for key in ("Required checks", "Journey command", "Production smoke command", "Recovery", "Owner-only paths"):
             self.assertIn(f"- {key}: ", autonomy)
         self.assertIn("takes effect only after it lands on `main` under the owner's own instruction", autonomy)
+        self.assertIn("keep the section above any code fence", autonomy)
         epic = self.read("assets/templates/EPIC.template.md")
         self.assertIn("Landing grant: none | SHA-256 <hex>", epic)
         self.assertIn("This line records it and grants nothing", epic)
