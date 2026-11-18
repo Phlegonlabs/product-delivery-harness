@@ -131,10 +131,13 @@ def _diff_names(root: Path, older: str, younger: str) -> list[str]:
     -z keeps names unquoted, so a non-ASCII path is compared as it is.
     --no-renames reports a rename as its old and its new path, so a moved
     owner-only file still shows where it left. A git failure raises.
+
+    Git separates directories with "/" on every platform. A backslash in its
+    output is part of a file name, so names are used exactly as git prints them.
     """
 
     output = _git(root, "diff", "--name-only", "--no-renames", "-z", older, younger)
-    return [name.replace("\\", "/") for name in output.split("\0") if name]
+    return [name for name in output.split("\0") if name]
 
 
 def _utc_z(moment: datetime) -> str:
@@ -615,7 +618,7 @@ def _worktree_residue(path: Path) -> str | None:
     if any(not entry.startswith("!! ") for entry in entries):
         return "the worktree has uncommitted or untracked changes; nothing is removed"
     kept = sorted(
-        ignored for ignored in (entry[3:].replace("\\", "/") for entry in entries)
+        ignored for ignored in (entry[3:] for entry in entries)
         if not REGENERABLE_DIRECTORIES.intersection(ignored.rstrip("/").split("/"))
     )
     if kept:

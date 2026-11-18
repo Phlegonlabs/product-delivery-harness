@@ -1518,6 +1518,21 @@ class LandingGateTests(unittest.TestCase):
         self.assertEqual(1, code, value)
         self.assertIn("and 3 more", value["refused"][0]["reason"])
 
+    def test_a_backslash_in_a_file_name_is_not_a_directory_separator(self) -> None:
+        # Git prints "/" between directories on every platform. On POSIX a
+        # backslash is an ordinary character of a file name, so this ignored
+        # file is not inside any cache directory.
+        name = "private\\node_modules\\local.db"
+        with patch.object(subject, "_git", lambda _path, *_args: f"!! {name}\0!! __pycache__/app.pyc\0"):
+            reason = subject._worktree_residue(Path("."))
+        self.assertIsNotNone(reason)
+        self.assertIn(name, str(reason))
+        self.assertNotIn("__pycache__", str(reason))
+        with patch.object(subject, "_git", lambda _path, *_args: "!! node_modules/pkg/a.js\0!! __pycache__/\0"):
+            self.assertIsNone(subject._worktree_residue(Path(".")))
+        with patch.object(subject, "_git", lambda _path, *_args: "a\\AGENTS.md\0src/app.py\0"):
+            self.assertEqual(["a\\AGENTS.md", "src/app.py"], subject._diff_names(Path("."), "x", "y"))
+
 
 if __name__ == "__main__":
     unittest.main()
