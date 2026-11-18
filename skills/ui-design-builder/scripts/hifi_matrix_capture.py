@@ -293,14 +293,17 @@ async function start(request) {
             else layers.set(panel, { id: panel.id, panel, visible: shown(panel), open: false, entry: true });
           }
         }
-        focusStep = { step, target, layers: Array.from(layers.values()) };
+        const returnLayers = Array.from(layers.values()).filter(layer => layer.open && layer.panel.contains(target));
+        // Snapshot the containing panels before activation, from innermost outward.
+        returnLayers.sort((a, b) => a.panel.contains(b.panel) ? 1 : b.panel.contains(a.panel) ? -1 : 0);
+        focusStep = { step, target, layers: Array.from(layers.values()), returnLayers };
       },
       outcome() {
         const layers = focusStep?.layers || [];
         return {
           entered: layers.filter(layer => layer.entry && !layer.visible && shown(layer.panel)
             && layer.panel.contains(document.activeElement)).map(layer => layer.id),
-          returned: layers.filter(layer => layer.open && !shown(layer.panel)
+          returned: (focusStep?.returnLayers || []).filter(layer => !shown(layer.panel)
             && layer.opener === document.activeElement).map(layer => layer.id),
         };
       },
@@ -313,7 +316,7 @@ async function start(request) {
         ? el.getAttribute('aria-controls') : null;
       const layers = focusStep?.layers || [];
       // These facts must be captured synchronously, before a focus handler continues.
-      const returned = layers.find(layer => layer.open && layer.opener === el && !shown(layer.panel));
+      const returned = (focusStep?.returnLayers || []).find(layer => layer.opener === el && !shown(layer.panel));
       const entered = layers.find(layer => layer.entry && !layer.visible && shown(layer.panel) && layer.panel.contains(el));
       // Only the direct focus call in an exact supported runtime is reviewer setup.
       const caller = String(new Error().stack).split('\n').map(line =>

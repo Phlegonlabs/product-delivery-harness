@@ -23,7 +23,7 @@ class FocusBrowserTests(unittest.TestCase):
     driver = alignment.OperationBrowserTests.driver
     attempt = alignment.OperationBrowserTests.attempt
 
-    def check_attempts(self, markup, passes, observation=None):
+    def check_attempts(self, markup, passes, observation=None, panel="picker"):
         driver = self.driver(markup)
         for trigger in ("click", "keyboard"):
             with self.subTest(trigger=trigger):
@@ -31,7 +31,7 @@ class FocusBrowserTests(unittest.TestCase):
                 self.assertEqual([], result["problems"], result)
                 self.assertEqual(passes, result["focusCorrect"], result)
                 if observation:
-                    self.assertEqual("picker", result["observed"].get(observation), result)
+                    self.assertEqual(panel, result["observed"].get(observation), result)
                 if not passes:
                     self.assertNotIn("focusReturn", result["observed"])
                     self.assertNotIn("focusEntry", result["observed"])
@@ -71,6 +71,39 @@ class FocusBrowserTests(unittest.TestCase):
                     '<button id="other-opener" data-product-disclosure aria-controls="other" '
                     'aria-expanded="' + str(other_open).lower() + '">Other</button>'
                     '<div id="other"' + ('' if other_open else ' hidden') + '>Other panel</div>', False)
+
+    def test_n3_closing_two_siblings_cannot_return_to_the_unrelated_opener(self):
+        for move_control in (False, True):
+            with self.subTest(move_control=move_control):
+                move = "document.getElementById('other').append(this);" if move_control else ""
+                self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
+                    'aria-expanded="true">Pick</button><div id="picker"><button data-control-id="save" '
+                    'onclick="' + move + 'document.getElementById(\'picker\').hidden=true;'
+                    'document.getElementById(\'other\').hidden=true;'
+                    'document.getElementById(\'other-opener\').focus()">Cancel</button></div>'
+                    '<button id="other-opener" data-product-disclosure aria-controls="other" '
+                    'aria-expanded="true">Other</button><div id="other">Other panel</div>', False)
+
+    def test_n3_return_to_the_containing_panel_leaves_the_sibling_open(self):
+        self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
+            'aria-expanded="true">Pick</button><div id="picker"><button data-control-id="save" '
+            'onclick="document.getElementById(\'picker\').hidden=true;'
+            'document.getElementById(\'opener\').focus()">Cancel</button></div>'
+            '<button id="other-opener" data-product-disclosure aria-controls="other" '
+            'aria-expanded="true">Other</button><div id="other">Other panel</div>', True, "focusReturn")
+
+    def test_n3_nested_returns_accept_closed_containing_panels_from_inner_to_outer(self):
+        for close_outer in (False, True):
+            with self.subTest(close_outer=close_outer):
+                close = "document.getElementById('outer').hidden=true;" if close_outer else ""
+                opener = "outer-opener" if close_outer else "opener"
+                self.check_attempts('<button id="outer-opener" data-product-disclosure aria-controls="outer" '
+                    'aria-expanded="true">Outer</button><div id="outer">'
+                    '<button id="opener" data-product-disclosure aria-controls="picker" '
+                    'aria-expanded="true">Inner</button><div id="picker"><button data-control-id="save" '
+                    'onclick="document.getElementById(\'picker\').hidden=true;' + close
+                    + 'document.getElementById(\'' + opener + '\').focus()">Cancel</button></div></div>',
+                    True, "focusReturn", "outer" if close_outer else "picker")
 
     def test_opening_a_layer_may_focus_its_title_or_first_field_once(self):
         for semantic in (False, True):

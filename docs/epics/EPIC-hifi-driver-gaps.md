@@ -35,6 +35,10 @@ The parent reports the scoped review of G5 head `f4463dc6` returned FAIL with N1
 The scoped review supplied those findings; the parent requested one isolated G5 repair and one later scoped re-review.
 The repair records closure at the return event and records all product focus, including unmarked elements.
 Opening a layer may transfer focus into that layer; unrelated focus, extra transfers and returns to an open panel still fail.
+The parent reports the re-review of `7d9a911b` resolved N1 and N2 but returned FAIL for N3.
+N3 restricts focus returns to panels that contained the operated control before activation.
+Containing panels are checked innermost first; if nested panels close together, any closed containing panel's opener may receive the single return.
+The parent authorizes one atomic G5 repair and one last scoped re-review for this family.
 
 ## Acceptance
 
@@ -44,7 +48,7 @@ Opening a layer may transfer focus into that layer; unrelated focus, extra trans
 | G2 | Repeated controls prefer an unselected visible instance and record its index. | Chromium tests cover all four ARIA attributes and the all-selected inert fallback. |
 | G3 | Data-entry controls receive user input; disabled, read-only and unchanged fields fail. | Chromium regressions cover input, textarea, selects in both directions, and rejected fields. |
 | G4 | Repeated page timeouts cannot block unrelated pages; output order stays deterministic. | Serial, four-worker and Chromium timeout regressions; full stable-package run recorded in the handoff ledger. |
-| G5 | Each activation permits one proved layer entry or a return after closure; all intervening product focus fails. | Chromium click and keyboard tests cover event ordering, unmarked detours, wrong or never-open panels, layer titles and fields, historical runtimes and reviewer-origin focus. |
+| G5 | Each activation permits one proved layer entry or a return to the opener of a closed containing panel; intervening focus fails. | Chromium click and keyboard tests cover event ordering, unmarked detours, closed siblings, nested containing panels, layer entry, historical runtimes and reviewer-origin focus. |
 
 ## Change Log
 
@@ -62,6 +66,7 @@ Opening a layer may transfer focus into that layer; unrelated focus, extra trans
 | F4 / G1 repair | Clear fragment-arrival markers; keep bare document-arrival handling; refresh the runtime pin and digest fixture | F3 commit `fa118a28`; `test_f4_same_page_arrival_preserves_later_reviewer_selection_on_reload` | All 15 focused tests and seven compiler compatibility tests exit 0. Targeted protected recheck pending. |
 | G5 closed-layer focus return | Parent-requested driver, receipt validation, two contracts and regressions; based on `79df5eaa` | `test_g5_cancel_returns_focus_only_to_the_closed_layer_opener`, `test_g5_focus_return_rejects_unrelated_focus_and_still_open_layers`, `test_g5_focus_return_observation_names_one_panel` | First development check exposed reviewer heading focus in the expanded listener. Corrected driver-gap tests (18) and operation-alignment tests (32) exit 0. Final exact-head exits belong to the G5 ledger below. Scoped protected re-review follows this commit. |
 | N1 / N2, isolated G5 repair | Event-time closure and complete product-focus recording; proved entry into a newly opened layer; driver, receipt schema, two contracts and focused tests | `test_hifi_focus_capture.py`; based on reviewed head `f4463dc6` | Focus tests (10), existing driver-gap tests (18), full UI suite (728) and compiler suite (240) exit 0. A development navigation failure exposed reviewer heading setup; exact runtime hashes and direct call locations now identify it. Final matrix and four-surface consumer results belong to the repair ledger below. One scoped re-review follows this repair. |
+| N3 / G5 repair | Restrict return eligibility to panels containing the control before activation; preserve nested outer returns when both containing panels close | `test_n3_closing_two_siblings_cannot_return_to_the_unrelated_opener`, `test_n3_return_to_the_containing_panel_leaves_the_sibling_open`, `test_n3_nested_returns_accept_closed_containing_panels_from_inner_to_outer` | The unchanged driver reproduced false acceptance for click and keyboard, including control reparenting during activation. Corrected focus tests (13) and driver-gap tests (18) exit 0. Final exact-head command exits belong to the N3 ledger below. One last scoped re-review remains. |
 
 G4 uses three recovery restarts per page rather than one budget for the browser.
 The next timeout blocks that page's remaining work and still discards its hung browser.
@@ -87,7 +92,13 @@ The isolated repair captures panel visibility synchronously at each focus event 
 It also proves optional focus entry into a newly opened layer.
 Reviewer heading focus stays recorded separately, identified by the exact accepted runtime body and direct call location.
 Both historical runtime bodies stay supported; this repair changes no runtime bytes or compiler pins.
-One scoped re-review of the repair head remains pending.
+The parent reports the scoped re-review of `7d9a911b` returned FAIL: N1 and N2 resolved, with N3 still blocking.
+N3 found that closing a sibling panel could excuse returning focus to its unrelated opener.
+This repair snapshots only open panels containing the operated control before activation, ordered innermost first.
+If the activation closes inner and outer containing panels, either panel's opener may receive the single return.
+A panel that did not contain the control is never eligible, even if the operation closes it or moves the control into it.
+The receipt still records one nonempty panel ID; its validation needs no change.
+The next scoped re-review is the last one for this focus-rule family, as instructed by the parent.
 
 | Finding / requirement | Repair and regression | Verification |
 | --- | --- | --- |
@@ -112,20 +123,20 @@ The current compiler fixture pins that runtime's exact digest; the frozen 0.87.0
 | G2 | Keep one operation ID on every cycle segment of `OP-UI-IOS-TABS-cycle` in `ios-ledger.html`. Give segments their actual ARIA selection state. No manifest split or runtime rebuild is required for G2. Recapture with the new driver; it records `observed.instanceIndex`. |
 | G3 | Keep `OP-UI-IOS-DETAIL-note` on its note field and `OP-UI-IOS-SOURCE-currency` on its currency select. No artificial save button, manifest change or runtime rebuild is needed for G3. Ensure the field accepts entry and its real handlers run. Recapture both click and keyboard attempts. |
 | G4 | No HTML or manifest edit is needed. Run the candidate driver on the full package with `--workers 4`. Run the applicable intermediate sweep with the repaired driver too. Exhausted page budgets carry into that sweep across workers. A timed-out `index.html` leaves unrelated pages available. Retain failed and blocked rows. |
-| G5 | No consumer edit or runtime rebuild is needed. Recapture `OP-UI-IOS-SOURCE-picker-cancel` with the repaired driver. The parent reports eight rows failed on the valid focus return. Close the panel before returning focus. The driver records `observed.focusReturn`; opening a layer may instead record `observed.focusEntry`. Both proofs use visibility at the event and completion. An unmarked detour, a second transfer, a wrong opener or a never-open panel still fails. |
+| G5 | No consumer edit or runtime rebuild is needed. Recapture `OP-UI-IOS-SOURCE-picker-cancel` with the repaired driver. The parent reports eight rows failed on the valid focus return. Close a panel that contained the operated control before returning focus to its opener. Nested containing panels are checked innermost first; closing both permits either opener as the single return. The driver records `observed.focusReturn`; opening a layer may instead record `observed.focusEntry`. Both proofs use visibility at the event and completion. An unmarked detour, a second transfer, a sibling opener or a never-open panel still fails. |
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / isolated G5 repair after f4463dc6; exact head and dirty paths in repair ledger / driver, checker, focused regression suite, two contracts and this Epic
+Repository / branch / HEAD / dirty paths: product-delivery-harness / hifi-driver-gaps / N3 repair after 7d9a911b; exact head and dirty paths in N3 ledger / driver, focused regression suite, two contracts and this Epic
 Stage and skill: source maintenance; no consumer workflow activated
 Inputs consumed (path + hash or revision): source baseline d1e25594; consumer archive 4a6aaa4b; first-round Epic
 Template audit: unknown; parent owns release; no seeded instruction changes in this scope
-Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes one isolated local G5 repair and requested checks, with no version change
-Done and verified (command, exit code): parent reports F1-F4 recheck PASS on b1760b79 and G5 review FAIL on f4463dc6; working-tree focus tests (10), driver-gap tests (18), UI suite (728) and compiler suite (240) exit 0; final local check exits and consumer focus rows belong to the repair ledger
-Remaining: one scoped repair re-review and parent release; no consumer edit or runtime rebuild is needed for G5
-Blocked / waiting (gate name or owner decision): scoped G5 repair re-review follows local verification
-Next action (one command or one owner decision): read exact head, final command exits and consumer focus rows from the repair ledger, then run the scoped re-review
+Approvals in force (gate, owner, date, candidate): the two owner statements above; parent authorizes one atomic local N3 repair attributed to G5 and the listed checks, with no version change
+Done and verified (command, exit code): parent reports G5 scoped review FAIL on f4463dc6 (N1/N2), then re-review FAIL on 7d9a911b (N3; N1/N2 resolved); baseline N3 regressions reproduce the wrong sibling return; corrected focus tests (13) and driver-gap tests (18) exit 0; final command exits belong to the N3 ledger
+Remaining: one last scoped re-review of this focus-rule family and parent release; no consumer edit or runtime rebuild is needed
+Blocked / waiting (gate name or owner decision): the last scoped G5 re-review follows local verification
+Next action (one command or one owner decision): read exact head and final command exits from the N3 ledger, then run the last scoped re-review
 Next owner (skill or human): jolvex-platform Harness parent after local verification
 ```
 
@@ -145,3 +156,7 @@ Its ledger retains the failed development run and fresh final checks; that failu
 The isolated G5 repair evidence is retained at:
 `C:/Users/mps19/AppData/Local/Temp/pdh-hifi-g5-repair-95a523309241474ebe6beddef386e6eb/`.
 Its ledger retains development failures, final command exits, source identity, process cleanup and the four-surface consumer check.
+
+The N3 repair evidence is retained at:
+`C:/Users/mps19/AppData/Local/Temp/pdh-hifi-g5-n3-c50d10dd6bd24a189da724d829360d74/`.
+Its ledger retains the failing baseline regressions, corrected checks, exact final head and process cleanup.
