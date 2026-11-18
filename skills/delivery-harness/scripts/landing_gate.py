@@ -42,7 +42,9 @@ AUTHORITY_NOTE = (
     "it performs no action"
 )
 ALLOWED_ACTIONS = ("push", "pull_request", "merge", "production_deploy", "cleanup", "review_threads")
+# Handling a review thread may add a repair round, so it reports the count.
 # A reviewed candidate may be published; a landing also needs checks and acceptance.
+BUDGET_EVIDENCE_ACTIONS = ("review_threads",)
 REVIEW_EVIDENCE_ACTIONS = ("push", "pull_request")
 FULL_EVIDENCE_ACTIONS = ("merge", "production_deploy")
 PROTECTED_BRANCHES = ("refs/heads/main", "refs/heads/development")
@@ -60,9 +62,6 @@ BUILTIN_OWNER_ONLY = (
     "bitbucket-pipelines.yml",
     "Jenkinsfile",
 )
-# The Epic record is the only thing a review PASS carries across.
-RECORD_ONLY_PREFIX = "docs/epics/"
-RECORD_ONLY_FILE = "docs/DOCUMENTS.md"
 POLICY_HEADING = "## Delivery Autonomy"
 POLICY_KEYS = (
     "Landing",
@@ -74,6 +73,8 @@ POLICY_KEYS = (
 )
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
 _FENCE = re.compile(r"^\s*(```|~~~)")
+_ANY_POLICY_HEADING = re.compile(r"^\s*#{1,6}\s*delivery autonomy\s*#*\s*$", re.IGNORECASE)
+_HEADING = re.compile(r"^#{1,6}(\s|$)")
 _BAD_BRANCH_CHARS = set(" ~^:?*[\\\x7f")
 
 
@@ -193,8 +194,12 @@ def _owner_only_paths(changed: list[str], policy: dict[str, str]) -> list[str]:
     return sorted(matching)
 
 
-def _is_record_only(path: str) -> bool:
-    return path == RECORD_ONLY_FILE or (path.startswith(RECORD_ONLY_PREFIX) and path.endswith(".md"))
+def _tree(root: Path, sha: str) -> str:
+    return _git(root, "rev-parse", "--verify", f"{sha}^{{tree}}").strip()
+
+
+def _parents(root: Path, sha: str) -> list[str]:
+    return _git(root, "rev-list", "--parents", "-n", "1", sha).split()[1:]
 
 
 def _policy_list(value: str | None) -> list[str] | None:
@@ -208,8 +213,11 @@ def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
     """The Delivery Autonomy policy exactly as the base commit records it.
 
     Returns the policy and None, or an empty policy and the reason the
-    repository is not eligible. Fenced examples are not policy. A second
-    section or a repeated key makes the policy ambiguous, which is ineligible.
+    repository is not eligible. This is not a Markdown parser, so it accepts
+    one plain shape and refuses everything it would have to interpret: the
+    heading `## Delivery Autonomy` written exactly so at the start of a line,
+    once in the file under any spelling or level, above every code fence, with
+    its `- Key: value` lines at the start of a line and no key repeated.
     """
 
     result = run_git(
@@ -222,35 +230,39 @@ def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
         text = bytes(result.stdout).decode("utf-8")
     except UnicodeDecodeError:
         return {}, "the repository is not eligible: AGENTS.md at the grant base is not UTF-8"
+    lines = text.replace("\r\n", "\n").split("\n")
+    mentions = [index for index, line in enumerate(lines) if _ANY_POLICY_HEADING.match(line)]
+    if len(mentions) != 1:
+        return {}, (
+            "the repository is not eligible: AGENTS.md at the grant base has "
+            f"{len(mentions)} Delivery Autonomy headings, not one"
+        )
+    start = mentions[0]
+    if lines[start].rstrip() != POLICY_HEADING:
+        return {}, (
+            "the repository is not eligible: write the heading exactly as "
+            f"`{POLICY_HEADING}` at the start of a line"
+        )
+    if any(_FENCE.match(line) for line in lines[:start]):
+        return {}, (
+            "the repository is not eligible: the Delivery Autonomy section must stand "
+            "above every code fence in AGENTS.md"
+        )
     policy: dict[str, str] = {}
-    sections = 0
-    inside = False
-    fenced = False
-    for line in text.replace("\r\n", "\n").split("\n"):
+    for line in lines[start + 1:]:
+        if _HEADING.match(line):
+            break
         if _FENCE.match(line):
-            fenced = not fenced
+            return {}, "the repository is not eligible: its Delivery Autonomy section holds a code fence"
+        if not line.startswith("- "):
             continue
-        if fenced:
-            continue
-        stripped = line.strip()
-        if stripped.startswith("## "):
-            inside = stripped == POLICY_HEADING
-            sections += inside
-            continue
-        if not inside or not stripped.startswith("- "):
-            continue
-        key, separator, item = stripped[2:].partition(":")
+        key, separator, item = line[2:].partition(":")
         if not separator:
             continue
         key = key.strip()
         if key in policy:
             return {}, f"the repository is not eligible: its Delivery Autonomy section repeats `{key}`"
         policy[key] = item.strip()
-    if sections != 1:
-        return {}, (
-            "the repository is not eligible: AGENTS.md at the grant base has "
-            f"{sections} Delivery Autonomy sections, not one"
-        )
     if policy.get("Landing") != "epic_grant":
         return {}, (
             "the repository is not eligible; its Delivery Autonomy section on the base commit "
@@ -420,11 +432,16 @@ def _revoke(args: argparse.Namespace) -> dict[str, Any]:
     return {"status": "revoked", "marker": str(marker), "already_revoked": False}
 
 
-def _load_json_object(path: str | None, label: str) -> tuple[dict[str, Any] | None, str | None]:
+def _load_json_object(root: Path, path: str | None, label: str) -> tuple[dict[str, Any] | None, str | None]:
+    """A parent-written input. A file inside the checkout is the candidate's, not the parent's."""
+
     if path is None:
         return None, f"this action requires the parent-observed {label} file"
+    canonical = Path(path).resolve(strict=False)
+    if canonical.is_relative_to(root):
+        return None, f"the {label} file lives inside the repository checkout: {path}"
     try:
-        value = json.loads(Path(path).read_bytes().decode("utf-8"))
+        value = json.loads(canonical.read_bytes().decode("utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError):
         return None, f"the {label} file is missing or malformed: {path}"
     if not isinstance(value, dict):
@@ -451,10 +468,32 @@ def _readback_reasons(root: Path, readback: Any, candidate: str | None) -> list[
         problems.append("observed_main is not a full 40-character SHA")
     elif not _is_commit(root, observed):
         problems.append("observed_main is not a commit in this repository")
+    elif not problems:
+        # Recompute what promotion_readback.py would say; the label alone proves nothing.
+        landed = readback["candidate"]
+        if not _is_commit(root, landed):
+            problems.append("candidate is not a commit in this repository")
+        else:
+            actual = (
+                "exact" if observed == landed
+                else "tree_equal_S" if _tree(root, observed) == _tree(root, landed)
+                else "new_candidate"
+            )
+            if actual != readback["landing"]:
+                problems.append(f"it says `{readback['landing']}` but the commits are `{actual}`")
     return ["the promotion read-back does not prove the landing: " + "; ".join(problems)] if problems else []
 
 
-def _review_reasons(root: Path, review: Any, candidate: str) -> list[str]:
+def _review_reasons(root: Path, evidence: dict[str, Any], candidate: str) -> list[str]:
+    """The review must bind the candidate itself.
+
+    One inheritance exists: for a managed RUN the candidate is archive-only
+    child A of closeout candidate C. The review of C stands for A when A's only
+    parent is C and the parent reports the receipt-bound C-to-A verification
+    of push_archived_candidate.py as passed.
+    """
+
+    review = evidence.get("review")
     if not isinstance(review, dict):
         return ["the evidence has no review object"]
     reasons: list[str] = []
@@ -463,12 +502,19 @@ def _review_reasons(root: Path, review: Any, candidate: str) -> list[str]:
     review_sha = review.get("sha")
     if review_sha == candidate:
         return reasons
-    if not (is_full_sha(review_sha) and _is_commit(root, review_sha) and _is_ancestor(root, review_sha, candidate)):
-        reasons.append(f"evidence review.sha {review_sha!r} is neither the candidate nor an ancestor of it")
-        return reasons
-    unreviewed = sorted(path for path in _diff_names(root, review_sha, candidate) if not _is_record_only(path))
-    if unreviewed:
-        reasons.append("changed after the reviewed SHA without a review that binds it: " + ", ".join(unreviewed))
+    archive = evidence.get("archive")
+    inherited = (
+        isinstance(archive, dict)
+        and archive.get("verification") == "PASS"
+        and is_full_sha(review_sha)
+        and archive.get("closeout") == review_sha
+        and _parents(root, candidate) == [review_sha]
+    )
+    if not inherited:
+        reasons.append(
+            f"evidence review.sha {review_sha!r} is not the candidate; a review binds one exact SHA, "
+            "and only a verified archive child inherits its parent's review"
+        )
     return reasons
 
 
@@ -476,10 +522,10 @@ def _evidence_reasons(
     root: Path, candidate: str, evidence_path: str | None, grant: dict[str, Any],
     policy: dict[str, str], action: str,
 ) -> list[str]:
-    evidence, problem = _load_json_object(evidence_path, "evidence")
+    evidence, problem = _load_json_object(root, evidence_path, "evidence")
     if evidence is None:
         return [str(problem)]
-    reasons = _review_reasons(root, evidence.get("review"), candidate)
+    reasons = [] if action in BUDGET_EVIDENCE_ACTIONS else _review_reasons(root, evidence, candidate)
     rounds = evidence.get("repair_rounds")
     if isinstance(rounds, bool) or not isinstance(rounds, int) or rounds < 0:
         reasons.append("evidence repair_rounds must be an integer >= 0")
@@ -542,7 +588,7 @@ def _check(args: argparse.Namespace) -> dict[str, Any]:
         matching = _owner_only_paths(_diff_names(root, grant["base"], candidate), policy)
         if matching:
             reasons.append("owner-only paths changed: " + ", ".join(matching))
-        if args.action in REVIEW_EVIDENCE_ACTIONS + FULL_EVIDENCE_ACTIONS:
+        if args.action in BUDGET_EVIDENCE_ACTIONS + REVIEW_EVIDENCE_ACTIONS + FULL_EVIDENCE_ACTIONS:
             reasons.extend(_evidence_reasons(root, candidate, args.evidence, grant, policy, args.action))
     return {**result, "status": "REFUSED" if reasons else "PASS", "reasons": reasons}
 
@@ -580,7 +626,7 @@ def _cleanup_plan(args: argparse.Namespace) -> dict[str, Any]:
     reasons, _policy = _binding_reasons(root, grant, canonical)
     if "cleanup" not in grant["actions"]:
         reasons.append("the grant does not cover cleanup")
-    readback, problem = _load_json_object(str(args.readback), "read-back")
+    readback, problem = _load_json_object(root, str(args.readback), "read-back")
     if readback is None:
         reasons.append(str(problem))
     else:
@@ -602,8 +648,8 @@ def _cleanup_plan(args: argparse.Namespace) -> dict[str, Any]:
     refused: list[dict[str, str]] = []
     notes: list[str] = []
     entries = _worktree_entries(root)
-    # Refs compare case-insensitively: Main and main are one ref on Windows.
-    same_branch = [entry for entry in entries if (entry["branch"] or "").casefold() == branch_ref.casefold()]
+    # Exact match: a ref that differs only in case can be another branch.
+    same_branch = [entry for entry in entries if entry["branch"] == branch_ref]
     for entry in same_branch:
         if entry is entries[0]:
             refused.append({"target": branch_ref, "reason": "switch the primary checkout to another branch first"})
