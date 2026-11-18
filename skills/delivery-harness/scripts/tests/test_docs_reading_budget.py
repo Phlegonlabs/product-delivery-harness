@@ -302,6 +302,22 @@ class StageCardTests(CorpusCase):
         self.assertEqual(words(lead + card2.rstrip()), second["own_words"])
         self.assertEqual(0, second["mandatory_words"])
 
+    def test_direct_cards_are_entries_beside_the_stage_cards(self) -> None:
+        self.write(CARDS, "# Cards\n\n## Card 1: First\n\nwords\n")
+        lead = f"# Direct\n\n{filler(3, 'lead')}\n\n"
+        card = f"## Card D1: Direct Delivery\n\nBefore work, read [A](../a.md). {filler(4)}\n"
+        self.write(budget.DIRECT_CARDS, lead + card)
+        self.write("skills/delivery-harness/references/a.md", filler(7, "a"))
+        self.write("skills/delivery-harness/SKILL.md", "Skill.\n")
+        names = [name for name, _path, _spans in budget.Corpus(self.root).entries()]
+        self.assertEqual(
+            ["delivery-harness", "stage-cards#card-1-first", "direct-cards#card-d1-direct-delivery"],
+            names,
+        )
+        direct = self.measure("direct-cards#card-d1-direct-delivery")
+        self.assertEqual(words(lead + card.rstrip()), direct["own_words"])
+        self.assertEqual(7, direct["mandatory_words"])
+
 
 class CommandLineTests(CorpusCase):
     def setUp(self) -> None:
@@ -382,6 +398,14 @@ class RealRepositoryTests(unittest.TestCase):
             self.assertIn(skill, results)
         cards = [line for line in (repo_root / CARDS).read_text(encoding="utf-8").splitlines() if line.startswith("## ")]
         self.assertEqual(len(cards), len([name for name in results if name.startswith("stage-cards#")]))
+        # The direct route reads the entry file plus Card D1; the other two
+        # cards are add-ons. These ceilings keep the route from regrowing.
+        must_read = {
+            name: result["own_words"] + result["mandatory_words"] for name, result in results.items()
+        }
+        self.assertLess(must_read["delivery-harness"], 5000)
+        self.assertLess(must_read["direct-cards#card-d2-initial-product"], 3500)
+        self.assertLess(must_read["direct-cards#card-d3-ui-change"], 3500)
         harness = results["delivery-harness"]
         text = (repo_root / "skills/delivery-harness/SKILL.md").read_text(encoding="utf-8")
         self.assertEqual(words(text), harness["own_words"])
