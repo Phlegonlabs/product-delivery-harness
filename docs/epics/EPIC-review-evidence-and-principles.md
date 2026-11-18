@@ -1,6 +1,6 @@
 # EPIC-review-evidence-and-principles: findings carry proof, a second reader on demand, and the principles in AGENTS.md
 
-Status: candidate prepared as 0.93.0; PR #203 open, re-check PASS, CI running
+Status: published as 0.93.0 on 2026-11-18 (PR #203, `main` `822d174f`, tag `v0.93.0`); installed the same day (five-skill contract `3c7425d1…`); consumers not yet adopted; no second-vendor review route is configured
 Design workflow: enhancement
 UI impact: none
 
@@ -65,19 +65,21 @@ Pull-request review (Codex, on `92df66cc`): completed with no finding.
 
 ## Results And Remaining Work
 
-Remaining: CI matrix on the final head. Merge, tag and install wait for the owner.
+Published on the owner's word of 2026-11-18. All 14 checks passed on `41c34063`. `promotion_readback.py pre` passed against `main` `82d91fad`; PR #203 merged as `822d174f`; `promotion_readback.py post` returned `tree_equal_S`, so the merge commit carries the reviewed tree. CI does not run on a push to `main`; the pull-request run on the same tree is the evidence. Tag `v0.93.0` points at `822d174f`. `./install.sh` exited 0, and the installed five-skill contract equals the source: `3c7425d146cd7cc0fcf38ceb0b333f8ddfbbe9baa5d4d4cfe6ca6933946048ab`.
+
+Remaining, each an owner decision: consumer adoption of 0.91.0 to 0.93.0; a read-only review route for a second vendor, without which RE-2 records `second_reader: unavailable`; the merged branches of the three rounds and two worker worktrees, which are still present.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / review-evidence-and-principles / 23fe2bd5 / task/ (untracked, not part of this round)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / 822d174f / task/ (untracked, not part of this round)
 Stage and skill: source maintenance of delivery-harness; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main 82d91fad (v0.92.0); owner-approved plan of 2026-11-18; PStack at cursor/plugins 93b916d4
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
-Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: work branch, local commits, push and PR. Merge, tag and install for this round are not yet approved.
-Done and verified (command, exit code): pytest on the doc-asserting modules, exit 0; pyflakes on the four script trees, exit 0
-Remaining: CI matrix; merge, tag and install on the owner's word
+Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: work branch, local commits, push and PR. Merge, tag and install of 0.93.0: owner, 2026-11-18, candidate 41c34063; used.
+Done and verified (command, exit code): promotion_readback.py pre and post, exit 0; ./install.sh, exit 0; harness_contract.py from the source and from the installed root, same digest
+Remaining: none in this round
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): the owner's word to merge PR #203
-Next owner (skill or human): parent agent
+Next action (one command or one owner decision): the owner decides on consumer adoption
+Next owner (skill or human): owner
 ```
