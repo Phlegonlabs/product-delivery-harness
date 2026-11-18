@@ -159,13 +159,14 @@ def validate_manifest(manifest: dict[str, Any]) -> list[str]:
 def locate_skill(
     name: str, skill_dirs: list[Path], bundled_skills_root: Path
 ) -> Path | None:
+    root = bundled_skills_root.resolve()
+    # install.sh excludes scripts/tests. In the installed layout, external
+    # skills can be direct siblings of delivery-harness in the same directory.
+    scripts = root / "delivery-harness" / "scripts"
+    installed_layout = (scripts / Path(__file__).name).is_file() and not (scripts / "tests").is_dir()
     for directory in skill_dirs:
         candidate = (directory / name).resolve()
-        try:
-            candidate.relative_to(bundled_skills_root.resolve())
-        except ValueError:
-            pass
-        else:
+        if candidate.is_relative_to(root) and not (installed_layout and candidate == root / name):
             continue
         if (candidate / "SKILL.md").is_file():
             return candidate

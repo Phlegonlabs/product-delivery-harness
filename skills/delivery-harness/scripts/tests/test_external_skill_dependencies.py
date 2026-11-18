@@ -10,6 +10,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 
 TESTS_DIR = Path(__file__).resolve().parent
@@ -89,6 +90,19 @@ class ExternalSkillDependencyTests(unittest.TestCase):
         joined = "\n".join(findings)
         self.assertIn("required skill 'impeccable' is missing", joined)
 
+    def test_installed_cli_checks_skills_in_its_own_directory(self) -> None:
+        installed_script = self.skills / "delivery-harness" / "scripts" / Path(checker.__file__).name
+        installed_script.parent.mkdir(parents=True)
+        installed_script.touch()
+        with patch.object(checker, "__file__", str(installed_script)):
+            args = ["--manifest", str(self.manifest_path), "--skill-dir", str(self.skills)]
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(0, checker.main(args), output.getvalue())
+            (self.skills / "impeccable" / "reference.md").write_text("changed", encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()) as output:
+                self.assertEqual(1, checker.main(args))
+                self.assertIn("hash drifted", output.getvalue())
+
     def test_drifted_dependency_fails(self) -> None:
         (self.skills / "frontend-design" / "SKILL.md").write_text(
             "# changed frontend\n", encoding="utf-8", newline="\n"
@@ -112,6 +126,9 @@ class ExternalSkillDependencyTests(unittest.TestCase):
         self.assertTrue(any("hash drifted" in finding for finding in findings))
 
     def test_external_source_cannot_resolve_from_the_bundled_root(self) -> None:
+        scripts = self.bundled / "delivery-harness" / "scripts"
+        (scripts / "tests").mkdir(parents=True)
+        (scripts / Path(checker.__file__).name).touch()
         bundled_skill = self.bundled / "frontend-design"
         bundled_skill.mkdir(parents=True)
         (bundled_skill / "SKILL.md").write_text(
@@ -136,6 +153,16 @@ class ExternalSkillDependencyTests(unittest.TestCase):
             self.bundled,
         )
         self.assertEqual(2, sum("is missing" in finding for finding in findings))
+
+    def test_installed_checker_rejects_a_copy_inside_a_managed_skill(self) -> None:
+        scripts = self.skills / "delivery-harness" / "scripts"
+        scripts.mkdir(parents=True)
+        (scripts / Path(checker.__file__).name).touch()
+        nested = self.skills / "ui-design-builder" / "examples"
+        nested.mkdir(parents=True)
+        (self.skills / "frontend-design").rename(nested / "frontend-design")
+        findings = checker.check_dependencies(self.manifest, ["ui_design"], [nested], self.skills)
+        self.assertTrue(any("is missing" in finding for finding in findings))
 
     def test_profiles_cannot_swap_incompatible_skills(self) -> None:
         swapped = json.loads(json.dumps(self.manifest))
