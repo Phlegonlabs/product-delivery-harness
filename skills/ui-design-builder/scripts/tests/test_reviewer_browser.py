@@ -176,6 +176,8 @@ const progress=name=>{phase=name;console.error('reviewer-browser: completed '+na
   progress('browser-started');
   const page=await browser.newPage();
   const errors=[];page.on('pageerror',error=>errors.push(error.message));
+  // The surface exists in the source HTML. The reviewer sets data-hifi-state after restoring the selection.
+  const waitForRestoredSurface=id=>page.locator(`[data-ui-surface="${id}"][data-hifi-state]`).waitFor();
   await page.goto(pathToFileURL(process.argv[2]).href);
   await page.locator('reviewer-shell').waitFor();
   const shell=page.locator('reviewer-shell').locator('aside');
@@ -255,14 +257,14 @@ const progress=name=>{phase=name;console.error('reviewer-browser: completed '+na
   await page.locator('reviewer-shell').locator('[data-hifi-target-control="compact"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-state-control="ready"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="settings.html"]').click();
-  await page.locator('[data-ui-surface="UI-003"]').waitFor();
+  await waitForRestoredSurface('UI-003');
   await page.locator('reviewer-shell').locator('[data-hifi-target-control="regular"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-state-control="error"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="index.html"]').click();
-  await page.locator('[data-ui-surface="UI-001"]').waitFor();
+  await waitForRestoredSurface('UI-001');
   await page.locator('reviewer-shell').locator('[data-hifi-target-control="compact"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="settings.html"]').click();
-  await page.locator('[data-ui-surface="UI-003"]').waitFor();
+  await waitForRestoredSurface('UI-003');
   if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='regular'||
      await page.locator('[data-ui-surface="UI-003"]').getAttribute('data-hifi-state')!=='error')
     throw Error('same-platform child selection was overwritten before navigation');
@@ -271,7 +273,7 @@ const progress=name=>{phase=name;console.error('reviewer-browser: completed '+na
   if(!await page.locator('[data-ui-surface="UI-003"] h1').evaluate(node=>node===document.activeElement))
     throw Error('child product heading did not receive focus');
   await page.goBack();
-  await page.locator('[data-ui-surface="UI-001"]').waitFor();
+  await waitForRestoredSurface('UI-001');
   if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='compact'||
      await page.locator('[data-ui-surface="UI-001"]').getAttribute('data-hifi-state')!=='ready')
     throw Error('Back did not restore source page selection');
@@ -279,7 +281,7 @@ const progress=name=>{phase=name;console.error('reviewer-browser: completed '+na
     throw Error('Back did not focus the source heading');
   await page.locator('reviewer-shell').locator('[data-hifi-review-view="overview"]').click();
   await page.locator('[data-hifi-state-coverage="UI-002 empty"]').click();
-  await page.locator('[data-ui-surface="UI-002"]').waitFor();
+  await waitForRestoredSurface('UI-002');
   if(!page.url().endsWith('details.html#hifi-state=UI-002/empty'))throw Error('cross-page state route changed');
   if(await page.locator('[data-ui-surface="UI-002"]').getAttribute('data-hifi-state')!=='empty')throw Error('state coverage did not open requested child state');
   progress('cross-page-navigation');
@@ -298,11 +300,11 @@ const progress=name=>{phase=name;console.error('reviewer-browser: completed '+na
   await page.reload();
   if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='regular'||await page.locator('[data-ui-surface]').getAttribute('data-hifi-state')!=='loading')throw Error('package/platform review selection not restored');
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="details.html"]').click();
-  await page.locator('[data-ui-surface="UI-002"]').waitFor();
+  await waitForRestoredSurface('UI-002');
   if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='390')throw Error('App target leaked into Web');
   await page.locator('reviewer-shell').locator('[data-hifi-target-control="1200"]').click();
   await page.locator('reviewer-shell').locator('[data-hifi-page-nav] a[href="index.html"]').click();
-  await page.locator('[data-ui-surface="UI-001"]').waitFor();
+  await waitForRestoredSurface('UI-001');
   if(await page.locator('[data-hifi-canvas]').getAttribute('data-hifi-target')!=='regular')throw Error('App target was lost after Web navigation');
   progress('product-navigation');
   if(errors.length)throw Error(errors.join('\n'));
