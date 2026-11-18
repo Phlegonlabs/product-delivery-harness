@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.92.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.93.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -205,6 +205,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.93.0** — 阻擋性的程式碼發現現在必須附上他人可重跑的證據：指令或輸入、實際結果和要求的結果；沒有證據的只算備註。改動碰到信任邊界，或 owner 指明設計有爭議時，若 agent 設定提供另一廠商的 reviewer，同一個 review 點會加入第二位 reviewer。專案的 `AGENTS.md` 範本加入 24 條工程原則全文，改編自 PStack plugin，依其 MIT 授權。同一類修正出現第二次時，先改結構、加檢查或加測試，最後才新增規則。
+
 - **0.92.0** — owner 一次批准現在可以涵蓋一個 Epic 的推送、pull request、review 留言、合併、正式環境部署和清理。符合資格的 repository 在新增的 `.harness/landing-policy.json` 設定 `"landing": "epic_grant"`，owner 的授權記錄在 checkout 之外，新增的 `landing_gate.py` 在每個動作之前對照確切候選版本檢查。所有 review、檢查和讀回關卡不變，新建立的 repository 預設每次落地都由 owner 決定。
 
 - **0.91.0** — 直接任務現在只需讀入口檔和一張短卡，不必讀遍所有契約。直接路線的步驟拆成三張卡：每個直接任務一張，首次交付另加一張，改動介面另加一張。只屬於 managed run 或只屬於介面工作的閱讀要求，現在都寫明觸發條件。新增的 `check_commit_message.py` 會檢查提交訊息並指出修正方法，因此只有檢查失敗時才需要讀提交規範。
@@ -212,7 +214,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.90.1** — 安裝後的依賴檢查器現在能找到與 delivery-harness 裝在同一目錄的 frontend-design 和 Impeccable，並核對兩者鎖定的雜湊值。
 
 - **0.90.0** — `ui-design-builder` 的 HiFi 階段現在先建共用的部分，並在一次複查後結束 review。分三層：kit（token 與每個控制項的所有狀態，一份產品樣式表）、組合與美術。kit 與 pilot 頁先做，作者先自查 pilot，pilot 診斷只列發現，其餘 journey 從鎖定的 kit 建出，每條 journey 之後都自查。小型產品略過 pilot，enhancement 沒有 pilot。`assemble_ui_review.py --product-css <file>` 把同一份產品樣式表原樣嵌進每一頁，只要有一頁帶有標記，bundle 檢查就會拒絕不一致。`hifi_matrix_capture.py --measure-a11y` 量測對比、目標尺寸、文字裁切、焦點可見與文字放大，寫進 sidecar 的 `a11y` 物件；它不改變任何結果或結束碼。作者在凍結的內容上對每個候選稿只做一次矩陣擷取，reviewer 不再跑 driver。缺少的義務或被拒絕的 receipt 退回同一個 reviewer session，不再有只補證據的輪次。review 預算是 pilot 診斷、一輪 wave、一次合併修復，以及由該 wave 的原 reviewer 做的一次收斂複查（內含一次修正往返）；兩次 scoped 複查已移除，未關閉的 block 讓候選稿保持 `blocked` 交給 owner。block 必須附上可重現的失敗、違反的規則與關閉條件。作者在動筆前先讀 Impeccable 的工藝底線（`impeccable` 新增允許用途 `author_quality_reference`），Impeccable 的授權在 UI Design Intake 就詢問。Receipt 綁定、85/80 門檻與 contract 版本都不變。
-
-- **0.89.0** — 現在可以在 PRD 之前研究搜尋需求。`growth-review` 新增 `demand_research` 模式，適用於有公開搜尋 surface（公開網頁或商店列表）的產品。它只產出一個檔案 `docs/product/keyword-map.md`，由 `KEYWORD_MAP.template.md` 產生：Scope、帶穩定 `KW-*` ID 的 Clusters、Not pursued、Content fields 與 Change log。網站尚未存在時，每個數字都標上 `observed`、`estimated` 或 `hypothesis`，不編造搜尋量、排名或競品事實；綁定帳號的資料來源只有在記錄了存取方式時才使用。Product Definition 在起草頁面清單之前先跑這個模式：Discovery Surface 列與 `SEO metadata` 行引用 `KW-*`；沒有 keyword map 的產品記錄 `Keyword map: n/a` 或 `not run` 及原因。沒有新增批准關卡。route 的 `<title>` 與 meta description 現在是內容欄位：PRD 保留上線時的值與長度限制，keyword map 保存目前的值，在限制內且保持同一 cluster 的改寫不需要 PRD delta，也不需要 UI review。Day 7 與 Day 30 的 `growth_review` 讀回會把每個 `KW-*` 與數據比對，回傳兩份清單：內容欄位改寫，以及結構性 PRD delta 候選。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
