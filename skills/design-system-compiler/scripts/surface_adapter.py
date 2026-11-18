@@ -41,6 +41,7 @@ import source_script_order as script_order
 SUPPORTED_REVIEWER_RUNTIMES = frozenset({
     "854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597",  # before disclosures
     "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146",  # disclosure openers
+    "dd2bfce3eafc311011ad89f0b64bb99a59e6f50bf1140e62e4432b850bb4400a",  # navigation arrivals
 })
 CALL_START_RE = re.compile(r"^\s*(?:window\.)?connectHifiReviewer\s*\(")
 CONNECT_CALL_RE = re.compile(r"^\s*(?:window\.)?connectHifiReviewer\((?P<options>\s*\{[^<>()]*\}\s*)?\)\s*;?\s*$")

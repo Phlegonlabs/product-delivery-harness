@@ -10,7 +10,7 @@ Run it from the repository root. Each `--workers` browser is one headless Chromi
 
 Every manifest page path must be a plain file inside the package folder: `..`, absolute and drive paths, backslashes and links fail the run (exit 2) before anything is read. The package bytes are served from one closed same-origin context. Every other request, popup, form submit and download is blocked and recorded. The matrix pass clicks no product control, so any document request after its own page open is a navigation: a declared page is still served, but the transcript records it (`allowlisted: true`) and the case fails. CDP `Log` and `Runtime` are on before the first load and are never cleared.
 
-A browser loads a page once for each run of cases on it and never reloads between cases; with `--workers` that is once per browser that runs cases on the page. Every interaction attempt and every reviewer pass starts from a fresh load, so no attempt depends on an earlier one. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. After three restarts of one browser the rest of its work is BLOCKED.
+A browser loads a page once for each run of cases on it and never reloads between cases; with `--workers` that is once per browser that runs cases on the page. Every interaction attempt and every reviewer pass starts from a fresh load, so no attempt depends on an earlier one. For every applicable case the tool clicks the target and state controls in the version-3 reviewer shell, waits for fonts and running transitions (read from the animations, capped at 2 s), probes the product surface and screenshots `[data-hifi-canvas]`. Finite animations are then finished and infinite ones frozen at their first frame, so reruns compare. A hung case is cut off (30 s per action, 40 s per case) and recorded FAIL; the browser restarts. Each page gets three recovery restarts. Its next timeout blocks only that page's remaining work. The hung browser is still discarded; a fresh browser runs unrelated pages. A recovery load failure also stays local to its page. Only a browser restart failure can block the worker.
 
 States ending in `:n/a` need no product marker or state/target case. Overview still records their reason. A case fails on a console error (not the mandated `navigate-to` CSP row), external request, navigation attempt, popup, form attempt, missing control or state view, a target or state that does not apply, a measured canvas width more than 1 px from a numeric viewport target (a size class records `geometry.canvasWidth` only), horizontal overflow of the product surface, or a timeout. A page-load error fails every case on that page. Overlap pairs are recorded, not failed.
 
@@ -30,7 +30,7 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 
 | Flag | Effect |
 | --- | --- |
-| `--workers N` | Run on N browsers at once, 1 to 4 (default 1); a higher value exits 2. Each worker is one headless Chromium. The work is split before the run from the package alone, so the same package and N always give the same split and the same output order. Cases, interactions, axis rows and reviewer rows match a one-browser run; the transcript lists can hold more page-load rows. A browser that runs out of restarts blocks only its own share. Never more browsers than work items: `run.workers` in `matrix-capture.json` records the count used, and the printed `restarts` totals all of them. |
+| `--workers N` | Run on N browsers at once, 1 to 4 (default 1); a higher value exits 2. Each worker is one headless Chromium. The work is split before the run from the package alone, so the same package and N always give the same split and the same output order. Cases, interactions, axis rows and reviewer rows match a one-browser run; the transcript lists can hold more page-load rows. Restart budgets belong to pages and survive phase changes. A spent page budget never blocks another page in the same worker. Never more browsers than work items: `run.workers` in `matrix-capture.json` records the count used, and the printed `restarts` totals all of them. |
 | `--only UI-003,UI-004` | Only these surfaces. |
 | `--carry-from <ui-output.json>` | Carry unchanged cases from an earlier output of this tool. |
 | `--recapture-carried` | Screenshot carried cases too. |
@@ -48,17 +48,29 @@ Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 un
 
 Feedback interactions keep their source surface and state. The driver compares source DOM and form values before and after activation. Focus alone does not count. Each feedback row records different `observed.change.beforeSha256` and `afterSha256` values; an inert control fails.
 
+For a text input or textarea, activation enters a short probe value. For a select, it chooses a different enabled option. Keyboard activation starts from focus and types or uses arrow keys. Disabled and read-only fields fail. Entry alone never waives the required destination, focus or source-change proof.
+
+If clicking a field already applies its declared different destination, observe that arrival without entering more data into the hidden source.
+
 An equal-endpoint `state` attempt fails. An unselected legacy row does not block a diagnostic `--only` run; full static validation still rejects it.
 
 Empty navigation or control arrays create no interaction attempts. A PRD surface with `operations: none — <reason>` has both arrays empty and renders no product control. Its applicable state/target cases still run.
 
-When no control instance is visible, the driver searches attached instances in DOM order for the first reachable instance. Every hidden ancestor must be a panel with exactly one declared same-surface opener. Inactive state or target variants and unrelated hiding make an instance unreachable. The driver opens that instance's menu, tab or disclosure panels from outermost to innermost. Openers may omit IDs and interactions. Each panel stays inside its opener's product surface and must become visible. `observed.openers` lists the clicked panel IDs. Focus may visit those openers, in order, then the operation control once; unrelated product focus still fails.
+When no control instance is visible, the driver searches attached instances in DOM order for the first reachable instance. Every hidden ancestor must be a panel with exactly one declared same-surface opener. Inactive state or target variants and unrelated hiding make an instance unreachable. The driver opens that instance's menu, tab or disclosure panels from outermost to innermost. Openers may omit IDs and interactions. Each panel stays inside its opener's product surface and must become visible. `observed.openers` lists the clicked panel IDs.
+
+After reviewer setup, the driver records every focus event inside any product surface. Required openers receive focus once in order, followed by the operation control once. Each preparatory opener may transfer focus once into its newly opened panel. After operation activation, allow either one layer entry or one focus return, directly after the operation-control event. No transfer is required. A layer entry targets the activated opener's panel or a destination dialog, hidden before activation and visible at entry and completion. A focus return targets a declared opener whose panel contained the control and was open before activation, then hidden at return and completion. If nested containing panels close together, the return may target any of their openers, checked innermost first. Any intervening focus or second transfer fails. `observed.focusEntry` or `observed.focusReturn` records that layer's unique ID.
+Verified reviewer heading focus remains recorded as reviewer setup and does not count as product focus. Verification requires an exact accepted runtime body and its direct focus call location.
 
 Supporting form fields use `data-control-for` with an existing control ID in the same surface. They need no separate manifest interaction. The driver activates the operation control; a feedback snapshot also includes current form values.
 
-Repeated control IDs may appear on multiple rows. The driver activates the first visible instance and records the visible count in `observed.instances`. Every navigate instance remains an anchor to its declared page. A missing or entirely hidden control still fails.
+Repeated control IDs may appear on multiple rows. The driver prefers the first unselected visible instance. Selection uses `aria-pressed`, `aria-selected`, `aria-checked` and `aria-current`; all selected falls back to the first instance. `observed.instances` records the visible count and `observed.instanceIndex` records the zero-based chosen index. Every navigate instance remains an anchor to its declared destination. A missing or entirely hidden control still fails.
 
 `state` may cross pages through an anchor to the exact destination page and encoded state fragment. The driver checks arrival page, surface, state and URL. Its navigation row names the page filename; any extra navigation fails.
+
+`navigate` also accepts that exact state anchor, including on the same page. A bare page link is valid only for the destination surface's first applicable state. Every instance is checked. The driver observes arrival page, surface, state and URL. The reviewer applies the arrival fragment first; product navigation without one uses the destination default, independent of stored selections.
+
+The reviewer saves the resolved arrival surface and state. Reload must retain that arrival rather than revive an older saved state.
+Same-page fragment navigation clears its arrival marker, so later reviewer selections survive reload. Bare links still use document-arrival handling.
 
 ## Reviewer object
 
@@ -77,6 +89,8 @@ The fingerprint also covers the canvas's own paint and every visible element ins
 The sample, once per page, is `ready` (or the first state) and the non-derived state with the most product DOM nodes, at the smallest and largest target. A derived state takes no axis. Dark, reduced motion and forced colors use media emulation. `zoom-200` sets CSS `zoom: 2` on the canvas and halves its CSS inline size. The rendered box keeps the target width, while container queries see half that width. `geometry.containerInlineSize` records the query-container width; reset restores the nominal width. `reflow-320` re-runs the same sampled states once each, driven from the surface's smallest target with the canvas overridden inline to 320 CSS px; a row fails on horizontal overflow or a canvas width more than 1 px from 320. The HiFi DOM marks no motion region or intent, so reduced motion runs on every page. Long and localized copy is judged from the authored copy of each surface ([ui-grading-rubric.md](ui-grading-rubric.md#reading-and-cross-screen-cases)), not from a flag.
 
 Axis results stay in `matrix-capture.json`: no cases in the `ui-output/3` matrix, no events in its transcript, never carried. An axis failure still sets exit code 1. An axis that cannot be applied (setup error, a page that did not open, the restart limit) writes BLOCKED rows with the reason; it is never skipped.
+
+Intermediate work inherits the base run's page budgets, including when its items move to another worker. Exhausted pages stay BLOCKED; other pages continue.
 
 ## What it does not prove
 
