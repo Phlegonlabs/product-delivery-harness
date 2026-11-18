@@ -77,13 +77,15 @@ One review point on `dac27345`, code and security in one read-only call (GPT-6.1
 
 Each script repair has a test that failed before it.
 
-Targeted re-check on `9fe53b3c` (same reviewer, 149 s): all five findings resolved; one more defect inside the repair range. With `--rev --managed`, a two-parent commit whose message carried task trailers still passed, because the trailer set was chosen from the subject alone. Isolated repair `fc47a98f`: a managed merge needs the mission-level trailers and no Task trailer, whatever its subject says. Scoped review of that repair: pending.
+Targeted re-check on `9fe53b3c` (same reviewer, 149 s): all five findings resolved; one more defect inside the repair range. With `--rev --managed`, a two-parent commit whose message carried task trailers still passed, because the trailer set was chosen from the subject alone. Isolated repair `fc47a98f`: a managed merge needs the mission-level trailers and no Task trailer, whatever its subject says. Scoped review of that repair on `7615ece7` (101 s): PASS, security lens not applicable (git invocation and file reads unchanged). Note, not blocking: the real-merge tests do not cover a mission body that also carries a Task trailer; the reviewer confirmed that case is rejected.
 
 CI on `9fe53b3c` (PR #201): the `quality` job failed on pyflakes, two `skill` locals left unused in `test_skill_contract.py` after their assertions moved to the card file. Removed in `c8b5a673`. The parent had run pyflakes on the changed scripts but not on that test file.
 
+Pull-request review (Codex, on `9fe53b3c`), one P2: the Git rules required `--managed` for every commit inside a managed run, but a bookkeeping commit of coordination files has no task trailers (`test_close_wave.py` creates `chore(run): checkpoint wave bookkeeping`), so a required checkpoint could not pass the check. Repair: the rules name `--managed` for task, repair and integration commits only; a bookkeeping commit uses the plain check. The script is unchanged apart from its help text.
+
 ## Results And Remaining Work
 
-Remaining: the scoped review of the managed-merge repair, CI matrix on the PR. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
+Remaining: CI matrix on the final head. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
 
 ## Handoff
 
