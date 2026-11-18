@@ -429,7 +429,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("re-check scope", stage)
 
     def test_two_review_budget_and_isolated_repairs_are_documented(self) -> None:
-        skill = self.read("SKILL.md")
         gates = self.read("references/verification-gates.md")
         gen_verify = self.read("references/gen-verify-correct.md")
         state = self.read("references/execution-state-model.md")
@@ -1009,7 +1008,6 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
     def test_ui_impact_classification_and_deviation_ledger_are_binding(self) -> None:
         contract = self.read("references/ui-implementation-contract.md")
         gates = self.read("references/verification-gates.md")
-        skill = self.read("SKILL.md")
         updates = self.read("references/design-input-updates.md")
         refinement = self.read("references/open-ended-refinement.md")
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
