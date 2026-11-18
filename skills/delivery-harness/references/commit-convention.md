@@ -1,6 +1,6 @@
 # Atomic Commit Convention
 
-Use this convention for every authorized commit. `scripts/check_commit_message.py` checks the subject and, with `--managed`, the trailers; its error lines state the fix, so a direct commit needs this file only when the check fails. Direct work follows Direct Commits below; managed work also follows the run and trailer rules. Commit permission is an independent authorization action; implementation permission alone does not grant it.
+Use this convention for every authorized commit. `scripts/check_commit_message.py` checks the subject and, with `--managed`, the trailers, and its error lines state the fix. No script checks Atomic Boundary below; it applies to every commit. Direct work follows Direct Commits below; managed work also follows the run and trailer rules. Commit permission is an independent authorization action; implementation permission alone does not grant it.
 
 ## Run-Wide Atomicity
 
@@ -53,7 +53,7 @@ Rules:
 - Write the complete message in English.
 - Keep the subject at 72 characters or fewer, use lowercase `type` and `scope`, use an imperative summary, and omit the final period.
 - Use one of: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`, `build`, or `ci`.
-- Use a stable product or engineering area for `scope`, such as `auth`, `billing`, `api`, `db`, `dashboard`, `ui`, `harness`, or `prd`; do not use a filename.
+- Write `scope` in lowercase letters, digits, hyphens or underscores. Use a stable product or engineering area for `scope`, such as `auth`, `billing`, `api`, `db`, `dashboard`, `ui`, `harness`, or `prd`; do not use a filename.
 - Include exactly one planned task ID in `Task`. Split the task first if a commit would need multiple task IDs.
 - Treat the task ID as an opaque immutable reference. A readable alias may change without changing the ID.
 - Include every upstream trace covered by the commit in `Trace`. Use `HARNESS` only for an approved internal harness, maintenance, or cleanup task with no upstream trace.
