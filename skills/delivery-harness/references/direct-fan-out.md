@@ -16,7 +16,7 @@ When one fails, keep one writer or route the work large. When one stops holding 
 
 ## Authorization
 
-Ask once per round for the bundle: sibling writers, one worktree and local branch per writer, local commits, and local integration into the work branch. An owner instruction to run the work in parallel or with several agents is that grant. It covers every part and every merge of the round. It never covers push, worktree removal or branch deletion.
+Ask once per round for the bundle: sibling writers, one worktree and local branch per writer, local commits, and local integration into the work branch. An owner instruction to run the work in parallel or with several agents is that grant. It covers every part and every merge of the round. It never covers push, worktree removal or branch deletion; those need their own instruction or an [Epic Landing Grant](branch-promotion-contract.md#epic-landing-grant).
 
 The work branch follows the ordinary branch rule and exists before launch. A writer branch is a runtime allocation, as in a managed wave: name it from the work branch and the part ID, check that the name is unused, and keep it local.
 

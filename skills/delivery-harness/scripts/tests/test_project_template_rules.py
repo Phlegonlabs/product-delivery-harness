@@ -1,5 +1,6 @@
 """Seeded project rules must agree with the canonical Harness contracts."""
 
+import json
 import re
 import subprocess
 import sys
@@ -380,8 +381,14 @@ class ProjectTemplateRuleTests(unittest.TestCase):
         }
         template_only_headings = {
             "Skill Activation", "Runtime Boundary", "Mandatory Governance Routes", "Deployment",
-            "Behavior Specs", "Harness Version",
+            "Behavior Specs", "Harness Version", "Delivery Autonomy",
         }
+        # The source repository states its own landing policy in AGENTS.md.
+        self.assertIn("\n## Delivery Autonomy\n", root_agents)
+        self.assertIn("Landing policy: `.harness/landing-policy.json`", root_agents)
+        policy = json.loads((REPO_ROOT / ".harness/landing-policy.json").read_text(encoding="utf-8"))
+        self.assertEqual("owner_each_time", policy["landing"])
+        self.assertEqual(["validate"], policy["required_checks"])
         template = read("assets/templates/PROJECT_AGENTS.template.md")
         for heading in re.findall(r"^## (.+)$", template, re.MULTILINE):
             with self.subTest(heading=heading):

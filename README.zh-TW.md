@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.91.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.92.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -133,7 +133,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 - [分工](skills/delivery-harness/references/delegation-contract.md)：agent 設定與 AGENTS 決定 executor、model、effort 與 fallback。每個 checkout 只有一位 writer；被分派的 worker 不能再次分派。brief 與 review packet 在啟動前先依路線的時間、turn 與 byte 上限切好大小。期限已到卻沒有 verdict，視為環境受阻，改以較小的 scoped 呼叫重新分派。變動邊界的設計與 review 依 [architecture method](skills/delivery-harness/references/architecture-method.md) 進行。
 - [驗證](skills/delivery-harness/references/verification-gates.md)：必要證據綁定準確候選；缺能力或證據維持 blocked。瀏覽器矩陣的獨立 review 採先驗證再抽樣：驗證 receipt，檢查 FAIL 與經 diff 標記的列，再抽樣 PASS 列。瀏覽器能力探測在同一 session 內重複使用。沙箱內跑不了 git 的 reviewer 以 `review_input.py` packet 證明身分與 checkout 乾淨。`build_verifier_request.py` 依 live lease 建立 worker 與 task 的 verifier request；`security_review_result.py --result <file> --reviewed-sha <sha>` 不寫入任何檔案，檢查 direct 路線的安全審查結果。
 - [交付驗收](skills/delivery-harness/references/delivery-acceptance-contract.md)：feature 檔案是 owner 批准的 PRD 內容，step definition 是程式碼。交付驗收 register 由 feature 檔案產生，不能手動編輯。改 scenario 文字是產品決定，須走 PRD delta；只改 step definition 是現有 Epic 上的小修正。BDD runner 是 stack 決策的一部分。run profile 的 `variants` 與 `assign` 對照可產生混合平台的 register；`render_delivery_acceptance.py --check` 只回報偏差，不寫入。
-- [候選發佈與晉升](skills/delivery-harness/references/branch-promotion-contract.md)：保留準確 target、授權與遠端讀回，不得 force-push。[Card 8](skills/delivery-harness/references/stages/stage-cards.md#card-8-archive-publish-and-promote) 依序列出歸檔、發佈與晉升指令。
+- [候選發佈與晉升](skills/delivery-harness/references/branch-promotion-contract.md)：保留準確 target、授權與遠端讀回，不得 force-push。符合資格的 repository 可以憑 owner 事先記錄的授權落地一個 Epic，每個動作之前由 `landing_gate.py` 對照確切候選版本檢查。[Card 8](skills/delivery-harness/references/stages/stage-cards.md#card-8-archive-publish-and-promote) 依序列出歸檔、發佈與晉升指令。
 - [來源維護](skills/delivery-harness/references/governance/source-maintenance.md)：每個 atomic task 跑聚焦檢查，固定候選跑一次完整 matrix。
 
 每次交接前，核對來源雜湊（source hashes）、Epic 紀錄與文件一致性，並原地重寫 Epic 的 `## Handoff` 區塊（階段、有效核准、剩餘工作、下一步）；每個 skill 進場先讀這個區塊。文件同步計算每份 Epic 的雜湊時不含該區塊，所以重寫它不算 drift。`docs/tasks.md` 由 RUN 衍生，交付驗收 register 由 `render_delivery_acceptance.py` 從 feature 檔案產生；不能手動編輯產生區段。[文件同步](skills/delivery-harness/references/document-sync-contract.md)、[有界修復](skills/delivery-harness/references/bounded-enhancement.md) 與[交付驗收](skills/delivery-harness/references/delivery-acceptance-contract.md) 擁有這些檢查規則。
@@ -205,6 +205,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.92.0** — owner 一次批准現在可以涵蓋一個 Epic 的推送、pull request、review 留言、合併、正式環境部署和清理。符合資格的 repository 在新增的 `.harness/landing-policy.json` 設定 `"landing": "epic_grant"`，owner 的授權記錄在 checkout 之外，新增的 `landing_gate.py` 在每個動作之前對照確切候選版本檢查。所有 review、檢查和讀回關卡不變，新建立的 repository 預設每次落地都由 owner 決定。
+
 - **0.91.0** — 直接任務現在只需讀入口檔和一張短卡，不必讀遍所有契約。直接路線的步驟拆成三張卡：每個直接任務一張，首次交付另加一張，改動介面另加一張。只屬於 managed run 或只屬於介面工作的閱讀要求，現在都寫明觸發條件。新增的 `check_commit_message.py` 會檢查提交訊息並指出修正方法，因此只有檢查失敗時才需要讀提交規範。
 
 - **0.90.1** — 安裝後的依賴檢查器現在能找到與 delivery-harness 裝在同一目錄的 frontend-design 和 Impeccable，並核對兩者鎖定的雜湊值。
@@ -212,7 +214,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.90.0** — `ui-design-builder` 的 HiFi 階段現在先建共用的部分，並在一次複查後結束 review。分三層：kit（token 與每個控制項的所有狀態，一份產品樣式表）、組合與美術。kit 與 pilot 頁先做，作者先自查 pilot，pilot 診斷只列發現，其餘 journey 從鎖定的 kit 建出，每條 journey 之後都自查。小型產品略過 pilot，enhancement 沒有 pilot。`assemble_ui_review.py --product-css <file>` 把同一份產品樣式表原樣嵌進每一頁，只要有一頁帶有標記，bundle 檢查就會拒絕不一致。`hifi_matrix_capture.py --measure-a11y` 量測對比、目標尺寸、文字裁切、焦點可見與文字放大，寫進 sidecar 的 `a11y` 物件；它不改變任何結果或結束碼。作者在凍結的內容上對每個候選稿只做一次矩陣擷取，reviewer 不再跑 driver。缺少的義務或被拒絕的 receipt 退回同一個 reviewer session，不再有只補證據的輪次。review 預算是 pilot 診斷、一輪 wave、一次合併修復，以及由該 wave 的原 reviewer 做的一次收斂複查（內含一次修正往返）；兩次 scoped 複查已移除，未關閉的 block 讓候選稿保持 `blocked` 交給 owner。block 必須附上可重現的失敗、違反的規則與關閉條件。作者在動筆前先讀 Impeccable 的工藝底線（`impeccable` 新增允許用途 `author_quality_reference`），Impeccable 的授權在 UI Design Intake 就詢問。Receipt 綁定、85/80 門檻與 contract 版本都不變。
 
 - **0.89.0** — 現在可以在 PRD 之前研究搜尋需求。`growth-review` 新增 `demand_research` 模式，適用於有公開搜尋 surface（公開網頁或商店列表）的產品。它只產出一個檔案 `docs/product/keyword-map.md`，由 `KEYWORD_MAP.template.md` 產生：Scope、帶穩定 `KW-*` ID 的 Clusters、Not pursued、Content fields 與 Change log。網站尚未存在時，每個數字都標上 `observed`、`estimated` 或 `hypothesis`，不編造搜尋量、排名或競品事實；綁定帳號的資料來源只有在記錄了存取方式時才使用。Product Definition 在起草頁面清單之前先跑這個模式：Discovery Surface 列與 `SEO metadata` 行引用 `KW-*`；沒有 keyword map 的產品記錄 `Keyword map: n/a` 或 `not run` 及原因。沒有新增批准關卡。route 的 `<title>` 與 meta description 現在是內容欄位：PRD 保留上線時的值與長度限制，keyword map 保存目前的值，在限制內且保持同一 cluster 的改寫不需要 PRD delta，也不需要 UI review。Day 7 與 Day 30 的 `growth_review` 讀回會把每個 `KW-*` 與數據比對，回傳兩份清單：內容欄位改寫，以及結構性 PRD delta 候選。
-
-- **0.88.0** — HiFi matrix driver 和 reviewer runtime 補上四個缺口，這些缺口原本會把正確的產品行為判成失敗。`navigate` 互動現在可以指定目的狀態：控制項連到 `<page>#hifi-state=<surface>/<state>`，同一頁也適用；目的狀態不是該頁預設狀態時必須用這個寫法。抵達時由 fragment 決定 surface 和狀態，抵達結果會被記住，其他頁面存下的選擇不再決定產品導覽之後頁面顯示什麼。多個可到達的實例共用一個 control ID 時，driver 會啟動第一個尚未選取的實例並記錄其索引，所以分段控制會真的產生變化。操作的控制項是文字欄位、textarea 或 select 時，driver 會像使用者一樣輸入資料，仍然要求觀察到變化；停用或唯讀的欄位判失敗。一直逾時的頁面現在只會讓自己剩下的工作失敗或被擋，base 和 intermediate 的執行都一樣，所以整個 package 用 `--workers 4` 可以跑完：一個 52 頁、入口頁 6.9 MB 的 package，被擋的案例從 345 個降到 0。driver 的焦點規則現在接受焦點進入新打開的層，以及焦點回到被該次操作關閉的層的開關；其他焦點移動仍然判失敗。`HIFI_REVIEWER.template.html` 裡的 reviewer runtime 有變，package 要用新範本重建頁面才算採用這一版；compiler 接受新的 runtime 和先前兩個版本。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

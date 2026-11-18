@@ -80,6 +80,10 @@ Resolve `delivery-harness/` references against the observed installed delivery-h
 
 The Epic and index record observed work; neither record grants product approval, marks a test PASS without evidence, or authorizes a commit, branch, install, push, deployment, cleanup, publication, or external action.
 
+## Delivery Autonomy
+
+Landing policy: `.harness/landing-policy.json`. Without that file, or while it says `"landing": "owner_each_time"`, every push, merge, deployment and cleanup stays under the owner's instruction at the time. The owner sets `"landing": "epic_grant"` once the repository meets `delivery-harness/references/branch-promotion-contract.md#epic-landing-grant`, starting from `delivery-harness/assets/templates/LANDING_POLICY.template.json`; one grant per Epic then covers the actions that grant names. The parent reads the file from the frozen `main` base, so a change takes effect only after it lands on `main` under the owner's own instruction.
+
 ## Deployment
 
 - Resolve this section from the live project before finishing bootstrap; keep it only when the repository deploys, per the Product Delivery Harness `deployment-contract.md`.

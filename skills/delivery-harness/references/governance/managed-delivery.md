@@ -8,8 +8,8 @@ These rules own consumer protected-branch routing, managed-run entry, review bou
 - Managed Harness requires the default branch to be named `main`; archive and promotion tooling binds only `main` refs. Confirm the name from repository state at bootstrap. If it differs, stop before managed work and ask the owner.
 - `main` is the persistent protected production branch. New `main-preview/1` work needs no permanent development branch. Preserve historical pins and existing protected branches.
 - Resolve the complete non-default run-branch name from repository governance or the user's instruction. Freeze the matching observed remote head in PLAN `branch_policy`: `main` for both ordinary work and hotfixes. Cut both `initial_delivery` and `enhancement` run branches from that frozen head. If the kind or name is unresolved, ask; never add a fixed prefix or invent a name.
-- Harness 0.38+ RUNs close `local_only` and keep their push grant false. Archive, publication, preview and exact-SHA promotion to protected `main` follow `delivery-harness/references/branch-promotion-contract.md`; publication never authorizes `main` or `development`. Never force-push; stop on drift or divergence.
-- Preserve unrelated dirty files, branches, and worktrees. Cleanup, worktree removal, task archival, and branch deletion require their own exact authorization.
+- Harness 0.38+ RUNs close `local_only` and keep their push grant false. Archive, publication, preview and exact-SHA promotion to protected `main` follow `delivery-harness/references/branch-promotion-contract.md`; publication never authorizes `main` or `development`. Never force-push; stop on drift or divergence. When the owner has recorded an Epic landing grant, a passing `landing_gate.py check` is the authorization for each action it names (`delivery-harness/references/branch-promotion-contract.md#epic-landing-grant`).
+- Preserve unrelated dirty files, branches, and worktrees. Cleanup, worktree removal, task archival, and branch deletion require their own exact authorization, or a grant's `cleanup` action limited to what `landing_gate.py cleanup-plan` prints.
 
 ## Managed Product Delivery Harness Runs
 

@@ -1,0 +1,11 @@
+{
+  "schema": "landing-policy/1",
+  "landing": "owner_each_time",
+  "required_checks": [
+    "<fill>"
+  ],
+  "journey_command": "<fill>",
+  "production_smoke_command": "<fill>",
+  "recovery": "<fill>",
+  "owner_only_paths": []
+}

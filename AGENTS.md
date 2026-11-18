@@ -23,6 +23,10 @@ Existing data protection and action authorization still apply.
 
 Effective agent definitions and AGENTS instructions own worker selection, models, effort, fallback and delegation topology. Shared skills own methods, inputs, authorization, evidence and acceptance; they do not supply competing worker policy. Persisted RUN labels describe responsibilities, not native agent identities; preserve the pinned execution protocol.
 
+## Delivery Autonomy
+
+Landing policy: `.harness/landing-policy.json`. While it says `"landing": "owner_each_time"`, every push, merge and cleanup stays under the owner's instruction at the time. The owner sets `"landing": "epic_grant"` once this repository meets [Epic Landing Grant](skills/delivery-harness/references/branch-promotion-contract.md#epic-landing-grant); one grant per Epic then covers the actions that grant names. The parent reads the file from the frozen `main` base. This repository deploys no product, so `production_deploy` does not apply.
+
 ## Mandatory Governance Routes
 
 Harness-specific routes below apply only within an explicitly requested skill workflow.

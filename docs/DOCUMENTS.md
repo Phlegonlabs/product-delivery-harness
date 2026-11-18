@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-entry-route-split](epics/EPIC-entry-route-split.md)
+Current Epic: [EPIC-epic-landing-grant](epics/EPIC-epic-landing-grant.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
