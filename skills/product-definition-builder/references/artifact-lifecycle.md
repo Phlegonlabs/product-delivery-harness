@@ -46,6 +46,7 @@ In the Publication Authorization Gate, label this path explicitly as "existing u
   - `docs/product/stack-decisions.md`
   - `docs/product/market-research.md` when the market-research gap pass produced it
   - `docs/product/research-assessment.md` when the research-first assessment produced it
+  - `docs/product/keyword-map.md` when `growth-review` demand research produced it; it stays published while a `PRD.md` cites its `KW-*` IDs
   - `docs/product/outcomes/YYYY-MM-DD-<release-set>.md` after each deployed release-set outcome review
   - `docs/product/deltas/PRD-DELTA-<EPIC-ID>.md` and its `PRD-DELTA-<EPIC-ID>.zh-TW.md` review copy for each enhancement round that records one
   - `docs/product/implementation-plan.md` when requested

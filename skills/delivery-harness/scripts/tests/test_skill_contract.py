@@ -1078,6 +1078,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("the rendered `<head>` on the integration head", gates)
         self.assertIn("its `<title>` and meta description match the PRD record", gates)
+        self.assertIn("keyword map's current value when `docs/product/keyword-map.md` lists the route", gates)
+        self.assertIn("rewrite recorded in the keyword map as a content change is `none`", contract)
         self.assertIn("A mismatch is a failing check, not a style preference", gates)
 
     def test_worker_packet_returns_match_the_result_contract(self) -> None:

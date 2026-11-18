@@ -249,7 +249,7 @@ Capture the full matrix once on the final candidate; mission-head captures are a
 
 After a repair, probe every matrix entry on the new integration head and apply [render fingerprint carry-forward](../../ui-design-builder/references/output-contract.md#render-fingerprint-carry-forward). Recapture the entries the repair touches and any entry whose fingerprint changed. An entry with an equal fingerprint keeps its original image and SHA-256, records the new integration head in `head_sha` (the probe ran on it), and names its source head SHA and fingerprint in the retained comparison anchor.
 
-For a route whose `UI-*` entry records SEO metadata, the same evidence set includes the rendered `<head>` on the integration head: its `<title>` and meta description match the PRD record. A mismatch is a failing check, not a style preference; a route with no PRD SEO record is a contract gap routed to `product-definition-builder`, not a verifier skip.
+For a route whose `UI-*` entry records SEO metadata, the same evidence set includes the rendered `<head>` on the integration head: its `<title>` and meta description match the PRD record, or the keyword map's current value when `docs/product/keyword-map.md` lists the route. A mismatch is a failing check, not a style preference; a route with no PRD SEO record is a contract gap routed to `product-definition-builder`, not a verifier skip.
 
 ### Capture Mechanism By Platform
 

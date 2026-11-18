@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.88.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.89.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -49,7 +49,7 @@ UI 工作另需 [dependency manifest](skills/delivery-harness/assets/external-sk
 | 已批准且包含 UI 的 Product Definition（Product Thesis 之后即可开始设计，可先做可选的探索轮） | `ui-design-builder` | 方向、journey map、完整 HiFi、浏览器证据与 Visual Approval |
 | 已批准且需要设计系统的 HiFi | `design-system-compiler` | 冻结的 pair 与来源绑定派生 HTML |
 | 有界实现或维护 | `delivery-harness` | Direct 工作或 managed PLAN/RUN；验收 scenario 由 PRD 的 feature 文件生成；UI mission 按已批准的 journey 进行 |
-| 已发布且有任何可被发现 surface 的产品 | `growth-review` | 逐 surface 的只读增长 review，以及已路由后续工作 |
+| 有公开搜索 surface 的产品（PRD 之前），或已发布且有任何可被发现 surface 的产品 | `growth-review` | PRD 之前的 keyword map（`demand_research`）；逐 surface 的增长 review 与已路由后续工作，除 keyword map 外只读 |
 
 Source-runtime plate 也支持具唯一标记、且 surface、state 与 target 条件符合该行的共用主体。产品脚本执行前会先绑定选定状态。只有内容与检视器面板位置完全符合的已知 design-token 填值脚本会被排除；内容相同的产品脚本仍保留绑定，样本有歧义仍会失败。 初始 hidden 可由元素自身声明的状态规则控制；没有状态控制器的隐藏路径仍会失败。
 
@@ -60,6 +60,10 @@ Source-runtime plate 也支持具唯一标记、且 surface、state 与 target �
 ## 常见提示词
 
 Codex 使用 `$skill-name`；其他宿主可直接指定 skill 名称。说明准确写入范围，以及本地或远端的预期结果。
+
+```text
+Use $growth-review in `demand_research` mode before the PRD: research search demand for this product's public pages, group the keywords into clusters with stable `KW-*` IDs and write `docs/product/keyword-map.md`, labeling every figure observed, estimated or hypothesis. Change no other file.
+```
 
 ```text
 Use $product-definition-builder to define this product, including complete frontend/backend architecture, data/auth/deployment choices, coherent stack options, UI behavior, release targets, tests with their feature files, and Product Definition Approval. Stop before UI design.
@@ -89,11 +93,11 @@ Use $growth-review to read back every surface of this released product with its 
 
 | Skill | 负责范围 |
 | --- | --- |
-| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、`docs/product/features/` 下的 feature 文件、研究、各轮 PRD delta 与 Product Definition Approval；多模块产品的 `program` 交付档（程序级 PRD 加每模块一个[模块包](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md)，逐模块校验）、[AI 功能契约](skills/product-definition-builder/references/ai-feature-contract.md) 与多模块产品的 modular monolith 模式；每张 stack 表都有 `BDD runner` 行，批准区块带 `Feature files` digest，Test Obligations 一旦指明其 feature 文件，包 checker 就检查 feature 覆盖（含 eval-policy 的 scenario id） |
+| `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 行与 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、`docs/product/features/` 下的 feature 文件、研究、各轮 PRD delta 与 Product Definition Approval；多模块产品的 `program` 交付档（程序级 PRD 加每模块一个[模块包](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md)，逐模块校验）、[AI 功能契约](skills/product-definition-builder/references/ai-feature-contract.md) 与多模块产品的 modular monolith 模式；每张 stack 表都有 `BDD runner` 行，批准区块带 `Feature files` digest，Test Obligations 一旦指明其 feature 文件，包 checker 就检查 feature 覆盖（含 eval-policy 的 scenario id）；适用时，PRD 引用 `docs/product/keyword-map.md` 的 `KW-*` cluster |
 | `ui-design-builder` | 由 `UI_DESIGN.template.md` 创建的 `docs/design/ui-design.md`、方向研究与完整已批准 HiFi 包，另有集中缺陷 ledger（`UI_DEFECT_LEDGER.template.json`）以及 grader、Impeccable operator、pilot 诊断与复查 packet（`UI_REVIEW_PACKET.template.md`）的模板；新视觉范围另保留 `docs/design/directions/<round>/references/` 下的参考板截图 |
 | `design-system-compiler` | 冻结的 `design-system.md`／`design-system.json` 与 `design-system-preview.html`；`check_design_system_pair.py --write-bindings` 从 `ui-design.md` 填入 `sourceBindings`，`--write` 把 `contrastPairs` 与 `typeSteps` 的比值写入生成的证据区块，`design-system/4` 的 JSON token 须与 HiFi CSS 中的同名声明一致 |
 | `delivery-harness` | 范围路由、授权、任务、集成、验证、由 PRD feature 文件加一份 run profile 生成的交付验收 register、PRD delta 规则（新增或修订需求的每个 Required TEST 都须有新增或改动的 scenario）、安全 lens、`docs/DEPLOYMENT.md` 内的外部设置与测量来源（含 [GA4 后台设置](skills/delivery-harness/references/ga4-admin-setup.md) 与 AI 供应商设置）、[性能与成本预算](skills/delivery-harness/references/performance-and-cost-budget.md)、跑完会清掉自己产物的原生验证，需要时的 PLAN/RUN，以及 managed stage cards 与自主执行用的 launch brief；初始化的项目 `AGENTS.md` 含 `Harness Version` 与 `Behavior Specs` 段落，另有 direct 路线的 [assignment](skills/delivery-harness/assets/templates/ASSIGNMENT.template.md) 与 [review brief](skills/delivery-harness/assets/templates/DIRECT_REVIEW_BRIEF.template.md) 模板、由 `build_delivery_results.py` 转成 `delivery-results.json` 的 [delivery evidence](skills/delivery-harness/assets/templates/DELIVERY_EVIDENCE.template.md) 文件，以及对现有 app 先取证再改的 [open-ended refinement](skills/delivery-harness/references/open-ended-refinement.md) |
-| `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台、桌面 app，以及团队经营的账号；含 `pre_launch`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复；与 `docs/gtm/MESSAGING.md` 矛盾的线上文案算 finding |
+| `growth-review` | 依 Surface Catalog 逐 surface 各用一个 lens：搜索与答案引擎、商店列表、registry 与目录、bot 平台、桌面 app，以及团队经营的账号；含 `pre_launch`、`demand_research`、`baseline`、Day 7 与 Day 30 `growth_review` 与 `traffic_drop` 模式，直接回复，唯 `demand_research` 在 PRD 之前运行并写出唯一的输出 `docs/product/keyword-map.md`；与 `docs/gtm/MESSAGING.md` 矛盾的线上文案算 finding |
 
 ## 独立 skills
 
@@ -136,7 +140,7 @@ Delivery core 只做一次规模判断：一位 writer 配一段连贯验证即�
 
 | 阶段 | 默认 review 与停止条件 |
 | --- | --- |
-| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。其后的缺陷走隔离修复加 scoped review。 |
+| Product Definition | 草稿与研究对账完成后，作者自查整套文件一次；owner 批准前重查受影响变更；之后再做一次独立只读 PRD review 与一次定向复查，owner 按十题 review 指南决定。其后的缺陷走隔离修复加 scoped review。 keyword map 先于页面清单；route 的 `<title>` 与 meta description 是内容字段，不需 PRD delta 即可改写。 |
 | 方向 | 新视觉范围先建立 9–12 张截图的参考板，owner 有参考库时先从库里挑。各研究的作者先检查并修复自己已渲染的研究，再交 owner 选择；检查包含 `slop_scan.py` 与对照参考板的比对页。三个研究，主机有容量时由不同作者同时撰写。owner 在 `_compare.html` 并排看到参考板、提议的原则和各研究，一次回复就确认原则并选定方向，也可以要求一次针对某个研究的三个变体。 |
 | HiFi | 三层，先建 kit（token 与每个控件的所有状态，一份产品样式表）和 pilot 页，再做组合与美术；先做静态，再加动效。作者在每条 journey 之后跑检查，含量测无障碍。完整性 preflight 后，原作者先自查及修复，再交独立 review；自查包含 `slop_scan.py`，以及用 `capture_sheet.py` 把选定方向和候选稿并排的比对页。每个候选稿只做一次矩阵截取；一轮 review 加同一批 reviewer 的一次收敛复查，不再有 scoped 复查；block 必须附上可复现的失败、违反的规则与关闭条件。Impeccable `critique` **与** `audit` 完成，且四舍五入的 H1–H9 总平均 **至少 85**、每项 **至少 80** 后，才取得 Visual Approval。 |
 | 交付 | `review_policy: final_candidate`：固定最终 SHA 上一次合并 code、适用 UI visual 与 security review（UI 使用真实浏览器），另加一次定向复查。之后每个剩余缺陷各成一笔有界修复，只对其修复差异做 scoped review。 |
@@ -201,6 +205,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.89.0** — 现在可以在 PRD 之前研究搜索需求。`growth-review` 新增 `demand_research` 模式，适用于有公开搜索 surface（公开网页或商店列表）的产品。它只产出一个文件 `docs/product/keyword-map.md`，由 `KEYWORD_MAP.template.md` 生成：Scope、带稳定 `KW-*` ID 的 Clusters、Not pursued、Content fields 与 Change log。网站尚未存在时，每个数字都标上 `observed`、`estimated` 或 `hypothesis`，不编造搜索量、排名或竞品事实；绑定账号的数据来源只有在记录了访问方式时才使用。Product Definition 在起草页面清单之前先运行这个模式：Discovery Surface 行与 `SEO metadata` 行引用 `KW-*`；没有 keyword map 的产品记录 `Keyword map: n/a` 或 `not run` 及原因。没有新增批准关卡。route 的 `<title>` 与 meta description 现在是内容字段：PRD 保留上线时的值与长度限制，keyword map 保存当前的值，在限制内且保持同一 cluster 的改写不需要 PRD delta，也不需要 UI review。Day 7 与 Day 30 的 `growth_review` 回读会把每个 `KW-*` 与数据比对，返回两份清单：内容字段改写，以及结构性 PRD delta 候选。
+
 - **0.88.0** — HiFi matrix driver 和 reviewer runtime 补上四个缺口，这些缺口原本会把正确的产品行为判成失败。`navigate` 交互现在可以指定目的状态：控件链接到 `<page>#hifi-state=<surface>/<state>`，同一页也适用；目的状态不是该页默认状态时必须用这个写法。到达时由 fragment 决定 surface 和状态，到达结果会被记住，其他页面存下的选择不再决定产品导航之后页面显示什么。多个可到达的实例共用一个 control ID 时，driver 会触发第一个尚未选中的实例并记录其索引，所以分段控件会真的产生变化。操作的控件是文本字段、textarea 或 select 时，driver 会像用户一样输入数据，仍然要求观察到变化；禁用或只读的字段判失败。一直超时的页面现在只会让自己剩下的工作失败或被挡，base 和 intermediate 的运行都一样，所以整个 package 用 `--workers 4` 可以跑完：一个 52 页、入口页 6.9 MB 的 package，被挡的案例从 345 个降到 0。driver 的焦点规则现在接受焦点进入新打开的层，以及焦点回到被该次操作关闭的层的开关；其他焦点移动仍然判失败。`HIFI_REVIEWER.template.html` 里的 reviewer runtime 有变，package 要用新模板重建页面才算采用这一版；compiler 接受新的 runtime 和先前两个版本。
 
 - **0.87.0** — `ui-design-builder` 的参考与方向步骤少了来回轮次，也能把 owner 的品味带到下一个项目。owner 可以在任何项目之外维护一个参考库（默认 `~/.agents/design-references/`，截图放在分类文件夹，加一张 `index.md` 表格）。参考板先从参考库开始：选中的条目连同 `REF-*` 记录与 hash 复制进该轮，研究只补参考库没覆盖的用途。Visual Approval 之后，agent 只询问一次是否把该轮采用的参考加入参考库；只有 owner 答应才写入，而且绝不覆盖已有条目。研究得到的参考板、提议的 Adopt / Adapt / Avoid 原则和方向研究现在一轮就交给 owner：owner 在同一次回复中确认原则并选定、混合或否决方向，被否决的原则在混合或修改的修订中处理。三个研究的一轮另外会生成 `_compare.html`，这是该先打开的页面：所有研究在同一情境与宽度下并排实时呈现，可放大单个研究并有上一个、下一个与返回。检查器会从该轮的研究重新生成这个页面，方向决定日期在 2026-11-18 或之后的轮次必须完全相符；更早的轮次没有它仍然有效。owner 在选择的回复中可以要求一次变体轮：针对某个研究的三个版本，各改变一个指明的轴，记录在 `### Variant round` 表格，其母方向必须是上一轮保留的研究。阶段卡拆成短步骤，规则全部保留。
@@ -208,7 +214,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.86.0** — 慢的检查现在可以同时跑。`hifi_matrix_capture.py --workers N`（1 到 4，默认 1）用固定的切分方式，把基本用例、交互操作、reviewer 测量和轴测量分给 N 个 headless Chromium，最后写出一份合并输出，行的内容与单一浏览器的结果相同；一个 222 个用例的真实 package 用 4 个浏览器从 1803 秒降到 697 秒。不论几个 worker，每次交互操作现在都从重新加载的来源页开始：前一次操作留下的产品状态不再影响下一次。这在该 package 上消除了 109 条假的交互失败，所以同一个 package 旧的失败数可能比新跑的高。任一浏览器打不开的页面整页判失败，重复的 `--axes` 值以退出码 2 拒绝，执行结束后不留下任何浏览器进程。一个审查点现在以同时派出的只读调用送出，每个 lens（code、security、visual）一个；parent 把结果合并成一份 finding、一个判定和一个修补循环。同一个 lens 派多个审查员仍需要 owner 要求，需要浏览器的 managed 节点把 security 与 visual lens 放在同一个调用。在 direct 路线上，全量最终验证可以和审查在同一个未变动的候选版本上同时开始；修补后不沿用其中任何结果，managed 的最终 gate 仍然等待它的审查节点。在本仓库中，`ci_test_shards.py matrix` 以每个测试模块一个进程的方式跑 product、ui 和 design-system 套件，浏览器套件同时最多三个，跑了零个测试的模块判失败，并打印失败模块的最后几行；CI 的浏览器任务使用同一个 runner。
 
 - **0.85.0** — HiFi 检查现在接受已批准 PRD 所描述的行为。目的地与来源相同的 PRD 操作（保存、筛选、排序）对应到新的 manifest kind `feedback`，matrix driver 只在触发后来源 surface 真的有变化时才判为通过；只有焦点移动不算。`state` 交互可以落在另一页，条件是该控件的每个实例都链接到 `<page>#hifi-state=<surface>/<state>`。声明为 `:n/a` 的状态不需要页面标记。同一个操作可以画很多次：driver 触发第一个可见的实例，并记录数量。表单字段可以用 `data-control-for` 指明所属的按钮，不必自己带一个操作；动作型 input 以及 button、link role 不能用这个属性。`data-product-disclosure` 加入菜单与标签页这两种开关，开关本身不需要操作，driver 会先打开已声明的开关，再触发被收起的控件。PRD 操作为 `none` 的 surface 可以不声明 navigation 和 controls。`zoom-200` 轴现在把 query container 的宽度减半，与浏览器缩放一致。交互行可以带一个可选的 `observed` 对象（`change`、`instances`、`openers`）；`ui-output/3` 和旧回执仍然有效。控件检测变严了：所有交互型 ARIA role、带指针事件处理的任何元素，以及带键盘事件处理的可聚焦元素，现在都需要 control ID；以前画了这类元素却没有绑定的包，要补上绑定才会通过。
-
-- **0.84.0** — mission 只是多需要一个路径时，managed run 不再为此停下来做 PLAN 修订。某个 consumer 的一次交付里，写入范围的修正占了 53 小时中的约 21 小时，并造成六次 PLAN 修订和六个新 RUN。这一版用三个改动去掉这个成本。task 的 commit 可以碰 mission 写入范围内、且有该 mission 任一 task 列出的路径；task 的 `write_scope` 是规划提示，mission 范围仍是边界。`harness_transition.py amend-scope --mission-id <id> --path <path> --reason <text>` 把路径记进运行中 RUN 的 `scope_amendments`：PLAN、修订号和 digest 都不变，当前这次尝试的结果随即可以通过验证。parent 直接执行，不需要 owner 回复。它会拒绝 parent 拥有的文件、coordination 路径、acceptance register、被 deny 的路径、冻结的来源文件、与尚未整合的 mission 重叠的路径、security review 为 `not_applicable` 时的可执行路径，以及会让非 UI mission 变成 UI authoring 的路径；这些仍然要走 PLAN 修订。`record-worker-result` 和 `record-node-result` 新增 `--check`，跑同样的验证但不写入任何东西，所以 packet 写错 lease 时改正后重送即可，不会用掉该节点的尝试次数。必读内容也变少：入口、managed 阶段和 Product Definition 阶段原本整份链接到 `verification-gates.md`、`execution-state-model.md`、`contract-and-traceability.md` 和 `output-contract.md`，现在改为链接到章节（delivery-harness 由 32,017 字降到 26,137 字，product-definition-builder 由 38,169 字降到 35,889 字）。没有删除任何规则文字。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
