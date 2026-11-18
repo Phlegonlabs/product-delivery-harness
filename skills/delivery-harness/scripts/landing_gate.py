@@ -72,9 +72,18 @@ POLICY_KEYS = (
     "Owner-only paths",
 )
 _HEX64 = re.compile(r"^[0-9a-f]{64}$")
-_FENCE = re.compile(r"^\s*(```|~~~)")
-_ANY_POLICY_HEADING = re.compile(r"^\s*#{1,6}\s*delivery autonomy\s*#*\s*$", re.IGNORECASE)
 _HEADING = re.compile(r"^#{1,6}(\s|$)")
+# Markers that can make text above them mean something else: a code fence or
+# an HTML comment. The policy must stand above all of them.
+_WRAPPER = re.compile(r"^\s*(```|~~~)|<!--|-->")
+# Characters Markdown wraps around a heading or a list item. Stripping them
+# lets one test see every spelling of the heading and of a policy line.
+_MARKUP = re.compile(r"[#*_`~>\s]+")
+_ITEM_PREFIX = r"^[\s>#*+\-_`~\d.)\]\[]*"
+_KEY_MENTIONS = {
+    key: re.compile(_ITEM_PREFIX + r"\s+".join(map(re.escape, key.split())) + r"[\s*_`]*:", re.IGNORECASE)
+    for key in POLICY_KEYS
+}
 _BAD_BRANCH_CHARS = set(" ~^:?*[\\\x7f")
 
 
@@ -209,16 +218,83 @@ def _policy_list(value: str | None) -> list[str] | None:
     return [] if items == ["none"] else items
 
 
-def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
-    """The Delivery Autonomy policy exactly as the base commit records it.
+def _names_policy_heading(line: str) -> bool:
+    return _MARKUP.sub(" ", line).strip().casefold() == "delivery autonomy"
 
-    Returns the policy and None, or an empty policy and the reason the
-    repository is not eligible. This is not a Markdown parser, so it accepts
-    one plain shape and refuses everything it would have to interpret: the
-    heading `## Delivery Autonomy` written exactly so at the start of a line,
-    once in the file under any spelling or level, above every code fence, with
-    its `- Key: value` lines at the start of a line and no key repeated.
+
+def _read_policy(text: str) -> tuple[dict[str, str], str | None]:
+    """The Delivery Autonomy policy in AGENTS.md text, or why it is not eligible.
+
+    This does not parse Markdown. It checks an invariant over the whole file:
+    the heading and each of the six policy lines occur exactly once under any
+    spelling, indentation or list marker, and that one occurrence is written
+    in the plain form below, in order heading then lines, above every code
+    fence and HTML comment.
+
+        ## Delivery Autonomy
+        - Landing: epic_grant
+        - Required checks: build, test
+        ...
+
+    A second heading, a repeated line, an example elsewhere in the file or
+    any other spelling is a refusal, because the gate cannot tell which one
+    the owner meant.
     """
+
+    lines = text.replace("\r\n", "\n").split("\n")
+    headings = [index for index, line in enumerate(lines) if _names_policy_heading(line)]
+    if len(headings) != 1:
+        return {}, (
+            "the repository is not eligible: AGENTS.md at the grant base names "
+            f"Delivery Autonomy as a heading {len(headings)} times, not once"
+        )
+    start = headings[0]
+    if lines[start].rstrip() != POLICY_HEADING:
+        return {}, (
+            "the repository is not eligible: write the heading exactly as "
+            f"`{POLICY_HEADING}` at the start of a line"
+        )
+    end = next(
+        (index for index in range(start + 1, len(lines)) if _HEADING.match(lines[index])), len(lines)
+    )
+    policy: dict[str, str] = {}
+    last = start
+    for key in POLICY_KEYS:
+        found = [index for index, line in enumerate(lines) if _KEY_MENTIONS[key].match(line)]
+        if len(found) != 1:
+            return {}, (
+                f"the repository is not eligible: AGENTS.md at the grant base has {len(found)} "
+                f"`{key}:` lines, not one; the policy line must be the only such line in the file"
+            )
+        index = found[0]
+        prefix = f"- {key}:"
+        if not lines[index].startswith(prefix) or not start < index < end:
+            return {}, (
+                f"the repository is not eligible: write `{prefix} <value>` at the start of a line "
+                "inside the Delivery Autonomy section"
+            )
+        policy[key] = lines[index][len(prefix):].strip()
+        last = max(last, index)
+    if any(_WRAPPER.search(line) for line in lines[: last + 1]):
+        return {}, (
+            "the repository is not eligible: the Delivery Autonomy section must stand "
+            "above every code fence and HTML comment in AGENTS.md"
+        )
+    if policy["Landing"] != "epic_grant":
+        return {}, (
+            "the repository is not eligible; its Delivery Autonomy section on the base commit "
+            "does not say `Landing: epic_grant`"
+        )
+    unfilled = [key for key in POLICY_KEYS if not policy[key] or "<fill>" in policy[key]]
+    if unfilled:
+        return {}, "the repository is not eligible: Delivery Autonomy leaves unset: " + ", ".join(unfilled)
+    if not _policy_list(policy["Required checks"]):
+        return {}, "the repository is not eligible: an eligible repository names its required checks"
+    return policy, None
+
+
+def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
+    """The policy exactly as the base commit records it, never the candidate's."""
 
     result = run_git(
         root, "show", "--format=", f"{base}:AGENTS.md",
@@ -230,50 +306,7 @@ def _policy_at_base(root: Path, base: str) -> tuple[dict[str, str], str | None]:
         text = bytes(result.stdout).decode("utf-8")
     except UnicodeDecodeError:
         return {}, "the repository is not eligible: AGENTS.md at the grant base is not UTF-8"
-    lines = text.replace("\r\n", "\n").split("\n")
-    mentions = [index for index, line in enumerate(lines) if _ANY_POLICY_HEADING.match(line)]
-    if len(mentions) != 1:
-        return {}, (
-            "the repository is not eligible: AGENTS.md at the grant base has "
-            f"{len(mentions)} Delivery Autonomy headings, not one"
-        )
-    start = mentions[0]
-    if lines[start].rstrip() != POLICY_HEADING:
-        return {}, (
-            "the repository is not eligible: write the heading exactly as "
-            f"`{POLICY_HEADING}` at the start of a line"
-        )
-    if any(_FENCE.match(line) for line in lines[:start]):
-        return {}, (
-            "the repository is not eligible: the Delivery Autonomy section must stand "
-            "above every code fence in AGENTS.md"
-        )
-    policy: dict[str, str] = {}
-    for line in lines[start + 1:]:
-        if _HEADING.match(line):
-            break
-        if _FENCE.match(line):
-            return {}, "the repository is not eligible: its Delivery Autonomy section holds a code fence"
-        if not line.startswith("- "):
-            continue
-        key, separator, item = line[2:].partition(":")
-        if not separator:
-            continue
-        key = key.strip()
-        if key in policy:
-            return {}, f"the repository is not eligible: its Delivery Autonomy section repeats `{key}`"
-        policy[key] = item.strip()
-    if policy.get("Landing") != "epic_grant":
-        return {}, (
-            "the repository is not eligible; its Delivery Autonomy section on the base commit "
-            "does not say `Landing: epic_grant`"
-        )
-    unfilled = [key for key in POLICY_KEYS if not policy.get(key) or "<fill>" in policy[key]]
-    if unfilled:
-        return {}, "the repository is not eligible: Delivery Autonomy leaves unset: " + ", ".join(unfilled)
-    if not _policy_list(policy["Required checks"]):
-        return {}, "the repository is not eligible: an eligible repository names its required checks"
-    return policy, None
+    return _read_policy(text)
 
 
 def _grant_fields_reason(grant: Any) -> str | None:

@@ -71,6 +71,138 @@ def write_file(path: Path, text: str) -> None:
         handle.write(text)
 
 
+def policy_matrix() -> list[tuple[str, str, bool]]:
+    """Every known way to write, repeat or wrap the policy: (name, text, eligible).
+
+    One list serves the test below and the old-versus-new comparison recorded
+    in the Epic. The family is the policy reader; its classes are the heading
+    spelling, the policy-line spelling, a second occurrence anywhere in the
+    file, a wrapper above the policy, and an incomplete policy.
+    """
+
+    heading = "## Delivery Autonomy"
+    keys = {
+        "Landing": "epic_grant",
+        "Required checks": "build, test",
+        "Journey command": "python -m pytest tests/journey",
+        "Production smoke command": "none",
+        "Recovery": "revert the landing commit",
+        "Owner-only paths": "none",
+    }
+
+    def section(lines: dict[str, str] | None = None, head: str = heading) -> str:
+        body = "".join(f"- {key}: {value}\n" for key, value in (lines or keys).items())
+        return f"{head}\n\n{body}"
+
+    def doc(policy: str, before: str = "", after: str = "") -> str:
+        return f"# Repo\n\n{before}{policy}\n## Other\n\n- Note: unrelated\n{after}"
+
+    cases: list[tuple[str, str, bool]] = [
+        ("canonical", doc(section()), True),
+        ("CRLF line endings", doc(section()).replace("\n", "\r\n"), True),
+        ("trailing spaces after the heading", doc(section(head=heading + "  ")), True),
+        ("lines in another order", doc(section(dict(reversed(list(keys.items()))))), True),
+        ("prose and an unknown bullet inside the section", doc(section() + "\nWhy: see the contract.\n- Note: x\n"), True),
+        ("a code fence below the policy", doc(section(), after="\n```sh\nmake test\n```\n"), True),
+        ("an HTML comment below the policy", doc(section(), after="\n<!-- note -->\n"), True),
+        ("the name in prose elsewhere", doc(section(), after="\nSee the Delivery Autonomy section above.\n"), True),
+    ]
+
+    heading_variants = {
+        "exact": heading,
+        "two inner spaces": "## Delivery  Autonomy",
+        "inner tab": "## Delivery\tAutonomy",
+        "lower case": "## delivery autonomy",
+        "closing hashes": "## Delivery Autonomy ###",
+        "two inner spaces and closing hashes": "## Delivery  Autonomy ###",
+        "level one": "# Delivery Autonomy",
+        "level three": "### Delivery Autonomy",
+        "level six": "###### Delivery Autonomy",
+        "indented": "   ## Delivery Autonomy",
+        "tab indented": "\t## Delivery Autonomy",
+        "bold": "## **Delivery Autonomy**",
+        "emphasis": "## _Delivery Autonomy_",
+        "code span": "## `Delivery Autonomy`",
+        "quoted": "> ## Delivery Autonomy",
+        "no space after the hashes": "##Delivery Autonomy",
+        "setext with dashes": "Delivery Autonomy\n-----------------",
+        "setext with equals": "Delivery Autonomy\n=================",
+    }
+    for name, variant in heading_variants.items():
+        second = f"{variant}\n\n- Landing: owner_each_time\n"
+        cases.append((f"second heading after, {name}", doc(section(), after="\n" + second), False))
+        cases.append((f"second heading before, {name}", doc(section(), before=second + "\n"), False))
+        if name != "exact":
+            cases.append((f"only heading, {name}", doc(section(head=variant)), False))
+
+    prefixes = {
+        "one space": " - ", "two spaces": "  - ", "four spaces": "    - ", "tab": "\t- ",
+        "star": "* ", "plus": "+ ", "numbered": "1. ", "numbered paren": "2) ", "quoted": "> - ",
+        "no marker": "", "heading": "### ",
+    }
+    spellings = {
+        "plain": "{key}:", "lower case": "{lower}:", "upper case": "{upper}:",
+        "space before the colon": "{key} :", "bold": "**{key}**:", "code span": "`{key}`:",
+        "emphasis": "_{key}_:", "tab before the colon": "{key}\t:",
+    }
+    for key in keys:
+        forms = {"key": key, "lower": key.lower(), "upper": key.upper()}
+        for prefix_name, prefix in prefixes.items():
+            line = f"{prefix}{key}: something else\n"
+            label = f"second `{key}` line, {prefix_name}"
+            cases.append((label + ", inside the section", doc(section() + line), False))
+            cases.append((label + ", in another section", doc(section(), after=line), False))
+            cases.append((label + ", above the heading", doc(section(), before=line + "\n"), False))
+        for spelling_name, spelling in spellings.items():
+            written = spelling.format(**forms)
+            cases.append((
+                f"second `{key}` line, {spelling_name}", doc(section() + f"- {written} something else\n"), False,
+            ))
+            if spelling_name != "plain":
+                only = section().replace(f"- {key}:", f"- {written}")
+                cases.append((f"only `{key}` line, {spelling_name}", doc(only), False))
+        for prefix_name, prefix in prefixes.items():
+            if prefix != "- ":
+                only = section().replace(f"- {key}:", f"{prefix}{key}:")
+                cases.append((f"only `{key}` line, {prefix_name}", doc(only), False))
+        if " " in key:
+            doubled = key.replace(" ", "  ", 1)
+            cases.append((f"second `{key}` line, two inner spaces", doc(section() + f"- {doubled}: x\n"), False))
+        cases.append((f"missing `{key}`", doc(section({k: v for k, v in keys.items() if k != key})), False))
+        cases.append((f"empty `{key}`", doc(section({**keys, key: ""})), False))
+        cases.append((f"placeholder `{key}`", doc(section({**keys, key: "<fill>"})), False))
+        cases.append((f"line outside the section, `{key}`", doc(
+            section({k: v for k, v in keys.items() if k != key}), after=f"- {key}: {keys[key]}\n"
+        ), False))
+
+    indented = "".join("    " + line + "\n" for line in section().splitlines())
+    wrappers = {
+        "three backticks": ("```markdown\n", "```\n"),
+        "four backticks around three": ("````markdown\n```\n", "```\n````\n"),
+        "tildes": ("~~~\n", "~~~\n"),
+        "tildes around backticks": ("~~~\n```\n", "```\n~~~\n"),
+        "indented fence": ("  ```\n", "  ```\n"),
+        "HTML comment": ("<!--\n", "-->\n"),
+    }
+    for name, (opening, closing) in wrappers.items():
+        cases.append((f"whole policy inside {name}", doc(opening + section() + closing), False))
+        cases.append((f"closed {name} above the policy", doc(section(), before=opening + "x\n" + closing + "\n"), False))
+        cases.append((f"{name} opened after the heading", doc(
+            f"{heading}\n\n{opening}" + section().split("\n", 2)[2] + closing
+        ), False))
+    cases += [
+        ("indented code example only", doc("An example:\n\n" + indented), False),
+        ("indented example beside the real policy", doc(section(), after="\n" + indented), False),
+        ("no policy at all", "# Repo\n\nNothing here.\n", False),
+        ("heading alone", doc(heading + "\n"), False),
+        ("landing is owner_each_time", doc(section({**keys, "Landing": "owner_each_time"})), False),
+        ("landing is Epic_Grant", doc(section({**keys, "Landing": "Epic_Grant"})), False),
+        ("required checks none", doc(section({**keys, "Required checks": "none"})), False),
+        ("required checks only commas", doc(section({**keys, "Required checks": " , "})), False),
+    ]
+    return cases
+
+
 class LandingGateTests(unittest.TestCase):
     def setUp(self) -> None:
         self._temps: list[tempfile.TemporaryDirectory[str]] = []
@@ -1397,6 +1529,23 @@ class LandingGateTests(unittest.TestCase):
         self.assertEqual(1, code, value)
         self.assertEqual([], value["commands"])
         self.assertTrue(any("read-back file lives inside the repository checkout" in r for r in value["reasons"]))
+
+    # the policy reader as one family
+
+    def test_policy_reader_acceptance_matrix(self) -> None:
+        cases = policy_matrix()
+        self.assertGreater(len(cases), 300)
+        self.assertEqual(len(cases), len({name for name, _text, _eligible in cases}), "case names repeat")
+        for name, text, eligible in cases:
+            with self.subTest(name=name):
+                policy, reason = subject._read_policy(text)
+                if eligible:
+                    self.assertIsNone(reason, name)
+                    self.assertEqual("epic_grant", policy["Landing"])
+                    self.assertEqual(sorted(subject.POLICY_KEYS), sorted(policy))
+                else:
+                    self.assertEqual({}, policy, name)
+                    self.assertIn("not eligible", str(reason))
 
 
 if __name__ == "__main__":

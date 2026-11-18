@@ -666,7 +666,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("A fix made for a thread is a repair round", grant)
         self.assertIn("it refuses an evidence or read-back file inside the checkout", grant)
         self.assertIn("a read-back whose label disagrees with the commits it names", grant)
-        self.assertIn("above any code fence", grant)
+        self.assertIn("above any code fence or HTML comment", grant)
+        self.assertIn("each as the only line of that name in the file", grant)
         self.assertIn("the check refuses a count above the budget", grant)
         # The script decides; it runs none of the gates itself.
         self.assertIn("It runs nothing itself", grant)
@@ -714,7 +715,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         for key in ("Required checks", "Journey command", "Production smoke command", "Recovery", "Owner-only paths"):
             self.assertIn(f"- {key}: ", autonomy)
         self.assertIn("takes effect only after it lands on `main` under the owner's own instruction", autonomy)
-        self.assertIn("keep the section above any code fence", autonomy)
+        self.assertIn("keep the section above any code fence or HTML comment", autonomy)
+        self.assertIn("use these six line names nowhere else in this file", autonomy)
         epic = self.read("assets/templates/EPIC.template.md")
         self.assertIn("Landing grant: none | SHA-256 <hex>", epic)
         self.assertIn("This line records it and grants nothing", epic)

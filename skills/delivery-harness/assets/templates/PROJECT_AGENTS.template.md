@@ -89,7 +89,7 @@ The Epic and index record observed work; neither record grants product approval,
 - Recovery: <fill>
 - Owner-only paths: none
 
-`owner_each_time` keeps every push, merge, deployment and cleanup under the owner's instruction at the time. The owner changes it to `epic_grant` once the repository meets `delivery-harness/references/branch-promotion-contract.md#epic-landing-grant`; one grant per Epic then covers the actions that grant names. The parent reads this section from the frozen `main` base, so a change here takes effect only after it lands on `main` under the owner's own instruction. Keep the heading and each `- Key: value` line at the start of a line, and keep the section above any code fence; the landing gate refuses a section it would have to interpret.
+`owner_each_time` keeps every push, merge, deployment and cleanup under the owner's instruction at the time. The owner changes it to `epic_grant` once the repository meets `delivery-harness/references/branch-promotion-contract.md#epic-landing-grant`; one grant per Epic then covers the actions that grant names. The parent reads this section from the frozen `main` base, so a change here takes effect only after it lands on `main` under the owner's own instruction. Keep the heading and each `- Key: value` line at the start of a line, keep the section above any code fence or HTML comment, and use these six line names nowhere else in this file; the landing gate refuses a policy it would have to interpret.
 
 ## Deployment
 
