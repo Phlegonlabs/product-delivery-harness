@@ -1,6 +1,6 @@
 # EPIC-entry-route-split: a direct task reads only what its route needs
 
-Status: in_progress
+Status: candidate prepared as 0.91.0; review and PR pending
 Design workflow: enhancement
 UI impact: none
 
@@ -44,7 +44,7 @@ Outside judge: `docs_reading_budget.py` on the candidate, and the ceiling test i
 
 `docs_reading_budget.py`, words. "Must-read" is the entry's own words plus every link its wording makes mandatory, two levels deep. It is a static count from the wording, not a record of what an agent opened.
 
-| Route | Before (`a0d3bbe8`) | After (`5e5bcbf3`) |
+| Route | Before (`a0d3bbe8`) | After (`1aa2be47`) |
 | --- | --- | --- |
 | Direct task, no UI (entry file + Card D1) | 26,445 | 3,828 |
 | Add-on for an initial delivery (Card D2) | included above | 2,861 |
@@ -52,30 +52,32 @@ Outside judge: `docs_reading_budget.py` on the candidate, and the ceiling test i
 
 Reads that fire on a trigger are not in these numbers. The common ones for a direct task: `delegation-contract.md` when the parent assigns the work to another executor (1,558 words), `gen-verify-correct.md` when a review returns findings (813), and the promotion sections of `branch-promotion-contract.md` when the task lands on `main`.
 
-Total normative words rose by 210 (`docs_weight.py`: 205,514 to 205,724): the new card file's lead paragraph and the trigger wording.
+Total normative words rose by 301 (`docs_weight.py`: 205,514 to 205,815): the new card file's lead paragraph, the trigger wording and the sentences that name the commit check.
 
 ## Change Log
 
 | Change / request | Reason and affected scope | Commit / evidence | Verification and remaining work |
 | --- | --- | --- | --- |
 | Direct steps moved to three cards; managed and UI reads state their trigger | ER-1, ER-2, ER-4. `SKILL.md`, `references/stages/direct-cards.md`, `direct-fan-out.md`, `governance/task-and-handoff.md`, `pre-delivery-self-review.md`, `test_skill_contract.py` | `7ada5b6f` | Doc-asserting modules pass (181 tests). Review pending. |
-| Reading budget measures direct cards and caps the route | ER-3. `docs_reading_budget.py`, `test_docs_reading_budget.py` | `5e5bcbf3` | 37 tests pass; `test_install_script.py` passes once the card file is tracked. |
+| Reading budget measures direct cards and caps the route | ER-3. `docs_reading_budget.py`, `test_docs_reading_budget.py` | `5e5bcbf3` | 37 tests pass; `test_install_script.py` passes (50 tests). |
+| Commit message check | ER-5. `check_commit_message.py` and its tests, written by a GLM-5.3 worker in its own worktree; the parent added the script to the CLI inventory in `test_cli_utf8_output.py`, which the worker's brief did not let it edit | `6696fbba` | 45 tests pass; the script accepts every commit on this branch. |
+| Git rules name the check | ER-5. `governance/source-maintenance.md`, `governance/managed-delivery.md`, `commit-convention.md`; the route rows in `AGENTS.md` and `PROJECT_AGENTS.template.md` drop the unconditional convention link | `1aa2be47` | Doc-asserting modules pass (282 tests). Consumers see the template row as a difference at their next adoption. |
 
 ## Results And Remaining Work
 
-Remaining: ER-5 (worker in a separate worktree), the Git-rule wording that names the script, release preparation for 0.91.0, one review point on the candidate, CI matrix on the PR.
+Remaining: one review point on the candidate, CI matrix on the PR. Merge to `main`, the `v0.91.0` tag, installation and consumer adoption wait for the owner.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / entry-route-split / 5e5bcbf3 / task/ (untracked, not part of this round)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / entry-route-split / release commit on top of 1aa2be47 / task/ (untracked, not part of this round)
 Stage and skill: source maintenance of delivery-harness; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main a0d3bbe8 (v0.90.1); owner-approved plan of 2026-11-18
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
 Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: three work branches, local commits, push and PR. Merge to main, tag, install and consumer adoption are not approved.
-Done and verified (command, exit code): pytest on the doc-asserting modules, exit 0; docs_reading_budget.py, exit 0
-Remaining: ER-5, release preparation, review, PR
-Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): integrate the worker's check_commit_message.py commit
+Done and verified (command, exit code): pytest on the doc-asserting modules and the new script, exit 0; docs_reading_budget.py, exit 0; prepare_release.py --check, exit 0
+Remaining: review, push, PR, CI matrix
+Blocked / waiting (gate name or owner decision): merge to main waits for the owner
+Next action (one command or one owner decision): run the read-only review on the candidate diff
 Next owner (skill or human): parent agent
 ```
