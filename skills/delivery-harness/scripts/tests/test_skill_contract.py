@@ -24,6 +24,7 @@ def find_repo_root(start: Path) -> Path | None:
 REPO_ROOT = find_repo_root(Path(__file__).resolve().parent)
 
 MANAGED_STAGE = "references/stages/managed-delivery.md"
+DIRECT_CARDS = "references/stages/direct-cards.md"
 MANAGED_STAGE_ROUTES = (
     ("plan", "managed-route"),
     ("plan", "reference-routing"),
@@ -416,7 +417,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # The security lens follows the diff, not a fixed rule.
         self.assertIn("Security lens applicability", gates)
         self.assertIn("security: not_applicable (<reason>)", gates)
-        self.assertIn("security: not_applicable", skill)
+        self.assertIn("security: not_applicable", self.read(DIRECT_CARDS))
         # A PASS survives scope-disjoint bookkeeping commits.
         self.assertIn("Scope-disjoint carry-forward", gates)
         self.assertIn("reconcile-coordination-head", gates)
@@ -441,7 +442,8 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("no owner decision opens another full review round", gates)
         self.assertIn(
-            "every remaining defect enters the [Isolated Repair Protocol]", skill
+            "every remaining defect enters the Isolated Repair Protocol",
+            self.read(DIRECT_CARDS),
         )
         # After the re-check, defects enter the isolated protocol.
         self.assertIn("## Isolated Repair Protocol", gates)
@@ -650,6 +652,33 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn(heading, text)
         return text.split(heading, 1)[1].split("\n## ", 1)[0]
 
+
+    def test_direct_route_reads_only_the_cards_its_task_needs(self) -> None:
+        skill = self.read("SKILL.md")
+        cards = self.read(DIRECT_CARDS)
+        route = self.owner_section(skill, "## Direct Route")
+        for heading, anchor_slug in (
+            ("## Card D1: Direct Delivery", "card-d1-direct-delivery"),
+            ("## Card D2: Initial Product", "card-d2-initial-product"),
+            ("## Card D3: UI Change", "card-d3-ui-change"),
+        ):
+            self.assertIn(heading, cards)
+            self.assertIn(f"`{DIRECT_CARDS}#{anchor_slug}`", route)
+        # Only D1 is unconditional; the other two name their trigger.
+        self.assertIn("only for an `initial_delivery`", route)
+        self.assertIn("only when the task changes UI", route)
+        self.assertIn("do not read the managed stage files", route)
+        # The steps live in the card, not in the entry file.
+        self.assertNotIn("git diff --check", skill)
+        self.assertIn("git diff --check", self.owner_section(cards, "## Card D1: Direct Delivery"))
+        # UI and initial-product contracts are named only by their own card.
+        d1 = self.owner_section(cards, "## Card D1: Direct Delivery")
+        for ui_only in ("frontend-visual-inputs.md", "ui-implementation-contract.md"):
+            self.assertNotIn(ui_only, d1)
+            self.assertIn(ui_only, self.owner_section(cards, "## Card D3: UI Change"))
+        for initial_only in ("initial-product-foundations.md", "surface-catalog.md"):
+            self.assertNotIn(initial_only, d1)
+            self.assertIn(initial_only, self.owner_section(cards, "## Card D2: Initial Product"))
 
     def test_project_size_gate_keeps_small_work_direct(self) -> None:
         skill = self.read("SKILL.md")
@@ -999,7 +1028,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("classify the completed change", worker_goal)
         self.assertIn("## Deviation Ledger", e2e_template)
         self.assertIn("Allowed-deviation citation", e2e_template)
-        self.assertIn("rule-8 UI-impact classification", skill)
+        self.assertIn("rule-8 UI-impact classification", self.read(DIRECT_CARDS))
         self.assertIn("never a silent local restyle", refinement)
         self.assertIn(
             "return to `ui-design-builder`",

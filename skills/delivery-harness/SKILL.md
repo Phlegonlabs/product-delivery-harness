@@ -9,7 +9,7 @@ Run only on the user's explicit request, continuation, or a required dependency 
 A matching task, installation, discussion, source edit or existing project artifact does not activate it.
 Required checks and dependencies stay within the requested outcome; a new top-level stage needs an explicit request.
 
-Commands: `references/installed-commands.md`; stage cards: `references/stages/stage-cards.md`; launch brief: `assets/templates/HARNESS_GOAL.template.md`.
+Commands: `references/installed-commands.md`; direct cards: `references/stages/direct-cards.md`; stage cards: `references/stages/stage-cards.md`; launch brief: `assets/templates/HARNESS_GOAL.template.md`.
 
 At every invocation, run the [entry checklist](references/governance/task-and-handoff.md#project-entry-and-current-work). For new delivery work, direct or managed, acceptance follows `references/delivery-acceptance-contract.md`. English PRD/architecture remain implementation authority, not Chinese review copies.
 
@@ -71,11 +71,11 @@ Planned review points: <n> (<reasons>)
 
 For UI work, inspect only `docs/design/`, a user-named design folder, and obvious in-scope images from the normal scan, record candidate paths and hashes, then apply `references/design-input-updates.md`; only PRD-approved consequences and any required compiled design-system pair influence implementation.
 
-Classify each task's Gitignore impact with `references/gitignore-contract.md`; it applies to both direct and managed routes.
+Record `Gitignore impact: none` unless the task introduces or retires a local-only file class; only then classify it with `references/gitignore-contract.md`. This applies to both direct and managed routes.
 
 When an existing RUN is `running`, perform the Resume Reconciliation Gate in `references/execution-state-model.md` before selecting work. Start with `python "<delivery-harness-skill-root>/scripts/inspect_harness_run.py" --repo-root <target-root> --session-id <id>`; its `Next` block names the state and one recommended command, and a `running` RUN with no lock needs one owner decision before selection. Inspect host process/session evidence separately. Canonical state, live process state, Git heads, and dirty worktrees are separate evidence; never assume `worker_running` proves a live worker. For a package pinned to an earlier Harness version, also read [Legacy Pins](references/legacy/legacy-pins.md).
 
-After capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts using that RUN's exact pinned bundle. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
+For a managed RUN, after capability detection, apply `references/runtime-upgrades.md`. Only an old compatible runtime's active wave may finish. An incompatible or restarted runtime waits for a fresh probe, then re-orchestrates every remaining task onto the new runtime through new attempts using that RUN's exact pinned bundle. Provider changes require explicit replanning; never hot-upgrade a worker or silently mutate installed runtime software.
 
 ### MVP Week
 
@@ -98,33 +98,18 @@ These rules apply to both routes:
 
 ## Direct Route
 
-For initial product implementation, read [Initial Product Foundations](references/initial-product-foundations.md) and order prerequisites before dependent features; the [Surface Catalog](references/surface-catalog.md) lists each surface class's required early missions.
-Implement local hooks first; record fixed-build external setup as separately authorized action rows from `references/external-setup.md` in `docs/DEPLOYMENT.md`; deployment operations stay separate.
-
-For unproven cross-layer dependencies, apply [Early Journey And Engineering Evidence](references/execution-task-decomposition.md#early-journey-and-engineering-evidence) within existing tasks and checks.
-
-1. Inspect the bounded component and relevant instructions.
-   Before any frontend dispatch, apply [Frontend Visual Inputs](references/frontend-visual-inputs.md) to the actual author task.
-2. For a `product-definition-builder` package, verify its Product Definition Approval and Stack Decision Checkpoint plus the applicable self-review and UI handoff under `references/pre-delivery-self-review.md`; then implement with one writer or a [Direct Fan-Out](references/direct-fan-out.md), under `references/delegation-contract.md`. Agent policy designates the UI writer; preserve its complete design inputs, required skills and independent acceptance. When feature files exist, render the acceptance register (`scripts/render_delivery_acceptance.py`) and record its hash before implementing.
-3. Probe the toolchain, browser and reviewer route once (a failed row is an `environment` block), then run focused checks selected from changed files, security tests included.
-4. Review the complete diff and run `git diff --check`.
-5. Create an authorized local commit when requested.
-6. Dispatch one review point on that SHA: read-only calls launched together, one per lens the diff needs: code; security, with `references/security-review.md` loaded; visual, when UI changed, with a real browser and one Final UI Acceptance. The parent merges the results into one finding set of blocking findings and non-blocking notes. The security lens applies to every executable diff (`references/verification-gates.md#review-topology`); a docs-only diff records `security: not_applicable (<reason>)` with the changed path list, and an executable diff without it is `UNVALIDATED`, not PASS. Final validation may overlap it.
-7. Make one consolidated repair, then present the focused verifier PASS at the new head before one targeted re-check of the prior blocking findings and the repair range (`references/gen-verify-correct.md`). After the re-check, every remaining defect enters the [Isolated Repair Protocol](references/verification-gates.md#isolated-repair-protocol).
-8. Perform only remaining authorized Git actions; for promotion, read `references/branch-promotion-contract.md#candidate-gate` and `references/branch-promotion-contract.md#promote-to-main`.
-
-A text-only markup/style review cannot claim a visual PASS or close a required visual gate. Obey `references/ui-implementation-contract.md`, including rule-8 UI-impact classification and same-change doc updates.
+Run `references/stages/direct-cards.md#card-d1-direct-delivery` for every `small` task; only for an `initial_delivery`, add `references/stages/direct-cards.md#card-d2-initial-product`; only when the task changes UI, add `references/stages/direct-cards.md#card-d3-ui-change`. For direct work, do not read the managed stage files.
 
 ## Managed Stage Routing
 
-Use this routing only when the size gate classifies work as `large`. For direct work, do not read the managed stage file. Start each stage from its card in `references/stages/stage-cards.md`; read the sections below when the card names them or a command fails.
+Use this routing only when the size gate classifies work as `large`; then start each stage from its card in `references/stages/stage-cards.md`, and read the sections below when the card names them or a command fails. For direct work, do not read the managed stage file.
 
-- Before authoring PLAN, read [Managed Route](references/stages/managed-delivery.md#managed-route), [Reference Routing](references/stages/managed-delivery.md#reference-routing), and [Plan Large Work](references/stages/managed-delivery.md#2-plan-large-work).
-- Before readiness and dispatch, read [Default Runtime And Wave Policy](references/stages/managed-delivery.md#default-runtime-and-wave-policy), [Default Mission Topology](references/stages/managed-delivery.md#default-mission-topology), and [Pass Plan Readiness](references/stages/managed-delivery.md#3-pass-plan-readiness).
-- Before managed runtime use, read [Adapter Routing](references/stages/managed-delivery.md#adapter-routing).
-- Before execution, read [Execute And Integrate](references/stages/managed-delivery.md#4-execute-and-integrate).
-- Before verification, read [Verify Local-First](references/stages/managed-delivery.md#5-verify-local-first).
-- Before closeout, read [Complete](references/stages/managed-delivery.md#6-complete).
+- When authoring PLAN, first read [Managed Route](references/stages/managed-delivery.md#managed-route), [Reference Routing](references/stages/managed-delivery.md#reference-routing), and [Plan Large Work](references/stages/managed-delivery.md#2-plan-large-work).
+- When preparing readiness and dispatch, first read [Default Runtime And Wave Policy](references/stages/managed-delivery.md#default-runtime-and-wave-policy), [Default Mission Topology](references/stages/managed-delivery.md#default-mission-topology), and [Pass Plan Readiness](references/stages/managed-delivery.md#3-pass-plan-readiness).
+- When using a managed runtime, first read [Adapter Routing](references/stages/managed-delivery.md#adapter-routing).
+- When executing, first read [Execute And Integrate](references/stages/managed-delivery.md#4-execute-and-integrate).
+- When verifying, first read [Verify Local-First](references/stages/managed-delivery.md#5-verify-local-first).
+- When closing out, first read [Complete](references/stages/managed-delivery.md#6-complete).
 
 ## Repository Context Contract
 
@@ -137,13 +122,13 @@ Discover the effective instruction chain from repository root to the selected ch
 
 ## UI Implementation Contract
 
-Read `references/ui-implementation-contract.md` before UI implementation or review.
+When the task changes UI, read `references/ui-implementation-contract.md` before UI implementation or review.
 
 - `design-system-compiler` alone owns compilation when the Design System Need Gate is `required`.
 - UI implementation runs the bound frontend author under this Harness's conformance contract. Do not claim that skill defines conformance mode or reopen Style Integration.
-- Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. Routine maintenance follows `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
+- Initial/enhancement system-conformance uses current approved PRD, UI design, HiFi and pair; their responsive sets must agree. Target-conformance uses the approved target when the gate is `not_required`. For routine maintenance, follow `references/ui-implementation-contract.md`; a missing required input is a design-input delta.
 - A page-faithful target binds implementation only after the user explicitly requests faithful conformance.
-- Final UI Acceptance runs the Final Visual Parity Loop and the page-quality pass once, on the exact head, in the one review (`references/verification-gates.md#final-ui-acceptance`). Impeccable is not the default reviewer.
+- When UI changed, Final UI Acceptance runs the Final Visual Parity Loop and the page-quality pass once, on the exact head, in the one review (`references/verification-gates.md#final-ui-acceptance`). Impeccable is not the default reviewer.
 - Bundled defaults exist only for bundled skills. A project's owner-confirmed Skill Bindings table may bind installed external visual-direction, frontend-authoring, or UI-quality tools after their full trees and side effects are checked; an unresolved or incompatible slot blocks its dependent node.
 
 ## Workflow

@@ -1,6 +1,6 @@
 # Direct Fan-Out
 
-Use this on the [Direct Route](../SKILL.md#direct-route) when small work holds two or more parts that can be written at the same time. It creates no PLAN/RUN. Work whose parts depend on each other, or that must survive this session, is large and uses the managed route.
+Use this on the [Direct Route](stages/direct-cards.md#card-d1-direct-delivery) when small work holds two or more parts that can be written at the same time. It creates no PLAN/RUN. Work whose parts depend on each other, or that must survive this session, is large and uses the managed route.
 
 ## When It Applies
 
@@ -42,6 +42,6 @@ This merge puts the part on the work branch. It is not a review PASS and not a l
 
 ## After The Last Merge
 
-Continue the [Direct Route](../SKILL.md#direct-route) on the unified head: one focused check sequence, one review point with a read-only call per lens the diff needs, one consolidated repair, one targeted re-check. A fan-out adds no review per part.
+Continue the [Direct Route](stages/direct-cards.md#card-d1-direct-delivery) on the unified head: one focused check sequence, one review point with a read-only call per lens the diff needs, one consolidated repair, one targeted re-check. A fan-out adds no review per part.
 
 Worktrees and branches stay until the owner authorizes their removal.
