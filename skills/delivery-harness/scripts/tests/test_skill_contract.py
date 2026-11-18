@@ -689,6 +689,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("lists those files there", grant)
         self.assertIn("applies the same grant, repository and policy checks", grant)
         self.assertIn("one refused target leaves nothing to run", grant)
+        self.assertIn("holding no ignored local file other than a regenerable cache", grant)
         self.assertIn("The parent runs only the printed commands of a PASS plan", grant)
         self.assertIn("never `main` or `development` under any spelling", grant)
         self.assertIn("`cleanup`: `scripts/landing_gate.py cleanup-plan` stands in for the check", grant)

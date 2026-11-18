@@ -1468,6 +1468,56 @@ class LandingGateTests(unittest.TestCase):
                 self.assertEqual(1, code, value)
                 self.assertTrue(any("owner-only paths changed" in reason for reason in value["reasons"]), value)
 
+    # pull-request review on a1d8a990
+
+    def _worktree_with_ignored(self, files: dict[str, str]) -> tuple[dict[str, object], Path, Path]:
+        fixture = self._fixture()
+        root = Path(fixture["root"])
+        fixture["candidate"] = self._commit(
+            root, {".gitignore": "*.db\n.env\n__pycache__/\nnode_modules/\nbuild/\n", "src/app.py": "x = 1\n"}, "feature"
+        )
+        git(root, "checkout", "-q", "main")
+        worktree_path = self._temp("landing-wt-") / "wt"
+        git(root, "worktree", "add", str(worktree_path), "epic-7")
+        for name, text in files.items():
+            write_file(worktree_path / name, text)
+        code, _value, grant = self._record(fixture, actions=("cleanup",))
+        self.assertEqual(0, code)
+        return fixture, grant, worktree_path
+
+    def test_cleanup_plan_refuses_a_worktree_that_holds_ignored_local_data(self) -> None:
+        # git worktree remove deletes ignored files silently; that is where a
+        # local database or an environment file lives.
+        for name in ("local.db", ".env", "build/artifact.bin", "data/cache.db"):
+            with self.subTest(name=name):
+                fixture, grant, worktree_path = self._worktree_with_ignored({name: "local data\n"})
+                self.assertEqual("", git(worktree_path, "status", "--porcelain"))
+                code, value = self._cleanup(fixture, grant, str(fixture["candidate"]))
+                self.assertEqual(1, code, value)
+                self.assertEqual([], value["commands"])
+                self.assertEqual(str(worktree_path), value["refused"][0]["target"])
+                self.assertIn("ignored local files that removal would delete", value["refused"][0]["reason"])
+                self.assertIn(name.split("/")[0], value["refused"][0]["reason"])
+                self.assertTrue((worktree_path / name).exists())
+
+    def test_cleanup_plan_allows_a_worktree_that_holds_only_regenerable_caches(self) -> None:
+        fixture, grant, worktree_path = self._worktree_with_ignored(
+            {"src/__pycache__/app.cpython-313.pyc": "cache\n", "node_modules/pkg/index.js": "cache\n"}
+        )
+        code, value = self._cleanup(fixture, grant, str(fixture["candidate"]))
+        self.assertEqual(0, code, value)
+        self.assertEqual(
+            [["git", "worktree", "remove", str(worktree_path)], ["git", "branch", "-d", "epic-7"]],
+            value["commands"],
+        )
+
+    def test_cleanup_plan_names_at_most_five_ignored_files(self) -> None:
+        files = {f"data{index}.db": "x\n" for index in range(8)}
+        fixture, grant, _worktree = self._worktree_with_ignored(files)
+        code, value = self._cleanup(fixture, grant, str(fixture["candidate"]))
+        self.assertEqual(1, code, value)
+        self.assertIn("and 3 more", value["refused"][0]["reason"])
+
 
 if __name__ == "__main__":
     unittest.main()

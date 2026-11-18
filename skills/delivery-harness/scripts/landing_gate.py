@@ -69,6 +69,11 @@ BUILTIN_OWNER_ONLY = (
     "Jenkinsfile",
 )
 POLICY_PATH = ".harness/landing-policy.json"
+# The only ignored content a cleanup may delete with a worktree: caches a tool
+# rebuilds on its next run. Every other ignored file may be local data.
+REGENERABLE_DIRECTORIES = frozenset(
+    ("node_modules", "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache")
+)
 POLICY_SCHEMA = "landing-policy/1"
 POLICY_TEXT_FIELDS = ("journey_command", "production_smoke_command", "recovery")
 POLICY_LIST_FIELDS = ("required_checks", "owner_only_paths")
@@ -594,8 +599,29 @@ def _worktree_entries(root: Path) -> list[dict[str, Any]]:
     return entries
 
 
-def _worktree_clean(path: Path) -> bool:
-    return _git(path, "status", "--porcelain").strip() == ""
+def _worktree_residue(path: Path) -> str | None:
+    """Why removing this worktree would lose something, or None when it would not.
+
+    `git worktree remove` refuses modified and untracked files but deletes
+    ignored ones without a word, and ignored files are where local data lives:
+    environment files, local databases, credentials. So ignored files count,
+    except under a directory a tool rebuilds.
+    """
+
+    entries = [
+        entry for entry in _git(path, "status", "--porcelain", "--ignored", "--untracked-files=all", "-z").split("\0")
+        if entry
+    ]
+    if any(not entry.startswith("!! ") for entry in entries):
+        return "the worktree has uncommitted or untracked changes; nothing is removed"
+    kept = sorted(
+        ignored for ignored in (entry[3:].replace("\\", "/") for entry in entries)
+        if not REGENERABLE_DIRECTORIES.intersection(ignored.rstrip("/").split("/"))
+    )
+    if kept:
+        shown = ", ".join(kept[:5]) + (f" and {len(kept) - 5} more" if len(kept) > 5 else "")
+        return f"the worktree holds ignored local files that removal would delete: {shown}; nothing is removed"
+    return None
 
 
 def _cleanup_plan(args: argparse.Namespace) -> dict[str, Any]:
@@ -636,10 +662,12 @@ def _cleanup_plan(args: argparse.Namespace) -> dict[str, Any]:
     for entry in same_branch:
         if entry is entries[0]:
             refused.append({"target": branch_ref, "reason": "switch the primary checkout to another branch first"})
-        elif _worktree_clean(entry["path"]):
-            commands.append(["git", "worktree", "remove", str(entry["path"])])
         else:
-            refused.append({"target": str(entry["path"]), "reason": "the worktree is dirty; nothing is removed"})
+            residue = _worktree_residue(entry["path"])
+            if residue is None:
+                commands.append(["git", "worktree", "remove", str(entry["path"])])
+            else:
+                refused.append({"target": str(entry["path"]), "reason": residue})
     if merged:
         commands.append(["git", "branch", "-d", branch_name])
     else:
