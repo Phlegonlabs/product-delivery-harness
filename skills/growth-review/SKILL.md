@@ -11,7 +11,7 @@ Required checks and dependencies stay within the requested outcome; a new top-le
 
 ## Installed Commands
 
-Resolve `<growth-review-skill-root>` and logical paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states. This skill ships no checker; its output is an inline report.
+Resolve `<growth-review-skill-root>` and logical paths as [Installed Commands](../delivery-harness/references/installed-commands.md) states. Return the review inline by default. Demand research also writes the keyword map.
 
 ## Purpose
 
