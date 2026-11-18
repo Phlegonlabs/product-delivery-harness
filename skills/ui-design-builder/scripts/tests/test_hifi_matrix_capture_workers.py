@@ -183,7 +183,9 @@ class InterruptDuringCreationTests(unittest.TestCase):
     def driver(self):
         scratch = tempfile.TemporaryDirectory()
         self.addCleanup(scratch.cleanup)
-        return m.NodeDriver("node", "playwright", {}, scratch.name)
+        entry = Path(scratch.name) / "index.html"
+        entry.write_text('<script id="ui-hifi-manifest" type="application/json">{"surfaces":[]}</script>', encoding="utf-8")
+        return m.NodeDriver("node", "playwright", {"index.html": entry}, scratch.name)
 
     def interrupt(self, driver, begin, processes):
         entered, release = threading.Event(), threading.Event()
@@ -403,7 +405,7 @@ class FakeWorkersTests(unittest.TestCase):
         self.assertIn("browser could not start", summary["error"])
         self.assertTrue(all(d.stops >= 1 for d in fleet.drivers))     # the pool stops each driver twice, to catch a late start
 
-    def test_a_driver_out_of_restarts_blocks_only_its_own_share(self):
+    def test_a_page_out_of_restarts_leaves_other_pages_in_the_same_share_running(self):
         def configure(driver):
             for state in ("ready", "loading", "empty"):
                 for target in ("390", "1200"):
@@ -412,15 +414,14 @@ class FakeWorkersTests(unittest.TestCase):
         fleet = Fleet(self, configure)
         code, summary, out = fleet.go("--workers", "2")
         output, sidecar = load(out)
-        # The first share holds UI-001's cases and interactions and the first three UI-002 cases. It runs out of
-        # restarts on its fourth timeout; the second share (the rest of UI-002 and the reviewer pass) is untouched.
-        self.assertEqual(["FAIL"] * 4 + ["BLOCKED"] * 5 + ["PASS"] * 3, [r["result"] for r in output["results"]])
+        # The first share also owns UI-002 cases. Only UI-001 spends its page budget.
+        self.assertEqual(["FAIL"] * 4 + ["BLOCKED"] * 2 + ["PASS"] * 6, [r["result"] for r in output["results"]])
         self.assertEqual((1, m.MAX_RESTARTS + 1), (code, summary["restarts"]))
-        blocked = next(r for r in sidecar["cases"] if (r["surface"], r["state"], r["target"]) == ("UI-002", "ready", "390"))
+        blocked = next(r for r in sidecar["cases"] if (r["surface"], r["state"], r["target"]) == ("UI-001", "empty", "390"))
         self.assertIn("restart limit", blocked["reasons"][0])
         self.assertEqual({"BLOCKED"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "index.html"})
         self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "details.html"})
-        self.assertEqual({"PASS"}, {r["result"] for r in sidecar["reviewer"]})
+        self.assertEqual({"PASS"}, {r["result"] for r in sidecar["reviewer"] if r["page"] == "details.html"})
 
     def test_workers_outside_one_to_the_maximum_are_refused_before_any_browser_work(self):
         self.assertEqual(4, m.MAX_WORKERS)

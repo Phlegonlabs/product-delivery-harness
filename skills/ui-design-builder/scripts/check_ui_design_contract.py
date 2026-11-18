@@ -33,7 +33,7 @@ from review_evidence import (
     score_findings,
 )
 from reviewer_shell import product_css_findings
-from hifi_reviewer import ReviewerParser, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
+from hifi_reviewer import ReviewerParser, _is_na_state, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
 PRODUCT_BUILDER_SCRIPTS = (
     Path(__file__).resolve().parents[2] / "product-definition-builder" / "scripts"
@@ -1524,7 +1524,11 @@ def _validate_hifi_bundle(
         if not controls or control not in source["navigation"] + source["controls"]:
             _add(problems, f"HiFi interaction {identifier} is not bound to a product control")
         if action["kind"] == "navigate":
-            if any(item.get("tag") != "a" or item.get("href") != destination["page"] for item in controls):
+            hrefs = {_hifi_state_href(destination["page"], action["destination"])}
+            default = next((state for state in destination["states"] if not _is_na_state(state)), None)
+            if action["destination"]["state"] == default:
+                hrefs.add(destination["page"])
+            if any(item.get("tag") != "a" or item.get("href") not in hrefs for item in controls):
                 _add(problems, f"HiFi interaction {identifier} link must reach its declared page")
         elif action["kind"] == "state":
             if source["page"] != destination["page"]:
@@ -2453,15 +2457,24 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
             observations_valid = False
             continue
         observed = row.get("observed", {})
-        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "openers"}:
+        if not isinstance(observed, dict) or set(observed) - {"change", "instances", "instanceIndex", "openers", "focusReturn", "focusEntry"}:
             observations_valid = False
         else:
             if "instances" in observed and (type(observed["instances"]) is not int or observed["instances"] < 1):
                 observations_valid = False
+            if "instanceIndex" in observed:
+                index, count = observed["instanceIndex"], observed.get("instances")
+                if (type(index) is not int or type(count) is not int or not 0 <= index < count):
+                    observations_valid = False
             if "openers" in observed:
                 openers = observed["openers"]
                 if (not isinstance(openers, list) or any(not isinstance(value, str) or not value.strip() for value in openers)
                     or len(openers) != len(set(openers))):
+                    observations_valid = False
+            if "focusReturn" in observed and "focusEntry" in observed:
+                observations_valid = False
+            for key in ("focusReturn", "focusEntry"):
+                if key in observed and (not isinstance(observed[key], str) or not observed[key].strip()):
                     observations_valid = False
             change = observed.get("change")
             if "change" in observed or row.get("id") in feedback_ids:

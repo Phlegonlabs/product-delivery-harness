@@ -887,16 +887,16 @@ class AxisTests(unittest.TestCase):
         # the next axis and page still start from the base state
         self.assertEqual(["dark", "none", "forced-colors", "none"] * 2, [f["name"] for op, f in driver.calls if op == "axis"])
 
-    def test_an_axis_that_cannot_be_reset_restarts_the_browser_and_still_reports_every_row(self):
+    def test_an_axis_that_cannot_be_reset_keeps_each_pages_own_budget(self):
         driver = FakeDriver()
         driver.axis_error["none"] = m.DriverError("page.emulateMedia: target closed")
         code, summary, _, axes = self.axis_rows(driver, "--axes", "dark,reduced-motion,zoom-200")
-        self.assertEqual(1, code)
+        self.assertEqual(0, code)
         self.assertEqual(2 * 3 * 4, len(axes))          # pages x axes x sampled cases: nothing is dropped
         self.assertGreaterEqual(summary["restarts"], 1)
         blocked = [r for r in axes if r["result"] == "BLOCKED"]
-        self.assertTrue(blocked)
-        self.assertTrue(all("restart limit" in r["reasons"][0] for r in blocked))
+        self.assertEqual([], blocked)
+        self.assertEqual(6, summary["restarts"])
 
     def test_axes_on_a_page_that_did_not_open_are_blocked_not_omitted(self):
         driver = FakeDriver()
@@ -909,15 +909,17 @@ class AxisTests(unittest.TestCase):
         self.assertEqual({"BLOCKED"}, {r["result"] for r in ui2})
         self.assertIn("page did not open", ui2[0]["reasons"][0])
 
-    def test_axes_after_an_aborted_run_are_blocked_not_omitted(self):
+    def test_axes_after_a_page_exhausts_its_budget_keep_other_pages_running(self):
         driver = FakeDriver()
         for state in ("ready", "loading", "empty"):
             for target in ("390", "1200"):
                 driver.overrides[("UI-001", state, target)] = {"raise": m.DriverTimeout("no reply")}
         code, summary, _, axes = self.axis_rows(driver, "--axes", "dark")
         self.assertEqual(1, code)
-        self.assertEqual((4, 4), (summary["axisCases"], summary["axisFail"]))
-        self.assertTrue(all(r["result"] == "BLOCKED" and "restart limit" in r["reasons"][0] for r in axes))
+        self.assertEqual((6, 2), (summary["axisCases"], summary["axisFail"]))
+        self.assertTrue(all(r["result"] == "BLOCKED" and "restart limit" in r["reasons"][0]
+                            for r in axes if r["surface"] == "UI-001"))
+        self.assertEqual({"PASS"}, {r["result"] for r in axes if r["surface"] == "UI-002"})
 
     def test_the_five_axes_are_supported_and_others_refused(self):
         self.assertEqual(("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320"), m.AXES)
@@ -1372,7 +1374,7 @@ class FailureTests(unittest.TestCase):
         reopened = [f["page"] for op, f in driver.calls if op == "open"]
         self.assertEqual(["index.html", "index.html", "details.html"], reopened[:3])   # the matrix and its recover
 
-    def test_too_many_restarts_block_the_remaining_cases(self):
+    def test_too_many_restarts_block_only_the_same_pages_remaining_cases(self):
         driver = FakeDriver()
         for state in ("ready", "loading", "empty"):
             for target in ("390", "1200"):
@@ -1380,16 +1382,16 @@ class FailureTests(unittest.TestCase):
         code, _, output, cases = self.results(driver)
         results = [r["result"] for r in output["results"]]
         self.assertEqual(1, code)
-        self.assertEqual(["FAIL"] * 4 + ["BLOCKED"] * 8, results)
-        self.assertIn("restart limit", cases[("UI-002", "ready", "390")]["reasons"][0])
+        self.assertEqual(["FAIL"] * 4 + ["BLOCKED"] * 2 + ["PASS"] * 6, results)
+        self.assertIn("restart limit", cases[("UI-001", "empty", "390")]["reasons"][0])
 
-    def test_cases_after_an_aborted_run_do_not_reopen_pages(self):
+    def test_cases_after_a_page_exhausts_its_budget_open_the_next_page(self):
         driver = FakeDriver()
         for state in ("ready", "loading", "empty"):
             for target in ("390", "1200"):
                 driver.overrides[("UI-001", state, target)] = {"raise": m.DriverTimeout("no reply")}
         self.results(driver)
-        self.assertNotIn("details.html", [f["page"] for op, f in driver.calls if op == "open"])
+        self.assertIn("details.html", [f["page"] for op, f in driver.calls if op == "open"])
 
     def test_a_driver_error_fails_only_that_case(self):
         driver = FakeDriver()

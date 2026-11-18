@@ -42,6 +42,7 @@ from pathlib import Path
 from check_ui_design_contract import HIFI_SURFACE_RECEIPT_METHOD, _offline_transcript_findings, parse_ui_contract_view, _hifi_state_href
 from hifi_reviewer import ReviewerParser, _is_na_state, _target_widths, reviewer_contract, reviewer_evidence_findings
 from review_evidence import HIFI_MANIFEST_RE, build_receipt, safe_path
+from reviewer_shell import runtime_source
 from ui_design_v3 import intermediate_width_findings
 
 SIDECAR_SCHEMA = "hifi-matrix-capture/1"
@@ -117,6 +118,7 @@ let browser, context, page, pages = {};
 let currentPage = null;
 let baseColorScheme = 'light';   // the run's context theme; an axis reset returns to it, not to plain light
 let opening = null;   // the page name the driver is loading itself: only that first document request is not a navigation
+let surfaceDefaults = {}, observingNavigation = false, observingFocus = false;
 const drain = () => { const out = events; events = emptyEvents(); return out; };
 const quote = value => '"' + String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
 const level = type => (type === 'error' || type === 'assert') ? 'error' : (type === 'warning' ? 'warning' : 'info');
@@ -444,6 +446,7 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
 
 async function start(request) {
   for (const [name, file] of Object.entries(request.files)) pages[name] = fs.readFileSync(file);
+  surfaceDefaults = request.surfaceDefaults;
   baseColorScheme = request.colorScheme === 'dark' ? 'dark' : 'light';
   browser = await chromium.launch({ headless: true });
   context = await browser.newContext({
@@ -465,24 +468,75 @@ async function start(request) {
     if (req.resourceType() === 'document') events.navigation.push(row); else events.network.push(row);
     return route.abort('blockedbyclient');
   });
-  await context.addInitScript(() => {
+  await context.addInitScript(reviewerFocusSites => {
     const record = form => window.__pdhForm && window.__pdhForm({ action: String(form.action), method: String(form.method) });
     addEventListener('submit', event => { event.preventDefault(); record(event.target); }, true);
     HTMLFormElement.prototype.submit = function () { record(this); };
+    const shown = panel => panel.isConnected && !panel.hidden && Boolean(panel.getClientRects().length)
+      && getComputedStyle(panel).visibility === 'visible';
+    let focusStep = null;
+    window.__pdhFocusTrace = {
+      begin(target, [step, destination, activate]) {
+        const root = target.closest('[data-ui-surface]');
+        const layers = new Map();
+        if (activate) {
+          const unique = panel => panel.id && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1;
+          for (const opener of root.querySelectorAll('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')) {
+            const id = opener.getAttribute('aria-controls');
+            const panel = id && document.getElementById(id);
+            const peers = Array.from(root.querySelectorAll('button[aria-controls]'))
+              .filter(el => el.getAttribute('aria-controls') === id);
+            if (!panel || !unique(panel) || panel.closest('[data-ui-surface]') !== root
+                || panel.contains(opener) || peers.length !== 1) continue;
+            const expanded = opener.getAttribute(opener.hasAttribute('data-product-tab') ? 'aria-selected' : 'aria-expanded');
+            layers.set(panel, { id, panel, opener, visible: shown(panel), open: expanded === 'true' && shown(panel),
+              entry: opener === target });
+          }
+          for (const panel of document.querySelectorAll('dialog,[role="dialog"],[role="alertdialog"]')) {
+            if (!unique(panel) || panel.closest('[data-ui-surface]')?.dataset.uiSurface !== destination) continue;
+            if (layers.has(panel)) layers.get(panel).entry = true;
+            else layers.set(panel, { id: panel.id, panel, visible: shown(panel), open: false, entry: true });
+          }
+        }
+        const returnLayers = Array.from(layers.values()).filter(layer => layer.open && layer.panel.contains(target));
+        // Snapshot the containing panels before activation, from innermost outward.
+        returnLayers.sort((a, b) => a.panel.contains(b.panel) ? 1 : b.panel.contains(a.panel) ? -1 : 0);
+        focusStep = { step, target, layers: Array.from(layers.values()), returnLayers };
+      },
+      outcome() {
+        const layers = focusStep?.layers || [];
+        return {
+          entered: layers.filter(layer => layer.entry && !layer.visible && shown(layer.panel)
+            && layer.panel.contains(document.activeElement)).map(layer => layer.id),
+          returned: (focusStep?.returnLayers || []).filter(layer => !shown(layer.panel)
+            && layer.opener === document.activeElement).map(layer => layer.id),
+        };
+      },
+    };
     addEventListener('focusin', event => {
       if (window.__pdhNoFocusLog) return;     // a measured-accessibility pass moves focus on purpose
       const el = event.target;
+      if (!el?.closest('[data-ui-surface]')) return;
       const id = el && el.dataset && (el.dataset.navigationId || el.dataset.controlId);
       const opener = el && el.matches && el.matches('button[data-product-menu],button[data-product-tab],button[data-product-disclosure]')
         ? el.getAttribute('aria-controls') : null;
-      const supporting = el && el.closest && el.closest('[data-ui-surface]')
-        ? el.getAttribute('data-control-for') : null;
-      if (id || opener || supporting) window.__pdhFocus({ control: id || null, opener, supporting });
+      const layers = focusStep?.layers || [];
+      // These facts must be captured synchronously, before a focus handler continues.
+      const returned = (focusStep?.returnLayers || []).find(layer => layer.opener === el && !shown(layer.panel));
+      const entered = layers.find(layer => layer.entry && !layer.visible && shown(layer.panel) && layer.panel.contains(el));
+      // Only the direct focus call in an exact supported runtime is reviewer setup.
+      const caller = String(new Error().stack).split('\n').map(line =>
+        line.match(/(https:\/\/hifi\.invalid\/pkg\/[^()\s]+):(\d+):(\d+)/)).find(Boolean);
+      const site = caller && reviewerFocusSites[decodeURIComponent(new URL(caller[1]).pathname.slice(5))];
+      const reviewer = Boolean(site && Number(caller[2]) === site.line && Number(caller[3]) === site.column);
+      window.__pdhFocus({ control: id || null, opener, supporting: el.getAttribute('data-control-for'),
+        step: focusStep?.step, target: focusStep?.target === el,
+        returned: returned?.id || null, entered: entered?.id || null, reviewer });
     }, true);
-  });
+  }, request.reviewerFocusSites || {});
   page = await context.newPage();
   await page.exposeFunction('__pdhForm', info => { events.forms.push(info); });
-  await page.exposeFunction('__pdhFocus', info => { events.focus.push(info); });
+  await page.exposeFunction('__pdhFocus', info => { if (observingFocus) events.focus.push(info); });
   context.on('page', popup => { if (popup !== page) { events.popups.push({ url: popup.url() }); popup.close().catch(() => {}); } });
   page.on('dialog', dialog => {
     events.console.push({ source: 'dialog', level: 'error', message: 'dialog ' + dialog.type() + ': ' + dialog.message() });
@@ -491,6 +545,10 @@ async function start(request) {
   const cdp = await context.newCDPSession(page);
   await cdp.send('Log.enable');
   await cdp.send('Runtime.enable');
+  await cdp.send('Page.enable');
+  cdp.on('Page.navigatedWithinDocument', event => {
+    if (observingNavigation) events.navigation.push({ url: event.url, method: 'GET', resourceType: 'document', allowlisted: true });
+  });
   cdp.on('Log.entryAdded', ({ entry }) => events.console.push({ source: entry.source, level: entry.level, message: entry.text }));
   cdp.on('Runtime.consoleAPICalled', p => events.console.push({
     source: 'console-api', level: level(p.type),
@@ -504,7 +562,10 @@ async function start(request) {
 }
 
 async function openPage(name, timeoutMs) {
+  observingNavigation = false;
+  observingFocus = false;
   page.setDefaultTimeout(timeoutMs);
+  page.setDefaultNavigationTimeout(timeoutMs);
   opening = name;
   let response;
   try { response = await page.goto(BASE + encodeURI(name), { waitUntil: 'load' }); } finally { opening = null; }
@@ -525,13 +586,24 @@ async function open(request) {
 
 // One interaction attempt: reload the page, reset target/source state through the
 // reviewer shell, then activate the declared product control by click or keyboard. The
-// destination surface/state must apply; the control, and only the control, must
-// take product focus during the attempt.
+// destination surface/state must apply. Each activation focuses its control once,
+// then may enter its new layer; the operation may instead return after closure.
 const FEEDBACK_SNAPSHOT = surfaceId => {
   const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
   return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
     .map(el => [el.value, el.checked, el.selectedIndex])]) : null;
 };
+
+async function assessFocus(step, from, allowReturn) {
+  const outcome = await page.evaluate(() => window.__pdhFocusTrace.outcome()).catch(() => ({ entered: [], returned: [] }));
+  const focus = events.focus.slice(from).filter(event => !event.reviewer);
+  const last = focus[1];
+  const entered = last?.entered && outcome.entered.includes(last.entered) ? last.entered : null;
+  const returned = allowReturn && last?.returned && outcome.returned.includes(last.returned) ? last.returned : null;
+  return { correct: (focus.length === 1 || (focus.length === 2 && Boolean(entered || returned)))
+      && focus.every(event => event.step === step) && focus[0]?.target === true,
+    entered, returned, next: events.focus.length };
+}
 
 async function interact(request) {
   const problems = [];
@@ -541,7 +613,8 @@ async function interact(request) {
   // Every attempt starts from a fresh load of its source page. Product scripts keep state and can move the
   // browser on their own, so an attempt must not depend on the ones before it: the result is the same wherever
   // a parallel run starts it.
-  try { await openPage(request.page, timeout); } catch (_) { problems.push('page did not open: ' + request.page); }
+  try { await openPage(request.page, timeout); }
+  catch (_) { return { problems: ['page did not open: ' + request.page], pageOpenFailed: true, visible: false, focusCorrect: false }; }
   if (!problems.length) {
     const target = page.locator('[data-hifi-target-control=' + quote(request.target) + ']');
     if (await target.count() !== 1) problems.push('target control missing: ' + request.target);
@@ -570,6 +643,8 @@ async function interact(request) {
   }
   let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
   if (!problems.length) {
+    observingFocus = true;
+    let focusCursor = events.focus.length, openerFocusCorrect = true;
     const surface = '[data-ui-surface=' + quote(request.surface) + ']';
     const attached = page.locator(surface + ' [data-navigation-id=' + quote(request.control) + '],'
       + surface + ' [data-control-id=' + quote(request.control) + ']');
@@ -615,21 +690,37 @@ async function interact(request) {
         if (await panel.isVisible()) continue;
         const opener = buttons.nth(step.index);
         if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
+        const focusStep = 'opener:' + opened.length;
+        await opener.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), [focusStep, request.surface, true]);
         await opener.click({ timeout });
         opened.push(step.panel);
         try { await panel.waitFor({ state: 'visible', timeout }); }
         catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
         if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
             || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+        const focus = await assessFocus(focusStep, focusCursor, false);
+        openerFocusCorrect = openerFocusCorrect && focus.correct;
+        focusCursor = focus.next;
       }
     }
     const instances = await product.count();
     observed = { instances, ...(opened.length ? { openers: opened } : {}) };
     if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
     else {
-      const handle = product.first();
-      if (request.kind === 'navigate' && !await attached.evaluateAll((list, href) =>
-          list.every(el => el.tagName === 'A' && el.getAttribute('href') === href), request.destinationPage))
+      const unselected = instances > 1 ? await product.evaluateAll(list => list.findIndex(el => {
+        const selected = ['aria-pressed', 'aria-selected', 'aria-checked'].some(name => el.getAttribute(name) === 'true');
+        const current = el.getAttribute('aria-current');
+        return !selected && (!current || current === 'false');
+      })) : 0;
+      const instanceIndex = Math.max(0, unselected);
+      observed.instanceIndex = instanceIndex;
+      const handle = product.nth(instanceIndex);
+      const stateHref = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
+        + '/' + encodeURIComponent(request.destination.state);
+      const navigateHrefs = [stateHref];
+      if (request.destination.state === surfaceDefaults[request.destination.surface]) navigateHrefs.push(request.destinationPage);
+      if (request.kind === 'navigate' && !await attached.evaluateAll((list, hrefs) =>
+          list.every(el => el.tagName === 'A' && hrefs.includes(el.getAttribute('href'))), navigateHrefs))
         return { problems: ['navigate controls must link to the declared page'], visible: false, focusCorrect: false, observed };
       if (request.kind === 'state' && request.page !== request.destinationPage) {
         const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
@@ -638,8 +729,17 @@ async function interact(request) {
           return { problems: ['cross-page state controls must link to the declared page and state'], visible: false, focusCorrect: false };
       }
       visible = await handle.isVisible();
+      const field = await handle.evaluate(el => {
+        if (el.tagName === 'SELECT') return 'select';
+        if (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT'
+            && ['text', 'search', 'email', 'url', 'tel', 'password'].includes(el.type))) return 'text';
+        return null;
+      });
+      if (field && (!await handle.isEnabled() || await handle.getAttribute('readonly') !== null))
+        return { problems: ['data-entry control is disabled or read-only'], visible, focusCorrect: false, observed };
       let pressedFocused = null;
       let before = null;
+      await handle.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), ['operation', request.destination.surface, false]);
       if (request.trigger === 'keyboard' || request.kind === 'feedback') {
         await handle.focus({ timeout });
         pressedFocused = await handle.evaluate(el => el === document.activeElement);
@@ -648,7 +748,34 @@ async function interact(request) {
         await page.evaluate(SETTLE, { cap: Math.min(timeout, 2000), margin: 50 });
         before = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
       }
-      if (request.trigger === 'keyboard') {
+      await handle.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), ['operation', request.destination.surface, true]);
+      observingNavigation = request.kind === 'navigate';
+      if (field) {
+        if (request.trigger !== 'keyboard') await handle.click({ timeout });
+        const arrivedAfterClick = request.trigger !== 'keyboard'
+          && (request.surface !== request.destination.surface || request.state !== request.destination.state)
+          && await page.evaluate(destination => {
+            const surface = Array.from(document.querySelectorAll('[data-ui-surface]'))
+              .find(el => el.dataset.uiSurface === destination.surface);
+            return Boolean(surface) && !surface.hidden && surface.dataset.hifiState === destination.state;
+          }, request.destination);
+        if (field === 'text' && !arrivedAfterClick) {
+          const probe = await handle.inputValue() === 'HiFi probe' ? 'HiFi entry' : 'HiFi probe';
+          await handle.press('ControlOrMeta+A', { timeout });
+          await handle.pressSequentially(probe, { timeout });
+        } else if (field === 'select' && !arrivedAfterClick) {
+          const option = await handle.evaluate(el => {
+            const enabled = Array.from(el.options).map((o, index) => ({ o, index }))
+              .filter(({ o }) => !o.disabled && !o.hidden && !o.closest('optgroup[disabled]'));
+            const next = enabled.find(({ index }) => index > el.selectedIndex)
+              || enabled.slice().reverse().find(({ index }) => index < el.selectedIndex);
+            return next ? { index: next.index, direction: next.index > el.selectedIndex ? 'ArrowDown' : 'ArrowUp' } : null;
+          });
+          if (!option) problems.push('select control has no different enabled option');
+          else if (request.trigger === 'keyboard') await handle.press(option.direction, { timeout });
+          else await handle.selectOption({ index: option.index }, { timeout });
+        }
+      } else if (request.trigger === 'keyboard') {
         const tag = await handle.evaluate(el => el.tagName.toLowerCase());
         await page.keyboard.press(tag === 'a' || tag === 'area' ? 'Enter' : ' ');
       } else {
@@ -675,17 +802,20 @@ async function interact(request) {
       }
       const url = page.url();
       arrivedTo = url.startsWith(BASE) ? decodeURIComponent(new URL(url).pathname.slice('/pkg/'.length)) : null;
-      if (request.kind === 'state' && request.page !== request.destinationPage) {
+      if (request.kind === 'navigate') {
+        if (!navigateHrefs.some(href => url === BASE + href)) problems.push('browser did not reach the declared navigation URL');
+      } else if (request.kind === 'state' && request.page !== request.destinationPage) {
         const href = request.destinationPage + '#hifi-state=' + encodeURIComponent(request.destination.surface)
           + '/' + encodeURIComponent(request.destination.state);
         if (url !== BASE + href) problems.push('browser did not reach the declared state URL');
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
-      // Declared opener clicks may precede the one operation-control focus event.
-      focusCorrect = events.focus.length === opened.length + 1
-        && opened.every((panel, index) => events.focus[index].opener === panel)
-        && events.focus[opened.length].control === request.control
+      observingNavigation = false;
+      const focus = await assessFocus('operation', focusCursor, true);
+      focusCorrect = openerFocusCorrect && focus.correct
         && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
+      if (focusCorrect && focus.returned) observed.focusReturn = focus.returned;
+      if (focusCorrect && focus.entered) observed.focusEntry = focus.entered;
     }
   }
   return { problems, visible, focusCorrect, arrivedTo, observed };
@@ -995,8 +1125,10 @@ lines.on('line', line => {
     try {
       reply = { id: message.id, ok: true, result: await handlers[message.op](message) };
     } catch (error) {
-      reply = { id: message.id, ok: false, error: String((error && error.message) || error).split('\n')[0] };
+      reply = { id: message.id, ok: false, timedOut: error && error.name === 'TimeoutError',
+        error: String((error && error.message) || error).split('\n')[0] };
     }
+    observingFocus = false;
     reply.events = drain();
     process.stdout.write(JSON.stringify(reply) + '\n');
     if (message.op === 'close') process.exit(0);
@@ -1004,6 +1136,28 @@ lines.on('line', line => {
 });
 lines.on('close', () => { chain.then(() => (browser ? browser.close().catch(() => {}) : null)).then(() => process.exit(0)); });
 """
+
+
+def reviewer_focus_sites(files):
+    """Recognize only the heading-focus call in current or accepted historical bytes."""
+    script_re = re.compile(r"<script\b[^>]*>(?P<body>[\s\S]*?)</script>", re.IGNORECASE)
+    canonical = script_re.search(runtime_source()).group("body")
+    trusted = {hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
+               "854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597",
+               "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146"}
+    sites = {}
+    for name, path in files.items():
+        html = path.read_text(encoding="utf-8")
+        for script in script_re.finditer(html):
+            body = script.group("body")
+            if hashlib.sha256(body.encode("utf-8")).hexdigest() not in trusted:
+                continue
+            call = re.search(r"(?m)^(?P<indent>[ \t]*)heading\.focus\(\);[ \t]*$", body)
+            if call:
+                offset = script.start("body") + call.start() + len(call.group("indent")) + len("heading.")
+                sites[name] = {"line": html.count("\n", 0, offset) + 1,
+                               "column": offset - html.rfind("\n", 0, offset)}
+    return sites
 
 
 class NodeDriver:
@@ -1033,6 +1187,10 @@ class NodeDriver:
         threading.Thread(target=self._pump, args=(proc.stdout, self._lines), daemon=True).start()
         threading.Thread(target=self._pump, args=(proc.stderr, None), daemon=True).start()
         reply = self.call("start", timeout=90, files={n: str(p) for n, p in self.files.items()},
+                          reviewerFocusSites=reviewer_focus_sites(self.files),
+                          surfaceDefaults={row["id"]: next((s for s in row["states"] if not _is_na_state(s)), None)
+                                           for row in json.loads(HIFI_MANIFEST_RE.search(
+                                               self.files["index.html"].read_text(encoding="utf-8")).group("data"))["surfaces"]},
                           viewport={"width": 1920, "height": 1080}, colorScheme=self.color_scheme)
         self.environment = reply["result"]["environment"]
 
@@ -1072,7 +1230,8 @@ class NodeDriver:
             if reply.get("id") == self._seq:
                 break
         if not reply["ok"]:
-            raise DriverError(reply["error"], reply.get("events"))
+            error_type = DriverTimeout if reply.get("timedOut") else DriverError
+            raise error_type(reply["error"], reply.get("events"))
         return reply
 
     def _tail(self):
@@ -1518,6 +1677,7 @@ class Runner:
         self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
+        self.page_restarts = {}
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
         self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
         self.cancel = None      # a threading.Event a parallel run sets to stop every worker between items
@@ -1531,17 +1691,38 @@ class Runner:
 
     def recover(self, page):
         self.restarts += 1
-        if self.restarts > MAX_RESTARTS:
-            self.aborted = True
-            return
+        self.page_restarts[page] = self.page_restarts.get(page, 0) + 1
         try:
             self.driver.restart()
+        except DriverError:
+            self.aborted = True
+            return
+        # Discard the hung browser even when this page has spent its budget.
+        # Leave the fresh browser available for the next page.
+        if self.page_blocked(page) or page in self.unopened:
+            return
+        try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
             self.absorb(reply["events"], page, keep=not self.active_axis)
             if self.active_axis:
                 self.driver.call("axis", name=self.active_axis)
-        except DriverError:
-            self.aborted = True
+        except DriverError as error:
+            self.unopened.add(page)
+            self.page_reasons[page] = [f"recovery page did not open: {error}"]
+            self.absorb(error.events, page, keep=not self.active_axis)
+            if isinstance(error, DriverTimeout):
+                self.restarts += 1
+                try:
+                    self.driver.restart()
+                except DriverError:
+                    self.aborted = True
+
+    def page_blocked(self, page):
+        if self.aborted:
+            return "browser driver could not restart"
+        if self.page_restarts.get(page, 0) > MAX_RESTARTS:
+            return f"page browser driver restart limit ({MAX_RESTARTS}) reached: {page}"
+        return None
 
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
@@ -1551,7 +1732,7 @@ class Runner:
             self.run_reviewer()
 
     def open_page(self, page):
-        if self.aborted or page in self.unopened:       # a page that failed to open stays failed, in every later phase too
+        if self.page_blocked(page) or page in self.unopened:       # a failed page stays failed in later phases
             return
         try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
@@ -1598,7 +1779,7 @@ class Runner:
 
     def interaction_blocked(self, page):
         return (INTERACTIONS_UNOPENED if page in self.unopened
-                else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+                else self.page_blocked(page))
 
     def run_interactions(self, page):
         """Click and keyboard-activate every selected manifest interaction at every source target."""
@@ -1657,6 +1838,7 @@ class Runner:
         worker.a11y_cases, worker.a11y_fonts = {}, dict(self.a11y_fonts)
         worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
         worker.restarts, worker.aborted, worker.active_axis = 0, False, None
+        worker.page_restarts = dict(self.page_restarts)
         return worker
 
     def adopt_unopened(self, failed):
@@ -1703,6 +1885,8 @@ class Runner:
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
         self.unopened |= worker.unopened
+        for page, count in worker.page_restarts.items():
+            self.page_restarts[page] = max(self.page_restarts.get(page, 0), count)
         for page, reasons in worker.page_reasons.items():
             if page in worker.unopened or page not in self.page_reasons:
                 self.page_reasons[page] = reasons
@@ -1723,7 +1907,7 @@ class Runner:
                   "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        blocked = blocked or self.page_blocked(action["page"])
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1751,14 +1935,17 @@ class Runner:
             events, result = error.events, {}
         else:
             events, result = reply["events"], reply["result"]
+            if result.get("pageOpenFailed"):
+                self.unopened.add(action["page"])
+                self.page_reasons[action["page"]] = list(result["problems"])
+                self.recover(action["page"])
         # A navigate attempt's one arrival row becomes the documented navigation event; every other
         # navigation row stays in the transcript and fails the attempt.
         stray = list(events.get("navigation", []))
         crosses_page = action["kind"] == "state" and action["page"] != action["destinationPage"]
         if action["kind"] == "navigate" or crosses_page:
             urls = {DRIVER_BASE + action["destinationPage"]}
-            if crosses_page:
-                urls.add(DRIVER_BASE + _hifi_state_href(action["destinationPage"], action["destination"]))
+            urls.add(DRIVER_BASE + _hifi_state_href(action["destinationPage"], action["destination"]))
             arrived = [row for row in stray if row.get("url") in urls]
             if len(arrived) == 1:
                 record["arrived"] = action["destinationPage"]
@@ -1785,7 +1972,7 @@ class Runner:
 
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
-        blocked = axis_unopened(axis) if page in self.unopened else None
+        blocked = axis_unopened(axis) if page in self.unopened else self.page_blocked(page)
         if blocked is None and not self.aborted:
             try:
                 self.driver.call("axis", name=axis)
@@ -1795,7 +1982,7 @@ class Runner:
         for case in sampled:
             self.axis_records.append(self.observe(replace(case, axis=axis), blocked=blocked))
         self.active_axis = None
-        if page in self.unopened or self.aborted:
+        if page in self.unopened or self.page_blocked(page):
             return
         try:
             self.driver.call("axis", name="none")
@@ -1810,7 +1997,7 @@ class Runner:
                   "capture": None, "carriedFrom": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = blocked or (f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+        blocked = blocked or self.page_blocked(case.page)
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1982,7 +2169,7 @@ class Runner:
         began = time.perf_counter()
         reasons = record["reasons"]
         blocked = (REVIEWER_UNOPENED if page in self.unopened
-                   else f"browser driver restart limit ({MAX_RESTARTS}) reached" if self.aborted else None)
+                   else self.page_blocked(page))
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -2026,7 +2213,7 @@ def partition(items, workers):
 
 
 class DriverPool:
-    """Drivers made on demand, one thread each per phase. A driver keeps its restart count and abort flag across phases."""
+    """Drivers made on demand; page restart budgets survive phase changes."""
 
     def __init__(self, make_driver, package, root, scratch, color_scheme):
         self.make_driver, self.package, self.root, self.scratch = make_driver, package, root, Path(scratch)
@@ -2040,12 +2227,12 @@ class DriverPool:
             folder.mkdir(parents=True, exist_ok=True)
             self.drivers.append(self.make_driver(self.package, self.root, folder, color_scheme=self.color_scheme))
             self.started.append(False)
-            self.state.append((0, False))
+            self.state.append((0, False, {}))
         return self.drivers[index]
 
     @property
     def restarts(self):
-        return sum(restarts for restarts, _ in self.state)
+        return sum(restarts for restarts, _, _ in self.state)
 
     def run(self, shares, make_runner):
         """Run each share on its own driver and Runner at once; return the Runners in share order.
@@ -2058,7 +2245,10 @@ class DriverPool:
             runner = runners[index]
             try:
                 runner.cancel = self.cancel
-                runner.restarts, runner.aborted = self.state[index]
+                runner.restarts, runner.aborted, previous_pages = self.state[index]
+                runner.page_restarts = dict(getattr(runner, "page_restarts", {}))
+                for page, count in previous_pages.items():
+                    runner.page_restarts[page] = max(runner.page_restarts.get(page, 0), count)
                 if not self.started[index] or not runner.aborted:
                     # A later phase gets a fresh browser: the reviewer shell keeps its selections in session
                     # storage, so a page opened after another phase's pages could arrive in the wrong state.
@@ -2073,7 +2263,7 @@ class DriverPool:
                 failures[index] = error
                 self.cancel.set()
             finally:
-                self.state[index] = (runner.restarts, runner.aborted)
+                self.state[index] = (runner.restarts, runner.aborted, dict(runner.page_restarts))
 
         self.threads = [threading.Thread(target=work, args=(index,), daemon=True) for index in range(len(shares))]
         for thread in self.threads:
@@ -2124,6 +2314,7 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
         phase(runner, runner.axis_items(cases))
     if intermediate_runner is not None:
         intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
+        intermediate_runner.page_restarts = dict(runner.page_restarts)
         phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
 
 
@@ -2451,6 +2642,9 @@ def execute(args, make_driver=node_driver):
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
                     intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
                                                  interactions=interactions, intermediate=True)
+                    intermediate_runner.unopened = set(runner.unopened)
+                    intermediate_runner.page_reasons = dict(runner.page_reasons)
+                    intermediate_runner.page_restarts = dict(runner.page_restarts)
                     intermediate_runner.run(intermediate_cases)
                 environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
             finally:
