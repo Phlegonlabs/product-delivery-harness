@@ -207,7 +207,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--managed",
         action="store_true",
-        help="also require the managed-run trailer set",
+        help="also require the trailer set of a managed task, repair or integration "
+        "commit; omit it for a bookkeeping commit of coordination files",
     )
     args = parser.parse_args(argv)
     if (args.message_file is None) == (args.rev is None):

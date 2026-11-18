@@ -203,6 +203,12 @@ class CheckCommitMessageTests(unittest.TestCase):
             self.assertEqual(1, code, out)
             self.assertIn("ERROR: the subject is not in the", out)
 
+    def test_bookkeeping_commit_passes_the_plain_check(self) -> None:
+        # Coordination-only commits carry no task trailers and are checked
+        # without --managed (commit-convention.md, Run-Wide Atomicity).
+        code, out, _err = self.check("chore(run): checkpoint wave bookkeeping\n")
+        self.assertEqual(0, code, out)
+
     def test_scope_may_hold_an_underscore(self) -> None:
         code, out, _err = self.check("fix(user_profile): restore editing\n")
         self.assertEqual(0, code, out)

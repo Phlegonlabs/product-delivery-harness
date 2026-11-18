@@ -9,7 +9,7 @@ Atomicity binds the whole run, not only worker task commits. Every commit any pa
 - a worker task commit: one verified task outcome, per the Atomic Boundary below;
 - a repair commit: one root-cause fix attributed to exactly one task;
 - an integration commit: reviewed mission heads only; coordination updates use a separate bookkeeping commit — never an unrelated fix, cleanup, or formatting;
-- a bookkeeping commit: `PLAN.md`/`RUN.md` and other coordination files only, never product code.
+- a bookkeeping commit: `PLAN.md`/`RUN.md` and other coordination files only, never product code. It carries no task trailers; check its message without `--managed`.
 
 No layer of the run — task, repair, integration, wave close, or closeout — lands a catch-all or mixed commit. When two kinds of change are needed, land two commits in dependency order.
 
