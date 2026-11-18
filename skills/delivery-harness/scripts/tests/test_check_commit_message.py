@@ -406,6 +406,31 @@ class RevModeTests(unittest.TestCase):
         # A managed integration merge must carry the mission-level body.
         code, out, _err = self.run_rev("HEAD", "--managed")
         self.assertEqual(1, code, out)
+        self.assertIn("ERROR: the Mission trailer is missing.", out)
+
+    def merge_with_message(self, message: str) -> None:
+        self.commit_with_message("feat(harness): first task\n")
+        self.git("checkout", "-q", "-b", "feature-y")
+        self.commit_with_message("feat(harness): second task\n")
+        self.git("checkout", "-q", "main")
+        with tempfile.NamedTemporaryFile("wb", suffix=".txt", delete=False) as handle:
+            handle.write(message.encode("utf-8"))
+            message_path = handle.name
+        self.addCleanup(Path(message_path).unlink, missing_ok=True)
+        self.git("merge", "-q", "--no-ff", "-F", message_path, "feature-y")
+
+    def test_rev_managed_merge_with_task_trailers_is_rejected(self) -> None:
+        # A two-parent commit cannot pass as a task commit under --managed.
+        self.merge_with_message(GOOD_MANAGED)
+        code, out, _err = self.run_rev("HEAD", "--managed")
+        self.assertEqual(1, code, out)
+        self.assertIn("ERROR: this commit is a merge but carries a Task trailer.", out)
+        self.assertIn("ERROR: the Mission trailer is missing.", out)
+
+    def test_rev_managed_merge_with_the_mission_body_passes(self) -> None:
+        self.merge_with_message(GOOD_INTEGRATION)
+        code, out, _err = self.run_rev("HEAD", "--managed")
+        self.assertEqual(0, code, out)
 
     def test_rev_merge_subject_on_an_ordinary_commit_is_checked(self) -> None:
         self.commit_with_message("Merge anything\n")

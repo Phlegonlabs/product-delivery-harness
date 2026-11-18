@@ -9,7 +9,9 @@ vocabulary, subject length and punctuation, the blank second line, the
 --managed, the Task/Trace/Verified or integration trailer set. With --rev
 and without --managed, a commit that has two or more parents passes as a
 merge commit; a message file is never exempt, because text cannot prove
-that its commit is a merge. Exit 0 prints
+that its commit is a merge. With --rev and --managed, a commit with two or
+more parents needs the mission-level integration trailers and no Task
+trailer, whatever its subject says. Exit 0 prints
 ``OK: <subject>``; exit 1 prints one ``ERROR: <what>. <fix>.`` line per
 problem; exit 2 reports bad arguments, an unreadable message file or a
 git failure. This script only checks text; it grants no commit
@@ -146,9 +148,17 @@ def _trailer_problems(trailers: dict[str, list[str]], name: str, example: str) -
     return []
 
 
-def check_managed_trailers(subject: str, trailers: dict[str, list[str]]) -> list[str]:
+def check_managed_trailers(
+    subject: str, trailers: dict[str, list[str]], merge_commit: bool = False
+) -> list[str]:
     problems: list[str] = []
-    if subject.startswith(INTEGRATION_PREFIX):
+    if merge_commit and "task" in trailers:
+        problems.append(
+            "ERROR: this commit is a merge but carries a Task trailer. A merge is not a task "
+            "commit; remove the Task trailer and use the mission-level body with Mission, "
+            "Plan-Revision, Integrated-Head and Verified."
+        )
+    if merge_commit or subject.startswith(INTEGRATION_PREFIX):
         required = (
             ("Mission", "Mission: M2"),
             ("Plan-Revision", "Plan-Revision: 3"),
@@ -246,7 +256,7 @@ def main(argv: list[str] | None = None) -> int:
     problems, breaking = check_subject(subject)
     problems.extend(check_body(lines, breaking))
     if args.managed:
-        problems.extend(check_managed_trailers(subject, collect_trailers(lines)))
+        problems.extend(check_managed_trailers(subject, collect_trailers(lines), merge_commit))
     if problems:
         print("\n".join(problems))
         return 1
