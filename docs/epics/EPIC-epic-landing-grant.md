@@ -118,23 +118,39 @@ Scoped review of the reader repair on `b5188c91` (375 s): FIX_REQUIRED again. Th
 
 Four reviews had now each found another spelling. The premise shared by every repair was that a policy written in Markdown can be read safely by something that is not a Markdown parser. It cannot: Markdown has many texts that render alike. So the policy left Markdown (`bb6f7eb8`). It is now `.harness/landing-policy.json`, read from the frozen base with the standard JSON parser plus four checks: UTF-8, no repeated key, exactly the seven fields, and each value of its one allowed type. `AGENTS.md` keeps a `## Delivery Autonomy` section, but it is prose that points at the file and is never parsed. `.harness/` is an owner-only path. The 469-case Markdown matrix is gone with the reader it tested; `policy_matrix()` now lists 137 ways to write the JSON file, 7 accepted and 130 refused, including each field missing, repeated, mistyped or respelled, comments, trailing text, a byte order mark, NaN and a Markdown section in place of JSON.
 
-`test_landing_gate.py` holds 78 tests. Scoped review of the move to JSON: pending.
+`test_landing_gate.py` holds 78 tests.
+
+Scoped review of the move to JSON on `cbdeeb98` (372 s): PASS, no blocking finding. The three earlier inputs are refused. The reviewer reran the 137 matrix cases and added 6,941 probes of its own: repeated keys including escaped equivalents and nested ones, escaped key names, every non-string type, NaN and Infinity, every single leading and trailing byte, other encodings, eight-million-character strings and nesting to 100,000 levels. It found 274 accepts, each with exactly the written values, 6,667 refusals, no crash, and no reader left that looks at `AGENTS.md`. It states the limit itself: the probes are finite, not a proof, and it did not run the fixture-based tests.
+
+Review summary for this candidate:
+
+| Pass | Scope | Result |
+| --- | --- | --- |
+| Parent inspection | script | 4 gaps fixed before review |
+| Review, `70c87857` | rule text and script | FIX_REQUIRED, 15 findings |
+| Targeted re-check, `4254dc57` | rule text and script | 11 resolved; 6 for an isolated repair |
+| Scoped review, `1788442c` | rule text | PASS |
+| Scoped review, `1788442c` | script | FIX_REQUIRED, 2 on the policy reader |
+| Scoped review, `b5188c91` | policy reader | FIX_REQUIRED, 3 more; premise changed |
+| Scoped review, `cbdeeb98` | policy file as JSON | PASS |
+
+What cost the time: the gate was specified by listing what to refuse. Each review then found the next thing nobody had listed. Two changes ended it, and both replaced a list of bad cases with a rule about what is accepted: the gate recomputes what it can check instead of believing a label, and the policy has one spelling.
 
 ## Results And Remaining Work
 
-Remaining: the targeted re-check, PR, CI matrix. Merge, tag and install wait for the owner, because this repository's own policy is `Landing: owner_each_time`.
+Remaining: PR, CI matrix. Merge, tag and install wait for the owner, because this repository's own policy is `Landing: owner_each_time`.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / epic-landing-grant / release commit for 0.92.0 / task/ (untracked, not part of this round)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / epic-landing-grant / the commit after cbdeeb98 / task/ (untracked, not part of this round)
 Stage and skill: source maintenance of delivery-harness; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main a3b547dd (v0.91.0); owner-approved plan of 2026-11-18
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
 Approvals in force (gate, owner, date, candidate): plan approval, owner, 2026-11-18: work branch, local commits, push and PR. Merge, tag and install for this round are not yet approved.
-Done and verified (command, exit code): pytest on the doc-asserting modules and test_landing_gate.py, exit 0; pyflakes on the four script trees, exit 0; prepare_release.py --check, exit 0
-Remaining: review, PR, CI matrix
+Done and verified (command, exit code): pytest on the doc-asserting modules, test_landing_gate.py and test_install_script.py, exit 0; pyflakes on the four script trees, exit 0; prepare_release.py --check, exit 0; scoped review PASS on cbdeeb98
+Remaining: PR, CI matrix
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): run the read-only review on the candidate diff
+Next action (one command or one owner decision): push the branch and open the PR
 Next owner (skill or human): parent agent
 ```
