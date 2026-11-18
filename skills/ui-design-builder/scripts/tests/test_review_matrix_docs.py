@@ -34,23 +34,75 @@ class ReviewMatrixDocsTests(unittest.TestCase):
                 self.assertNotIn("densest", text)
                 self.assertNotIn("smallest and largest", text)
 
-    def test_repair_loop_is_capped_and_names_the_carry_forward_and_diff_first_rules(self):
+    def test_repair_loop_is_a_closure_check_with_one_fix_exchange(self):
         rubric = read(RUBRIC)
         scope = section(rubric, "## Repair Re-review Scope")
         for phrase in (
-            "at most two scoped re-reviews in total may follow",
-            "a block still blocks",
+            "closure check, not a second search",
+            "Repair gate:",
+            "an after-capture for every ledger row",
+            "one verdict per ledger row",
+            "a render fingerprint does not see behaviour",
+            "starts no fresh critique or audit of unchanged pages",
+            "late finding for the owner's follow-up list",
             "[Render fingerprint carry-forward]",
             "[Diff-first re-review]",
         ):
             with self.subTest(phrase=phrase):
                 self.assertIn(phrase, scope)
-        self.assertEqual(1, rubric.count("at most two scoped re-reviews"))
-        self.assertNotIn("a block still blocks", section(rubric, "## Reporting And Reconciliation"))
-        self.assertNotIn("record one scoped re-review of those pages", rubric)
+        for gone in ("scoped re-review", "two scoped", "isolated repair", "Cap:", "next-round advisory",
+                     "Run Impeccable critique and audit again"):
+            with self.subTest(gone=gone):
+                self.assertNotIn(gone, rubric)
         for source in POINTERS:
             with self.subTest(source=source):
                 self.assertIn("ui-grading-rubric.md#repair-re-review-scope", read(source))
+
+    def test_budget_table_is_stated_once_and_the_re_review_continues_the_wave(self):
+        rubric = read(RUBRIC)
+        budget = section(rubric, "## Review Budget")
+        for row in ("| Full matrix captures per candidate | 1 |", "| Pilot diagnosis (pilot pages only) | 1 |",
+                    "| Independent reviews of the package | 2 |", "| Fix exchanges | 1 |",
+                    "| Evidence-only rounds | 0 |"):
+            with self.subTest(row=row):
+                self.assertEqual(1, rubric.count(row))
+                self.assertIn(row, budget)
+        for phrase in ("leaves the candidate `blocked`", "starts a named new revision cycle or stops",
+                       "No third review, whole-HiFi re-grade, or owner-granted extra round exists inside a cycle"):
+            self.assertIn(phrase, budget)
+        capability = section(rubric, "## Capability And Authorization")
+        self.assertIn("continued in their sessions when the host can continue an agent", capability)
+        self.assertIn("a fresh reviewer gets the re-review packet", capability)
+
+    def test_block_proof_is_defined_once_and_linked(self):
+        rubric = read(RUBRIC)
+        proof = section(rubric, "### Block Proof")
+        self.assertEqual(1, rubric.count("A finding blocks only with all three"))
+        for part in ("a reproduced failure with its capture",
+                     "the frozen requirement, approved UI decision or rubric block rule it breaks",
+                     "observable closure criteria", "must name at least one such finding"):
+            self.assertIn(part, proof)
+        self.assertGreaterEqual(rubric.count("(#block-proof)"), 3)
+
+    def test_capture_proof_and_return_check_rules(self):
+        rubric = read(RUBRIC)
+        capability = section(rubric, "## Capability And Authorization")
+        for phrase in ("Pilot diagnosis:", "return findings only", "It has no receipts and no score gate",
+                       "Reviewers never run the matrix driver", "equal the frozen candidate",
+                       "builds the browser receipt from that output with `review_evidence.py`",
+                       "`a11y` measurements and the author's dispositions"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, capability)
+        evidence = read("references/review-evidence.md")
+        self.assertEqual(1, evidence.count("## Return Check"))
+        returns = section(evidence, "## Return Check")
+        for phrase in ("checks the packet's obligation list against the output", "to the same reviewer session",
+                       "No evidence-only, receipt-only or inspection-completion round exists after a verdict"):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, returns)
+        self.assertIn("nobody captures those bytes again", evidence)
+        self.assertIn("A candidate gets one full matrix capture", read("references/review-workflow.md"))
+        self.assertIn("one repair batch of the kit and composition approach", read("references/review-workflow.md"))
 
 
 if __name__ == "__main__":

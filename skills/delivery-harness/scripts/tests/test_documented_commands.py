@@ -133,6 +133,22 @@ class DocumentedCommandTests(unittest.TestCase):
             emitted)
         self.assertEqual(emitted, documented)
 
+    def test_documented_product_css_flag_parses_in_the_assembler(self):
+        builder = SCRIPTS.parents[1] / "ui-design-builder"
+        contract = (builder / "references/output-contract.md").read_text(encoding="utf-8")
+        self.assertIn("assemble_ui_review.py --mode hifi --product-css <file>", contract)
+        sys.path.insert(0, str(builder / "scripts"))
+        try:
+            import assemble_ui_review
+            parsed = assemble_ui_review.parse_args([
+                "--mode", "hifi", "--product-css", "kit.css", "--manifest", "m.json",
+                "--source", "index.html=index.html", "--output-dir", "out"])
+        finally:
+            sys.path.remove(str(builder / "scripts"))
+        self.assertEqual(Path("kit.css"), parsed.product_css)
+        self.assertIsNone(assemble_ui_review.parse_args(
+            ["--manifest", "m.json", "--source", "index.html=index.html", "--output-dir", "out"]).product_css)
+
     def test_direct_fan_out_commands_parse_and_route_is_linked(self):
         examples = self.commands("direct-fan-out.md", "worktree_fanout.py")
         self.assertEqual(2, len(examples))

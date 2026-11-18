@@ -179,6 +179,10 @@ class ExternalSkillDependencyTests(unittest.TestCase):
             checker.REQUIRED_COMPATIBILITY["impeccable"],
             manifest["profiles"]["authorized_ui_quality"]["skills"][0]["compatibility"],
         )
+        self.assertIn(
+            "author_quality_reference",
+            checker.REQUIRED_COMPATIBILITY["impeccable"]["allowed_uses"],
+        )
 
     def test_cli_reports_missing_dependency_without_installing(self) -> None:
         (self.skills / "impeccable").rename(self.root / "saved-impeccable")

@@ -432,5 +432,139 @@ class AssembleUiReviewTests(unittest.TestCase):
             )
 
 
+class AssembleProductCssTests(unittest.TestCase):
+    """The product stylesheet is embedded identically in every page and hashed after embedding."""
+
+    CSS = ".kit-button{color:#123456}\n.kit-button:focus-visible{outline:2px solid #123456}\n"
+
+    write_sources = AssembleUiReviewTests.write_sources
+    assemble = AssembleUiReviewTests.assemble
+    tearDown = AssembleUiReviewTests.tearDown
+
+    def setUp(self):
+        AssembleUiReviewTests.setUp(self)
+        self.css_path = Path(self.temp.name) / "product.css"
+        self.css_path.write_bytes(self.CSS.encode("utf-8"))
+        self.write_sources()
+
+    def assemble_with_css(self, **kwargs):
+        return assemble_ui_review.assemble(
+            self.manifest_path,
+            [f"index.html={self.sources / 'index.html'}", f"details.html={self.sources / 'details.html'}"],
+            self.output, product_css=self.css_path, **kwargs)
+
+    def page(self, name):
+        return (self.output / name).read_text(encoding="utf-8")
+
+    def test_every_page_gets_the_same_block_before_page_styles_and_hashes_match(self):
+        self.entry = self.entry.replace("</head>", "<style>.page{margin:0}</style></head>")
+        self.child = self.child.replace("</head>", "<style>.page{margin:1px}</style></head>")
+        self.write_sources()
+        self.assemble_with_css()
+        blocks = []
+        for name in ("index.html", "details.html"):
+            html = self.page(name)
+            blocks.append(reviewer_shell.product_css_segments(html))
+            self.assertEqual(1, len(blocks[-1]), name)
+            self.assertLess(html.index("hifi-product:css:start"), html.index(".page{margin"), name)
+            self.assertEqual([], reviewer_shell.shared_css_drift(html), name)
+            self.assertNotIn("<link", html.casefold(), name)
+            self.assertEqual(1, html.count("<style data-hifi-reviewer-css>"))
+            self.assertEqual(1, html.count("<style data-hifi-product-css>"))
+        self.assertEqual(blocks[0], blocks[1])
+        self.assertIn(self.CSS.rstrip(), blocks[0][0])
+        manifest = json.loads(self.page("index.html").split('<script id="ui-hifi-manifest" type="application/json">', 1)[1].split("</script>", 1)[0])
+        self.assertEqual(hashlib.sha256((self.output / "details.html").read_bytes()).hexdigest(), manifest["pages"][0]["sha256"])
+
+    def test_output_without_the_flag_is_unchanged_and_has_no_markers(self):
+        self.assemble()
+        for name in ("index.html", "details.html"):
+            self.assertNotIn("hifi-product:css", self.page(name))
+        plain = {name: self.page(name) for name in ("index.html", "details.html")}
+        self.assemble(overwrite=True)
+        self.assertEqual(plain, {name: self.page(name) for name in plain})
+
+    def test_the_flag_changes_only_the_block(self):
+        self.assemble()
+        plain = self.page("details.html")
+        self.assemble_with_css(overwrite=True)
+        stripped = re.sub(r"<!-- hifi-product:css:start -->[\s\S]*?<!-- hifi-product:css:end -->\n", "", self.page("details.html"))
+        self.assertEqual(plain, stripped)
+
+    def test_a_crlf_stylesheet_is_embedded_with_lf_endings(self):
+        self.css_path.write_bytes(self.CSS.replace("\n", "\r\n").encode("utf-8"))
+        self.assemble_with_css()
+        for name in ("index.html", "details.html"):
+            self.assertNotIn(b"\r", (self.output / name).read_bytes(), name)
+
+    def test_a_repeated_assembly_gives_the_same_bytes(self):
+        self.assemble_with_css()
+        first = {name: (self.output / name).read_bytes() for name in ("index.html", "details.html")}
+        self.assemble_with_css(overwrite=True)
+        self.assertEqual(first, {name: (self.output / name).read_bytes() for name in first})
+
+    def test_a_source_with_the_same_block_keeps_exactly_one(self):
+        block = reviewer_shell.product_style_block(self.CSS)
+        self.child = self.child.replace("</head>", block + "</head>")
+        self.write_sources()
+        self.assemble_with_css()
+        self.assertEqual(1, self.page("details.html").count("hifi-product:css:start"))
+        self.assertEqual(reviewer_shell.product_css_segments(self.page("index.html")),
+                         reviewer_shell.product_css_segments(self.page("details.html")))
+
+    def test_a_source_with_a_drifting_block_is_rejected(self):
+        drift = reviewer_shell.product_style_block(self.CSS + ".other{color:red}")
+        self.child = self.child.replace("</head>", drift + "</head>")
+        self.write_sources()
+        with self.assertRaises(SystemExit):
+            self.assemble_with_css()
+        self.assertFalse(self.output.exists())
+
+    def test_bad_stylesheets_are_rejected(self):
+        for content in (b"", b"a{}</style><script>1</script>", b"<!-- hifi-product:css:end -->", b"\xff\xfe"):
+            self.css_path.write_bytes(content)
+            with self.subTest(content=content), self.assertRaises(SystemExit):
+                self.assemble_with_css()
+        with self.assertRaises(SystemExit):
+            assemble_ui_review.assemble(
+                self.manifest_path, [f"index.html={self.sources / 'index.html'}", f"details.html={self.sources / 'details.html'}"],
+                self.output, product_css=Path(self.temp.name) / "missing.css")
+
+    def test_direction_mode_with_the_flag_fails(self):
+        with self.assertRaises(SystemExit):
+            assemble_ui_review.main(["--mode", "direction", "--manifest", str(self.manifest_path),
+                                     "--source", f"vd-01.html={self.sources / 'index.html'}",
+                                     "--output-dir", str(self.output), "--product-css", str(self.css_path)])
+        self.assertFalse(self.output.exists())
+
+    def test_cli_flag_assembles_a_package(self):
+        script = Path(assemble_ui_review.__file__)
+        result = subprocess.run(
+            [sys.executable, str(script), "--manifest", str(self.manifest_path),
+             "--source", f"index.html={self.sources / 'index.html'}", "--source", f"details.html={self.sources / 'details.html'}",
+             "--output-dir", str(self.output), "--product-css", str(self.css_path)],
+            capture_output=True, text=True, encoding="utf-8")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertEqual(1, self.page("index.html").count("hifi-product:css:start"))
+
+
+class ProductCssFindingsTests(unittest.TestCase):
+    def test_findings_follow_the_package_not_the_single_page(self):
+        block = reviewer_shell.product_style_block("a{color:red}")
+        other = reviewer_shell.product_style_block("a{color:blue}")
+        page = "<html><head>{}</head><body></body></html>"
+        self.assertEqual([], reviewer_shell.product_css_findings({"index.html": page.format(""), "a.html": page.format("")}))
+        self.assertEqual([], reviewer_shell.product_css_findings({"index.html": page.format(block), "a.html": page.format(block)}))
+        lacking = reviewer_shell.product_css_findings({"index.html": page.format(block), "a.html": page.format(""), "b.html": page.format(block)})
+        self.assertEqual(1, len(lacking))
+        self.assertIn("a.html", lacking[0])
+        differing = reviewer_shell.product_css_findings({"index.html": page.format(block), "a.html": page.format(other), "b.html": page.format(block)})
+        self.assertEqual(1, len(differing))
+        self.assertIn("a.html", differing[0])
+        doubled = reviewer_shell.product_css_findings({"index.html": page.format(block + block), "a.html": page.format(block)})
+        self.assertEqual(1, len(doubled))
+        self.assertIn("index.html", doubled[0])
+
+
 if __name__ == "__main__":
     unittest.main()

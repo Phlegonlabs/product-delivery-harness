@@ -333,6 +333,22 @@ class FakeWorkersTests(unittest.TestCase):
                 self.assertEqual([], m.validate_output(fleet.root, out / m.OUTPUT_NAME, output))
                 self.assertEqual("PASS", m.build_receipt(fleet.root, f"{label}/{m.OUTPUT_NAME}")["result"])
 
+    def test_measured_accessibility_rows_equal_the_serial_ones_for_every_worker_count(self):
+        fleet = Fleet(self, configure=lambda driver: setattr(driver, "a11y_script", base.fake_a11y))
+        axes = ("--measure-a11y", "--axes", "dark,zoom-200,forced-colors")
+        code, _, out = fleet.go(*axes, out="docs/evidence/serial")
+        expected = load(out)[1]["a11y"]
+        self.assertEqual(0, code)
+        self.assertEqual({"base", "dark", "zoom-200", "forced-colors"}, {row["axis"] for row in expected["findings"]})
+        self.assertTrue(any(row["measure"] == "text-growth" for row in expected["findings"]))    # needs the base sizes of its case
+        for workers in (2, 3, m.MAX_WORKERS):
+            with self.subTest(workers=workers):
+                fleet.drivers = []
+                code, summary, out = fleet.go(*axes, "--workers", str(workers), out=f"docs/evidence/w{workers}")
+                self.assertEqual(0, code, summary)
+                self.assertEqual(expected, load(out)[1]["a11y"])
+                self.assertTrue(1 < len(fleet.drivers) <= workers)
+
     def test_one_worker_starts_one_driver_and_writes_no_worker_count(self):
         fleet = Fleet(self)
         code, _, out = fleet.go()

@@ -31,6 +31,7 @@ Overflow requires a smaller scoped assignment or complete named source reads; ne
 - Approved image, icon, font and media locations or inline source identities from Motion And Media Intent and the bound studies/complete HiFi package.
 - Concrete visual features from the existing Design Brief, selected-direction rationale and Candidate theme.
 - The applicable design-system pair and derived preview, and existing repair findings/captures when this is a repair.
+- For `direction` and `hifi`, when `impeccable` is bound, the path of its `reference/craft-floor.md`, read after `frontend-design` right before authoring or repairing; the author reports its SHA-256.
 - Required reads and the author's own report of files, hashes, captures, fonts, assets and features actually inspected.
 
 Keep values in their existing authoritative sources. The block carries exact pointers and inspection duties, not a competing copy.

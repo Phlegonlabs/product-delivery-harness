@@ -18,7 +18,8 @@ Ask one product-specific set covering:
 - motion posture per page and whether a generation provider may be used, for which regions and within what limit (see `motion-and-media-routing.md`);
 - reference images, screenshots, websites, Figma views, named products, or brand references, with the page or aspect to learn from and what to avoid;
 - whether the owner keeps a [reference library](design-reference-guide.md#owner-reference-library) and where, asked once and reused by later rounds; and
-- whether the owner wants one recommended direction or three comparable directions.
+- whether the owner wants one recommended direction or three comparable directions; and
+- whether the Impeccable `critique` and `audit` may run on the HiFi, with the side effects the Skill Bindings name (subagents, a browser, a local server, snapshot writes). The wave needs this authorization, so it is asked here with the rest rather than when the wave is due.
 
 The direction-mode rule is in `ui-design-pass.md`'s Style Intake Gate. Do not reuse a fixed aesthetic catalog. Derive the language and any choices from the product, audience, platform, tasks, content, market evidence, and existing brand. If the owner is unsure, offer two or three product-specific interpretations with a recommendation instead of generic labels such as `modern`, `clean`, or `premium`.
 
@@ -26,7 +27,7 @@ At unresolved intake, use Ask User (the host's user-question tool when available
 
 Text-only questions collect URLs, product names and preferences; request image attachments in ordinary conversation only when needed, never through a text-only question tool. Explicit `no references` is valid; offer relevant research and a recommendation through the existing direction gate. Silence is neither `no references` nor approval: leave optional references `not supplied` and continue independent work. Wait only for work that needs missing material, such as an explicitly requested page-faithful target.
 
-Combine these with unresolved image and motion questions in one intake. Record existing answers in the Visual Preference Brief and its Design Brief subsection in `ui-design.md`, the library as `Reference library: <path> | none`; use `output-contract.md` for its contents. Wait only when an unanswered preference blocks authoring; do not ask again for decisions already supplied. This brief adds no separate file or approval gate, and unchanged enhancement scope does not restart intake.
+Combine these with unresolved image and motion questions in one intake. Record existing answers in the Visual Preference Brief and its Design Brief subsection in `ui-design.md`, the library as `Reference library: <path> | none` and the authorization as `Impeccable workflow authorization: granted | declined`, with the owner and date; a declined answer leaves the wave `blocked` ([Impeccable Quality Review](ui-design-pass.md#impeccable-quality-review-and-prd-bound-grading)); use `output-contract.md` for its contents. Wait only when an unanswered preference blocks authoring; do not ask again for decisions already supplied. This brief adds no separate file or approval gate, and unchanged enhancement scope does not restart intake.
 
 The Design Brief's Page-purpose mapping is the one place to separate binding constraints from design freedom. It links each affected `UI-*` to the PRD UI Surface Contract and records page purpose, typography/headline limits, density, motion intent, exceptions and choices the design author may explore. It does not copy the PRD's per-page elements, operations, states, responsive rules or copy into a second inventory; directions and HiFi read the approved PRD directly.
 

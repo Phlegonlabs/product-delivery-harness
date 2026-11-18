@@ -219,6 +219,7 @@ class FakeDriver:
         self.reviewer_overrides = {}   # (surface, target) -> {"width", "container", "media", "visible"}
         self.reviewer_events = {}      # page -> events
         self.reviewer_error = {}       # page -> exception raised by the reviewer op
+        self.a11y_script = None        # (case fields, active axis) -> the `a11y` part of a case reply
 
     def start(self):
         pass
@@ -268,8 +269,11 @@ class FakeDriver:
         probe = {"geometry": geometry, "rectsSha256": sha("rects" + "".join(key)),
                  "styleSha256": sha("style" + script.get("style", "") + (self.axis or "")),
                  "inputsSha256": sha("inputs" + script.get("inputs", "")), "incomplete": script.get("incomplete", False)}
-        return {"result": {"problems": script.get("problems", []), "probe": None if script.get("problems") else probe,
-                           "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}, "events": events}
+        result = {"problems": script.get("problems", []), "probe": None if script.get("problems") else probe,
+                  "settle": {"waitedMs": 0, "finished": 0, "paused": 0, "capped": False}}
+        if fields.get("a11y") and self.a11y_script:
+            result["a11y"] = self.a11y_script(fields, self.axis)
+        return {"result": result, "events": events}
 
     def _interact(self, fields):
         script = self.interact_scripts.get((fields["interaction"], fields["target"], fields["trigger"]), {})
@@ -1937,6 +1941,307 @@ class RealBrowserTests(unittest.TestCase):
                     if kind != "same":
                         self.assertNotEqual(fingerprint(f"{kind}-a"), fingerprint(f"{kind}-b"), f"{kind} at {target}")
                 self.assertEqual(["capped"], [s for s in names if cases[("UI-002", s, target)]["fingerprintIncomplete"]])
+
+
+def fake_a11y(fields, axis):
+    """A scripted `a11y` reply: one failing row per requested measurement, base font sizes that depend on the case."""
+    request = fields["a11y"]
+    rows = []
+    for name in request["measures"]:
+        if name == "text-growth":
+            if request.get("baseFonts"):
+                rows.append({"measure": name, "selector": "p#x", "level": "fail", "baseFontPx": request["baseFonts"]["p#x"], "limit": 1.9})
+        else:
+            rows.append({"measure": name, "selector": "p#" + fields["state"], "level": "fail", "limit": 1})
+    return {"rows": rows, "checked": {name: 2 for name in request["measures"]}, "incomplete": fields["state"] == "empty",
+            "fonts": {"p#x": 10.0 + len(fields["state"]) + float(fields["target"])} if request.get("fonts") else None}
+
+
+class MeasuredAccessibilityFakeTests(unittest.TestCase):
+    def go(self, *extra, script=fake_a11y):
+        cli, driver = Cli(self), FakeDriver()
+        driver.a11y_script = script
+        code, summary, out = cli.run(driver, *extra)
+        return driver, code, summary, cli.load(out)
+
+    def test_the_flag_is_off_by_default_and_nothing_is_requested_or_written(self):
+        driver, code, summary, (output, sidecar) = self.go()
+        self.assertEqual(0, code)
+        self.assertNotIn("a11y", summary)
+        self.assertNotIn("a11y", sidecar)
+        self.assertTrue(all("a11y" not in fields for op, fields in driver.calls if op == "case"))
+
+    def test_findings_name_their_case_and_never_change_a_result_or_the_exit_code(self):
+        driver, code, summary, (output, sidecar) = self.go("--measure-a11y")
+        a11y = sidecar["a11y"]
+        self.assertEqual(0, code)
+        self.assertEqual("PASS", summary["result"])
+        self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
+        self.assertEqual({"measure": "contrast", "surface": "UI-001", "state": "ready", "target": "390", "axis": "base",
+                          "selector": "p#ready", "level": "fail", "limit": 1}, a11y["findings"][0])
+        # per page: its base cases, then the axis sample in the base scheme
+        self.assertEqual((["contrast", "target-size", "text-clip"] * 6 + ["focus-visible"] * 4) * 2,
+                         [f["measure"] for f in a11y["findings"]])
+        self.assertEqual({"contrast": 12, "target-size": 12, "text-clip": 12, "focus-visible": 8, "text-growth": 0},
+                         {name: row["fail"] for name, row in a11y["summary"].items()})
+        self.assertEqual(24, a11y["summary"]["contrast"]["checked"])
+        self.assertEqual(12, summary["a11y"]["contrast"])
+        self.assertEqual(0, driver.count("shot") - len(output["results"]))     # the focus pass takes no screenshot
+
+    def test_an_axis_that_is_not_requested_is_not_run_and_reported_once(self):
+        _, _, summary, (_, sidecar) = self.go("--measure-a11y")
+        expected = [("contrast", "dark"), ("text-clip", "zoom-200"), ("text-growth", "zoom-200"), ("focus-visible", "forced-colors")]
+        self.assertEqual(expected, [(row["measure"], row["axis"]) for row in sidecar["a11y"]["notRun"]])
+        self.assertEqual(["contrast needs --axes dark", "text-clip needs --axes zoom-200", "text-growth needs --axes zoom-200",
+                          "focus-visible needs --axes forced-colors"], summary["a11y"]["notRun"])
+        self.assertEqual({"base"}, {f["axis"] for f in sidecar["a11y"]["findings"]})
+
+    def test_each_axis_runs_its_own_measurements_on_the_axis_sample(self):
+        _, code, summary, (_, sidecar) = self.go("--measure-a11y", "--axes", "dark,reduced-motion,forced-colors,zoom-200,reflow-320")
+        a11y = sidecar["a11y"]
+        self.assertEqual([], a11y["notRun"])
+        by_axis = {}
+        for row in a11y["findings"]:
+            by_axis.setdefault(row["axis"], set()).add(row["measure"])
+        self.assertEqual({"base": {"contrast", "target-size", "text-clip", "focus-visible"}, "dark": {"contrast"},
+                          "zoom-200": {"text-clip", "text-growth"}, "forced-colors": {"focus-visible"}}, by_axis)
+        for axis in ("dark", "zoom-200", "forced-colors"):
+            self.assertEqual(8, len({(f["surface"], f["state"], f["target"]) for f in a11y["findings"] if f["axis"] == axis}))
+        # text growth compares each case with the same case measured without the axis
+        growth = next(f for f in a11y["findings"] if f["measure"] == "text-growth" and f["state"] == "ready"
+                      and f["surface"] == "UI-001" and f["target"] == "390")
+        self.assertEqual(10.0 + 5 + 390, growth["baseFontPx"])
+        self.assertEqual(0, code)
+
+    def test_a_measurement_that_cannot_run_is_unmeasured_and_a_cut_scan_is_incomplete(self):
+        def script(fields, axis):
+            if (fields["surface"], fields["state"], fields["target"]) == ("UI-002", "ready", "1200"):
+                return {"error": "boom"}
+            return fake_a11y(fields, axis)
+
+        _, code, summary, (_, sidecar) = self.go("--measure-a11y", script=script)
+        a11y = sidecar["a11y"]
+        failed = [f for f in a11y["findings"] if (f["surface"], f["state"], f["target"]) == ("UI-002", "ready", "1200")
+                  and f["measure"] != "focus-visible"]
+        self.assertEqual(["unmeasured"] * 3, [f["level"] for f in failed])
+        self.assertTrue(all(f["reason"] == "the measurement failed: boom" and f["selector"] is None for f in failed))
+        self.assertEqual({("contrast", "UI-001", "empty", "390"), ("contrast", "UI-001", "empty", "1200")},
+                         {(r["measure"], r["surface"], r["state"], r["target"]) for r in a11y["incomplete"]
+                          if r["measure"] == "contrast"})
+        self.assertTrue(all(r["incomplete"] is True and r["axis"] == "base" for r in a11y["incomplete"]))
+        self.assertEqual(0, code)
+        self.assertEqual(3, a11y["summary"]["text-clip"]["unmeasured"] + a11y["summary"]["contrast"]["unmeasured"]
+                         + a11y["summary"]["target-size"]["unmeasured"])
+
+    def test_text_growth_without_a_measured_base_case_is_unmeasured(self):
+        script = lambda fields, axis: dict(fake_a11y(fields, axis), fonts=None)
+        _, _, _, (_, sidecar) = self.go("--measure-a11y", "--axes", "zoom-200", script=script)
+        growth = [f for f in sidecar["a11y"]["findings"] if f["measure"] == "text-growth"]
+        self.assertEqual(8, len(growth))
+        self.assertEqual({"unmeasured"}, {f["level"] for f in growth})
+        self.assertEqual({"the same case without the axis was not measured"}, {f["reason"] for f in growth})
+
+
+# The fixture's problems are measured, not run failures: every case passes and the exit code stays 0.
+A11Y_EXTRA = f"""<style>
+.nofocus:focus-visible{{outline:none}}
+.ring:focus-visible{{outline:none;box-shadow:0 0 0 3px #2f6f8f}}
+.faint::placeholder{{color:#bbb}}
+.ctl{{min-width:48px;min-height:48px}}
+.shrinks{{font-size:8px}}
+@container (min-width:700px){{.shrinks{{font-size:16px}}}}
+</style>
+<p id="low" style="color:#aaa">Low contrast text</p>
+<p id="ink" style="color:#16324f">Readable text</p>
+<p id="large" style="color:#8a8a8a;font-size:24px">Large text</p>
+<p id="grad" style="color:#aaa;background:linear-gradient(#fff,#eee)">Gradient text</p>
+<p id="faded" style="color:#aaa;opacity:.5">Faded text</p>
+<div style="opacity:.1"><p id="veiled" style="color:#000;background:#fff">Veiled text</p></div>
+<div style="position:relative;height:40px"><img alt="" width="100" height="40" style="display:block" src="{data_svg('#16324f')}"><p id="onimg" style="position:absolute;top:0;left:0;margin:0;color:#aaa">Over image</p></div>
+<button id="off" class="ctl" disabled style="color:#ccc">Disabled</button>
+<input id="ph" class="faint" placeholder="Berths" style="width:100px">
+<input id="phok" placeholder="Berths" style="width:100px">
+<a id="tiny" href="index.html" style="display:inline-block;width:16px;height:16px">x</a>
+<button id="big" class="ctl" style="width:48px;height:48px">OK</button>
+<button id="mid" class="ctl" style="width:30px;height:30px;min-width:0;min-height:0">Go</button>
+<p style="font-size:12px">Read the <a id="inrun" href="index.html">harbour rules</a> before arrival.</p>
+<p id="clip" style="width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">A very long berth name that cannot fit</p>
+<p id="short" style="width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Short</p>
+<p id="clamp" style="width:120px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron</p>
+<input id="phclip" placeholder="Search the harbour berth directory by name" style="width:100px">
+<p id="zoomclip" style="overflow:hidden;white-space:nowrap">Next arrival is at eighteen forty tonight</p>
+<p id="shrinks" class="shrinks">Shrinking text</p>
+<input id="shrinkfield" class="ctl shrinks" value="42" style="width:100px">
+<button id="nofocus" class="ctl nofocus">No ring</button>
+<button id="ring" class="ctl ring">Box ring</button>
+<button id="default" class="ctl">Default ring</button>
+"""
+
+
+def comparable_output(text, folder):
+    """A ui-output with its clocks, hashes and folder name removed, so two runs can be compared."""
+    text = re.sub(r"docs/evidence/\w+/", "", text)
+    return re.sub(r'"(startedAt|finishedAt)": "[^"]*"|"sha256": "[0-9a-f]{64}"', "", text)
+
+
+class MeasuredAccessibilityBrowserTests(unittest.TestCase):
+    """The five measurements in real Chromium, over one fixture page that holds a failing and a passing element for each."""
+
+    @classmethod
+    def setUpClass(cls):
+        node, module = shutil.which("node"), os.environ.get("PLAYWRIGHT_MODULE")
+        if not module and (SCRIPTS.parents[2] / "node_modules" / "playwright").exists():
+            module = str(SCRIPTS.parents[2] / "node_modules" / "playwright")
+        if not node or not module or not Path(module).exists():
+            message = "Required browser test prerequisite missing: Node.js and PLAYWRIGHT_MODULE"
+            if os.environ.get("PDH_REQUIRE_BROWSER_TESTS") == "1":
+                raise AssertionError(message)
+            raise unittest.SkipTest(message)
+        cls.temporary = tempfile.TemporaryDirectory()
+        cls.root = Path(cls.temporary.name)
+        package = build_package(cls.root, details_extra=A11Y_EXTRA)
+        axes = ("--axes", "dark,zoom-200,forced-colors")
+        cls.runs = {}
+        for name, extra in (("plain", axes), ("one", ("--measure-a11y", *axes)), ("two", ("--measure-a11y", *axes, "--workers", "2")),
+                            ("base", ("--measure-a11y",))):
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer), mock.patch.dict(os.environ, {"PLAYWRIGHT_MODULE": module}):
+                code = m.main(["--repo-root", str(cls.root), "--package", str(package), "--out", f"docs/evidence/{name}", *extra])
+            folder = cls.root / "docs/evidence" / name
+            cls.runs[name] = {"code": code, "line": json.loads(buffer.getvalue().strip().splitlines()[-1]), "folder": folder,
+                              "output": (folder / m.OUTPUT_NAME).read_text(encoding="utf-8"),
+                              "sidecar": json.loads((folder / m.SIDECAR_NAME).read_text(encoding="utf-8"))}
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.temporary.cleanup()
+
+    def rows(self, measure, run="one", **where):
+        return [f for f in self.runs[run]["sidecar"]["a11y"]["findings"] if f["measure"] == measure
+                and all(f.get(key) == value for key, value in where.items())]
+
+    def selectors(self, measure, run="one", **where):
+        return {f["selector"] for f in self.rows(measure, run, **where)}
+
+    def test_without_the_flag_the_sidecar_has_no_a11y_and_the_output_is_unchanged(self):
+        plain, one = self.runs["plain"], self.runs["one"]
+        self.assertNotIn("a11y", plain["sidecar"])
+        self.assertNotIn("a11y", plain["line"])
+        self.assertEqual(comparable_output(plain["output"], plain["folder"]), comparable_output(one["output"], one["folder"]))
+        # focus is put back, so the page renders and fingerprints exactly as it does without the measurements
+        for key in ("cases", "axes"):
+            self.assertEqual([r["renderFingerprint"] for r in plain["sidecar"][key]], [r["renderFingerprint"] for r in one["sidecar"][key]])
+            self.assertEqual([(r["result"], r["reasons"]) for r in plain["sidecar"][key]], [(r["result"], r["reasons"]) for r in one["sidecar"][key]])
+
+    def test_measured_failures_leave_the_exit_code_at_zero(self):
+        for name in ("plain", "one", "two", "base"):
+            self.assertEqual(0, self.runs[name]["code"], self.runs[name]["line"])
+        self.assertEqual("PASS", self.runs["one"]["line"]["result"])
+        self.assertTrue(self.runs["one"]["sidecar"]["a11y"]["findings"])
+
+    def test_contrast_reports_the_failing_text_with_its_values_and_not_the_passing_one(self):
+        low = self.rows("contrast", surface="UI-002", state="ready", target="390", axis="base", selector="p#low")
+        self.assertEqual([{"measure": "contrast", "surface": "UI-002", "state": "ready", "target": "390", "axis": "base",
+                           "selector": "p#low", "level": "fail", "ratio": 2.16, "background": "rgb(244, 247, 250)",
+                           "color": "rgb(170, 170, 170)", "fontPx": 16, "fontWeight": 400, "limit": 4.5}], low)
+        base = self.selectors("contrast", axis="base")
+        self.assertIn("input#ph::placeholder", base)
+        self.assertTrue({"p#ink", "p#large", "input#phok::placeholder", "button#off"}.isdisjoint(base))   # passing, large text, skipped
+        self.assertGreater(self.runs["one"]["sidecar"]["a11y"]["summary"]["contrast"]["checked"], 20)
+        # the dark axis is measured on its own sample: the same text passes on the dark background
+        self.assertTrue(self.rows("contrast", axis="dark"))
+        self.assertNotIn("p#low", self.selectors("contrast", axis="dark"))
+
+    def test_contrast_that_cannot_be_measured_is_unmeasured_with_a_reason(self):
+        found = {f["selector"]: f for f in self.rows("contrast", axis="base", surface="UI-002", state="ready", target="390")
+                 if f["level"] == "unmeasured"}
+        self.assertEqual({"p#grad", "p#faded", "p#veiled", "p#onimg"}, set(found))
+        # an opaque background does not end the walk: a translucent ancestor still fades the text
+        self.assertIn("opacity below 1", found["p#veiled"]["reason"])
+        self.assertIn("background image or gradient", found["p#grad"]["reason"])
+        self.assertIn("opacity below 1", found["p#faded"]["reason"])
+        self.assertIn("media element", found["p#onimg"]["reason"])
+        self.assertTrue(all("ratio" not in f for f in found.values()))
+        self.assertTrue(all(f["level"] == "fail" for f in self.rows("contrast", selector="p#low")))
+
+    def test_target_size_reports_small_boxes_and_notes_under_44_on_a_narrow_target(self):
+        tiny = self.rows("target-size", surface="UI-002", state="ready", axis="base", selector="a#tiny")
+        self.assertEqual([("390", "fail", 16, 16, 24), ("1200", "fail", 16, 16, 24)],
+                         [(f["target"], f["level"], f["width"], f["height"], f["limit"]) for f in tiny])
+        mid = self.rows("target-size", surface="UI-002", state="ready", selector="button#mid")
+        self.assertEqual([("390", "note", 30, 30, 44)], [(f["target"], f["level"], f["width"], f["height"], f["limit"]) for f in mid])
+        sizes = self.selectors("target-size")
+        self.assertTrue({"button#big", "a#inrun"}.isdisjoint(sizes))       # big enough, and a link inside a run of text
+        self.assertEqual({"base"}, {f["axis"] for f in self.rows("target-size")})
+
+    def test_text_clip_reports_clipped_text_and_placeholders_not_text_that_fits(self):
+        clip = self.rows("text-clip", surface="UI-002", state="ready", target="390", axis="base")
+        by_selector = {f["selector"]: f for f in clip}
+        self.assertEqual({"p#clip", "p#clamp", "input#phclip::placeholder"}, set(by_selector))
+        # the text width depends on the platform font; the box width does not
+        cut = by_selector["p#clip"]
+        self.assertEqual(("overflow-x", 120), (cut["kind"], cut["client"]))
+        self.assertGreater(cut["scroll"], cut["client"] + 1)
+        self.assertEqual(cut["scroll"] - cut["client"], cut["overflow"])
+        self.assertEqual("overflow-y", by_selector["p#clamp"]["kind"])
+        self.assertEqual("placeholder", by_selector["input#phclip::placeholder"]["kind"])
+        self.assertTrue(all(f["limit"] == 1 and f["level"] == "fail" for f in clip))
+        self.assertNotIn("p#short", self.selectors("text-clip"))
+        # text that fits at the base size and is cut at 200% shows only on the axis
+        self.assertNotIn("p#zoomclip", self.selectors("text-clip", axis="base"))
+        self.assertEqual({("390", "overflow-x")}, {(f["target"], f["kind"]) for f in self.rows("text-clip", axis="zoom-200", selector="p#zoomclip")})
+
+    def test_focus_visible_checks_the_base_scheme_and_forced_colors_on_the_axis_sample(self):
+        base = self.rows("focus-visible", axis="base")
+        self.assertEqual({"button#nofocus"}, {f["selector"] for f in base})
+        self.assertEqual({("UI-002", "ready", "390"), ("UI-002", "ready", "1200")}, {(f["surface"], f["state"], f["target"]) for f in base})
+        self.assertEqual("none", base[0]["outline"])
+        # a box-shadow ring counts in the base scheme but is removed by forced colors; the default ring is an outline
+        self.assertEqual({"button#nofocus", "button#ring"}, self.selectors("focus-visible", axis="forced-colors"))
+        self.assertEqual({"UI-002"}, {f["surface"] for f in self.rows("focus-visible")})
+        self.assertGreater(self.runs["one"]["sidecar"]["a11y"]["summary"]["focus-visible"]["checked"], 8)
+
+    def test_text_growth_reports_text_that_does_not_grow_with_the_zoom(self):
+        growth = self.rows("text-growth")
+        # form controls render text too: an input that shrinks is reported like a paragraph
+        self.assertEqual([{"measure": "text-growth", "surface": "UI-002", "state": "ready", "target": "1200", "axis": "zoom-200",
+                           "selector": selector, "level": "fail", "baseFontPx": 16, "fontPx": 8, "zoom": 2, "ratio": 1, "limit": 1.9}
+                          for selector in ("p#shrinks", "input#shrinkfield")],
+                         growth)
+        self.assertGreater(self.runs["one"]["sidecar"]["a11y"]["summary"]["text-growth"]["checked"], 8)
+
+    def test_an_axis_that_was_not_requested_is_reported_not_run(self):
+        base = self.runs["base"]
+        self.assertEqual({"base"}, {f["axis"] for f in base["sidecar"]["a11y"]["findings"]})
+        self.assertEqual(["contrast needs --axes dark", "text-clip needs --axes zoom-200", "text-growth needs --axes zoom-200",
+                          "focus-visible needs --axes forced-colors"], base["line"]["a11y"]["notRun"])
+        self.assertEqual(2, base["line"]["a11y"]["focus-visible"])       # the base-scheme focus check still ran
+        self.assertEqual([], self.runs["one"]["sidecar"]["a11y"]["notRun"])
+        self.assertEqual(0, len(base["sidecar"]["axes"]))
+
+    def test_two_workers_write_the_same_rows_in_the_same_order(self):
+        self.assertEqual(self.runs["one"]["sidecar"]["a11y"], self.runs["two"]["sidecar"]["a11y"])
+        self.assertEqual(self.runs["one"]["line"]["a11y"], self.runs["two"]["line"]["a11y"])
+
+    def test_a_scan_cut_at_400_elements_is_marked_incomplete_for_that_case(self):
+        module = os.environ.get("PLAYWRIGHT_MODULE") or str(SCRIPTS.parents[2] / "node_modules" / "playwright")
+        many = ('<section class="card" data-hifi-state-view="capped" hidden>'
+                + '<b style="display:inline-block;width:2px;height:2px"></b>' * 450 + "</section>")
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = build_package(root, details_extra=many, manifest_edit=lambda manifest: manifest["surfaces"][1].update(
+                states=["ready", "capped"]))
+            buffer = io.StringIO()
+            with contextlib.redirect_stdout(buffer), mock.patch.dict(os.environ, {"PLAYWRIGHT_MODULE": module}):
+                code = m.main(["--repo-root", str(root), "--package", str(package), "--out", "docs/evidence/cap", "--only", "UI-002",
+                               "--measure-a11y"])
+            a11y = json.loads((root / "docs/evidence/cap" / m.SIDECAR_NAME).read_text(encoding="utf-8"))["a11y"]
+            self.assertEqual(0, code, buffer.getvalue())
+            self.assertEqual({(name, "capped", target) for name in m.A11Y_BASE for target in ("390", "1200")},
+                             {(r["measure"], r["state"], r["target"]) for r in a11y["incomplete"] if r["axis"] == "base"
+                              and r["state"] == "capped" and r["measure"] in m.A11Y_BASE})
+            self.assertEqual({True}, {r["incomplete"] for r in a11y["incomplete"]})
+            self.assertFalse(any(r["state"] == "ready" and r["measure"] in m.A11Y_BASE for r in a11y["incomplete"]))
 
 
 if __name__ == "__main__":

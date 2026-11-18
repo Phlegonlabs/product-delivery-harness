@@ -181,7 +181,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         intake = stage.index("Combine unanswered design, imagery and motion questions into one intake")
         wireframe = stage.index("produce direction studies")
         style = stage.index("author the complete connected `ui-hifi/2` package")
-        review = stage.index("Run Impeccable critique/audit under the existing authorization")
+        review = stage.index("Run Impeccable critique/audit under the intake's authorization")
         self.assertLess(intake, wireframe)
         self.assertLess(wireframe, style)
         self.assertLess(style, review)
@@ -320,6 +320,16 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("every manifest-listed sibling page", visual_pass)
         self.assertIn("ask explicitly for Visual Approval", visual_pass)
 
+    def test_output_contract_documents_the_product_stylesheet(self):
+        contract = self.read("references/output-contract.md")
+        section = contract.split("### Connected HiFi Package", 1)[1].split("### Required motion evidence", 1)[0]
+        for phrase in ("--product-css <file>", "<!-- hifi-product:css:start -->", "<!-- hifi-product:css:end -->",
+                       "--require-hifi-preflight", "stages/ui-design.md#workflow"):
+            self.assertIn(phrase, section)
+        import reviewer_shell
+        self.assertIn(reviewer_shell.PRODUCT_CSS_START, section)
+        self.assertIn(reviewer_shell.PRODUCT_CSS_END, section)
+
     def test_output_contract_keeps_tokens_after_visual_approval(self):
         stage = self.read(UI_STAGE)
         contract = self.read("references/output-contract.md")
@@ -358,12 +368,13 @@ console.log("hybrid fallback and stale QA assertions completed");
         rubric = self.read("references/ui-grading-rubric.md")
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
         self.assertIn("initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis", scope)
-        self.assertIn("Run Impeccable critique and audit again on the affected pages and states", scope)
+        self.assertNotIn("Run Impeccable critique and audit again", scope)
+        self.assertIn("The Impeccable operator checks its own findings and the flagged cases", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("it never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
-        self.assertIn("the review budget is one diagnostic wave and one re-review of the consolidated repair", scope)
-        self.assertIn("No third wave, whole-HiFi re-grade, or owner-granted extra round exists", scope)
+        self.assertIn("It never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
+        self.assertIn("The two reviews are the wave and the re-review", scope)
+        self.assertIn("No third review, whole-HiFi re-grade, or owner-granted extra round exists inside a cycle", scope)
         self.assertNotIn("and the full rubric once", rubric)
         self.assertNotIn("expands the affected scope", rubric)
         for source in ("references/ui-design-pass.md", "references/review-workflow.md",
@@ -375,11 +386,12 @@ console.log("hybrid fallback and stale QA assertions completed");
         skill = self.read("SKILL.md")
         stage = self.read(UI_STAGE)
         pass_guide = self.read("references/ui-design-pass.md")
-        scope = self.read("references/ui-grading-rubric.md").split("## Repair Re-review Scope", 1)[1]
         self.assertIn("one diagnostic wave of browser checks, Impeccable critique/audit and H1-H9", skill)
+        self.assertIn("ui-grading-rubric.md#review-budget", skill)
+        self.assertIn("reference/craft-floor.md", skill)
+        self.assertIn("asked at UI Design Intake", skill)
         self.assertNotIn("another failure stops at", skill)
         self.assertNotIn("second failed review stops at", pass_guide)
-        self.assertIn("isolated repair and one scoped re-review of the affected pages", scope)
         for content in (skill, stage, pass_guide):
             self.assertIn("ui-grading-rubric.md#scores", content)
             self.assertIn("ui-grading-rubric.md#repair-re-review-scope", content)
@@ -420,7 +432,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
         self.assertIn("A copy or metadata repair changes only", scope)
         self.assertIn("Every other repair is a visual repair", scope)
-        self.assertIn("goes into the ledger as a next-round advisory", scope)
+        self.assertIn("late finding for the owner's follow-up list", scope)
         for block in ("a PRD contradiction", "a dead control", "an inaccessible required flow",
                       "overlaps, clips or is unreachable"):
             self.assertIn(block, scope)

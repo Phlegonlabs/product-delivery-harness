@@ -1,12 +1,12 @@
 # UI Review Packet: <assignment ID> — <role>
 
-One packet per lead grader, Impeccable operator or scoped re-review dispatch. Link rule sections; do not copy their values. Check the filled packet's UTF-8 size against `max_message_bytes` before launch.
+One packet per lead grader, Impeccable operator, pilot diagnosis or re-review dispatch. A pilot diagnosis returns findings only: no receipt, no score. Link rule sections; do not copy their values. Check the filled packet's UTF-8 size against `max_message_bytes` before launch.
 
 ```text
 Assignment:
 - Assignment ID: <id>
 - Attempt: <attempt id>
-- Role: <lead grader | Impeccable operator | scoped re-review>
+- Role: <lead grader | Impeccable operator | pilot diagnosis | re-review>
 - Route caps: time <seconds> / turns <n> / max_message_bytes <n>
 
 Frozen inputs (path @ sha256):
@@ -20,6 +20,8 @@ Frozen inputs (path @ sha256):
 - Journey map: <docs/design/directions/<round>/journeys.html @ sha256:hash>
 - Comparison sheet: <path @ sha256:hash>
 - Slop scan output: <path @ sha256:hash>
+- Browser capture output: <the author's last matrix capture output @ sha256:hash>
+- a11y sidecar: <matrix-capture.json, key `a11y` @ sha256:hash>
 - Models: <author provider/model; this reviewer's provider/model>
 - Impeccable authorization: <where the explicit workflow authorization is recorded; Impeccable operator only>
 
@@ -37,7 +39,7 @@ Do not read:
 Write scope:
 - docs/design/evidence/<run-id>/ only
 
-Scoped re-review only:
+Re-review only:
 - Defect ledger: <docs/design/evidence/<run-id>/defect-ledger.json @ sha256:hash>
 - Prior candidate: <SHA-256 of the last reviewed candidate>
 - Source diff: <diff path or commit range>
@@ -45,11 +47,15 @@ Scoped re-review only:
 - Closure cases: <the ledger families' acceptance cases>
 - Tolerance source: <ui-design.md Approved target `tolerance`>
 
+Obligations:
+- [ ] <one checklist line per obligation: an inspection, a receipt or a recorded number>
+
 Return:
 - Verdict: <PASS | FAIL | BLOCKED>
 - Direction match: <0-100 per pair or journey, recorded before reading the author's number; lead grader only>
 - Candidate SHA-256: <the reviewed candidate>
-- Findings: <each with its capture path @ sha256:hash; blocking findings apart from non-blocking notes>
+- Findings: <each with its capture path @ sha256:hash; a blocking finding adds the frozen requirement, UI decision or rubric rule it breaks and its closure criteria; non-blocking notes apart>
+- Obligations: one line per obligation with its evidence
 - ui-output/3: <path @ sha256:hash>
 - Receipt: <ui-evidence/3 path @ sha256:hash>
 - Commands run: <exact commands>

@@ -30,7 +30,7 @@ REQUIRED_COMPATIBILITY: dict[str, dict[str, Any]] = {
         ],
     },
     "impeccable": {
-        "allowed_uses": ["authorized_ui_quality_review"],
+        "allowed_uses": ["authorized_ui_quality_review", "author_quality_reference"],
         "execution": "explicit_authorization_required",
         "side_effects": [
             "subagents",

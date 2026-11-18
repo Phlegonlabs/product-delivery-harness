@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.89.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.90.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -74,7 +74,7 @@ The Product Definition is approved. Use $ui-design-builder with the `ui-design/3
 ```
 
 ```text
-I selected a direction. Continue $ui-design-builder with $frontend-design: build the complete connected HiFi, run the HiFi completeness preflight, then run separately authorized $impeccable critique and audit plus H1-H9 grading. Ask for one full Visual Approval covering copy, structure, product menus, tabs, visuals and tokens, then use $design-system-compiler for the required `design-system/4` pair and frozen derived HTML.
+I selected a direction. Continue $ui-design-builder with $frontend-design: build the kit and pilot pages first, then the complete connected HiFi, run the HiFi completeness preflight, then run $impeccable critique and audit plus H1-H9 grading. Ask for one full Visual Approval covering copy, structure, product menus, tabs, visuals and tokens, then use $design-system-compiler for the required `design-system/4` pair and frozen derived HTML.
 ```
 
 ```text
@@ -94,7 +94,7 @@ Use $growth-review to read back every surface of this released product with its 
 | Skill | 負責範圍 |
 | --- | --- |
 | `product-definition-builder` | 含 `## Ambition`、At a Glance `Shape` 列與 `## Growth Contract` 的 `PRD.md`、`architecture.md`、`stack-decisions.md`、`docs/product/features/` 內的 feature 檔案、研究、各輪 PRD delta 與 Product Definition Approval；多模組產品的 `program` 交付檔（程式級 PRD 加每模組一個[模組套件](skills/product-definition-builder/assets/templates/PROGRAM_PRD.template.md)，逐模組驗證）、[AI 功能契約](skills/product-definition-builder/references/ai-feature-contract.md) 與多模組產品的 modular monolith 模式；每張 stack 表都有 `BDD runner` 列，批准區塊帶 `Feature files` digest，Test Obligations 一旦指明其 feature 檔案，套件 checker 就檢查 feature 覆蓋（含 eval-policy 的 scenario id）；適用時，PRD 引用 `docs/product/keyword-map.md` 的 `KW-*` cluster |
-| `ui-design-builder` | 由 `UI_DESIGN.template.md` 建立的 `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包，另有集中缺陷 ledger（`UI_DEFECT_LEDGER.template.json`）以及 grader、Impeccable operator 與 scoped 複查 packet（`UI_REVIEW_PACKET.template.md`）的模板；新視覺範圍另保留 `docs/design/directions/<round>/references/` 下的參考板截圖 |
+| `ui-design-builder` | 由 `UI_DESIGN.template.md` 建立的 `docs/design/ui-design.md`、方向研究與完整已批准 HiFi 包，另有集中缺陷 ledger（`UI_DEFECT_LEDGER.template.json`）以及 grader、Impeccable operator、pilot 診斷與複查 packet（`UI_REVIEW_PACKET.template.md`）的模板；新視覺範圍另保留 `docs/design/directions/<round>/references/` 下的參考板截圖 |
 | `design-system-compiler` | 凍結的 `design-system.md`／`design-system.json` 與 `design-system-preview.html`；`check_design_system_pair.py --write-bindings` 由 `ui-design.md` 填入 `sourceBindings`，`--write` 把 `contrastPairs` 與 `typeSteps` 的比值寫入產生的證據區塊，`design-system/4` 的 JSON token 須與 HiFi CSS 中的同名宣告一致 |
 | `delivery-harness` | 範圍路由、授權、任務、整合、驗證、由 PRD feature 檔案加一份 run profile 產生的交付驗收 register、PRD delta 規則（新增或修訂需求的每個 Required TEST 都須有新增或改動的 scenario）、安全 lens、`docs/DEPLOYMENT.md` 內的外部設定與量測來源（含 [GA4 後台設定](skills/delivery-harness/references/ga4-admin-setup.md) 與 AI 供應商設定）、[效能與成本預算](skills/delivery-harness/references/performance-and-cost-budget.md)、跑完會清掉自己產物的原生驗證，需要時的 PLAN/RUN，以及 managed stage cards 與自主執行用的 launch brief；初始化的專案 `AGENTS.md` 含 `Harness Version` 與 `Behavior Specs` 段落，另有 direct 路線的 [assignment](skills/delivery-harness/assets/templates/ASSIGNMENT.template.md) 與 [review brief](skills/delivery-harness/assets/templates/DIRECT_REVIEW_BRIEF.template.md) 模板、由 `build_delivery_results.py` 轉成 `delivery-results.json` 的 [delivery evidence](skills/delivery-harness/assets/templates/DELIVERY_EVIDENCE.template.md) 檔案，以及對既有 app 先取證再改的 [open-ended refinement](skills/delivery-harness/references/open-ended-refinement.md) |
 | `growth-review` | 依 Surface Catalog 逐 surface 各用一個 lens：搜尋與答案引擎、商店列表、registry 與目錄、bot 平台、桌面 app，以及團隊經營的帳號；含 `pre_launch`、`demand_research`、`baseline`、Day 7 與 Day 30 `growth_review` 與 `traffic_drop` 模式，直接回覆，唯 `demand_research` 在 PRD 之前執行並寫出唯一的輸出 `docs/product/keyword-map.md`；與 `docs/gtm/MESSAGING.md` 矛盾的線上文案算 finding |
@@ -142,7 +142,7 @@ Delivery core 只做一次規模判斷：一位 writer 配一段連貫驗證即�
 | --- | --- |
 | Product Definition | 草稿與研究對帳完成後，作者自查整套文件一次；owner 批准前重查受影響變更；之後再做一次獨立唯讀 PRD review 與一次定向複查，owner 依十題 review 指南決定。其後的缺陷走隔離修復加 scoped review。 keyword map 先於頁面清單；route 的 `<title>` 與 meta description 是內容欄位，不需 PRD delta 即可改寫。 |
 | 方向 | 新視覺範圍先建立 9–12 張截圖的參考板，owner 有參考庫時先從庫裡挑。各研究的作者先檢查並修復自己已渲染的研究，再交 owner 選擇；檢查包含 `slop_scan.py` 與對照參考板的比對頁。三個研究，主機有容量時由不同作者同時撰寫。owner 在 `_compare.html` 並排看到參考板、提議的原則和各研究，一次回覆就確認原則並選定方向，也可以要求一次針對某個研究的三個變體。 |
-| HiFi | 先做靜態，再加動效。完整性 preflight 後，原作者先自查及修復，再交獨立 review；自查包含 `slop_scan.py`，以及用 `capture_sheet.py` 把選定方向和候選稿並排的比對頁。Impeccable `critique` **與** `audit` 完成，且四捨五入的 H1–H9 總平均 **至少 85**、每項 **至少 80** 後，才取得 Visual Approval。 |
+| HiFi | 三層，先建 kit（token 與每個控制項的所有狀態，一份產品樣式表）和 pilot 頁，再做組合與美術；先做靜態，再加動效。作者在每條 journey 之後跑檢查，含量測無障礙。完整性 preflight 後，原作者先自查及修復，再交獨立 review；自查包含 `slop_scan.py`，以及用 `capture_sheet.py` 把選定方向和候選稿並排的比對頁。每個候選稿只做一次矩陣擷取；一輪 review 加同一批 reviewer 的一次收斂複查，不再有 scoped 複查；block 必須附上可重現的失敗、違反的規則與關閉條件。Impeccable `critique` **與** `audit` 完成，且四捨五入的 H1–H9 總平均 **至少 85**、每項 **至少 80** 後，才取得 Visual Approval。 |
 | 交付 | `review_policy: final_candidate`：固定最終 SHA 上一次合併 code、適用 UI visual 與 security review（UI 使用真實瀏覽器），另加一次定向複查。之後每個剩餘缺陷各成一筆有界修復，只對其修復差異做 scoped review。 |
 | Release | 一個 owner 指令可指定多個準確 release 動作。Archive-only A 與 tree 相同的 server main S 按下列規則繼承已驗證證據；tree 不同就是新候選。 |
 | 外部設定 | `docs/DEPLOYMENT.md` 每個動作一列 External Console Setup，另有 Measurement Sources 表，每次 release 在 Release Log 記一列。逐 release target 驗證授權、獨立讀回與適用行為；前置準備與 production readiness 分開。商店或安裝程式 target 須有安裝或下載證明；只有上傳時維持 `pending`。 |
@@ -205,6 +205,8 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
+- **0.90.0** — `ui-design-builder` 的 HiFi 階段現在先建共用的部分，並在一次複查後結束 review。分三層：kit（token 與每個控制項的所有狀態，一份產品樣式表）、組合與美術。kit 與 pilot 頁先做，作者先自查 pilot，pilot 診斷只列發現，其餘 journey 從鎖定的 kit 建出，每條 journey 之後都自查。小型產品略過 pilot，enhancement 沒有 pilot。`assemble_ui_review.py --product-css <file>` 把同一份產品樣式表原樣嵌進每一頁，只要有一頁帶有標記，bundle 檢查就會拒絕不一致。`hifi_matrix_capture.py --measure-a11y` 量測對比、目標尺寸、文字裁切、焦點可見與文字放大，寫進 sidecar 的 `a11y` 物件；它不改變任何結果或結束碼。作者在凍結的內容上對每個候選稿只做一次矩陣擷取，reviewer 不再跑 driver。缺少的義務或被拒絕的 receipt 退回同一個 reviewer session，不再有只補證據的輪次。review 預算是 pilot 診斷、一輪 wave、一次合併修復，以及由該 wave 的原 reviewer 做的一次收斂複查（內含一次修正往返）；兩次 scoped 複查已移除，未關閉的 block 讓候選稿保持 `blocked` 交給 owner。block 必須附上可重現的失敗、違反的規則與關閉條件。作者在動筆前先讀 Impeccable 的工藝底線（`impeccable` 新增允許用途 `author_quality_reference`），Impeccable 的授權在 UI Design Intake 就詢問。Receipt 綁定、85/80 門檻與 contract 版本都不變。
+
 - **0.89.0** — 現在可以在 PRD 之前研究搜尋需求。`growth-review` 新增 `demand_research` 模式，適用於有公開搜尋 surface（公開網頁或商店列表）的產品。它只產出一個檔案 `docs/product/keyword-map.md`，由 `KEYWORD_MAP.template.md` 產生：Scope、帶穩定 `KW-*` ID 的 Clusters、Not pursued、Content fields 與 Change log。網站尚未存在時，每個數字都標上 `observed`、`estimated` 或 `hypothesis`，不編造搜尋量、排名或競品事實；綁定帳號的資料來源只有在記錄了存取方式時才使用。Product Definition 在起草頁面清單之前先跑這個模式：Discovery Surface 列與 `SEO metadata` 行引用 `KW-*`；沒有 keyword map 的產品記錄 `Keyword map: n/a` 或 `not run` 及原因。沒有新增批准關卡。route 的 `<title>` 與 meta description 現在是內容欄位：PRD 保留上線時的值與長度限制，keyword map 保存目前的值，在限制內且保持同一 cluster 的改寫不需要 PRD delta，也不需要 UI review。Day 7 與 Day 30 的 `growth_review` 讀回會把每個 `KW-*` 與數據比對，回傳兩份清單：內容欄位改寫，以及結構性 PRD delta 候選。
 
 - **0.88.0** — HiFi matrix driver 和 reviewer runtime 補上四個缺口，這些缺口原本會把正確的產品行為判成失敗。`navigate` 互動現在可以指定目的狀態：控制項連到 `<page>#hifi-state=<surface>/<state>`，同一頁也適用；目的狀態不是該頁預設狀態時必須用這個寫法。抵達時由 fragment 決定 surface 和狀態，抵達結果會被記住，其他頁面存下的選擇不再決定產品導覽之後頁面顯示什麼。多個可到達的實例共用一個 control ID 時，driver 會啟動第一個尚未選取的實例並記錄其索引，所以分段控制會真的產生變化。操作的控制項是文字欄位、textarea 或 select 時，driver 會像使用者一樣輸入資料，仍然要求觀察到變化；停用或唯讀的欄位判失敗。一直逾時的頁面現在只會讓自己剩下的工作失敗或被擋，base 和 intermediate 的執行都一樣，所以整個 package 用 `--workers 4` 可以跑完：一個 52 頁、入口頁 6.9 MB 的 package，被擋的案例從 345 個降到 0。driver 的焦點規則現在接受焦點進入新打開的層，以及焦點回到被該次操作關閉的層的開關；其他焦點移動仍然判失敗。`HIFI_REVIEWER.template.html` 裡的 reviewer runtime 有變，package 要用新範本重建頁面才算採用這一版；compiler 接受新的 runtime 和先前兩個版本。
@@ -212,7 +214,5 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 - **0.87.0** — `ui-design-builder` 的參考與方向步驟少了來回輪次，也能把 owner 的品味帶到下一個專案。owner 可以在任何專案之外維護一個參考庫（預設 `~/.agents/design-references/`，截圖放在分類資料夾，加一張 `index.md` 表格）。參考板先從參考庫開始：選中的項目連同 `REF-*` 記錄與 hash 複製進該輪，研究只補參考庫沒涵蓋的用途。Visual Approval 之後，agent 只詢問一次是否把該輪採用的參考加入參考庫；只有 owner 答應才寫入，而且絕不覆寫既有項目。研究得到的參考板、提議的 Adopt / Adapt / Avoid 原則和方向研究現在一輪就交給 owner：owner 在同一次回覆中確認原則並選定、混合或否決方向，被否決的原則在混合或修改的修訂中處理。三個研究的一輪另外會產生 `_compare.html`，這是該先開的頁面：所有研究在同一情境與寬度下並排即時呈現，可放大單一研究並有上一個、下一個與返回。檢查器會從該輪的研究重新產生這個頁面，方向決定日期在 2026-11-18 或之後的輪次必須完全相符；更早的輪次沒有它仍然有效。owner 在選擇的回覆中可以要求一次變體輪：針對某個研究的三個版本，各改變一個指明的軸，記錄在 `### Variant round` 表格，其母方向必須是上一輪保留的研究。階段卡拆成短步驟，規則全部保留。
 
 - **0.86.0** — 慢的檢查現在可以同時跑。`hifi_matrix_capture.py --workers N`（1 到 4，預設 1）用固定的切分方式，把基本案例、互動操作、reviewer 量測和軸量測分給 N 個 headless Chromium，最後寫出一份合併輸出，列的內容與單一瀏覽器的結果相同；一個 222 個案例的真實 package 用 4 個瀏覽器從 1803 秒降到 697 秒。不論幾個 worker，每次互動操作現在都從重新載入的來源頁開始：前一次操作留下的產品狀態不再影響下一次。這在該 package 上消除了 109 筆假的互動失敗，所以同一個 package 舊的失敗數可能比新跑的高。任一瀏覽器打不開的頁面整頁判失敗，重複的 `--axes` 值以退出碼 2 拒絕，執行結束後不留下任何瀏覽器進程。一個審查點現在以同時派出的唯讀呼叫送出，每個 lens（code、security、visual）一個；parent 把結果合併成一份 finding、一個判定和一個修補迴圈。同一個 lens 派多個審查員仍需要 owner 要求，需要瀏覽器的 managed 節點把 security 與 visual lens 放在同一個呼叫。在 direct 路線上，全量最終驗證可以和審查在同一個未變動的候選版本上同時開始；修補後不沿用其中任何結果，managed 的最終 gate 仍然等待它的審查節點。在本倉庫中，`ci_test_shards.py matrix` 以每個測試模組一個進程的方式跑 product、ui 和 design-system 套件，瀏覽器套件同時最多三個，跑了零個測試的模組判失敗，並印出失敗模組的最後幾行；CI 的瀏覽器工作使用同一個 runner。
-
-- **0.85.0** — HiFi 檢查現在接受已核准 PRD 所描述的行為。目的地與來源相同的 PRD 操作（儲存、篩選、排序）對應到新的 manifest kind `feedback`，matrix driver 只在啟動後來源 surface 真的有變化時才判為通過；只有焦點移動不算。`state` 互動可以落在另一頁，條件是該控制項的每個實例都連到 `<page>#hifi-state=<surface>/<state>`。宣告為 `:n/a` 的狀態不需要頁面標記。同一個操作可以畫很多次：driver 啟動第一個可見的實例，並記錄數量。表單欄位可以用 `data-control-for` 指明所屬的按鈕，不必自己帶一個操作；動作型 input 以及 button、link role 不能用這個屬性。`data-product-disclosure` 加入選單與分頁這兩種開關，開關本身不需要操作，driver 會先打開已宣告的開關，再啟動被收起的控制項。PRD 操作為 `none` 的 surface 可以不宣告 navigation 和 controls。`zoom-200` 軸現在把 query container 的寬度減半，和瀏覽器縮放一致。互動列可以帶一個選填的 `observed` 物件（`change`、`instances`、`openers`）；`ui-output/3` 和舊收據仍然有效。控制項偵測變嚴了：所有互動型 ARIA role、帶指標事件處理的任何元素，以及帶鍵盤事件處理的可聚焦元素，現在都需要 control ID；以前畫了這類元素卻沒有綁定的套件，要補上綁定才會通過。
 
 較早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
