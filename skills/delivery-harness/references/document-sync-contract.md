@@ -55,6 +55,9 @@ For design consumers, continue with [Design Input Updates](design-input-updates.
 
 ## Impact Review
 
+The global check resolves approved public claims that cite research findings against the current assessment and its local studies.
+Missing or withdrawn support requires review even after saving a fresh snapshot.
+
 This inventory and the project's **Repository Change Checkpoints** form one entry check with one record. The **Handoff Documentation Audit** is the one exit check. Both live in `governance/task-and-handoff.md`.
 
 The read-only report includes `impacts`: source path, observation reason, affected artifacts/stages, required checks and `semantic_review_required`. They are routing hints. Unchanged bytes have no impact rows, and unknown source types go to parent semantic review. Inspect the actual requirement references and the diff before selecting checks. Skill identity changes still need the separate restart/contract findings.

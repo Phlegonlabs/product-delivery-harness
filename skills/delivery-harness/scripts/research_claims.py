@@ -1,9 +1,7 @@
 """Compare approved RA-backed claims using only jointly inventoried Markdown.
 
-The caller owns safe, bounded reads and missing-file findings. Both canonical
-paths must be supplied; omitted paths are out of scope, not missing evidence.
-Linked studies are checked only when their text is supplied too. No snapshot,
-filesystem, approval inference, or general claim verification happens here.
+The caller owns bounded reads. A global inventory checks for missing cited
+evidence. A scoped inventory compares only the selected documents.
 """
 
 import posixpath
@@ -84,7 +82,7 @@ def _support_problem(row):
     return None
 
 
-def _study_path(value, documents):
+def _study_path(value, documents, full_inventory):
     link = re.fullmatch(r"\[[^\]]*\]\(([^)]+)\)", value)
     target = urlsplit(link.group(1) if link else value)
     if target.scheme or target.netloc:
@@ -93,7 +91,7 @@ def _study_path(value, documents):
     # Source templates use repository-relative paths; also accept Markdown's
     # assessment-relative links, but never discover a path outside the inventory.
     for candidate in (path, posixpath.normpath(posixpath.join("docs/product", path))):
-        if candidate.startswith("docs/research/discovery/") and candidate in documents:
+        if candidate.startswith("docs/research/discovery/") and (candidate in documents or full_inventory):
             return candidate
     return None
 
@@ -122,21 +120,21 @@ def _study_problem(text, research_id):
         strength = next((value for key, value in row.items() if key.startswith("strength")), "")
         if strength.casefold() == "observed":
             observed.add(code)
-    if evidence and codes and len(observed) < 3:
+    if codes and len(observed) < 3:
         return "insufficient_observations"
     return None
 
 
-def research_claim_findings(documents):
+def research_claim_findings(documents, *, full_inventory=False):
     """Return current content conflicts as ``{kind, path, line, claim, ...}``.
 
     Accept research-first's sourced/reported categories; UNVALIDATED, withdrawal,
     unknown confidence, and unresolved explicit RA/source IDs cannot support an
     approved claim. This is not a comparison of claim wording or approval dates.
     """
-    if MESSAGING not in documents or ASSESSMENT not in documents:
+    if MESSAGING not in documents or (not full_inventory and ASSESSMENT not in documents):
         return []
-    assessment = documents[ASSESSMENT]
+    assessment = documents.get(ASSESSMENT, "")
     research = _indexed(assessment, "Findings", "ra id")
     sources = _indexed(assessment, "Sources", "source id")
     findings = []
@@ -161,14 +159,15 @@ def research_claim_findings(documents):
                     if WITHDRAWN.search(" ".join(source.values())):
                         problem = "withdrawn_source"
                         break
-                    study = _study_path(source.get("url", ""), documents)
+                    study = _study_path(source.get("url", ""), documents, full_inventory)
                     if study:
-                        problem = _study_problem(documents[study], research_id)
+                        problem = (_study_problem(documents[study], research_id)
+                                   if documents.get(study) else "missing_study")
                         if problem:
                             evidence_path = study
                             break
             if problem:
                 findings.append({"kind": "approved_claim_research_conflict", "path": MESSAGING,
-                                 "line": line, "claim": claim["claim"], "research_id": research_id,
+                                 "line": line, "research_id": research_id,
                                  "evidence_path": evidence_path, "reason": problem})
     return findings

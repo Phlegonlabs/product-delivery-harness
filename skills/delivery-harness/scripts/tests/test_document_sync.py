@@ -447,6 +447,24 @@ class DocumentSyncTests(unittest.TestCase):
         self.assertEqual(2, result)
         self.assertNotIn("DO-NOT-PRINT", stream.getvalue())
 
+    def test_approved_claim_with_missing_research_survives_rebaseline_as_a_finding(self):
+        name = "docs/gtm/MESSAGING.md"
+        path = self.root / name
+        path.parent.mkdir(parents=True)
+        path.write_text("## Approved Public Claims\n| Claim | Evidence | Check date |\n"
+                        "| --- | --- | --- |\n| Internal wording | RA-001 | today |\n", encoding="utf-8")
+        args = ["--repo-root", str(self.root), "--loaded-digest", self.digest]
+        for round_number in range(2):
+            stream = io.StringIO()
+            with contextlib.redirect_stdout(stream), patch("check_document_sync.contract_digest", return_value=self.digest):
+                self.assertEqual(1, main(args))
+            report = json.loads(stream.getvalue())
+            self.assertIn("approved_claim_research_conflict", {row["kind"] for row in report["findings"]})
+            self.assertNotIn("Internal wording", stream.getvalue())
+            if round_number == 0:
+                (self.root / "snapshot.json").write_text(json.dumps(report["snapshot"]), encoding="utf-8")
+                args.extend(["--baseline", "snapshot.json"])
+
     def test_deep_baseline_returns_structured_invalid(self):
         (self.root / "baseline.json").write_text('{"x":' + '[' * 2000 + '0' + ']' * 2000 + '}')
         stream = io.StringIO()

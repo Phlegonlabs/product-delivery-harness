@@ -70,7 +70,7 @@ class ResearchClaimTests(unittest.TestCase):
         self.assertEqual(len(findings), 1, findings)
         self.assertEqual(findings[0], {
             "kind": "approved_claim_research_conflict", "path": MESSAGING,
-            "line": 9, "claim": "C01: Three operators reconstructed enquiry status",
+            "line": 9,
             "research_id": "RA-001", "evidence_path": evidence_path, "reason": reason,
         })
 
@@ -121,6 +121,20 @@ class ResearchClaimTests(unittest.TestCase):
         self.assert_conflict(docs, "unvalidated")
         docs[ASSESSMENT] = ASSESSMENT_TEXT
         self.assertEqual(research_claim_findings(docs), [])
+
+    def test_global_inventory_rejects_missing_evidence_after_refresh(self):
+        for missing, reason in ((ASSESSMENT, "missing_finding"), (STUDY, "missing_study")):
+            with self.subTest(missing=missing):
+                docs = documents()
+                del docs[missing]
+                self.assertEqual([], research_claim_findings(docs))
+                findings = research_claim_findings(docs, full_inventory=True)
+                self.assertEqual([reason], [item["reason"] for item in findings])
+
+    def test_removing_the_entire_evidence_table_does_not_restore_support(self):
+        docs = documents()
+        docs[STUDY] = "## RA-* Candidates" + docs[STUDY].split("## RA-* Candidates", 1)[1]
+        self.assert_conflict(docs, "insufficient_observations", STUDY)
 
     def test_withdrawn_claim_retained_in_history_is_not_approved(self):
         docs = documents()

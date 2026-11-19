@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from harness_contract import contract_digest
+from research_claims import ASSESSMENT, MESSAGING, research_claim_findings
 
 
 SCHEMA = "document-sync/1"
@@ -289,7 +290,7 @@ def default_inventory(root, baseline=None):
 
 
 def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=(),
-            session_marker=None):
+            session_marker=None, *, full_inventory=False):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("repository root must be a directory")
@@ -337,14 +338,18 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         findings.append({"kind": "baseline_review_required"})
     documents = {}
     impacts = []
+    research_text = {}
     for name in sorted(set(previous) - set(paths)):
         safe_path(root, name, document=True)
         findings.append({"kind": "removed_from_inventory", "path": name})
         impacts.append(impact_for(name, "removed_from_inventory"))
     for name in paths:
         path = safe_path(root, name, document=True)
+        research_source = name in {ASSESSMENT, MESSAGING} or name.startswith("docs/research/discovery/")
         if not path.exists():
             documents[name] = None
+            if research_source:
+                research_text[name] = ""
             if name in required or previous.get(name) is not None:
                 findings.append({"kind": "missing_document", "path": name})
                 impacts.append(impact_for(name, "missing_document"))
@@ -360,6 +365,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
+        if research_source:
+            research_text[name] = text
         documents[name] = hashlib.sha256(data).hexdigest()
         accepted = {documents[name]}
         if is_epic(name):
@@ -375,13 +382,14 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
         if name == "docs/DOCUMENTS.md":
             findings.extend(current_epic_findings(root, text))
+    findings.extend(research_claim_findings(research_text, full_inventory=full_inventory))
     snapshot ={"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     review = [row for row in findings
               if "session_marker" not in row and row["kind"] != "oversized_document"]
     return {"status": "review_required" if review else "unchanged",
             "findings": findings, "impacts": impacts, "snapshot": snapshot,
-            "meaning": "Byte drift only; semantic review, capability, authorization and approval are separate."}
+            "meaning": "Checks byte drift and current handoff references. Capability, authorization and approval are separate."}
 
 
 def main(argv=None):
@@ -407,7 +415,8 @@ def main(argv=None):
                 raise ValueError("baseline must be a JSON snapshot")
             baseline = json.loads(read_bounded(path).decode("utf-8-sig"), object_pairs_hook=unique_object)
         report = inspect(root, args.paths or default_inventory(root, baseline), args.loaded_digest,
-                         installed_digest, baseline, args.required_path, args.session_marker)
+                         installed_digest, baseline, args.required_path, args.session_marker,
+                         full_inventory=args.paths is None)
     except (ValueError, OSError, UnicodeError, RecursionError) as exc:
         # Never echo document content, JSON bodies, or credential values.
         print(json.dumps({"status": "invalid", "error": type(exc).__name__}))
