@@ -104,6 +104,17 @@ class ReviewMatrixDocsTests(unittest.TestCase):
         self.assertIn("A candidate gets one full matrix capture", read("references/review-workflow.md"))
         self.assertIn("one repair batch of the kit and composition approach", read("references/review-workflow.md"))
 
+    def test_wave_is_two_reviewers_and_never_split_for_size_or_time(self):
+        rubric = read(RUBRIC)
+        capability = section(rubric, "## Capability And Authorization")
+        self.assertIn("The wave is exactly two fresh reviewers, whatever the package size", capability)
+        self.assertIn("never splits the wave into page-group calls and never adds a grader", capability)
+        self.assertIn("a reviewer who needs longer gets a longer deadline", capability)
+        self.assertNotIn("Unless agent policy sets another topology", rubric)
+        self.assertNotIn("smaller scoped calls", rubric)
+        self.assertIn("the same reviewer finishes it with a longer deadline", section(rubric, "## Reporting And Reconciliation"))
+        self.assertNotIn("page group", read("references/stages/ui-design.md"))
+
 
 if __name__ == "__main__":
     unittest.main()

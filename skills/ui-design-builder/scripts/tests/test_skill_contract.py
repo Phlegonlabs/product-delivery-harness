@@ -445,8 +445,8 @@ console.log("hybrid fallback and stale QA assertions completed");
 
     def test_default_review_staffing_and_grader_packet(self):
         rubric = self.read("references/ui-grading-rubric.md")
-        self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
-                      "and one Impeccable operator who runs critique and audit", rubric)
+        self.assertIn("The wave is exactly two fresh reviewers, whatever the package size: a lead grader who also "
+                      "produces the browser receipt, and one Impeccable operator who runs critique and audit", rubric)
         self.assertIn("Neither reviews its own work", rubric)
         self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
         self.assertIn("gets a filled [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md)", rubric)

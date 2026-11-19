@@ -93,7 +93,7 @@ A changed-code candidate needs fresh security review. Only the documented non-se
 For architecture-bearing reviews, apply [Architecture Method](architecture-method.md) to the affected boundaries.
 
 One review node may go out as several calls on one exact SHA: one per lens, or per disjoint path group when its packet exceeds the route's caps.
-Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.
+Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; it is never split by page group ([UI wave topology](../../ui-design-builder/references/ui-grading-rubric.md#capability-and-authorization)).
 Each call carries the full finding contract and its lens or path group.
 Trust-boundary paths stay in one group so the security lens sees them together.
 A managed security result must report every `required_tools` entry of its node as run, so a node that requires a browser sends security with its visual lens and code in its own call.
