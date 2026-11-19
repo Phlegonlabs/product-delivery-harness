@@ -63,7 +63,7 @@ docs/design/evidence/**/*.log
 
 Some images are still committed, because a check reads them again in other checkouts:
 
-- The captures the approved Visual Approval receipts cite. `check_ui_design_contract.py` re-reads them, and the Harness PLAN check re-runs it in every later delivery checkout. Before the approval commit, force-add (`git add -f`) each path the approved outputs list in `execution.artifacts` and in assessment evidence.
+- The captures the approved Visual Approval receipts cite. `check_ui_design_contract.py` re-reads them, and the Harness PLAN check re-runs it in every later delivery checkout. In a Git checkout the approval check lists every cited capture not yet added, with the `git add -f` command; force-add what it lists before the approval commit.
 - The RUN's `ui_evidence` images under `docs/goal/evidence/`. Archive moves them, and validation reads them from Git at the recorded head.
 - Delivery acceptance evidence under `docs/verification/evidence/`, which must be committed at HEAD.
 
