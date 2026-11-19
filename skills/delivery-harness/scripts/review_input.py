@@ -14,8 +14,9 @@ when the parent's info/attributes holds rules, since the clone does not get them
 --remove <packet dir> deletes a packet this script built (the --out directory)
 once its review point passed or a newer packet superseded it. It refuses a path
 that is or passes through a link or junction, a packet holding one, and any
-directory that does not hold only clone/ with clone/review-input/HEAD.txt,
-BASE.txt and tracked-files.sha256.
+directory that is not what the build makes: only clone/, a Git checkout
+detached at the SHA in clone/review-input/HEAD.txt, with BASE.txt holding one
+SHA and tracked-files.sha256 holding "<sha256>  <relative path>" lines.
 Exit 0 on success, 2 on any failure.
 """
 
@@ -37,6 +38,9 @@ from harness_git import GitMetadataError, run_git
 SCOPE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DIFF_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
 PACKET_MARKERS = ("HEAD.txt", "BASE.txt", "tracked-files.sha256")
+FULL_SHA = re.compile(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})\n")
+# "<sha256>  <relative path>", as build() writes tracked-files.sha256.
+MANIFEST_LINE = re.compile(rb"[0-9a-f]{64}  (?!/|[A-Za-z]:/)([^\r]+)")
 
 
 class ReviewInputError(Exception):
@@ -149,6 +153,17 @@ def is_link(info: os.stat_result) -> bool:
     return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
 
 
+def first_bad_manifest_line(data: bytes) -> int:
+    """Number of the first line that is not "<sha256>  <relative path>" and a newline, else 0."""
+    lines = data.split(b"\n")
+    unterminated = lines.pop()
+    for number, line in enumerate(lines, 1):
+        match = MANIFEST_LINE.fullmatch(line)
+        if not match or b".." in match.group(1).split(b"/"):
+            return number
+    return len(lines) + 1 if unterminated else 0
+
+
 def remove(packet: Path) -> dict:
     def refuse(reason: str) -> ReviewInputError:
         return ReviewInputError(f"not a review packet: {reason}")
@@ -161,8 +176,9 @@ def remove(packet: Path) -> dict:
         raise refuse(f"{given} is or passes through a link or junction")
     if not packet.is_dir():
         raise refuse(f"{packet} does not exist or is not a directory")
+    clone = packet / "clone"
     for name in PACKET_MARKERS:
-        if not (packet / "clone" / "review-input" / name).is_file():
+        if not (clone / "review-input" / name).is_file():
             raise refuse(f"clone/review-input/{name} is missing in {packet}")
     others = sorted(entry.name for entry in packet.iterdir() if entry.name != "clone")
     if others:
@@ -177,6 +193,26 @@ def remove(packet: Path) -> dict:
                     raise refuse(f"{inside} in {packet} is a link or junction")
                 if stat.S_ISDIR(info.st_mode):
                     pending.append(entry.path)
+
+    markers = {name: (clone / "review-input" / name).read_bytes() for name in PACKET_MARKERS}
+    for name in ("HEAD.txt", "BASE.txt"):
+        if not FULL_SHA.fullmatch(markers[name]):
+            raise refuse(f"clone/review-input/{name} in {packet} does not hold one full SHA")
+    bad_line = first_bad_manifest_line(markers["tracked-files.sha256"])
+    if bad_line:
+        raise refuse(f"clone/review-input/tracked-files.sha256 in {packet} line {bad_line} "
+                     "is not '<sha256>  <relative path>'")
+    if not (clone / ".git").is_dir():
+        raise refuse(f"clone/.git is missing in {packet}, so clone/ is not a Git checkout")
+    # One call: top level, HEAD commit, then "HEAD" when detached or the branch ref.
+    found = run_git(clone, "rev-parse", "--show-toplevel", "HEAD", "--symbolic-full-name", "HEAD", timeout=30)
+    lines = found.stdout.splitlines() if found.returncode == 0 else []
+    if len(lines) != 3 or Path(lines[0]).resolve() != clone:
+        raise refuse(f"clone/ in {packet} is not a Git checkout of its own")
+    head = markers["HEAD.txt"].decode("ascii").strip()
+    if lines[1:] != [head, "HEAD"]:
+        raise refuse(f"clone/ in {packet} is at {lines[1]} ({lines[2]}), "
+                     f"not detached at {head} as clone/review-input/HEAD.txt says")
 
     def clear_read_only(function, path, _error) -> None:
         # Git object files are read-only; on Windows that blocks unlink.

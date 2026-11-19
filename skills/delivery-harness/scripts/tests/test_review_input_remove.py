@@ -144,6 +144,61 @@ class RemovePacketTests(unittest.TestCase):
         out = self.build_packet()
         self.assert_refused(out / "clone", "clone/review-input/HEAD.txt is missing")
 
+    def fake_packet(self, root: Path) -> Path:
+        """Marker files that look right, with no clone behind them."""
+        review = root / "clone" / "review-input"
+        review.mkdir(parents=True)
+        (review / "HEAD.txt").write_bytes(f"{self.head}\n".encode())
+        (review / "BASE.txt").write_bytes(f"{self.base}\n".encode())
+        (review / "tracked-files.sha256").write_bytes(f"{'0' * 64}  app.py\n".encode())
+        return root
+
+    def test_refuses_markers_without_a_git_clone(self) -> None:
+        self.assert_refused(self.fake_packet(self.tmp / "no-git"), "clone/.git is missing")
+        empty_git = self.fake_packet(self.tmp / "empty-git")
+        (empty_git / "clone" / ".git").mkdir()
+        self.assert_refused(empty_git, "is not a Git checkout of its own")
+        # Git looks upward from an empty clone/.git and finds the repository, whose HEAD matches HEAD.txt.
+        inside_repo = self.fake_packet(self.repo / "fake")
+        (inside_repo / "clone" / ".git").mkdir()
+        self.assert_refused(inside_repo, "is not a Git checkout of its own")
+
+    def test_refuses_a_clone_not_detached_at_head_txt(self) -> None:
+        out = self.build_packet()
+        clone = out / "clone"
+        head_txt = clone / "review-input" / "HEAD.txt"
+        original = head_txt.read_bytes()
+        head_txt.write_bytes(f"{self.base}\n".encode())
+        self.assert_refused(out, f"not detached at {self.base}")
+        head_txt.write_bytes(original)
+        git(clone, "checkout", "-q", "-b", "review")
+        self.assert_refused(out, "(refs/heads/review), not detached")
+
+    def test_refuses_malformed_markers(self) -> None:
+        out = self.build_packet()
+        review = out / "clone" / "review-input"
+        digest = "0" * 64
+        cases = (
+            ("HEAD.txt", self.head[:12] + "\n", "HEAD.txt in"),
+            ("HEAD.txt", f"{self.head}\n{self.base}\n", "HEAD.txt in"),
+            ("HEAD.txt", self.head.upper() + "\n", "HEAD.txt in"),
+            ("BASE.txt", "main\n", "BASE.txt in"),
+            ("tracked-files.sha256", "abc  app.py\n", "line 1"),
+            ("tracked-files.sha256", f"{digest} app.py\n", "line 1"),
+            ("tracked-files.sha256", f"{digest}  app.py\n{digest}  /etc/passwd\n", "line 2"),
+            ("tracked-files.sha256", f"{digest}  ../outside.txt\n", "line 1"),
+            ("tracked-files.sha256", f"{digest}  C:/Windows/win.ini\n", "line 1"),
+            ("tracked-files.sha256", f"{digest}  \n", "line 1"),
+            ("tracked-files.sha256", f"{digest}  app.py", "line 1"),
+            ("tracked-files.sha256", f"{digest}  app.py\r\n", "line 1"),
+        )
+        for name, content, reason in cases:
+            with self.subTest(name=name, content=content):
+                original = (review / name).read_bytes()
+                (review / name).write_bytes(content.encode("utf-8"))
+                self.assert_refused(out, reason)
+                (review / name).write_bytes(original)
+
     def test_refuses_a_link_to_a_packet_and_keeps_the_target(self) -> None:
         out = self.build_packet(self.tmp / "area" / "packet")
         before = listing(out)
