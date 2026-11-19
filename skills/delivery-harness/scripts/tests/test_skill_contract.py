@@ -1658,6 +1658,24 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         ):
             self.assertIn(reason, selector)
 
+    def test_a_round_keeps_its_harness_version_until_it_closes(self) -> None:
+        upgrades = self.read("references/runtime-upgrades.md")
+        freeze = self.owner_section(upgrades, "## Round Version Freeze")
+        # Every round type keeps the version it started with; drift is recorded, not reconciled.
+        self.assertIn("a UI design round, a direct delivery task and a managed RUN alike", freeze)
+        self.assertIn("A newer shared installation or release during the round is not an input", freeze)
+        self.assertIn("Do not reconcile, re-verify, re-pin or adopt it", freeze)
+        self.assertIn("Only an owner request starts a mid-round upgrade", freeze)
+        # The places that used to re-pin or re-inventory point at the one rule.
+        self.assertIn("runtime-upgrades.md#round-version-freeze", self.read("references/bundle-adoption.md"))
+        self.assertIn("never asks a running consumer round to reconcile",
+                      self.read("references/governance/source-maintenance.md"))
+        self.assertIn("observed drift, not a skill identity change here",
+                      self.read("references/governance/task-and-handoff.md"))
+        workflow = (SKILL_ROOT.parent / "ui-design-builder/references/review-workflow.md").read_text(encoding="utf-8")
+        self.assertIn("runtime-upgrades.md#round-version-freeze", workflow)
+        self.assertNotIn("Only a blocking defect justifies a mid-round update", workflow)
+
     def test_workers_never_delegate_and_parent_owns_reviews(self) -> None:
         worker_goal = self.read("assets/templates/WORKER_GOAL.template.md")
         results = self.read("references/worker-result-contract.md")
