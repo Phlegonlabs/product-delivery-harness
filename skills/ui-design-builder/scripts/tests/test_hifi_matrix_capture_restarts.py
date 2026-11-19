@@ -1,4 +1,4 @@
-"""hifi_matrix_capture: one stuck operation blocks only its own remaining attempts.
+"""hifi_matrix_capture: one stuck operation or one failed restart blocks only the work that depends on it.
 
 Fake drivers for the logic, one real Chromium run for a control that freezes its page. Synthetic fixture pages only.
 """
@@ -53,6 +53,54 @@ class StuckOperationTests(unittest.TestCase):
                 self.assertEqual({"index.html", "details.html"}, {r["page"] for r in others + sidecar["axes"]})
                 seen[count] = rows(sidecar["interactions"])
         self.assertEqual(seen["1"], seen["2"])
+
+
+def hang_then_fail_one_restart(case):
+    """A Fleet configure: this case hangs, and the fleet's first restart, the one after it, cannot start a browser."""
+    failures = [m.DriverError("chromium did not start")]
+
+    def configure(driver):
+        driver.overrides[case] = {"raise": m.DriverTimeout("hung case")}
+        restart = driver.restart
+
+        def flaky_restart():
+            restart()
+            if failures:
+                raise failures.pop()
+
+        driver.restart = flaky_restart
+    return configure
+
+
+class FailedRestartTests(unittest.TestCase):
+    def test_a_browser_that_cannot_restart_blocks_only_the_rest_of_its_page(self):
+        for count in ("1", "2"):
+            with self.subTest(workers=count):
+                fleet = workers.Fleet(self, hang_then_fail_one_restart(("UI-001", "ready", "390")))
+                code, _, out = fleet.go("--workers", count)
+                output, sidecar = workers.load(out)
+                self.assertEqual(1, code)
+                self.assertEqual(["FAIL"] + ["BLOCKED"] * 5 + ["PASS"] * 6, [r["result"] for r in output["results"]])
+                self.assertIn("timed out", sidecar["cases"][0]["reasons"][0])
+                blocked = [r for r in sidecar["cases"] + sidecar["interactions"] if r["result"] == "BLOCKED"]
+                self.assertEqual({"index.html"}, {r["page"] for r in blocked})
+                self.assertEqual({"browser driver could not restart: chromium did not start"},
+                                 {r["reasons"][0] for r in blocked})
+                # The next page starts a fresh browser: its cases, operations and every reviewer row pass.
+                self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "details.html"})
+                self.assertEqual({"PASS"}, {r["result"] for r in sidecar["reviewer"]})
+
+    def test_a_worker_whose_browser_is_down_at_the_end_of_a_phase_runs_the_next_phase(self):
+        # The first worker's last base item hangs and its browser cannot restart. In the axis phase that worker
+        # owns index.html, so its rows show whether it started a fresh browser.
+        fleet = workers.Fleet(self, hang_then_fail_one_restart(("UI-002", "loading", "390")))
+        code, _, out = fleet.go("--axes", "dark", "--workers", "2")
+        _, sidecar = workers.load(out)
+        self.assertEqual(1, code)
+        self.assertIn("timed out", next(r for r in sidecar["cases"] if r["state"] == "loading"
+                                        and r["surface"] == "UI-002" and r["target"] == "390")["reasons"][0])
+        rows_on_index = [r for r in sidecar["axes"] if r["page"] == "index.html"]
+        self.assertEqual(["PASS"] * 4, [r["result"] for r in rows_on_index])
 
 
 class RealBrowserStuckOperationTests(unittest.TestCase):
