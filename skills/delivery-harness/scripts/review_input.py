@@ -39,7 +39,8 @@ from harness_git import GitMetadataError, git_argv, git_environment, run_git
 SCOPE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DIFF_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
 PACKET_MARKERS = ("HEAD.txt", "BASE.txt", "tracked-files.sha256")
-PACKET_FILES = set(PACKET_MARKERS) | {"candidate.diff", "commit-log.txt", "changed-files.txt", "parent-status.txt"}
+# Written last by the build: every file of the packet, .git and review-input included, with its SHA-256.
+PACKET_LISTING = "packet-files.sha256"
 FULL_SHA = re.compile(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})\n")
 # "<sha256>  <relative path>", as build() writes tracked-files.sha256.
 MANIFEST_LINE = re.compile(rb"[0-9a-f]{64}  (?!/|[A-Za-z]:/)([^\r]+)")
@@ -141,6 +142,7 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
         scope_lines[name] = data.count(b"\n")
     files = manifest(clone)
     put("tracked-files.sha256", "".join(f"{digest}  {rel}\n" for rel, digest in files))
+    put(PACKET_LISTING, "".join(f"{digest}  {rel}\n" for rel, digest in sorted(packet_listing(out).items())))
     return {
         "clone": clone.as_posix(),
         "head": head,
@@ -148,6 +150,20 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
         "candidate_diff_lines": candidate.count(b"\n"),
         "scope_diff_lines": scope_lines,
     }
+
+
+def packet_listing(packet: Path) -> dict[str, str]:
+    """{path relative to the packet: SHA-256} for every file under it except the listing itself. A link counts as
+    its target text, as in manifest()."""
+    listing = {}
+    for root, _, files in os.walk(packet):
+        for name in files:
+            path = Path(root, name)
+            rel = path.relative_to(packet).as_posix()
+            if rel != f"clone/review-input/{PACKET_LISTING}":
+                data = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
+                listing[rel] = hashlib.sha256(data).hexdigest()
+    return listing
 
 
 def is_link(info: os.stat_result) -> bool:
@@ -226,15 +242,23 @@ def remove(packet: Path) -> dict:
     )
     if outer.returncode == 0 and Path(outer.stdout.strip()).resolve() == packet:
         raise refuse(f"{packet} is a Git work tree root")
-    # Provenance: the build wrote review-input/ and listed every other clone file with its SHA-256. Anything
-    # added or changed since, such as a file someone saved there, keeps the packet.
-    extra = sorted(entry.name for entry in (clone / "review-input").iterdir()
-                   if entry.name not in PACKET_FILES and not re.fullmatch(r"scope-[A-Za-z0-9][A-Za-z0-9_.-]*\.diff", entry.name))
-    if extra:
-        raise refuse(f"clone/review-input in {packet} also holds {', '.join(extra)}")
-    listed = dict(line.split("  ", 1)[::-1] for line in markers["tracked-files.sha256"].decode("utf-8").splitlines())
-    if dict(manifest(clone)) != listed:
-        raise refuse(f"clone/ in {packet} holds files its tracked-files.sha256 does not list with their bytes")
+    # Provenance: the build listed every file it wrote, .git and review-input included. Anything added, removed
+    # or changed since, such as a file someone saved anywhere in the packet, keeps the packet.
+    listing = clone / "review-input" / PACKET_LISTING
+    if not listing.is_file():
+        raise refuse(f"{packet} has no clone/review-input/{PACKET_LISTING}: an earlier build made it, so nothing "
+                     "proves what it holds; check it and delete it by hand")
+    data = listing.read_bytes()
+    if first_bad_manifest_line(data):
+        raise refuse(f"clone/review-input/{PACKET_LISTING} in {packet} line {first_bad_manifest_line(data)} "
+                     "is not '<sha256>  <relative path>'")
+    recorded = dict(line.split("  ", 1)[::-1] for line in data.decode("utf-8").splitlines())
+    current = packet_listing(packet)
+    changed = sorted(set(current) ^ set(recorded) | {rel for rel in current.keys() & recorded.keys()
+                                                     if current[rel] != recorded[rel]})
+    if changed:
+        raise refuse(f"{packet} changed since it was built: {changed[0]}"
+                     + (f" and {len(changed) - 1} more" if len(changed) > 1 else ""))
 
     def clear_read_only(function, path, _error) -> None:
         # Git object files are read-only; on Windows that blocks unlink.

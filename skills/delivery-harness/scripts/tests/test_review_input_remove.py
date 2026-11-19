@@ -140,22 +140,31 @@ class RemovePacketTests(unittest.TestCase):
         (out / "review-result.json").write_text("{}\n", encoding="utf-8")
         self.assert_refused(out, "review-result.json")
 
-    def test_refuses_a_clone_holding_a_file_the_build_did_not_list(self) -> None:
-        out = self.build_packet()
-        (out / "clone" / "valuable.db").write_bytes(b"saved here after the build")
-        self.assert_refused(out, "does not list with their bytes")
+    def test_refuses_a_packet_holding_a_file_the_build_did_not_write(self) -> None:
+        # Anywhere in it: beside the checkout, inside .git, or in a folder named like a file the build writes.
+        for place in ("clone/valuable.db", "clone/.git/valuable.db", "clone/review-input/notes.txt"):
+            with self.subTest(place=place):
+                out = self.build_packet(self.tmp / place.replace("/", "-"))
+                (out / place).write_bytes(b"saved here after the build")
+                self.assert_refused(out, f"changed since it was built: {place}")
+        out = self.build_packet(self.tmp / "folder-for-file")
+        diff = out / "clone" / "review-input" / "candidate.diff"
+        diff.unlink()
+        diff.mkdir()
+        (diff / "valuable.db").write_bytes(b"saved here after the build")
+        self.assert_refused(out, "changed since it was built: clone/review-input/candidate.diff")
 
     def test_refuses_a_clone_whose_listed_file_changed(self) -> None:
         out = self.build_packet()
         tracked = next(path for path in sorted((out / "clone").rglob("*"))
                        if path.is_file() and ".git" not in path.parts and "review-input" not in path.parts)
         tracked.write_bytes(tracked.read_bytes() + b" edited after the build")
-        self.assert_refused(out, "does not list with their bytes")
+        self.assert_refused(out, "changed since it was built: " + tracked.relative_to(out).as_posix())
 
-    def test_refuses_review_input_holding_a_file_the_build_does_not_write(self) -> None:
+    def test_refuses_a_packet_an_earlier_build_made(self) -> None:
         out = self.build_packet()
-        (out / "clone" / "review-input" / "notes.txt").write_text("keep me\n", encoding="utf-8")
-        self.assert_refused(out, "also holds notes.txt")
+        (out / "clone" / "review-input" / "packet-files.sha256").unlink()
+        self.assert_refused(out, "an earlier build made it")
 
     def test_refuses_the_clone_folder_itself(self) -> None:
         out = self.build_packet()
