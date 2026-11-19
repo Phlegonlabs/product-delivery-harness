@@ -289,7 +289,10 @@ def stop_tree(process):
             tree_stopped = False
     finally:
         if process.poll() is None:
-            process.kill()
+            try:
+                process.kill()
+            except OSError:
+                tree_stopped = False
     try:
         process.wait(timeout=30)
     except subprocess.TimeoutExpired:

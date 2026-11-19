@@ -304,6 +304,14 @@ class NpmReadmeArtifactTests(unittest.TestCase):
                     self.assertFalse(CHECK.stop_tree(process))
                 process.kill.assert_called_once()
                 process.wait.assert_called_once_with(timeout=30)
+        # A failing root kill still leads to the bounded wait and an unconfirmed stop.
+        process = unittest.mock.Mock(pid=123456)
+        process.poll.return_value = None
+        process.kill.side_effect = PermissionError("access denied")
+        with patch.object(CHECK.subprocess, "run", side_effect=FileNotFoundError("taskkill")), \
+                patch.object(CHECK.os, "killpg", side_effect=OSError("no group"), create=True):
+            self.assertFalse(CHECK.stop_tree(process))
+        process.wait.assert_called_once_with(timeout=30)
 
     def test_cli_cannot_write_into_the_consumer(self):
         self.files["bin/cli.cjs"] = b"require('node:fs').writeFileSync('marker', 'unexpected');"
