@@ -2418,11 +2418,13 @@ def _require_indexed_captures(root: Path, receipt_values: list[str | None], prob
             continue  # the receipt checks report an unreadable or stale receipt
         cited.update(binding["path"] for binding in bindings
                      if isinstance(binding, dict) and isinstance(binding.get("path"), str))
-    if not cited:
+    if not cited or not any((folder / ".git").exists() for folder in (root.resolve(), *root.resolve().parents)):
         return
     try:
         indexed = set(git(root, "ls-files", "--cached", "-z").split("\0"))
-    except (OSError, ValueError, subprocess.TimeoutExpired):
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        _add(problems, "Visual Approval receipts cite captures, but this Git checkout's index could not be read "
+             f"({str(error).strip()[:200] or type(error).__name__}); fix Git access and rerun the check")
         return
     missing = sorted(cited - indexed)
     if missing:
@@ -2436,7 +2438,7 @@ FORCE_ADD_INLINE_LIMIT = 40   # beyond this a single command line can exceed the
 def _force_add_instruction(paths: list[str]) -> str:
     """How to add ignored files: one quoted command, or a path list for --pathspec-from-file."""
 
-    if len(paths) <= FORCE_ADD_INLINE_LIMIT:
+    if len(paths) <= FORCE_ADD_INLINE_LIMIT and not any("'" in path for path in paths):    # quoting both shells read
         return "add them: git add -f -- " + " ".join("'" + path.replace("'", "'\\''") + "'" for path in paths)
     return (f"add these {len(paths)} paths with git add -f --pathspec-from-file=<file>, "
             "where <file> holds one path per line:\n" + "\n".join(paths))

@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import tempfile
 import unittest
+import unittest.mock
 
 from test_structure_publication import build_receipt, checker, digest
 from test_wireframe_free_publication import current_publication
@@ -86,6 +87,27 @@ class CitedCaptureIndexTests(unittest.TestCase):
 
             git("add", "-f", "--", *captures)
             self.assertEqual((0, ""), approval_check(root))
+
+    def test_an_unreadable_git_index_is_reported_not_skipped(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "repo"
+            root.mkdir()
+            ui, _, _ = current_publication(root)
+            png_captures(root, ui)
+            subprocess.run(["git", "init", "-q"], cwd=root, check=True, capture_output=True, timeout=60)
+
+            def refuse(*arguments):
+                raise ValueError("fatal: detected dubious ownership in repository")
+
+            with unittest.mock.patch.object(checker, "git", refuse):
+                code, err = approval_check(root)
+            self.assertEqual(1, code)
+            self.assertIn("index could not be read (fatal: detected dubious ownership in repository)", err)
+
+    def test_a_path_with_an_apostrophe_goes_to_a_pathspec_file(self):
+        message = checker._force_add_instruction(["docs/evidence/O'Brien.png"])
+        self.assertIn("--pathspec-from-file", message)
+        self.assertEqual("docs/evidence/O'Brien.png", message.split("\n")[-1])
 
     def test_a_long_capture_list_becomes_a_pathspec_file(self):
         limit = checker.FORCE_ADD_INLINE_LIMIT
