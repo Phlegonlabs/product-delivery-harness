@@ -21,8 +21,13 @@ def _plain(value):
     return value.replace("`", "").replace("**", "").strip()
 
 
-def _rows(text, section):
-    """Read direct tables in one named heading, excluding fences and subsections."""
+def _rows(text, section, malformed=None):
+    """Read direct tables in one named heading, excluding fences and subsections.
+
+    A table line that is neither the header, the separator nor a row of the
+    header's width is skipped; when ``malformed`` is a list, the skipped line
+    is appended to it so callers can refuse instead of reading less.
+    """
     active = False
     fence = None
     header = None
@@ -57,14 +62,22 @@ def _rows(text, section):
             separated = True
         elif separated and len(cells) == len(header):
             yield dict(zip(header, cells)), line_number
+        elif malformed is not None:
+            malformed.append(stripped)
 
 
 def _indexed(text, section, key):
     indexed = {}
-    for row, _ in _rows(text, section):
+    malformed = []
+    for row, _ in _rows(text, section, malformed):
         identity = row.get(key, "").upper()
         indexed.setdefault(identity, []).append(row)
-    return indexed
+    return indexed, malformed
+
+
+def _mentions(lines, pattern, value):
+    """True when a skipped table line names ``value`` (an RA, S or P ID)."""
+    return any(value.upper() in {match.upper() for match in pattern.findall(line)} for line in lines)
 
 
 def _support_problem(row):
@@ -83,21 +96,31 @@ def _support_problem(row):
 
 
 def _study_path(value, documents, full_inventory):
+    """Return ``(study path or None, problem or None)`` for one Sources URL cell."""
     link = re.fullmatch(r"\[[^\]]*\]\(([^)]+)\)", value)
-    target = urlsplit(link.group(1) if link else value)
+    raw = (link.group(1) if link else value).strip()
+    # A drive letter parses as a one-letter URL scheme; it is a local absolute path.
+    if re.match(r"^(?:[A-Za-z]:)?[\\/]", raw):
+        return None, "unsafe_study_path"
+    target = urlsplit(raw)
     if target.scheme or target.netloc:
-        return None
+        return None, None
     path = unquote(target.path)
     # Source templates use repository-relative paths; also accept Markdown's
     # assessment-relative links, but never discover a path outside the inventory.
     for candidate in (path, posixpath.normpath(posixpath.join("docs/product", path))):
         if candidate.startswith("docs/research/discovery/") and (candidate in documents or full_inventory):
-            return candidate
-    return None
+            return candidate, None
+    if posixpath.normpath(path).split("/", 1)[0] == "..":
+        return None, "unsafe_study_path"
+    return None, None
 
 
 def _study_problem(text, research_id):
-    candidates = _indexed(text, "RA-* Candidates", "ra id").get(research_id, [])
+    indexed, malformed = _indexed(text, "RA-* Candidates", "ra id")
+    if _mentions(malformed, RA_ID, research_id):
+        return "malformed_candidate"
+    candidates = indexed.get(research_id, [])
     if len(candidates) != 1:
         return "missing_candidate" if not candidates else "ambiguous_candidate"
     candidate = candidates[0]
@@ -110,7 +133,10 @@ def _study_problem(text, research_id):
     # hypotheses and disconfirming results are independent findings.
     codes = set(PARTICIPANT.findall(candidate.get("sources", "")))
     observed = set()
-    evidence = list(_rows(text, "Evidence Table"))
+    skipped = []
+    evidence = list(_rows(text, "Evidence Table", skipped))
+    if any(_mentions(skipped, PARTICIPANT, code) for code in codes):
+        return "malformed_evidence"
     for row, _ in evidence:
         code = row.get("participant code", "")
         if code not in codes:
@@ -120,7 +146,9 @@ def _study_problem(text, research_id):
         strength = next((value for key, value in row.items() if key.startswith("strength")), "")
         if strength.casefold() == "observed":
             observed.add(code)
-    if codes and len(observed) < 3:
+    # An observed finding names at least three independent participants; a
+    # candidate that names none has no observations to count.
+    if len(observed) < 3:
         return "insufficient_observations"
     return None
 
@@ -135,23 +163,43 @@ def research_claim_findings(documents, *, full_inventory=False):
     if MESSAGING not in documents or (not full_inventory and ASSESSMENT not in documents):
         return []
     assessment = documents.get(ASSESSMENT, "")
-    research = _indexed(assessment, "Findings", "ra id")
-    sources = _indexed(assessment, "Sources", "source id")
+    research, malformed_research = _indexed(assessment, "Findings", "ra id")
+    sources, malformed_sources = _indexed(assessment, "Sources", "source id")
     findings = []
-    for claim, line in _rows(documents[MESSAGING], "Approved Public Claims"):
+    skipped_claims = []
+    claims = [(claim, line) for claim, line in _rows(documents[MESSAGING], "Approved Public Claims", skipped_claims)]
+    # A claim row the table cannot read still names its research; refuse it rather than skip it.
+    lines = documents[MESSAGING].splitlines()
+    for raw in skipped_claims:
+        number = next(index for index, text in enumerate(lines, 1) if text.strip() == raw)
+        for research_id in sorted({value.upper() for value in RA_ID.findall(raw)}):
+            findings.append({"kind": "approved_claim_research_conflict", "path": MESSAGING,
+                             "line": number, "research_id": research_id,
+                             "evidence_path": MESSAGING, "reason": "malformed_claim_row"})
+    for claim, line in claims:
+        references = sorted({value.upper() for value in RA_ID.findall(" ".join(claim.values()))})
         if not claim.get("claim"):
+            for research_id in references:
+                findings.append({"kind": "approved_claim_research_conflict", "path": MESSAGING,
+                                 "line": line, "research_id": research_id,
+                                 "evidence_path": MESSAGING, "reason": "malformed_claim_row"})
             continue
         references = sorted({value.upper() for value in RA_ID.findall(
             claim["claim"] + " " + claim.get("evidence", ""))})
         for research_id in references:
             rows = research.get(research_id, [])
             problem = ("missing_finding" if not rows else "ambiguous_finding") if len(rows) != 1 else None
+            if _mentions(malformed_research, RA_ID, research_id):
+                problem = "malformed_finding"
             evidence_path = ASSESSMENT
             if not problem:
                 problem = _support_problem(rows[0])
             if not problem:
                 for source_id in sorted(set(SOURCE_ID.findall(rows[0]["sources"]))):
                     source_rows = sources.get(source_id, [])
+                    if _mentions(malformed_sources, SOURCE_ID, source_id):
+                        problem = "malformed_source"
+                        break
                     if len(source_rows) != 1:
                         problem = "unknown_source" if not source_rows else "ambiguous_source"
                         break
@@ -159,7 +207,9 @@ def research_claim_findings(documents, *, full_inventory=False):
                     if WITHDRAWN.search(" ".join(source.values())):
                         problem = "withdrawn_source"
                         break
-                    study = _study_path(source.get("url", ""), documents, full_inventory)
+                    study, problem = _study_path(source.get("url", ""), documents, full_inventory)
+                    if problem:
+                        break
                     if study:
                         problem = (_study_problem(documents[study], research_id)
                                    if documents.get(study) else "missing_study")

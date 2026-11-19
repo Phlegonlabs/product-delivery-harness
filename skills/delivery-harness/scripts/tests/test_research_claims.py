@@ -224,6 +224,62 @@ class ResearchClaimTests(unittest.TestCase):
         docs[MESSAGING] = MESSAGE_TEXT.replace("## Approved Public Claims", "### Approved Public Claims")
         self.assertEqual(research_claim_findings(docs), [])
 
+    def test_unreadable_claim_rows_are_refused_not_skipped(self):
+        row = "| C01: Three operators reconstructed enquiry status | RA-001 / S-01 | 2026-11-18 |"
+        header = "| Claim | Evidence | Check date |\n| --- | --- | --- |\n"
+        for label, old, new in (
+                ("extra cell", row, row + " extra |"),
+                ("missing cell", row, "| C01: Three operators reconstructed enquiry status | RA-001 / S-01 |"),
+                ("no separator", header, "| Claim | Evidence | Check date |\n"),
+                ("renamed claim column", "| Claim | Evidence | Check date |", "| Statement | Evidence | Check date |")):
+            with self.subTest(label):
+                docs = documents()
+                docs[ASSESSMENT] = docs[ASSESSMENT].replace("| sourced |", "| UNVALIDATED |", 1)
+                docs[MESSAGING] = docs[MESSAGING].replace(old, new)
+                findings = research_claim_findings(docs, full_inventory=True)
+                self.assertEqual([("RA-001", "malformed_claim_row")],
+                                 [(item["research_id"], item["reason"]) for item in findings])
+
+    def test_unreadable_support_rows_are_refused(self):
+        cases = (
+            (ASSESSMENT, "| RA-001 | 3 operators reconstructed enquiry status | sourced |",
+             "| RA-001 | 3 operators reconstructed enquiry status | sourced | extra |", "malformed_finding"),
+            (ASSESSMENT, "| S-01 | customer-discovery |", "| S-01 | customer-discovery | extra |", "malformed_source"),
+            (STUDY, "| RA-001 | 3 operators reconstructed enquiry status (observed) |",
+             "| RA-001 | extra | 3 operators reconstructed enquiry status (observed) |", "malformed_candidate"),
+            (STUDY, "| P01 | Operator | Checked two chats |", "| P01 | Operator | extra | Checked two chats |",
+             "malformed_evidence"),
+        )
+        for name, old, new, reason in cases:
+            with self.subTest(reason):
+                docs = documents()
+                self.assertEqual(1, docs[name].count(old))
+                docs[name] = docs[name].replace(old, new)
+                findings = research_claim_findings(docs, full_inventory=True)
+                self.assertEqual([reason], [item["reason"] for item in findings])
+
+    def test_candidate_without_participant_codes_has_no_observations(self):
+        docs = documents()
+        docs[STUDY] = docs[STUDY].replace(
+            "| sourced | S-01; P01 2026-11-18; P02 2026-11-18; P03 2026-11-18 | Whether", "| sourced | S-01 | Whether")
+        docs[STUDY] = "## RA-* Candidates" + docs[STUDY].split("## RA-* Candidates", 1)[1]
+        self.assert_conflict(docs, "insufficient_observations", STUDY)
+
+    def test_study_reference_outside_the_repository_is_refused(self):
+        for target in ("../../outside/DISCOVERY.md", "C:/outside/DISCOVERY.md", "/outside/DISCOVERY.md",
+                       "[study](../../../outside/DISCOVERY.md)"):
+            with self.subTest(target):
+                docs = documents()
+                docs[ASSESSMENT] = docs[ASSESSMENT].replace(f"| {STUDY} |", f"| {target} |")
+                docs.pop(STUDY)
+                findings = research_claim_findings(docs, full_inventory=True)
+                self.assertEqual(["unsafe_study_path"], [item["reason"] for item in findings])
+        # A public URL is not a local study and stays outside this check.
+        docs = documents()
+        docs[ASSESSMENT] = docs[ASSESSMENT].replace(f"| {STUDY} |", "| https://example.com/study |")
+        docs.pop(STUDY)
+        self.assertEqual([], research_claim_findings(docs, full_inventory=True))
+
     def test_inline_markup_and_escaped_pipe_preserve_claim_line(self):
         docs = documents()
         docs[MESSAGING] = docs[MESSAGING].replace("RA-001 / S-01", "**RA-001** / S-01")
