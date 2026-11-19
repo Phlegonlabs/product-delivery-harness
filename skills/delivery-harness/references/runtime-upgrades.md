@@ -22,9 +22,17 @@ Historical `adopted` is accepted only with an explicit pin below 0.66.
 Current dispatch always defers it with `pinned_bundle_or_restart_required`.
 A 0.66+ RUN cannot use that status. Finish on the exact old bundle or restart through the pinned-bundle route.
 
+## Round Version Freeze
+
+Every round uses the Harness version recorded when it starts until it closes: a UI design round, a direct delivery task and a managed RUN alike.
+Identity checks inside the round compare against that recorded version.
+A newer shared installation or release during the round is not an input.
+Record its digest once in the round record as observed drift. Do not reconcile, re-verify, re-pin or adopt it; adopt it between rounds with [Bundle Adoption](bundle-adoption.md).
+Only an owner request starts a mid-round upgrade. It is a named decision in the round record, never a default: record the new digest as the round's version, restart before loading changed rules, and keep earlier decisions and evidence under their original identities.
+
 ## Run-Scoped Contract Pin
 
-Keep one RUN on one Harness bundle from readiness to close.
+A managed RUN's round runs from readiness to close on one Harness bundle.
 Record the installed digest at readiness and after any authorized installation.
 A new bundle applies to the next RUN; do not migrate an active RUN by editing retained fields.
 Collect blocking source fixes into one reviewed release rather than installing each fix separately.

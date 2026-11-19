@@ -1,6 +1,6 @@
 # Bundle Adoption
 
-Use this procedure when a consumer repository adopts a newly installed Harness bundle. A Harness bundle adoption is one Change Log row with the adopted digest in the current Epic, never a new Epic. It changes no product decision and grants no commit, push or install.
+Use this procedure when a consumer repository adopts a newly installed Harness bundle. A Harness bundle adoption is one Change Log row with the adopted digest in the current Epic, never a new Epic. It changes no product decision and grants no commit, push or install. Adopt between rounds, never inside one ([Round Version Freeze](runtime-upgrades.md#round-version-freeze)).
 
 1. Read `delivery-harness/VERSION` and compute the digest: `python "<delivery-harness-skill-root>/scripts/harness_contract.py"`.
 2. Update the two `## Harness Version` bullets in `AGENTS.md`: the install line (version, tag commit SHA, date, skills root) and the five-skill contract SHA-256.
