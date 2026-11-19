@@ -574,7 +574,7 @@ class RealBrowserWorkersTests(unittest.TestCase):
             self.assertEqual("PASS", base.build_receipt(root, f"docs/evidence/second/{m.OUTPUT_NAME}")["result"])
             inter, inter_sidecar = load(second / m.INTERMEDIATE_DIR)
             self.assertEqual({"PASS"}, {r["result"] for r in inter["results"]})
-            self.assertEqual(8, len(inter_sidecar["interactions"]))
+            self.assertEqual([], inter_sidecar["interactions"])
             self.assertEqual("PASS", base.build_receipt(
                 root, f"docs/evidence/second/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}")["result"])
 

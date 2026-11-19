@@ -1610,17 +1610,13 @@ def midpoint_width(low, high):
     return str(int(value)) if value.is_integer() else str(value)
 
 
-def intermediate_plan(package, only=None):
-    """One case per non-n/a state, at the midpoint of each adjacent pair of numeric viewport targets."""
+def intermediate_plan(package, picks):
+    """The axis sample's states of each surface (``picks``: {surface: states}), at the midpoint of each adjacent
+    pair of numeric viewport targets."""
     cases = []
     for row in package.manifest["surfaces"]:
-        if only and row["id"] not in only:
-            continue
         widths = intermediate_widths(row)
-        states = [str(state) for state in row["states"] if not _is_na_state(state)]
-        if not widths or not states:
-            continue
-        for state in states:
+        for state in picks.get(row["id"], ()) if widths else ():
             for low, high in zip(widths, widths[1:]):
                 cases.append(Case(row["id"], row["page"], state, midpoint_width(low, high)))
     return cases
@@ -1819,7 +1815,7 @@ class Runner:
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
             self.run_page(page, page_cases)
-        # The intermediate sweep is a width check; the reviewer object belongs to the base output only.
+        # The intermediate sweep is a width check; interactions and the reviewer object belong to the base output.
         if not self.intermediate:
             self.run_reviewer()
 
@@ -1857,6 +1853,14 @@ class Runner:
             if geometry:
                 counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
         return rows, sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
+
+    def sampled_states(self, cases):
+        """{surface: the axis sample's states}, from the base cases this runner measured."""
+        picks = {}
+        for page, page_cases in group_by_page(cases).items():
+            for case in self.sample_for(page, page_cases)[1]:
+                picks.setdefault(case.surface, {})[case.state] = None
+        return {surface: list(states) for surface, states in picks.items()}
 
     def axis_picks(self, page, cases):
         """(axis, sampled cases) for one page."""
@@ -2390,11 +2394,12 @@ class DriverPool:
             thread.join(timeout=30)
 
 
-def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, intermediate_cases=()):
+def capture_parallel(pool, workers, runner, cases, intermediate_runner=None):
     """The run of ``runner`` (and the intermediate sweep of ``intermediate_runner``) on up to ``workers`` drivers.
+    Returns the intermediate cases it ran.
 
     Phase one is every base case, interaction attempt and reviewer row, which depend on nothing. The axis passes
-    follow, because the busiest state of a page comes from its measured base cases."""
+    and the intermediate sweep follow, because the busiest state of a surface comes from its measured base cases."""
     def phase(merged, items):
         shares = pool.run(partition(items, workers), merged.spawn)
         failed = {}
@@ -2408,10 +2413,13 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
     phase(runner, runner.base_items(cases) + runner.reviewer_items())
     if runner.axes or runner.measure_a11y:
         phase(runner, runner.axis_items(cases))
-    if intermediate_runner is not None:
-        intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
-        intermediate_runner.unit_restarts = dict(runner.unit_restarts)
-        phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
+    if intermediate_runner is None:
+        return []
+    intermediate_cases = intermediate_plan(runner.package, runner.sampled_states(cases))
+    intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
+    intermediate_runner.unit_restarts = dict(runner.unit_restarts)
+    phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
+    return intermediate_cases
 
 
 def pixel_diff(before, after):
@@ -2630,7 +2638,7 @@ def parse_args(argv=None):
     parser.add_argument("--color-scheme", choices=("light", "dark"), default="light",
                         help="browser context theme for the whole run; dark writes its own base matrix output")
     parser.add_argument("--intermediate", action="store_true",
-                        help="also capture every state at the midpoints between adjacent viewport targets into OUT/intermediate")
+                        help="also capture each surface's axis-sample states at the midpoints between adjacent viewport targets into OUT/intermediate")
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--workers", type=int, default=1,
@@ -2708,9 +2716,10 @@ def execute(args, make_driver=node_driver):
     if not cases:
         raise UsageError("the selection has no applicable cases")
     interactions = interaction_plan(package, only)
-    intermediate_cases = intermediate_plan(package, only) if args.intermediate else []
-    if args.intermediate and not intermediate_cases:
+    selected = {case.surface for case in cases}
+    if args.intermediate and not any(intermediate_widths(row) for row in package.manifest["surfaces"] if row["id"] in selected):
         raise UsageError("--intermediate found no surface with two or more numeric viewport widths")
+    intermediate_cases = []
     carry_path = inside(root, args.carry_from, "--carry-from") if args.carry_from else None
     carry, carry_source = load_carry(root, carry_path) if carry_path else (None, None)
     if carry and args.overwrite and any(related(out_dir, folder) for folder in carry_folders(root, carry_path, carry)):
@@ -2733,11 +2742,11 @@ def execute(args, make_driver=node_driver):
                                 derived=derived, interactions=interactions, recapture=args.recapture_carried,
                                 diff_against=diff_against, measure_a11y=args.measure_a11y)
                 runner.run(cases)
-                if intermediate_cases:
+                if args.intermediate:
+                    intermediate_cases = intermediate_plan(package, runner.sampled_states(cases))
                     intermediate_dir = out_dir / INTERMEDIATE_DIR
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
-                    intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
-                                                 interactions=interactions, intermediate=True)
+                    intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived, intermediate=True)
                     intermediate_runner.unopened = set(runner.unopened)
                     intermediate_runner.page_reasons = dict(runner.page_reasons)
                     intermediate_runner.unit_restarts = dict(runner.unit_restarts)
@@ -2753,12 +2762,11 @@ def execute(args, make_driver=node_driver):
                 runner = Runner(None, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
                                 derived=derived, interactions=interactions, recapture=args.recapture_carried,
                                 diff_against=diff_against, measure_a11y=args.measure_a11y)
-                if intermediate_cases:
+                if args.intermediate:
                     intermediate_dir = out_dir / INTERMEDIATE_DIR
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
-                    intermediate_runner = Runner(None, package, root, intermediate_dir, derived=derived,
-                                                 interactions=interactions, intermediate=True)
-                capture_parallel(pool, args.workers, runner, cases, intermediate_runner, intermediate_cases)
+                    intermediate_runner = Runner(None, package, root, intermediate_dir, derived=derived, intermediate=True)
+                intermediate_cases = capture_parallel(pool, args.workers, runner, cases, intermediate_runner)
                 environment = dict(pool.drivers[0].environment, python=platform.python_version(),
                                    platform=platform.platform())
                 workers_used, restarts = len(pool.drivers), pool.restarts

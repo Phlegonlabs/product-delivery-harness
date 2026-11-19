@@ -76,13 +76,16 @@ class CompilerEvidenceScopeTests(unittest.TestCase):
             receipt = json.loads(receipt_path.read_bytes())
             output_path = root / receipt["receipt"]["outputArtifact"]["path"]
             original_output = json.loads(output_path.read_bytes())
-            for defect in ("missing reviewer", "missing interactions", "open sandbox", "stale output"):
+            for defect in ("missing reviewer", "missing interactions", "interaction rows", "open sandbox", "stale output"):
                 with self.subTest(defect=defect):
                     output = copy.deepcopy(original_output)
                     if defect == "missing reviewer":
                         del output["reviewer"]
                     elif defect == "missing interactions":
-                        output["interactions"] = []
+                        del output["interactions"]
+                    elif defect == "interaction rows":      # they belong to the HiFi surface check's receipt
+                        output["interactions"] = [{"id": "UI-001-to-details", "target": "390", "trigger": "click",
+                                                   "result": "PASS"}]
                     elif defect == "open sandbox":
                         output["sandbox"]["network"] = "enabled"
                     output_path.write_text(json.dumps(output), encoding="utf-8")

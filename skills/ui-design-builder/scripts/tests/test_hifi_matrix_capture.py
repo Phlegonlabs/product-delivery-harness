@@ -929,32 +929,47 @@ class AxisTests(unittest.TestCase):
 
 
 class IntermediateTests(unittest.TestCase):
-    def plan(self, surfaces):
-        return m.intermediate_plan(m.Package({"surfaces": surfaces}, {}, {}, {}, {}))
+    def plan(self, surfaces, picks=None):
+        package = m.Package({"surfaces": surfaces}, {}, {}, {}, {})
+        return m.intermediate_plan(package, picks or {row["id"]: row["states"] for row in surfaces})
 
     def surface(self, ident="UI-001", states=("ready", "loading"), targets=(390, 1200), page="index.html"):
         return {"id": ident, "page": page, "route": "/", "states": list(states),
                 "responsive": {"kind": "viewports", "targets": list(targets)}}
 
-    def test_the_plan_midpoints_every_adjacent_pair_for_every_observed_state(self):
-        plan = self.plan([self.surface(states=("ready", "error:n/a", "loading"), targets=(768, 390, 1200)),
-                          self.surface("UI-002", ("ready",), targets=("compact", "regular"), page="details.html")])
+    def test_the_plan_midpoints_every_adjacent_pair_for_each_sampled_state(self):
+        plan = self.plan([self.surface(states=("ready", "error", "loading"), targets=(768, 390, 1200)),
+                          self.surface("UI-002", ("ready",), targets=("compact", "regular"), page="details.html")],
+                         picks={"UI-001": ["ready", "loading"], "UI-002": ["ready"]})
         self.assertEqual([("UI-001", "ready", "579"), ("UI-001", "ready", "984"),
                           ("UI-001", "loading", "579"), ("UI-001", "loading", "984")], [c.key for c in plan])
         self.assertEqual(("index.html", "index.html", "index.html", "index.html"), tuple(c.page for c in plan))
 
     def test_the_plan_needs_two_distinct_numeric_targets(self):
         self.assertEqual([], self.plan([self.surface(targets=(390,)), self.surface("UI-002", targets=("compact", "regular")),
-                                        self.surface("UI-003", targets=[]), self.surface("UI-004", states=("busy:n/a",))]))
+                                        self.surface("UI-003", targets=[])]))
+        self.assertEqual([], self.plan([self.surface()], picks={"UI-002": ["ready"]}))
         self.assertEqual([("UI-001", "ready", "795"), ("UI-001", "loading", "795")],
                          [c.key for c in self.plan([self.surface(targets=(1200, 390, 390))])])
         self.assertEqual([("UI-001", "ready", "579.5"), ("UI-001", "loading", "579.5")],
                          [c.key for c in self.plan([self.surface(targets=(390, 769))])])
 
     def test_only_narrows_the_intermediate_pass(self):
-        package = m.Package({"surfaces": [self.surface(), self.surface("UI-002", ("ready",))]}, {}, {}, {}, {})
-        self.assertEqual({"UI-001", "UI-002"}, {c.surface for c in m.intermediate_plan(package)})
-        self.assertEqual({"UI-002"}, {c.surface for c in m.intermediate_plan(package, only={"UI-002"})})
+        cli = Cli(self)
+        code, summary, out = cli.run(FakeDriver(), "--only", "UI-002", "--intermediate")
+        inter_output, _ = cli.load(out / m.INTERMEDIATE_DIR)
+        self.assertEqual((0, {"UI-002"}), (code, {c["surface"] for c in inter_output["matrix"]["cases"]}))
+
+    def test_the_sweep_takes_ready_and_the_busiest_state_and_never_a_derived_one(self):
+        cli, driver = Cli(self), FakeDriver()
+        driver.overrides[("UI-001", "empty", "1200")] = {"geometry": {"elementCount": 99}}
+        derived = cli.root / "derived.json"
+        derived.write_text(json.dumps({"UI-002": ["loading"]}), encoding="utf-8")
+        code, _, out = cli.run(driver, "--intermediate", "--derived-once", "--derived", str(derived))
+        inter_output, _ = cli.load(out / m.INTERMEDIATE_DIR)
+        # UI-002's busiest state, loading, is derived; ready and error tie, so ready alone is swept
+        self.assertEqual((0, [("UI-001", "ready"), ("UI-001", "empty"), ("UI-002", "ready")]),
+                         (code, [(c["surface"], c["state"]) for c in inter_output["matrix"]["cases"]]))
 
     def test_intermediate_writes_a_second_output_the_checker_can_receipt(self):
         cli, driver = Cli(self), FakeDriver()
@@ -963,12 +978,14 @@ class IntermediateTests(unittest.TestCase):
         self.assertEqual((0, 12), (code, len(output["matrix"]["cases"])))
         inter_output, inter_sidecar = cli.load(out / m.INTERMEDIATE_DIR)
         self.assertEqual(("ui-output/3", "hifi-browser"), (inter_output["schema"], inter_output["check"]))
-        self.assertEqual([("UI-001", "ready", "795"), ("UI-001", "loading", "795"), ("UI-001", "empty", "795"),
-                          ("UI-002", "ready", "795"), ("UI-002", "loading", "795"), ("UI-002", "error", "795")],
+        # ready and the busiest state, loading: the axis sample's states
+        self.assertEqual([("UI-001", "ready", "795"), ("UI-001", "loading", "795"),
+                          ("UI-002", "ready", "795"), ("UI-002", "loading", "795")],
                          [(c["surface"], c["state"], c["target"]) for c in inter_output["matrix"]["cases"]])
+        self.assertEqual(([], []), (inter_output["interactions"], inter_sidecar["interactions"]))
         self.assertEqual([dict(case, result="PASS") for case in inter_output["matrix"]["cases"]], inter_output["results"])
         self.assertTrue(all(r["geometry"]["canvasWidth"] == 795.0 for r in inter_sidecar["cases"]))
-        self.assertEqual({"output": f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}", "cases": 6, "fail": 0,
+        self.assertEqual({"output": f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}", "cases": 4, "fail": 0,
                           "interactionsFail": 0, "findings": []}, summary["intermediate"])
         self.assertEqual(summary["intermediate"], sidecar["run"]["intermediate"])
         self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}")["result"])
@@ -981,22 +998,22 @@ class IntermediateTests(unittest.TestCase):
                          [f["page"] for op, f in driver.calls if op == "open"])
         base = [f for op, f in driver.calls if op == "case" and not f["widthPx"]]
         inter = [f for op, f in driver.calls if op == "case" and f["widthPx"]]
-        self.assertEqual((12, 6), (len(base), len(inter)))
+        self.assertEqual((12, 4), (len(base), len(inter)))
         self.assertEqual([None] * 12, [f["widthPx"] for f in base])
         # every intermediate case drives the surface's smallest shell target and widens the canvas to its midpoint
-        self.assertEqual([("390", 795.0)] * 6, [(f["target"], f["widthPx"]) for f in inter])
+        self.assertEqual([("390", 795.0)] * 4, [(f["target"], f["widthPx"]) for f in inter])
 
     def test_a_failing_intermediate_case_fails_the_run_but_not_the_base_matrix(self):
         cli, driver = Cli(self), FakeDriver()
         driver.overrides[("UI-001", "ready", "795")] = {"geometry": {"canvasWidth": 390.0}}
-        driver.overrides[("UI-002", "error", "795")] = {"geometry": {"overflowX": 30}}
+        driver.overrides[("UI-002", "loading", "795")] = {"geometry": {"overflowX": 30}}
         code, summary, out = cli.run(driver, "--intermediate")
         output, _ = cli.load(out)
         inter_output, inter_sidecar = cli.load(out / m.INTERMEDIATE_DIR)
         self.assertEqual(1, code)
         self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
         self.assertEqual({"FAIL", "PASS"}, {r["result"] for r in inter_output["results"]})
-        self.assertEqual((6, 2), (summary["intermediate"]["cases"], summary["intermediate"]["fail"]))
+        self.assertEqual((4, 2), (summary["intermediate"]["cases"], summary["intermediate"]["fail"]))
         reasons = {r["surface"]: r["reasons"][0] for r in inter_sidecar["cases"] if r["result"] == "FAIL"}
         self.assertIn("the intermediate width needs 795px", reasons["UI-001"])
         self.assertIn("horizontal overflow 30px", reasons["UI-002"])
@@ -1007,9 +1024,9 @@ class IntermediateTests(unittest.TestCase):
         self.assertEqual(0, code)
         inter_output, _ = cli.load(out / m.INTERMEDIATE_DIR)
         package = m.read_package(cli.package)
-        plan = m.intermediate_plan(package)
+        plan = m.intermediate_plan(package, {"UI-001": ["ready", "loading"], "UI-002": ["ready", "loading"]})
         self.assertEqual([], m.intermediate_findings(package, plan, inter_output["results"]))
-        findings = m.intermediate_findings(package, plan, inter_output["results"][3:])
+        findings = m.intermediate_findings(package, plan, inter_output["results"][2:])
         self.assertEqual(["Intermediate width check is missing UI-001 between 390px and 1200px"], findings)
 
     def test_intermediate_without_a_web_interval_is_refused_before_any_browser_work(self):
@@ -1649,13 +1666,20 @@ class RealBrowserTests(unittest.TestCase):
             inter = root / "docs/evidence/inter" / m.INTERMEDIATE_DIR
             output = json.loads((inter / m.OUTPUT_NAME).read_text(encoding="utf-8"))
             sidecar = json.loads((inter / m.SIDECAR_NAME).read_text(encoding="utf-8"))
-            expected = [{"surface": surface, "state": state, "target": "795"}
-                        for surface, states in (("UI-001", ("ready", "loading", "empty")),
-                                                ("UI-002", ("ready", "loading", "error"))) for state in states]
+            # ready and the state with the most product DOM nodes in the base run, per surface
+            base_cases = json.loads((inter.parent / m.SIDECAR_NAME).read_text(encoding="utf-8"))["cases"]
+            counts = {}
+            for row in base_cases:
+                key = (row["surface"], row["state"])
+                counts[key] = max(counts.get(key, 0), row["geometry"]["elementCount"])
+            expected = []
+            for surface, states in (("UI-001", ("ready", "loading", "empty")), ("UI-002", ("ready", "loading", "error"))):
+                busiest = max(states, key=lambda state: counts[(surface, state)])
+                expected += [{"surface": surface, "state": state, "target": "795"} for state in dict.fromkeys(("ready", busiest))]
             self.assertEqual(expected, output["matrix"]["cases"])
             self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
             self.assertEqual({795}, {r["geometry"]["canvasWidth"] for r in sidecar["cases"]})
-            self.assertEqual(8, len(sidecar["interactions"]))   # the intermediate pass re-observes the interactions
+            self.assertEqual([], sidecar["interactions"])   # the base output holds the interactions
             self.assertEqual([], output["network"] + output["popups"] + output["forms"])
             receipt = build_receipt(root, (inter / m.OUTPUT_NAME).relative_to(root).as_posix())
             self.assertEqual(("PASS", "hifi-browser"), (receipt["result"], receipt["check"]))

@@ -903,7 +903,7 @@ def _intermediate_width_evidence(value: str | None, scope: dict[str, Any] | None
         return
     before = len(problems)
     _resolve_evidence(value, repo_root=repo_root, label="Intermediate width check", problems=problems,
-                      require_machine=True, validate_reviewer=False, **evidence)
+                      require_machine=True, intermediate=True, **evidence)
     parsed = EVIDENCE_RE.fullmatch((value or "").strip())
     if len(problems) != before or parsed is None:
         return
@@ -2110,7 +2110,7 @@ def _resolve_evidence(
     alternate_matrix: dict[str, list[str]] | None = None,
     recorded_scores: dict[str, int | None] | None = None,
     required_inputs: list[dict[str, str]] | None = None,
-    validate_reviewer: bool = True,
+    intermediate: bool = False,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
@@ -2321,12 +2321,15 @@ def _resolve_evidence(
                             elif offline:
                                 findings = (
                                     _motion_transcript_findings(output_json, local_pages) if expected_motion is not None
-                                    else _bundle_transcript_findings(output_json, bundle) if bundle is not None
+                                    # The intermediate sweep observes widths only; the base receipt holds the
+                                    # interaction and reviewer rows.
+                                    else _bundle_transcript_findings(output_json, dict(bundle, interactions=[]) if intermediate
+                                                                     else bundle) if bundle is not None
                                     else _offline_transcript_findings(output_json)
                                 )
                                 for finding in findings:
                                     _add(problems, finding)
-                                if review_contract is not None and validate_reviewer:
+                                if review_contract is not None and not intermediate:
                                     for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
                                         _add(problems, finding)
                             if machine and isinstance(output_json, dict):

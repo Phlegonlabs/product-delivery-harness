@@ -398,9 +398,11 @@ class PageRecoveryTests(unittest.TestCase):
         self.assertEqual({"PASS"}, {r["result"] for r in intermediate["results"] if r["surface"] == "UI-002"})
         self.assertTrue(all("restart limit" in r["reasons"][0]
                             for r in details["cases"] if r["surface"] == "UI-001"))
-        # With no interactions, the three source-page intermediate cases span workers 0 and 1.
-        shares = capture.partition([(("case", c.page, c), 1) for c in capture.intermediate_plan(
-            capture.read_package(fleet.package))], 4)
+        # UI-001's intermediate cases (ready, and empty, the busiest state that was measured) span workers 0 and 1.
+        pages = {row["id"]: row["page"] for row in manifest["surfaces"]}
+        plan = [capture.Case(c["surface"], pages[c["surface"]], c["state"], c["target"])
+                for c in intermediate["matrix"]["cases"]]
+        shares = capture.partition([(("case", c.page, c), 1) for c in plan], 4)
         self.assertEqual({0, 1}, {i for i, share in enumerate(shares)
                                  if any(item[2].surface == "UI-001" for item in share)})
 
