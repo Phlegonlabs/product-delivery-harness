@@ -3242,9 +3242,9 @@ def growth_contract_section(track: str = "web") -> str:
 | /launch | landing | gtm | MS-110 |
 
 ### Launch Window
-| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
-| --- | --- | --- | --- | --- |
-| Day 0 | owned | Announce the fixture launch | Owner | Return visits |
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
+| --- | --- | --- | --- | --- | --- |
+| Day 0 | owned | Announce the fixture launch | Owner | Return visits | /launch |
 
 """
 
@@ -3519,6 +3519,7 @@ class GrowthContractTests(unittest.TestCase):
         prd: str,
         *,
         architecture: str | None = None,
+        repo_root: Path | None = None,
     ) -> list[str]:
         package = strictize_approved_package(
             prd, architecture or valid_architecture(), valid_stack()
@@ -3527,7 +3528,26 @@ class GrowthContractTests(unittest.TestCase):
             *package,
             require_filled=True,
             require_approved=True,
+            repo_root=repo_root,
         )
+
+    def test_keyword_citations_resolve_only_to_defined_clusters(self) -> None:
+        prd = shaped_prd().replace("| MS-110 |", "| MS-110; KW-001 |")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs/product/keyword-map.md"
+            self.assertTrue(any("keyword references require" in p for p in self.validate(prd, repo_root=root)))
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                "## Clusters\n| ID | Cluster | Intent | Queries | Demand evidence | Ranks now | Mapped page | Priority |\n"
+                "| KW-001 | venue | compare | venue hire | hypothesis | unknown | /launch | high |\n"
+                "## Change log\n| KW-999 | retired cluster |\n", encoding="utf-8")
+            self.assertEqual([], self.validate(prd, repo_root=root))
+            self.assertTrue(any("unknown KW-999" in p for p in self.validate(prd.replace("KW-001", "KW-999"), repo_root=root)))
+            self.assertTrue(any("must cite a KW" in p for p in self.validate(shaped_prd(), repo_root=root)))
+            ui_prd = prd + ui_contract().replace("title Fixture status", "KW-999 title Fixture status")
+            self.assertTrue(any("UI-001 SEO metadata references unknown KW-999" in p
+                                for p in self.validate(ui_prd, repo_root=root)))
 
     def test_growth_contract_without_shape_row_is_validated_but_optional(self) -> None:
         prd = valid_prd().replace(
@@ -3604,11 +3624,94 @@ class GrowthContractTests(unittest.TestCase):
             1,
         ).replace(
             "| Day | Channel class (owned / earned / search / store) | Action | Owner | "
-            "Readback metric |",
-            "| Day | Channel class | Action | Owner | Readback metric |",
+            "Readback metric | Destination |",
+            "| Day | Channel class | Action | Owner | Readback metric | Destination |",
             1,
         )
         self.assertEqual([], self.validate(prd))
+
+    def test_headless_discovery_can_record_a_reason_and_local_trace(self) -> None:
+        existing = "| /launch | landing | gtm | MS-110 |"
+        absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
+        tool = shaped_prd("track: tool; companion: none (offline); console: none")
+        self.assertEqual([], self.validate(tool.replace(existing, absent)))
+        for invalid in (absent.replace("(internal offline CLI)", "( )"),
+                        absent.replace("TEST-001", "TEST-998"), absent + "\n" + existing):
+            with self.subTest(row=invalid):
+                self.assertTrue(self.validate(tool.replace(existing, invalid)))
+        self.assertTrue(self.validate(shaped_prd().replace(existing, absent)))
+
+    def test_offline_tool_can_have_public_docs_only_if_discovery_is_allowed(self):
+        existing = "| /launch | landing | gtm | MS-110 |"
+        shape = "track: tool; companion: none (offline CLI); console: none"
+        for locator in ("docs:internal", "docs:http://localhost/guide", "docs:https://10.0.0.1",
+                        "docs:https://[::1]", "docs:https://[bad", "docs:https://user:pw@docs.example.com",
+                        "docs:https://docs.invalid_port.example:bad", "site:https://docs.example.com"):
+            with self.subTest(locator=locator):
+                prd = shaped_prd(shape).replace(existing, f"| {locator} | docs_site | growth | MS-110 |")
+                self.assertTrue(any("public HTTP" in item for item in self.validate(prd)))
+        public = "| docs:https://docs.example.com/guide | docs_site | growth | MS-110 |"
+        self.assertEqual([], self.validate(shaped_prd(shape).replace(existing, public)))
+        private = shaped_prd(shape.replace("offline CLI", "offline CLI with no public discovery"))
+        for row in (public, "| instagram:@operator | social | growth | MS-110 |", existing):
+            with self.subTest(row=row):
+                self.assertTrue(any("declares no public discovery" in item for item in
+                                    self.validate(private.replace(existing, row))))
+        absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
+        self.assertEqual([], self.validate(private.replace(existing, absent)))
+
+    def test_headless_discovery_reconciles_explicit_exclusions_and_all_private_launches(self):
+        shape = "track: tool; companion: none (offline CLI); console: none"
+        pub = "| docs:https://guide.fixture.org/help | docs_site | growth | MS-110 |"
+        prd = shaped_prd(shape).replace("| /launch | landing | gtm | MS-110 |", pub)
+        for reason in ("no public discovery, private distribution only", "no public discovery is permitted"):
+            self.assertTrue(self.validate(prd.replace("none (offline CLI)", f"none ({reason})")))
+        self.assertTrue(self.validate(prd.replace("## Non-Goals\n", "## Non-Goals\n- Public discovery is explicitly forbidden.\n")))
+        self.assertTrue(self.validate(prd.replace("guide.fixture.org", "docs.invalid")))
+        v2 = prd.replace("| Return visits | /launch |", "| Return visits | none (internal distribution) |")
+        self.assertTrue(any("needs its destination" in item for item in self.validate(v2)))
+        self.assertEqual([], self.validate(v2.replace("## Problem Statement\n",
+            "## Problem Statement\nThe CLI operators use https://guide.fixture.org/help for public documentation.\n")))
+
+    def test_any_companion_reason_with_the_phrase_declares_no_public_discovery(self):
+        pub = "| docs:https://guide.fixture.org/help | docs_site | growth | MS-110 |"
+        for reason in ("no public discovery of any kind", "internal team only, no public discovery",
+                       "No Public Discovery until the paid tier"):
+            with self.subTest(reason=reason):
+                prd = shaped_prd(f"track: tool; companion: none ({reason}); console: none").replace(
+                    "| /launch | landing | gtm | MS-110 |", pub)
+                self.assertTrue(any("declares no public discovery" in item for item in self.validate(prd)))
+
+    def test_launch_window_stays_owned_when_public_discovery_is_excluded(self):
+        absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
+        launch = "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |"
+        for shape, extra in (("none (no public discovery)", ""),
+                             ("none (offline CLI)", "- Public discovery is explicitly forbidden.\n")):
+            prd = shaped_prd(f"track: tool; companion: {shape}; console: none").replace(
+                "| /launch | landing | gtm | MS-110 |", absent).replace("## Non-Goals\n", "## Non-Goals\n" + extra)
+            with self.subTest(shape=shape, channel="owned"):
+                self.assertEqual([], self.validate(prd))
+            for channel in ("search", "store", "earned"):
+                with self.subTest(shape=shape, channel=channel):
+                    findings = self.validate(prd.replace(launch, launch.replace("| owned |", f"| {channel} |")))
+                    self.assertTrue(any(f"Launch Window {channel} row conflicts" in item for item in findings), findings)
+
+    def test_route_mapped_by_the_keyword_map_cites_its_cluster(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs/product/keyword-map.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                "## Clusters\n| ID | Cluster | Intent | Queries | Demand evidence | Ranks now | Mapped page | Priority |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| KW-001 | venue | compare | venue hire | hypothesis | unknown | `/launch`: venue hire | high |\n"
+                "| KW-002 | status | learn | fixture status | hypothesis | unknown | `/home`: fixture status | medium |\n",
+                encoding="utf-8")
+            prd = shaped_prd().replace("| MS-110 |", "| MS-110; KW-001 |") + ui_contract()
+            # UI-001 serves /home, which only the map names; it must cite KW-002.
+            self.assertTrue(any("UI-001 SEO metadata must cite a KW" in p for p in self.validate(prd, repo_root=root)))
+            cited = prd.replace("title Fixture status", "KW-002 title Fixture status")
+            self.assertFalse(any("UI-001 SEO metadata" in p for p in self.validate(cited, repo_root=root)))
 
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
@@ -3831,15 +3934,7 @@ class GrowthContractTests(unittest.TestCase):
         )
 
     def test_launch_window_accepts_the_destination_column(self) -> None:
-        v2 = shaped_prd().replace(
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |",
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |",
-            1,
-        ).replace(
-            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
-            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits | /launch |",
-            1,
-        )
+        v2 = shaped_prd()
         self.assertEqual([], self.validate(v2))
         findings = self.validate(
             v2.replace("| Return visits | /launch |", "| Return visits | [TBD] |", 1)
@@ -3852,11 +3947,7 @@ class GrowthContractTests(unittest.TestCase):
             ),
             findings,
         )
-        short_row = shaped_prd().replace(
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |",
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |",
-            1,
-        )
+        short_row = shaped_prd().replace("| Return visits | /launch |", "| Return visits |", 1)
         findings = self.validate(short_row)
         self.assertTrue(
             any(
@@ -3866,8 +3957,13 @@ class GrowthContractTests(unittest.TestCase):
             findings,
         )
 
-    def test_launch_window_legacy_five_columns_still_accepted(self) -> None:
-        self.assertEqual([], self.validate(shaped_prd()))
+    def test_five_column_launch_window_is_refused(self) -> None:
+        five = shaped_prd().replace(
+            "| Readback metric | Destination |\n| --- | --- | --- | --- | --- | --- |",
+            "| Readback metric |\n| --- | --- | --- | --- | --- |", 1,
+        ).replace("| Return visits | /launch |", "| Return visits |", 1)
+        findings = self.validate(five)
+        self.assertTrue(any("Readback metric | Destination table" in item for item in findings), findings)
 
     def test_launch_window_reversed_ranges_do_not_qualify(self) -> None:
         for cell in ("Day 7-0", "Day 0--1", "9-12"):

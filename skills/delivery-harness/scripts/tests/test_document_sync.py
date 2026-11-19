@@ -64,6 +64,30 @@ class DocumentSyncTests(unittest.TestCase):
         self.assertEqual(["parent semantic review"], impact["affected_stages"])
         self.assertTrue(impact["semantic_review_required"])
 
+    def test_optional_growth_and_messaging_handoffs_are_tracked_across_stages(self):
+        for name, owner in (("docs/product/keyword-map.md", "product"),
+                            ("docs/gtm/MESSAGING.md", "go-to-market")):
+            with self.subTest(name=name):
+                path = self.root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                before = self.observe(paths=default_inventory(self.root))["snapshot"]
+                path.write_text("Initial public wording", encoding="utf-8")
+                created = self.observe(before, default_inventory(self.root, before))
+                self.assertIn(name, created["snapshot"]["documents"])
+                path.write_text("Revised public wording", encoding="utf-8")
+                prior = created["snapshot"]
+                changed = self.observe(prior, default_inventory(self.root, prior))
+                impact = next(row for row in changed["impacts"] if row["source"] == name)
+                self.assertEqual("document_changed", impact["reason"])
+                self.assertIn(owner, impact["affected_stages"])
+                if name.endswith("keyword-map.md"):
+                    self.assertIn("store listing", " ".join(impact["affected_artifacts"]))
+                    self.assertIn("locale", " ".join(impact["required_checks"]))
+                path.unlink()
+                prior = changed["snapshot"]
+                missing = self.observe(prior, default_inventory(self.root, prior))
+                self.assertIn({"kind": "missing_document", "path": name}, missing["findings"])
+
     def test_default_inventory_observes_epics_and_retains_missing_paths(self):
         folder = self.root / "docs/epics"
         folder.mkdir(parents=True)
@@ -79,6 +103,37 @@ class DocumentSyncTests(unittest.TestCase):
         paths = default_inventory(self.root, observed["snapshot"])
         result = self.observe(observed["snapshot"], paths)
         self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
+
+    def test_default_inventory_tracks_published_research_and_campaign(self):
+        study = "docs/research/discovery/2026-11-18/DISCOVERY.md"
+        assessment = "docs/product/research-assessment.md"
+        campaign = "docs/gtm/CAMPAIGN.md"
+        raw_note = "docs/research/discovery/2026-11-18/interviews.md"
+        for name in (study, assessment, campaign, raw_note):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Original", encoding="utf-8")
+        paths = default_inventory(self.root)
+        self.assertNotIn(raw_note, paths)
+        before = self.observe(paths=paths)["snapshot"]
+        for name in (study, assessment, campaign):
+            (self.root / name).write_text("# Revised", encoding="utf-8")
+        changed = self.observe(before, default_inventory(self.root, before))
+        affected = {row["source"] for row in changed["impacts"] if row["reason"] == "document_changed"}
+        self.assertEqual({study, assessment, campaign}, affected)
+        (self.root / study).unlink()
+        missing = self.observe(before, default_inventory(self.root, before))
+        self.assertIn({"kind": "missing_document", "path": study}, missing["findings"])
+
+    def test_separate_campaign_drafts_use_the_default_messaging_check(self):
+        name = "docs/gtm/campaigns/launch.md"
+        path = self.root / name
+        path.parent.mkdir(parents=True)
+        path.write_text("Messaging revision: MSG-1", encoding="utf-8")
+        (self.root / "docs/gtm/MESSAGING.md").write_text("Revision: MSG-2", encoding="utf-8")
+        result = self.observe(paths=default_inventory(self.root))
+        self.assertTrue(any(row["kind"] == "campaign_messaging_stale" and row["path"] == name
+                            for row in result["findings"]))
 
     def test_current_epic_line_must_name_an_existing_epic(self):
         index = self.root / "docs/DOCUMENTS.md"
@@ -401,6 +456,24 @@ class DocumentSyncTests(unittest.TestCase):
                            "--path", "AGENTS.md"])
         self.assertEqual(2, result)
         self.assertNotIn("DO-NOT-PRINT", stream.getvalue())
+
+    def test_approved_claim_with_missing_research_survives_rebaseline_as_a_finding(self):
+        name = "docs/gtm/MESSAGING.md"
+        path = self.root / name
+        path.parent.mkdir(parents=True)
+        path.write_text("## Approved Public Claims\n| Claim | Evidence | Check date |\n"
+                        "| --- | --- | --- |\n| Internal wording | RA-001 | today |\n", encoding="utf-8")
+        args = ["--repo-root", str(self.root), "--loaded-digest", self.digest]
+        for round_number in range(2):
+            stream = io.StringIO()
+            with contextlib.redirect_stdout(stream), patch("check_document_sync.contract_digest", return_value=self.digest):
+                self.assertEqual(1, main(args))
+            report = json.loads(stream.getvalue())
+            self.assertIn("approved_claim_research_conflict", {row["kind"] for row in report["findings"]})
+            self.assertNotIn("Internal wording", stream.getvalue())
+            if round_number == 0:
+                (self.root / "snapshot.json").write_text(json.dumps(report["snapshot"]), encoding="utf-8")
+                args.extend(["--baseline", "snapshot.json"])
 
     def test_deep_baseline_returns_structured_invalid(self):
         (self.root / "baseline.json").write_text('{"x":' + '[' * 2000 + '0' + ']' * 2000 + '}')

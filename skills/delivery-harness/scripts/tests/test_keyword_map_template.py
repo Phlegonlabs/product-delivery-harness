@@ -46,6 +46,9 @@ class KeywordMapTemplateTests(unittest.TestCase):
         for column in ("Date", "KW", "Field", "Before", "After", "Evidence", "Readback"):
             self.assertIn(f"| {column} ", self.text)
 
+    def test_store_fields_preserve_locale_source_and_cluster(self) -> None:
+        self.assertIn("| Store listing | Locale | Field | Current value | Store limit and source | Serves |", self.text)
+
     def test_uses_the_existing_evidence_labels_only(self) -> None:
         self.assertIn("observed, estimated or hypothesis", self.text)
         self.assertNotIn("measured", self.text)

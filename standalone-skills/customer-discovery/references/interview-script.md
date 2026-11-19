@@ -65,6 +65,6 @@ Do not anchor on a price or a number before the participant states their own.
 
 - Write notes during the session or right after it.
 - Redact names, employers and contact details before any note leaves the session.
-- One participant gets one code. The code maps to contact details only outside the repository.
+- One participant gets one code. The list that maps codes to contact details stays with the owner, outside the repository, the chat and the study files.
 - Record exact quotes for the strongest statements; summarize the rest.
 - Record the date and the session length with every set of notes.

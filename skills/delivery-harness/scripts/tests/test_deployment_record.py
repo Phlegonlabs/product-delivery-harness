@@ -1727,7 +1727,7 @@ class ConfigurePlaceholderTests(unittest.TestCase):
                 f"| design_compilation | pair | `design-taste-frontend` | {pin} |\n"
                 f"| frontend_implementation | code | `design-taste-frontend` | {pin} |\n"
                 f"| ui_quality_verification | quality | `design-taste-frontend` | {pin} |\n"
-                f"| code_security_verification | security | `design-taste-frontend` | {pin} |\n",
+                f"| code_security_verification | security | `delivery-harness/references/security-review.md` | {pin} |\n",
                 encoding="utf-8",
             )
             self.assertEqual([], configure_project_context.unresolved_placeholders(root))

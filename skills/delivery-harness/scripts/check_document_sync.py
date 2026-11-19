@@ -14,7 +14,9 @@ import re
 import sys
 from pathlib import Path
 
+from campaign_handoff import campaign_findings, campaign_links, is_campaign
 from harness_contract import contract_digest
+from research_claims import ASSESSMENT, MESSAGING, research_claim_findings
 
 
 SCHEMA = "document-sync/1"
@@ -30,6 +32,9 @@ DEFAULT_PATHS = (
     "docs/DEPLOYMENT.md", "docs/goal/PLAN.md",
     "docs/goal/RUN.md",
 )
+OPTIONAL_HANDOFFS = ("docs/product/keyword-map.md", "docs/gtm/MESSAGING.md",
+                     "docs/product/research-assessment.md", "docs/gtm/CAMPAIGN.md")
+DISCOVERY_STUDY = re.compile(r"docs/research/discovery/\d{4}-\d{2}-\d{2}/DISCOVERY\.md\Z")
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 SESSION_MARKER = re.compile(r"[A-Za-z0-9._-]{1,128}:[0-9a-f]{64}\Z")
 # Skills that install.sh retires; keep the two lists in step.
@@ -150,6 +155,16 @@ def impact_for(name, reason):
         artifacts, stages, checks = ["scoped live documents"], ["intake", "affected stages"], ["required reading", "references and skill bindings"]
     elif name == "docs/product/PRD.md":
         artifacts, stages, checks = ["architecture", "stack", "HiFi", "legacy wireframes when pinned", "acceptance"], ["product", "design", "delivery"], ["product package", "affected UI gates", "requirement-linked tests"]
+    elif name == "docs/product/keyword-map.md":
+        artifacts = ["PRD discovery surfaces", "page metadata or store listing fields"]
+        stages = ["growth", "product", "delivery"]
+        checks = ["cluster IDs and mapped destinations", "page titles and descriptions or listing fields by locale"]
+    elif name == "docs/gtm/MESSAGING.md":
+        artifacts, stages, checks = ["public claims", "README and listing copy"], ["go-to-market", "readme-studio", "growth"], ["approved claims and per-surface one-liners"]
+    elif name == "docs/product/research-assessment.md" or DISCOVERY_STUDY.fullmatch(name):
+        artifacts, stages, checks = ["research findings", "approved public claims", "campaign drafts"], ["product", "go-to-market"], ["cited research and confidence after withdrawal"]
+    elif is_campaign(name):
+        artifacts, stages, checks = ["campaign drafts"], ["go-to-market"], ["current messaging revision and approved claims"]
     elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
         artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
     elif name.startswith("docs/product/deltas/"):
@@ -197,11 +212,10 @@ def _retired_pointers(text):
     return sorted(pointers)
 
 
-def _scoped_markdown_children(root, name, label, paths):
-    """Append direct .md children of one scoped folder; never follow links."""
+def _bounded_children(root, name, label):
     folder = safe_path(root, name)
     if not folder.exists():
-        return
+        return []
     if not folder.is_dir():
         raise ValueError(f"{label} inventory must be a directory")
     entries = []
@@ -210,7 +224,12 @@ def _scoped_markdown_children(root, name, label, paths):
             if len(entries) >= 128:
                 raise ValueError(f"scope the {label} directory explicitly")
             entries.append(Path(entry.path))
-    for path in sorted(entries):
+    return sorted(entries)
+
+
+def _scoped_markdown_children(root, name, label, paths):
+    """Append direct .md children of one scoped folder; never follow links."""
+    for path in _bounded_children(root, name, label):
         if path.suffix == ".md":
             relative = path.relative_to(root).as_posix()
             if excluded_name(relative):
@@ -246,17 +265,45 @@ def current_epic_findings(root, index_text):
     return findings
 
 
-def default_inventory(root, baseline=None):
-    """Include live Epic and PRD delta names without following links or scanning history."""
+def _registered_campaigns(root):
+    index = safe_path(root, "docs/DOCUMENTS.md", document=True)
+    paths = set()
+    if index.is_file():
+        for target in campaign_links(read_bounded(index).decode("utf-8-sig")):
+            # A web link is not a repository draft; a local absolute path cannot be checked.
+            if re.match(r"^[A-Za-z][A-Za-z0-9+.-]+:", target):
+                continue
+            if re.match(r"^(?:[A-Za-z]:)?[\\/]", target):
+                raise ValueError(f"campaign registration must be a repository-relative path: {target}")
+            name = posixpath.normpath(posixpath.join("docs", target))
+            safe_path(root, name, document=True)
+            paths.add(name)
+            if len(paths) > 128:
+                raise ValueError("scope the campaign inventory explicitly")
+    return paths
+
+
+def default_inventory(root, baseline=None, *, registered=None):
+    """Include live handoffs and retain previously inventoried paths to detect removal."""
     paths = list(DEFAULT_PATHS)
+    for name in OPTIONAL_HANDOFFS:
+        if safe_path(root, name, document=True).exists():
+            paths.append(name)
     _scoped_markdown_children(root, "docs/epics", "Epic", paths)
     _scoped_markdown_children(root, "docs/product/deltas", "PRD delta", paths)
-    # Retain removed Epic and PRD delta paths so a missing document cannot disappear silently.
+    _scoped_markdown_children(root, "docs/gtm/campaigns", "campaign", paths)
+    for name in sorted(_registered_campaigns(root) if registered is None else registered):
+        if name not in paths:
+            paths.append(name)
+    for folder in _bounded_children(root, "docs/research/discovery", "discovery"):
+        name = f"docs/research/discovery/{folder.name}/DISCOVERY.md"
+        if DISCOVERY_STUDY.fullmatch(name) and safe_path(root, name, document=True).is_file():
+            paths.append(name)
     if isinstance(baseline, dict) and isinstance(baseline.get("documents"), dict):
         for name in baseline["documents"]:
             if not isinstance(name, str) or name in paths:
                 continue
-            retained = is_epic(name) or (
+            retained = name in OPTIONAL_HANDOFFS or DISCOVERY_STUDY.fullmatch(name) or is_campaign(name) or is_epic(name) or (
                 name.startswith("docs/product/deltas/") and name.count("/") == 3
             )
             if retained:
@@ -266,7 +313,7 @@ def default_inventory(root, baseline=None):
 
 
 def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=(),
-            session_marker=None):
+            session_marker=None, *, full_inventory=False, registered=()):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("repository root must be a directory")
@@ -313,6 +360,7 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         previous = {}
         findings.append({"kind": "baseline_review_required"})
     documents = {}
+    handoff_text = {}
     impacts = []
     for name in sorted(set(previous) - set(paths)):
         safe_path(root, name, document=True)
@@ -320,8 +368,11 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         impacts.append(impact_for(name, "removed_from_inventory"))
     for name in paths:
         path = safe_path(root, name, document=True)
+        research_source = name in {ASSESSMENT, MESSAGING} or name.startswith("docs/research/discovery/")
         if not path.exists():
             documents[name] = None
+            if research_source and name != MESSAGING:
+                handoff_text[name] = ""
             if name in required or previous.get(name) is not None:
                 findings.append({"kind": "missing_document", "path": name})
                 impacts.append(impact_for(name, "missing_document"))
@@ -337,6 +388,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
+        if research_source or name in registered or is_campaign(name, text):
+            handoff_text[name] = text
         documents[name] = hashlib.sha256(data).hexdigest()
         accepted = {documents[name]}
         if is_epic(name):
@@ -352,13 +405,15 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
         if name == "docs/DOCUMENTS.md":
             findings.extend(current_epic_findings(root, text))
+    findings.extend(research_claim_findings(handoff_text, full_inventory=full_inventory))
+    findings.extend(campaign_findings(handoff_text, registered))
     snapshot ={"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     review = [row for row in findings
               if "session_marker" not in row and row["kind"] != "oversized_document"]
     return {"status": "review_required" if review else "unchanged",
             "findings": findings, "impacts": impacts, "snapshot": snapshot,
-            "meaning": "Byte drift only; semantic review, capability, authorization and approval are separate."}
+            "meaning": "Checks byte drift and current handoff references. Capability, authorization and approval are separate."}
 
 
 def main(argv=None):
@@ -383,8 +438,11 @@ def main(argv=None):
             if path.suffix != ".json":
                 raise ValueError("baseline must be a JSON snapshot")
             baseline = json.loads(read_bounded(path).decode("utf-8-sig"), object_pairs_hook=unique_object)
-        report = inspect(root, args.paths or default_inventory(root, baseline), args.loaded_digest,
-                         installed_digest, baseline, args.required_path, args.session_marker)
+        registered = _registered_campaigns(root) if args.paths is None else set()
+        paths = args.paths or default_inventory(root, baseline, registered=registered)
+        report = inspect(root, paths, args.loaded_digest, installed_digest, baseline,
+                         set(args.required_path) | registered, args.session_marker,
+                         full_inventory=args.paths is None, registered=registered)
     except (ValueError, OSError, UnicodeError, RecursionError) as exc:
         # Never echo document content, JSON bodies, or credential values.
         print(json.dumps({"status": "invalid", "error": type(exc).__name__}))

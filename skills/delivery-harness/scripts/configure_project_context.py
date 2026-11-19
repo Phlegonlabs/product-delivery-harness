@@ -26,7 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from check_skill_bindings import PIN_RE, STAGE_SLOTS, bound_skill_name, parse_binding_contract
+from check_skill_bindings import PIN_RE, STAGE_SLOTS, binding_target, parse_binding_contract
 
 
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "assets" / "templates"
@@ -482,7 +482,8 @@ def unresolved_placeholders(root: Path, *, stage: str = "all") -> list[str]:
     for slot, cell, pin, number in rows:
         if slot not in STAGE_SLOTS[stage] and cell.strip("`") == pin == "pending":
             continue
-        if bound_skill_name(cell) is None or PIN_RE.fullmatch(pin) is None:
+        target = binding_target(slot, cell, required=slot in STAGE_SLOTS[stage])
+        if target is None or PIN_RE.fullmatch(pin) is None:
             findings.append(
                 f"line {number}: unresolved Skill Bindings row for slot {slot!r}"
             )

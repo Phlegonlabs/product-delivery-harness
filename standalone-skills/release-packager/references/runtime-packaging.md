@@ -10,6 +10,8 @@ Review `prepare`, `prepack`, `postpack` and install/publish hooks before packagi
 
 Inspect the tarball for all exports, declarations, bin files, dynamic assets, README and license. Install that exact tarball into an isolated consumer, then import/use the package or run its installed CLI. A test that resolves a workspace symlink does not validate the archive. If install hooks are suppressed for safety, record that limitation and run required hooks only within the task's authorized environment. Match the project's ESM/CJS and runtime requirements.
 
+Run `scripts/check_npm_readme.py` against that tarball and installed consumer under the required [npm README check](artifact-checks.md#npm-readme-check). Use an offline, script-free install for this check. Review required hooks separately; this helper never runs them.
+
 Bun-managed packages may use their existing npm-compatible archive route or `bun pm pack` after checking installed-version support. `bun publish --dry-run` is an optional publication preview, not a substitute for packing/installing real bytes; review its hooks and flags first. Do not execute bare publish to create an archive.
 
 For an existing Bun executable route, `bun build --compile` creates a different artifact from a registry package. Use the project's selected target and bundled-asset behavior. Run the final binary on a matching OS/architecture; cross-compilation alone is not runtime verification.

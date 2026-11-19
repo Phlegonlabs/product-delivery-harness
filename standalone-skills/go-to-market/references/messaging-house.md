@@ -18,6 +18,8 @@ Take facts from the product records only:
 This record derives wording. It never changes a product fact.
 When a product fact changes, update this record first, then update every variant that repeats the fact.
 Mark affected drafts out of date until their revisions cite the updated record.
+Use stable claim IDs, such as `C01` or `CLAIM-001`, in claims tables and campaign items.
+Move withdrawn IDs into Claims Not Allowed. Keep the old decision under Change Log, not in the active approved list.
 
 ## Record Contents
 
@@ -51,3 +53,11 @@ Reading the record grants no authority over the PRD. Product facts change only i
 Put a revision marker and the date on every change.
 State the changed sections and the source of each change.
 Keep prior revisions and their decisions as history in the record's change log.
+
+Campaigns record the current source token in a `Messaging revision:` field.
+Reconcile their copy and claim IDs before changing that field.
+The document-sync CLI checks these bindings when the campaign and messaging record are both in its inventory.
+A baseline refresh does not clear stale revisions or withdrawn claim IDs.
+Missing or unreadable bindings require review. The check cannot verify arbitrary prose or establish actual owner approval.
+Existing packages can retain inline citations such as `Source: docs/gtm/MESSAGING.md revision MSG-1`.
+Put historical drafts and decisions under `## History`, `## Archived Drafts` or `## Change Log`.

@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import ipaddress
 import re
 import sys
 from collections import Counter
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from markdown_contract import active_text, active_machine_block
 from platform_delivery import parse_platform_delivery, PROTOCOL
@@ -493,14 +495,15 @@ GROWTH_NORTH_STAR_HEADER = (
 )
 GROWTH_REENGAGEMENT_HEADER = ("mechanism", "surface or event", "test id")
 GROWTH_DISCOVERY_HEADER = ("surface", "kind", "owner stage", "test or ms id")
+NO_DISCOVERY_SURFACE = re.compile(r"none\s*\(\s*[^()\s][^()]*\)", re.I)
 GROWTH_LAUNCH_WINDOW_HEADER = (
     "day",
     "channel class",
     "action",
     "owner",
     "readback metric",
+    "destination",
 )
-GROWTH_LAUNCH_WINDOW_HEADER_V2 = GROWTH_LAUNCH_WINDOW_HEADER + ("destination",)
 VALID_DISCOVERY_KINDS = {
     "seo-cluster",
     "geo-page",
@@ -1267,6 +1270,81 @@ def _launch_day_bounds(cell: str) -> tuple[int, int] | None:
     return lower, upper
 
 
+def _validate_keyword_references(prd_text, ui_surfaces, repo_root, *, require_filled, problems):
+    """Resolve discovery and SEO citations against definitions in the map's Clusters table."""
+    relative = "docs/product/keyword-map.md"
+    path = repo_root / relative if repo_root is not None else None
+    map_present = path is not None and path.exists()
+    if not map_present and "kw-" not in prd_text.lower() and relative not in prd_text:
+        return
+    growth = _section(prd_text, "## Growth Contract") or ""
+    rows = _find_table(_subsection(growth, "### Discovery Surfaces") or "", GROWTH_DISCOVERY_HEADER) or []
+    public_kinds = {"seo-cluster", "geo-page", "store-listing", "landing"}
+    destinations = {row[0] for row in rows if len(row) == 4 and row[1].lower() in public_kinds}
+    citations = [(f"Discovery Surfaces {row[0]}", _ids(row[3], "KW"), row[1].lower() in public_kinds)
+                 for row in rows if len(row) == 4]
+    ui_citations = []
+    for surface, item in ui_surfaces.items():
+        metadata = item["contractFields"].get("SEO metadata", "")
+        mapped = surface in destinations or any(route in destinations for route in item["routes"])
+        ui_citations.append((f"{surface} SEO metadata", _ids(metadata, "KW"), mapped, set(item["routes"])))
+    citations.extend(citation[:3] for citation in ui_citations)
+    declared = re.search(r"^\s*Keyword map:[^\n]*docs/product/keyword-map\.md\b", active_text(prd_text), re.I | re.M)
+    if not map_present:
+        if declared or any(ids for _, ids, _ in citations):
+            _add(problems, "prd", f"keyword references require {relative} under --repo-root")
+        return
+    if not path.resolve().is_relative_to(repo_root.resolve()) or not path.is_file():
+        _add(problems, "prd", f"{relative} must be a file inside the repository")
+        return
+    text, error = safe_read_text(path)
+    if error:
+        _add(problems, "prd", f"cannot read {relative} as UTF-8")
+        return
+    header = ("ID", "Cluster", "Intent", "Queries", "Demand evidence", "Ranks now", "Mapped page", "Priority")
+    clusters = _find_table(_section(text, "## Clusters") or "", header) or []
+    known = {
+        row[0].strip("`").upper() for row in clusters
+        if len(row) == len(header) and re.fullmatch(r"KW-\d+", row[0].strip("`"), re.I)
+    }
+    # A route the map assigns to a cluster must cite it even when no Discovery Surfaces row names it.
+    map_routes = {
+        route for row in clusters if len(row) == len(header)
+        for route in re.findall(r"`(/[^`\s]*)`", row[6])
+    }
+    citations = citations[:len(citations) - len(ui_citations)] + [
+        (label, ids, mapped or bool(routes & map_routes)) for label, ids, mapped, routes in ui_citations
+    ]
+    for label, ids, mapped in citations:
+        if require_filled and mapped and not ids:
+            _add(problems, "prd", f"{label} must cite a KW-* cluster from {relative}")
+        for unknown in sorted(ids - known):
+            _add(problems, "prd", f"{label} references unknown {unknown} in {relative}")
+
+
+def _public_docs_locator(surface: str) -> bool:
+    prefix, _, url = surface.partition(":")
+    if prefix != "docs" or any(char.isspace() or char == "\\" for char in url):
+        return False
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").rstrip(".")
+        if parsed.scheme not in {"http", "https"} or parsed.username is not None or parsed.port == 0:
+            return False
+        if not host or host.endswith((".local", ".localhost", ".localdomain", ".internal", ".invalid", ".test")):
+            return False
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            labels = host.encode("idna").decode("ascii").split(".")
+            return (len(labels) > 1 and not labels[-1].isdigit()
+                    and all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+                            for label in labels))
+        return address.is_global and not address.is_multicast
+    except (ValueError, UnicodeError):
+        return False
+
+
 def _validate_growth_contract(
     prd_text: str,
     *,
@@ -1373,6 +1451,14 @@ def _validate_growth_contract(
                 "prd",
                 f"{track} track requires a Re-engagement mechanism or a none row with a reason",
             )
+    companion = (shape_fields or {}).get("companion", "")
+    headless_track = track in {"tool", "agent"}
+    # The output contract names the literal phrase; any companion reason that contains it declares it.
+    shape_excludes_discovery = headless_track and re.search(r"\bno public discovery\b", companion, re.I)
+    exclusions = (_section(prd_text, "## Non-Goals") or "") if headless_track else ""
+    scope_excludes_discovery = re.search(
+        r"\bpublic discovery (?:is |remains )?(?:explicitly )?(?:forbidden|prohibited|out of scope|not permitted|not allowed)\b",
+        exclusions, re.I)
     discovery_rows = _find_table(
         _subsection(section, "### Discovery Surfaces") or "", GROWTH_DISCOVERY_HEADER
     )
@@ -1402,13 +1488,24 @@ def _validate_growth_contract(
             if len(row) != len(GROWTH_DISCOVERY_HEADER):
                 continue
             kind = row[1].strip().casefold()
-            if kind not in VALID_DISCOVERY_KINDS:
+            surface = row[0].strip()
+            if shape_excludes_discovery and kind != "none":
+                _add(problems, "prd", "Shape declares no public discovery; use one reasoned none row or reconcile Shape")
+            elif scope_excludes_discovery and kind != "none":
+                _add(problems, "prd", "Discovery Surfaces conflicts with the public discovery exclusion in Non-Goals")
+            no_public_surface = (
+                kind == "none" and len(discovery_rows) == 1 and not ui_surface_ids
+                and track in {"tool", "agent"}
+                and NO_DISCOVERY_SURFACE.fullmatch(shape_fields.get("companion", ""))
+                and NO_DISCOVERY_SURFACE.fullmatch(surface)
+            )
+            if kind not in VALID_DISCOVERY_KINDS and not no_public_surface:
                 _add(
                     problems,
                     "prd",
                     "Discovery Surfaces kind must be seo-cluster, geo-page, store-listing, "
                     "directory, landing, social, video_channel, newsletter, community or "
-                    f"docs_site, not {row[1].strip()!r}",
+                    f"docs_site or a sole reasoned none row for a headless tool or agent; got {kind!r}",
                 )
             stage = row[2].strip().casefold()
             if stage not in VALID_DISCOVERY_OWNER_STAGES:
@@ -1418,9 +1515,12 @@ def _validate_growth_contract(
                     "Discovery Surfaces owner stage must be delivery, activation, gtm, "
                     f"growth or seo, not {row[2].strip()!r}",
                 )
-            surface = row[0].strip()
+            if no_public_surface:
+                continue  # The trace check below still applies to the local delivery.
             if kind in PRESENCE_DISCOVERY_KINDS:
-                if not PRESENCE_SURFACE_RE.fullmatch(surface):
+                if kind == "docs_site" and not _public_docs_locator(surface):
+                    _add(problems, "prd", "Discovery Surfaces docs_site requires docs: followed by a public HTTP(S) URL")
+                elif not PRESENCE_SURFACE_RE.fullmatch(surface):
                     _add(
                         problems,
                         "prd",
@@ -1446,14 +1546,12 @@ def _validate_growth_contract(
     launch_rows = _find_table(launch_section, GROWTH_LAUNCH_WINDOW_HEADER)
     launch_width = len(GROWTH_LAUNCH_WINDOW_HEADER)
     if launch_rows is None:
-        launch_rows = _find_table(launch_section, GROWTH_LAUNCH_WINDOW_HEADER_V2)
-        launch_width = len(GROWTH_LAUNCH_WINDOW_HEADER_V2)
-    if launch_rows is None:
         _add(
             problems,
             "prd",
             "Growth Contract Launch Window must use the Day | Channel class | Action | Owner | "
-            "Readback metric table, or the same table with a trailing Destination column",
+            "Readback metric | Destination table; an earlier five-column table needs a Destination "
+            "column naming a path, listing, account or none (reason) per row",
         )
     else:
         _validate_table_rows(
@@ -1466,6 +1564,21 @@ def _validate_growth_contract(
         if not launch_rows:
             _add(problems, "prd", "Growth Contract Launch Window must contain at least one row")
         launch_day_seen = False
+        # With neither a companion nor a public launch destination, the discovery
+        # row needs an independent product reference to an existing public route.
+        if (track in {"agent", "tool"} and not ui_surface_ids and launch_rows
+                and NO_DISCOVERY_SURFACE.fullmatch((shape_fields or {}).get("companion", ""))
+                and all(NO_DISCOVERY_SURFACE.fullmatch(row[-1]) or _absent_cell(row[-1]) for row in launch_rows)):
+            product_sources = "\n".join(_section(prd_text, heading) or "" for heading in
+                                        ("## At a Glance", "## Problem Statement", "## Functional Requirements"))
+            for row in discovery_rows or []:
+                if len(row) != len(GROWTH_DISCOVERY_HEADER) or row[1].casefold() == "none":
+                    continue
+                surface = row[0].strip()
+                locator = surface.partition(":")[2] if row[1].casefold() in PRESENCE_DISCOVERY_KINDS else surface
+                if not locator or not re.search(r"(?<![\w/-])" + re.escape(locator) + r"(?=$|[\s`)>\],;]|[.!?](?:\s|$))", product_sources):
+                    _add(problems, "prd", f"Discovery Surfaces {surface!r} needs its destination in the product scope "
+                         "when both companion and launch destinations are absent")
         for row in launch_rows:
             if len(row) != launch_width:
                 continue
@@ -1476,6 +1589,13 @@ def _validate_growth_contract(
                     "prd",
                     "Launch Window channel class must be owned, earned, search or store, not "
                     f"{row[1].strip()!r}",
+                )
+            elif (shape_excludes_discovery or scope_excludes_discovery) and channel != "owned":
+                _add(
+                    problems,
+                    "prd",
+                    f"Launch Window {channel} row conflicts with the declared absence of public discovery; "
+                    "use owned channels only or reconcile Shape and Non-Goals",
                 )
             bounds = _launch_day_bounds(row[0])
             if bounds is not None and bounds[0] <= 7 and bounds[1] >= 0:
@@ -2792,6 +2912,7 @@ def validate_texts(
         web_floor=3,
     )
     problems.extend(ui_contract_errors)
+    _validate_keyword_references(prd_text, ui_surfaces, repo_root, require_filled=require_filled, problems=problems)
     if ui_contract in CURRENT_UI_CONTRACTS:
         # Parse operations from the active contract.  Reusing the parser also
         # checks one operation anchor per surface and its declared endpoints.

@@ -1531,6 +1531,26 @@ class RealBrowserTests(unittest.TestCase):
             code = m.main(["--repo-root", str(root), "--package", str(package), *extra])
         return code, buffer.getvalue()
 
+    def test_current_publication_runs_its_declared_states_and_operations(self):
+        from test_ui_design_v3 import v3_publication
+
+        module = self.playwright()
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            _, _, hifi = v3_publication(root)
+            out = root / "docs/evidence/live-publication"
+            code, text = self.run_main(module, root, hifi.parent, "--out", str(out), "--measure-a11y", "--axes", "dark")
+            self.assertEqual(0, code, text)
+            report = json.loads(text)
+            self.assertEqual(6, report["pass"])
+            self.assertEqual(18, report["interactions"])
+            self.assertEqual(0, report["interactionsFail"])
+            sidecar = json.loads((out / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual({"checked": 32, "fail": 0, "note": 0, "unmeasured": 0},
+                             sidecar["a11y"]["summary"]["contrast"])
+            self.assertEqual({"checked": 18, "fail": 0, "note": 0, "unmeasured": 0},
+                             sidecar["a11y"]["summary"]["target-size"])
+
     def test_matrix_capture_in_real_chromium(self):
         module = self.playwright()
         with tempfile.TemporaryDirectory() as temporary:

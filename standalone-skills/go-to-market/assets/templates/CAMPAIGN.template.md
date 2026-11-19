@@ -2,6 +2,8 @@
 
 Use sections needed for this campaign. Replace guidance with facts and complete copy.
 Keep unknowns explicit; never invent facts or approval.
+Save the project package at `docs/gtm/CAMPAIGN.md`, unless the project specifies another destination.
+For a custom path, add a local `[Campaign](relative/path.md)` link in `docs/DOCUMENTS.md`.
 
 ## Brief
 
@@ -9,6 +11,12 @@ Record project, source revision/date, audience, market/language, positioning, vo
 State goal, intended action, real destination, owner, capacity and proposed window/timezone.
 Link existing strategy and distinguish accepted decisions from proposals.
 Link the messaging record at `docs/gtm/MESSAGING.md` and record its revision.
+
+Messaging record: [Messaging](MESSAGING.md)
+Messaging revision:
+
+Copy the exact `Revision:` token from the messaging record after reconciling the draft.
+Changing this field alone does not resolve withdrawn claims.
 
 ## Channel Plan
 
@@ -36,6 +44,7 @@ Repeat per item with a stable ID and revision:
 - Destination and public links, including proposed tracking identifiers where appropriate.
 - Media files or briefs, visible copy, alt text, provenance/rights and production gaps.
 - Evidence for public facts, available release and claims needing review.
+- Claim IDs from the messaging record for each supported public claim. Remove withdrawn claims from current drafts.
 - Availability claim: preview, beta, released or planned; link supporting build/release or demonstration evidence when applicable.
 - Selected post type and sequence/reply target when applicable; keep capability and link-preview checks separate from copy approval.
 - Proposed time/timezone, visibility, dependencies and responsible owner.

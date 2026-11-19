@@ -233,6 +233,15 @@ def bound_skill_name(cell: str) -> str | None:
 SECURITY_REFERENCE = "delivery-harness/references/security-review.md"
 
 
+def binding_target(slot: str, cell: str, *, required: bool) -> str | None:
+    if slot == "code_security_verification":
+        if cell.strip().strip("`") == SECURITY_REFERENCE:
+            return SECURITY_REFERENCE
+        if required:
+            return None
+    return bound_skill_name(cell)
+
+
 def locate_reference(reference: str, skill_dirs: list[Path]) -> Path | None:
     for directory in skill_dirs:
         candidate = directory / reference
@@ -364,15 +373,7 @@ def check_bindings(
                 check_security_reference_binding(cell, pin, number, skill_dirs, hashes, previous_dirs)
             )
             continue
-        if (
-            slot == "code_security_verification"
-            and slot not in STAGE_SLOTS[stage]
-            and cell.strip().strip("`") == SECURITY_REFERENCE
-        ):
-            if not PIN_RE.fullmatch(pin):
-                findings.append(f"line {number}: deferred binding must use a full-tree pin or pending/pending")
-            continue
-        name = bound_skill_name(cell)
+        name = binding_target(slot, cell, required=slot in STAGE_SLOTS[stage])
         if slot == "style_integration" and slot in STAGE_SLOTS[stage] and name != "frontend-design":
             findings.append("style_integration requires frontend-design; supplemental Taste skills cannot replace it")
         if name is None:

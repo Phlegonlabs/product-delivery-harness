@@ -19,7 +19,7 @@ One row per cluster. IDs are stable: KW-001, KW-002, and so on. Never reuse or r
 Intent: learn, compare, buy or navigate. Cluster only queries that share one intent.
 Queries: two to five, public-safe. Demand: label (observed, estimated or hypothesis), source, date, finding.
 Ranks now: observed on the retrieval date: who ranks and with what kind of page.
-Mapped page: a new route or an existing one, and what that page must answer. Priority: high, medium or low.
+Mapped page: a web route or a store listing and locale, and what that destination must answer. Priority: high, medium or low.
 -->
 
 | ID | Cluster | Intent | Queries | Demand evidence | Ranks now | Mapped page | Priority |
@@ -41,6 +41,11 @@ Mapped page: a new route or an existing one, and what that page must answer. Pri
 | Page | Current title | Title limit | Current meta description | Description limit | Serves |
 | --- | --- | --- | --- | --- | --- |
 | (example) `/invoice-reminders` | Invoice reminders that send themselves | 60 | Set up payment reminders once. See when each one goes out. | 155 | KW-001 |
+
+<!-- For a store surface, use the table below. Use the storefront's field names and verified limits. Keep only the applicable tables. -->
+
+| Store listing | Locale | Field | Current value | Store limit and source | Serves |
+| --- | --- | --- | --- | --- | --- |
 
 ## Change log
 

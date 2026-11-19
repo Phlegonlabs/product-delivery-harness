@@ -46,7 +46,7 @@ Work through these in order and stop at the ones that genuinely apply to this pr
 
 This is the part that makes the artifact worth reading. Follow it exactly.
 
-- Every factual claim carries a source: URL, publisher, and the date it was retrieved.
+- Every factual claim carries a source: URL, publisher, and the date it was retrieved. A `customer-discovery` interview study is a primary source without a URL: its Sources row gives the saved study path or `notes not saved` in the URL column and the last session date as the retrieval date.
 - Prefer primary sources — the vendor's own pricing or docs page, a filing, a standards body, an official changelog — over roundups, listicles, and SEO content farms.
 - Record the retrieval date on every source. Pricing, feature lists, and market figures go stale, and a reader needs to know how old the claim is.
 - **Never state an unsourced claim as fact.** If research could not confirm something, record it as `UNVALIDATED` with what was searched and what would settle it. An honest gap is more useful than a confident invention.
@@ -58,7 +58,7 @@ Assign each finding a confidence value:
 
 | Confidence | Meaning |
 | --- | --- |
-| `sourced` | Primary or official source, cited with URL and retrieval date |
+| `sourced` | Primary or official source, cited with URL and retrieval date, or a finding a `customer-discovery` study observed in three or more independent participants |
 | `reported` | Secondary source only — press, analyst, or community report |
 | `UNVALIDATED` | No source found; recorded as a hypothesis with the search that failed |
 

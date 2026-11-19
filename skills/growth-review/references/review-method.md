@@ -136,7 +136,7 @@ The cadence is read-only. It reports evidence; the PRD owner accepts or rejects 
 
 Compare each `KW-*` row with first-party data: the queries and pages in `search_console`, the landing pages in `ga4`, or the listing data in the store console. Use complete periods. Return two lists, each row with its `KW-*`, evidence and follow-up metric:
 
-- Content-field rewrites. A rewrite of a page's `<title>` or meta description is a content change when it keeps the page's cluster and what the page answers, stays inside the recorded limits and stays unique per route. Route it `delivery`. The owner who applies it records it in the map's Change log.
+- Content-field rewrites. A rewrite of a page's `<title>` or meta description is a content change when it keeps the page's cluster and what the page answers, stays inside the recorded limits and stays unique per route. Route it `delivery`. For a store listing, identify the storefront, locale, field and recorded limit. Hand off to the listing owner for review before submission. The owner who applies a change records it in the map's Change log.
 - Structural candidates. A new route, a change of cluster, or a change to copy that people see on the page needs a PRD delta. Route it `product_definition`.
 
 The review does not edit the map. A cluster with too little data to judge goes to `observe_later`.

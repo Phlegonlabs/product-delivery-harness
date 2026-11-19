@@ -167,6 +167,16 @@ Rungs are better, not bigger. The outside judge is never the model or the owner'
 | Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing / social / video_channel / newsletter / community / docs_site) | Owner stage | TEST or MS ID |
 | --- | --- | --- | --- |
 
+A headless tool or agent with no public discovery surface and no companion records one row, for example:
+
+`| none (internal offline CLI) | none | delivery | TEST-001 |`
+
+Use the project's own reason and local TEST or MS identifier.
+When the companion reason declares `no public discovery`, use only the reasoned absence row, and keep every Launch Window row `owned`. The same holds when Non-Goals excludes public discovery.
+An offline tool can still publish documentation. For `docs_site`, supply `docs:` followed by its public HTTP(S) URL.
+When neither a companion nor a launch destination supplies a public route, cite the discovery destination separately.
+Record it in At a Glance, the Problem Statement or Functional Requirements. Reconcile explicit exclusions in Non-Goals.
+
 ### Launch Window
 | Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
 | --- | --- | --- | --- | --- | --- |

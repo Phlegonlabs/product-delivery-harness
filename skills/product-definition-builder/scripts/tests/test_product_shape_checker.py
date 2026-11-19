@@ -409,9 +409,9 @@ def growth_contract_section(track: str = "web") -> str:
 | /launch | landing | gtm | MS-110 |
 
 ### Launch Window
-| Day | Channel class | Action | Owner | Readback metric |
-| --- | --- | --- | --- | --- |
-| Day 0 | owned | Announce the fixture launch | Owner | Return visits |
+| Day | Channel class | Action | Owner | Readback metric | Destination |
+| --- | --- | --- | --- | --- | --- |
+| Day 0 | owned | Announce the fixture launch | Owner | Return visits | /launch |
 
 """
 

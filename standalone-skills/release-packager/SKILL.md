@@ -33,6 +33,8 @@ Use [artifact checks and delivery](references/artifact-checks.md). Install/extra
 
 Verify name/version, entry points, runtime constraints, required payload, platform identity and applicable signatures. Hash final bytes after signing, stapling or repacking. For a container, keep local image ID, exported archive checksum and remote registry digest distinct.
 
+For npm tarballs, run `scripts/check_npm_readme.py` as required by [artifact checks](references/artifact-checks.md#npm-readme-check). Retain its result with normal artifact verification. Applicable failures or unsupported examples remain gaps; never replace execution with a prose checklist.
+
 List every selected component/target/channel and its result. A successful build is not an installation, signature or startup PASS. Retain failures and finish independent applicable targets; unavailable required platforms remain unverified.
 
 ## Reconcile And Deliver
