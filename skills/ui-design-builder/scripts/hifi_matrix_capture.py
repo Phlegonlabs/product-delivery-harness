@@ -1677,7 +1677,7 @@ class Runner:
         self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
         self.restarts, self.aborted, self.active_axis = 0, False, None
-        self.page_restarts = {}
+        self.unit_restarts = {}     # restarts spent by each ("page", name) and each ("operation", interaction id)
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
         self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
         self.cancel = None      # a threading.Event a parallel run sets to stop every worker between items
@@ -1689,16 +1689,17 @@ class Runner:
                 self.transcript[kind].extend(dict(row, page=page) for row in events.get(kind, []))
         return event_reasons(events)
 
-    def recover(self, page):
+    def recover(self, page, unit=None):
+        """Replace a hung browser and charge the restart to what hung: its page, or one operation on it."""
+        unit = unit or ("page", page)
         self.restarts += 1
-        self.page_restarts[page] = self.page_restarts.get(page, 0) + 1
+        self.unit_restarts[unit] = self.unit_restarts.get(unit, 0) + 1
         try:
             self.driver.restart()
         except DriverError:
             self.aborted = True
             return
-        # Discard the hung browser even when this page has spent its budget.
-        # Leave the fresh browser available for the next page.
+        # Discard the hung browser even when its budget is spent: the fresh one serves the remaining work.
         if self.page_blocked(page) or page in self.unopened:
             return
         try:
@@ -1717,12 +1718,16 @@ class Runner:
                 except DriverError:
                     self.aborted = True
 
-    def page_blocked(self, page):
+    def blocked(self, unit):
+        """Why a page or an operation gets no more browser work: its own budget is spent, or the browser is gone."""
         if self.aborted:
             return "browser driver could not restart"
-        if self.page_restarts.get(page, 0) > MAX_RESTARTS:
-            return f"page browser driver restart limit ({MAX_RESTARTS}) reached: {page}"
+        if self.unit_restarts.get(unit, 0) > MAX_RESTARTS:
+            return f"{unit[0]} browser driver restart limit ({MAX_RESTARTS}) reached: {unit[1]}"
         return None
+
+    def page_blocked(self, page):
+        return self.blocked(("page", page))
 
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
@@ -1838,7 +1843,7 @@ class Runner:
         worker.a11y_cases, worker.a11y_fonts = {}, dict(self.a11y_fonts)
         worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
         worker.restarts, worker.aborted, worker.active_axis = 0, False, None
-        worker.page_restarts = dict(self.page_restarts)
+        worker.unit_restarts = dict(self.unit_restarts)
         return worker
 
     def adopt_unopened(self, failed):
@@ -1885,8 +1890,8 @@ class Runner:
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
         self.unopened |= worker.unopened
-        for page, count in worker.page_restarts.items():
-            self.page_restarts[page] = max(self.page_restarts.get(page, 0), count)
+        for unit, count in worker.unit_restarts.items():
+            self.unit_restarts[unit] = max(self.unit_restarts.get(unit, 0), count)
         for page, reasons in worker.page_reasons.items():
             if page in worker.unopened or page not in self.page_reasons:
                 self.page_reasons[page] = reasons
@@ -1907,7 +1912,7 @@ class Runner:
                   "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = blocked or self.page_blocked(action["page"])
+        blocked = blocked or self.page_blocked(action["page"]) or self.blocked(("operation", action["id"]))
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1929,7 +1934,7 @@ class Runner:
         except DriverTimeout as error:
             reasons.append(f"interaction timed out after {self.case_timeout_s}s")
             events, result = error.events, {}
-            self.recover(action["page"])
+            self.recover(action["page"], ("operation", action["id"]))     # a stuck operation spends only its own budget
         except DriverError as error:
             reasons.append(f"driver error: {error}")
             events, result = error.events, {}
@@ -2213,7 +2218,7 @@ def partition(items, workers):
 
 
 class DriverPool:
-    """Drivers made on demand; page restart budgets survive phase changes."""
+    """Drivers made on demand; page and operation restart budgets survive phase changes."""
 
     def __init__(self, make_driver, package, root, scratch, color_scheme):
         self.make_driver, self.package, self.root, self.scratch = make_driver, package, root, Path(scratch)
@@ -2245,10 +2250,10 @@ class DriverPool:
             runner = runners[index]
             try:
                 runner.cancel = self.cancel
-                runner.restarts, runner.aborted, previous_pages = self.state[index]
-                runner.page_restarts = dict(getattr(runner, "page_restarts", {}))
-                for page, count in previous_pages.items():
-                    runner.page_restarts[page] = max(runner.page_restarts.get(page, 0), count)
+                runner.restarts, runner.aborted, previous_units = self.state[index]
+                runner.unit_restarts = dict(getattr(runner, "unit_restarts", {}))
+                for unit, count in previous_units.items():
+                    runner.unit_restarts[unit] = max(runner.unit_restarts.get(unit, 0), count)
                 if not self.started[index] or not runner.aborted:
                     # A later phase gets a fresh browser: the reviewer shell keeps its selections in session
                     # storage, so a page opened after another phase's pages could arrive in the wrong state.
@@ -2263,7 +2268,7 @@ class DriverPool:
                 failures[index] = error
                 self.cancel.set()
             finally:
-                self.state[index] = (runner.restarts, runner.aborted, dict(runner.page_restarts))
+                self.state[index] = (runner.restarts, runner.aborted, dict(runner.unit_restarts))
 
         self.threads = [threading.Thread(target=work, args=(index,), daemon=True) for index in range(len(shares))]
         for thread in self.threads:
@@ -2314,7 +2319,7 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
         phase(runner, runner.axis_items(cases))
     if intermediate_runner is not None:
         intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
-        intermediate_runner.page_restarts = dict(runner.page_restarts)
+        intermediate_runner.unit_restarts = dict(runner.unit_restarts)
         phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
 
 
@@ -2644,7 +2649,7 @@ def execute(args, make_driver=node_driver):
                                                  interactions=interactions, intermediate=True)
                     intermediate_runner.unopened = set(runner.unopened)
                     intermediate_runner.page_reasons = dict(runner.page_reasons)
-                    intermediate_runner.page_restarts = dict(runner.page_restarts)
+                    intermediate_runner.unit_restarts = dict(runner.unit_restarts)
                     intermediate_runner.run(intermediate_cases)
                 environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
             finally:
