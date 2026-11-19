@@ -140,6 +140,23 @@ class RemovePacketTests(unittest.TestCase):
         (out / "review-result.json").write_text("{}\n", encoding="utf-8")
         self.assert_refused(out, "review-result.json")
 
+    def test_refuses_a_clone_holding_a_file_the_build_did_not_list(self) -> None:
+        out = self.build_packet()
+        (out / "clone" / "valuable.db").write_bytes(b"saved here after the build")
+        self.assert_refused(out, "does not list with their bytes")
+
+    def test_refuses_a_clone_whose_listed_file_changed(self) -> None:
+        out = self.build_packet()
+        tracked = next(path for path in sorted((out / "clone").rglob("*"))
+                       if path.is_file() and ".git" not in path.parts and "review-input" not in path.parts)
+        tracked.write_bytes(tracked.read_bytes() + b" edited after the build")
+        self.assert_refused(out, "does not list with their bytes")
+
+    def test_refuses_review_input_holding_a_file_the_build_does_not_write(self) -> None:
+        out = self.build_packet()
+        (out / "clone" / "review-input" / "notes.txt").write_text("keep me\n", encoding="utf-8")
+        self.assert_refused(out, "also holds notes.txt")
+
     def test_refuses_the_clone_folder_itself(self) -> None:
         out = self.build_packet()
         self.assert_refused(out / "clone", "clone/review-input/HEAD.txt is missing")

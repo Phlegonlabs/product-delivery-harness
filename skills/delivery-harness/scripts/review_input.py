@@ -39,6 +39,7 @@ from harness_git import GitMetadataError, git_argv, git_environment, run_git
 SCOPE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DIFF_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
 PACKET_MARKERS = ("HEAD.txt", "BASE.txt", "tracked-files.sha256")
+PACKET_FILES = set(PACKET_MARKERS) | {"candidate.diff", "commit-log.txt", "changed-files.txt", "parent-status.txt"}
 FULL_SHA = re.compile(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})\n")
 # "<sha256>  <relative path>", as build() writes tracked-files.sha256.
 MANIFEST_LINE = re.compile(rb"[0-9a-f]{64}  (?!/|[A-Za-z]:/)([^\r]+)")
@@ -225,6 +226,15 @@ def remove(packet: Path) -> dict:
     )
     if outer.returncode == 0 and Path(outer.stdout.strip()).resolve() == packet:
         raise refuse(f"{packet} is a Git work tree root")
+    # Provenance: the build wrote review-input/ and listed every other clone file with its SHA-256. Anything
+    # added or changed since, such as a file someone saved there, keeps the packet.
+    extra = sorted(entry.name for entry in (clone / "review-input").iterdir()
+                   if entry.name not in PACKET_FILES and not re.fullmatch(r"scope-[A-Za-z0-9][A-Za-z0-9_.-]*\.diff", entry.name))
+    if extra:
+        raise refuse(f"clone/review-input in {packet} also holds {', '.join(extra)}")
+    listed = dict(line.split("  ", 1)[::-1] for line in markers["tracked-files.sha256"].decode("utf-8").splitlines())
+    if dict(manifest(clone)) != listed:
+        raise refuse(f"clone/ in {packet} holds files its tracked-files.sha256 does not list with their bytes")
 
     def clear_read_only(function, path, _error) -> None:
         # Git object files are read-only; on Windows that blocks unlink.
