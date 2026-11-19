@@ -80,6 +80,9 @@ class DocumentSyncTests(unittest.TestCase):
                 impact = next(row for row in changed["impacts"] if row["source"] == name)
                 self.assertEqual("document_changed", impact["reason"])
                 self.assertIn(owner, impact["affected_stages"])
+                if name.endswith("keyword-map.md"):
+                    self.assertIn("store listing", " ".join(impact["affected_artifacts"]))
+                    self.assertIn("locale", " ".join(impact["required_checks"]))
                 path.unlink()
                 prior = changed["snapshot"]
                 missing = self.observe(prior, default_inventory(self.root, prior))

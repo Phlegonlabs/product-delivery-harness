@@ -152,7 +152,9 @@ def impact_for(name, reason):
     elif name == "docs/product/PRD.md":
         artifacts, stages, checks = ["architecture", "stack", "HiFi", "legacy wireframes when pinned", "acceptance"], ["product", "design", "delivery"], ["product package", "affected UI gates", "requirement-linked tests"]
     elif name == "docs/product/keyword-map.md":
-        artifacts, stages, checks = ["PRD discovery surfaces", "page metadata"], ["growth", "product", "delivery"], ["cluster IDs and mapped routes", "current titles and descriptions"]
+        artifacts = ["PRD discovery surfaces", "page metadata or store listing fields"]
+        stages = ["growth", "product", "delivery"]
+        checks = ["cluster IDs and mapped destinations", "page titles and descriptions or listing fields by locale"]
     elif name == "docs/gtm/MESSAGING.md":
         artifacts, stages, checks = ["public claims", "README and listing copy"], ["go-to-market", "readme-studio", "growth"], ["approved claims and per-surface one-liners"]
     elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
