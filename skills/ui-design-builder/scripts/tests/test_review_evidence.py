@@ -139,14 +139,14 @@ class EvidenceTests(unittest.TestCase):
         self.output["assessment"]["observations"] = []
         self.assertTrue(evidence.assessment_findings(self.root, self.output))
 
-    def test_a_reviewer_inspects_each_surface_at_its_smallest_target_not_every_case(self):
+    def test_a_reviewer_inspects_each_surface_at_its_end_targets_not_every_case(self):
         self.output["check"] = "hifi-browser-grading"
         cases = [{"surface": surface, "state": state, "target": target} for surface in ("UI-001", "UI-002")
                  for state in ("ready", "error") for target in ("1440", "390", "768")]
         self.output["matrix"] = {"cases": cases}
         self.output["results"] = [dict(case, result="PASS") for case in cases]
         captures = []
-        for index in range(3):
+        for index in range(6):
             path = self.root / f"inspected-{index}.png"
             path.write_bytes(b"synthetic capture %d" % index)
             captures.append({"path": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
@@ -157,13 +157,16 @@ class EvidenceTests(unittest.TestCase):
                 for case, capture in zip(picked, captures)]}
             return evidence.assessment_findings(self.root, self.output)
 
-        smallest = [{"surface": "UI-001", "state": "ready", "target": "390"}, {"surface": "UI-002", "state": "ready", "target": "390"}]
-        self.assertEqual([], observe(*smallest))
-        self.assertEqual([], observe(*smallest, {"surface": "UI-001", "state": "error", "target": "1440"}))   # a flagged case
+        # Each surface at its smallest target, and the axis sample's other end: the largest target.
+        ends = [{"surface": surface, "state": "ready", "target": target}
+                for surface in ("UI-001", "UI-002") for target in ("390", "1440")]
+        self.assertEqual([], observe(*ends))
+        self.assertEqual([], observe(*ends, {"surface": "UI-001", "state": "error", "target": "768"}))   # a flagged case
+        self.assertEqual(["review observations must inspect UI-002 at its largest target 1440"], observe(*ends[:3]))
         self.assertEqual(["review observations must inspect UI-002 at its smallest target 390"],
-                         observe(smallest[0], {"surface": "UI-002", "state": "ready", "target": "768"}))
+                         observe(*ends[:2], ends[3], {"surface": "UI-002", "state": "ready", "target": "768"}))
         self.assertIn("review observations must name cases of the reviewed matrix",
-                      observe(*smallest, {"surface": "UI-003", "state": "ready", "target": "390"}))
+                      observe(*ends, {"surface": "UI-003", "state": "ready", "target": "390"}))
 
 
 def modern_contract():

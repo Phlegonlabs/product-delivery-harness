@@ -261,8 +261,8 @@ def execution_findings(root, output, receipt, subject):
     return errors
 
 
-def _smallest_targets(cases):
-    """{surface: its smallest target}: the lowest viewport width, or the first listed size class."""
+def _end_targets(cases):
+    """{surface: (smallest, largest) target}: viewport widths by value, size classes in their listed order."""
     targets = {}
     for surface, _, target in cases:
         targets.setdefault(surface, [])
@@ -274,8 +274,9 @@ def _smallest_targets(cases):
             return float(target)
         except ValueError:
             return None
-    return {surface: (min(listed, key=float) if all(width(t) is not None for t in listed) else listed[0])
-            for surface, listed in targets.items()}
+    ordered = {surface: (sorted(listed, key=float) if all(width(t) is not None for t in listed) else listed)
+               for surface, listed in targets.items()}
+    return {surface: (listed[0], listed[-1]) for surface, listed in ordered.items()}
 
 
 def assessment_findings(root, output, *, allow_blocks=False):
@@ -332,13 +333,15 @@ def assessment_findings(root, output, *, allow_blocks=False):
                     raise ValueError("review cases must retain distinct inspected captures")
                 captures.add(capture.casefold())
         # The author's matrix run covers every case by machine; a reviewer inspects a set by eye
-        # (ui-grading-rubric.md Browser Inspection Procedure), which includes each surface at its smallest target.
+        # (ui-grading-rubric.md Browser Inspection Procedure). It includes each surface at its smallest target and
+        # the axis sample, which also takes the largest target.
         matrix_cases = [_case_key(row) for row in output["matrix"]["cases"]]
         if not set(seen) <= set(matrix_cases):
             errors.append("review observations must name cases of the reviewed matrix")
-        for surface, target in sorted(_smallest_targets(matrix_cases).items()):
-            if not any(case[0] == surface and case[2] == target for case in seen):
-                errors.append(f"review observations must inspect {surface} at its smallest target {target}")
+        for surface, ends in sorted(_end_targets(matrix_cases).items()):
+            for label, target in dict.fromkeys(zip(("smallest", "largest"), ends)):
+                if not any(case[0] == surface and case[2] == target for case in seen):
+                    errors.append(f"review observations must inspect {surface} at its {label} target {target}")
     except (OSError, ValueError, TypeError, KeyError) as exc:
         errors.append(str(exc))
     return errors
