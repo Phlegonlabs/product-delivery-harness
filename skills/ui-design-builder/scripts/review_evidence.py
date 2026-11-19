@@ -399,7 +399,10 @@ def _where(names):
 
 
 # Reasons a hang or the driver gives, not the page: one rerun, then the owner decides (rubric Readiness gate).
-TOOL_LIMIT_MARKERS = ("restart limit", "could not restart", "timed out after", "driver error:", "could not be set up")
+# They cover every reason hifi_matrix_capture.py writes for a DriverTimeout or DriverError and every BLOCKED reason;
+# "page did not open" is also the recovery reopen and each row of a page that never opened.
+TOOL_LIMIT_MARKERS = ("restart limit", "could not restart", "timed out after", "driver error:", "could not be set up",
+                      "page did not open", "screenshot failed:")
 TOOL_LIMIT_FIX = ("a hang or a driver failure: fix what hangs and rerun the driver once; if the row fails the same way "
                   "again, it is a tool limit and the parent records the candidate blocked for the owner")
 

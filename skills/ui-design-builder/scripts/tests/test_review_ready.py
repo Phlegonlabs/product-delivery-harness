@@ -96,6 +96,29 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn("forced colors are not supported", text)
         self.assertIn("it is a tool limit and the parent records the candidate blocked for the owner", text)
 
+    def test_a_page_that_never_opens_is_a_tool_limit_and_a_page_defect_is_not(self):
+        class ShotFails(FakeDriver):
+            def _shot(self, fields):
+                if Path(fields["path"]).name.startswith("UI-002-loading-1200-"):
+                    raise m.DriverError("page.screenshot: Target closed")
+                return super()._shot(fields)
+
+        driver = ShotFails()
+        driver.open_error["index.html"] = m.DriverTimeout("open gave no reply within 40s")
+        driver.overrides[("UI-002", "ready", "390")] = {"geometry": {"overflowX": 30}}
+        code, text = self.ready(self.capture(driver=driver))
+        self.assertEqual(1, code, text)
+        lines = text.splitlines()
+
+        def line(reason):
+            return next((row for row in lines if reason in row), f"no line for {reason!r} in:\n{text}")
+        for reason in ("(page did not open: open gave no reply within 40s)",
+                       "reviewer pass on index.html (page did not open, so its reviewer rows were not measured)",
+                       "UI-002/loading/1200 (screenshot failed: page.screenshot: Target closed)"):
+            self.assertIn("Fix: a hang or a driver failure: fix what hangs and rerun the driver once;", line(reason))
+        self.assertIn("UI-002/ready/390 (horizontal overflow 30px). Fix: fix it and rerun the driver; "
+                      "the author's last capture is a clean run.", text)
+
     def test_a_partial_capture_is_not_ready(self):
         code, text = self.ready(self.capture("--only", "UI-001"))
         self.assertEqual(1, code, text)
