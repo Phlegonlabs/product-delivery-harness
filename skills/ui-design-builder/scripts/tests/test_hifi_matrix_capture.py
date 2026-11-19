@@ -1539,13 +1539,15 @@ class RealBrowserTests(unittest.TestCase):
             root = Path(directory)
             _, _, hifi = v3_publication(root)
             out = root / "docs/evidence/live-publication"
-            code, text = self.run_main(module, root, hifi.parent, "--out", str(out), "--measure-a11y")
+            code, text = self.run_main(module, root, hifi.parent, "--out", str(out), "--measure-a11y", "--axes", "dark")
             self.assertEqual(0, code, text)
             report = json.loads(text)
             self.assertEqual(6, report["pass"])
             self.assertEqual(18, report["interactions"])
             self.assertEqual(0, report["interactionsFail"])
             sidecar = json.loads((out / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual({"checked": 32, "fail": 0, "note": 0, "unmeasured": 0},
+                             sidecar["a11y"]["summary"]["contrast"])
             self.assertEqual({"checked": 18, "fail": 0, "note": 0, "unmeasured": 0},
                              sidecar["a11y"]["summary"]["target-size"])
 
