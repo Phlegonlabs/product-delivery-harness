@@ -66,6 +66,29 @@ class CompilerEvidenceScopeTests(unittest.TestCase):
                     receipt_path.write_bytes(original_receipt)
                     ui.write_text(baseline, encoding="utf-8")
 
+    def test_an_intermediate_receipt_from_an_earlier_driver_keeps_its_interaction_rows(self):
+        # Approvals made before the sweep stopped repeating interactions stay valid in later delivery checkouts.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            ui, prd, hifi = v3_publication(root)
+            baseline = ui.read_text(encoding="utf-8")
+
+            def output_of(label):
+                match = re.search(r"^" + label + r": PASS — evidence=(\S+) @ sha256:([0-9a-f]{64})", baseline, re.M)
+                receipt_path = root / match.group(1)
+                return match, receipt_path, root / json.loads(receipt_path.read_bytes())["receipt"]["outputArtifact"]["path"]
+
+            surface = json.loads(output_of("HiFi surface check")[2].read_bytes())
+            match, receipt_path, output_path = output_of("Intermediate width check")
+            output = json.loads(output_path.read_bytes())
+            self.assertEqual([], output["interactions"])
+            output["interactions"], output["navigation"] = surface["interactions"], surface["navigation"]
+            self.assertTrue(output["interactions"])
+            output_path.write_text(json.dumps(output), encoding="utf-8")
+            receipt_path.write_text(json.dumps(build_receipt(root, output_path.relative_to(root).as_posix())), encoding="utf-8")
+            ui.write_text(baseline.replace(match.group(2), digest(receipt_path)), encoding="utf-8")
+            self.assertEqual([], preflight(ui, root, prd, hifi))
+
     def test_intermediate_still_rejects_missing_schema_and_browser_evidence(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)

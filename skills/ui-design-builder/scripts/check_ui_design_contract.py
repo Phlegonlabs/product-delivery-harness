@@ -2322,8 +2322,9 @@ def _resolve_evidence(
                                 findings = (
                                     _motion_transcript_findings(output_json, local_pages) if expected_motion is not None
                                     # The intermediate sweep observes widths only; the base receipt holds the
-                                    # interaction and reviewer rows.
-                                    else _bundle_transcript_findings(output_json, dict(bundle, interactions=[]) if intermediate
+                                    # interaction rows. A receipt from an earlier driver still has all of them.
+                                    else _bundle_transcript_findings(output_json, dict(bundle, interactions=[])
+                                                                     if intermediate and not output_json.get("interactions")
                                                                      else bundle) if bundle is not None
                                     else _offline_transcript_findings(output_json)
                                 )
