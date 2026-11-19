@@ -502,8 +502,8 @@ GROWTH_LAUNCH_WINDOW_HEADER = (
     "action",
     "owner",
     "readback metric",
+    "destination",
 )
-GROWTH_LAUNCH_WINDOW_HEADER_V2 = GROWTH_LAUNCH_WINDOW_HEADER + ("destination",)
 VALID_DISCOVERY_KINDS = {
     "seo-cluster",
     "geo-page",
@@ -1546,14 +1546,12 @@ def _validate_growth_contract(
     launch_rows = _find_table(launch_section, GROWTH_LAUNCH_WINDOW_HEADER)
     launch_width = len(GROWTH_LAUNCH_WINDOW_HEADER)
     if launch_rows is None:
-        launch_rows = _find_table(launch_section, GROWTH_LAUNCH_WINDOW_HEADER_V2)
-        launch_width = len(GROWTH_LAUNCH_WINDOW_HEADER_V2)
-    if launch_rows is None:
         _add(
             problems,
             "prd",
             "Growth Contract Launch Window must use the Day | Channel class | Action | Owner | "
-            "Readback metric table, or the same table with a trailing Destination column",
+            "Readback metric | Destination table; an earlier five-column table needs a Destination "
+            "column naming a path, listing, account or none (reason) per row",
         )
     else:
         _validate_table_rows(
@@ -1570,8 +1568,7 @@ def _validate_growth_contract(
         # row needs an independent product reference to an existing public route.
         if (track in {"agent", "tool"} and not ui_surface_ids and launch_rows
                 and NO_DISCOVERY_SURFACE.fullmatch((shape_fields or {}).get("companion", ""))
-                and all(len(row) == len(GROWTH_LAUNCH_WINDOW_HEADER_V2)
-                        and (NO_DISCOVERY_SURFACE.fullmatch(row[-1]) or _absent_cell(row[-1])) for row in launch_rows)):
+                and all(NO_DISCOVERY_SURFACE.fullmatch(row[-1]) or _absent_cell(row[-1]) for row in launch_rows)):
             product_sources = "\n".join(_section(prd_text, heading) or "" for heading in
                                         ("## At a Glance", "## Problem Statement", "## Functional Requirements"))
             for row in discovery_rows or []:

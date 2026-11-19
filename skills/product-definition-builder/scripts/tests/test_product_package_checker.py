@@ -3242,9 +3242,9 @@ def growth_contract_section(track: str = "web") -> str:
 | /launch | landing | gtm | MS-110 |
 
 ### Launch Window
-| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |
-| --- | --- | --- | --- | --- |
-| Day 0 | owned | Announce the fixture launch | Owner | Return visits |
+| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
+| --- | --- | --- | --- | --- | --- |
+| Day 0 | owned | Announce the fixture launch | Owner | Return visits | /launch |
 
 """
 
@@ -3624,8 +3624,8 @@ class GrowthContractTests(unittest.TestCase):
             1,
         ).replace(
             "| Day | Channel class (owned / earned / search / store) | Action | Owner | "
-            "Readback metric |",
-            "| Day | Channel class | Action | Owner | Readback metric |",
+            "Readback metric | Destination |",
+            "| Day | Channel class | Action | Owner | Readback metric | Destination |",
             1,
         )
         self.assertEqual([], self.validate(prd))
@@ -3668,10 +3668,7 @@ class GrowthContractTests(unittest.TestCase):
             self.assertTrue(self.validate(prd.replace("none (offline CLI)", f"none ({reason})")))
         self.assertTrue(self.validate(prd.replace("## Non-Goals\n", "## Non-Goals\n- Public discovery is explicitly forbidden.\n")))
         self.assertTrue(self.validate(prd.replace("guide.fixture.org", "docs.invalid")))
-        v2 = prd.replace("Readback metric |", "Readback metric | Destination |").replace(
-            "| Return visits |", "| Return visits | none (internal distribution) |").replace(
-            "| Readback metric | Destination |\n| --- | --- | --- | --- | --- |",
-            "| Readback metric | Destination |\n| --- | --- | --- | --- | --- | --- |")
+        v2 = prd.replace("| Return visits | /launch |", "| Return visits | none (internal distribution) |")
         self.assertTrue(any("needs its destination" in item for item in self.validate(v2)))
         self.assertEqual([], self.validate(v2.replace("## Problem Statement\n",
             "## Problem Statement\nThe CLI operators use https://guide.fixture.org/help for public documentation.\n")))
@@ -3937,15 +3934,7 @@ class GrowthContractTests(unittest.TestCase):
         )
 
     def test_launch_window_accepts_the_destination_column(self) -> None:
-        v2 = shaped_prd().replace(
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |",
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |",
-            1,
-        ).replace(
-            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |",
-            "| Day 0 | owned | Announce the fixture launch | Owner | Return visits | /launch |",
-            1,
-        )
+        v2 = shaped_prd()
         self.assertEqual([], self.validate(v2))
         findings = self.validate(
             v2.replace("| Return visits | /launch |", "| Return visits | [TBD] |", 1)
@@ -3958,11 +3947,7 @@ class GrowthContractTests(unittest.TestCase):
             ),
             findings,
         )
-        short_row = shaped_prd().replace(
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric |",
-            "| Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |",
-            1,
-        )
+        short_row = shaped_prd().replace("| Return visits | /launch |", "| Return visits |", 1)
         findings = self.validate(short_row)
         self.assertTrue(
             any(
@@ -3972,8 +3957,13 @@ class GrowthContractTests(unittest.TestCase):
             findings,
         )
 
-    def test_launch_window_legacy_five_columns_still_accepted(self) -> None:
-        self.assertEqual([], self.validate(shaped_prd()))
+    def test_five_column_launch_window_is_refused(self) -> None:
+        five = shaped_prd().replace(
+            "| Readback metric | Destination |\n| --- | --- | --- | --- | --- | --- |",
+            "| Readback metric |\n| --- | --- | --- | --- | --- |", 1,
+        ).replace("| Return visits | /launch |", "| Return visits |", 1)
+        findings = self.validate(five)
+        self.assertTrue(any("Readback metric | Destination table" in item for item in findings), findings)
 
     def test_launch_window_reversed_ranges_do_not_qualify(self) -> None:
         for cell in ("Day 7-0", "Day 0--1", "9-12"):
