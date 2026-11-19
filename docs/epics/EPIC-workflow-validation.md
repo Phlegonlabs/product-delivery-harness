@@ -43,6 +43,8 @@ Suite review (2026-11-19) on `55fb1787`: four read-only GPT-6.1 Sol scopes and s
 
 One targeted re-check on `31e0ee6d` confirmed 16 repairs and found five defects in the repair itself: an italic Claim header read as malformed, a fenced copy's line reported, and a Markdown-rendering filter in the release packager that hid real images or rewrote HTML paths. The filter was removed rather than patched; image syntax outside a fenced block counts again. The process-tree stop now kills and waits for the root on every path. These were verified with the reviewer's own reproductions; no second re-check was run.
 
+Final review point on `4d6f42d6`, the range after the re-check: one GPT-6.1 Sol code review and one GLM-5.3 Flash documentation check, run in parallel. Three findings, all fixed: a failing root kill skipped the wait in the tree stop; the four version entries overstated the tree stop; the Spanish entry dropped "interview". The fixes were verified with the reviewers' own inputs.
+
 While rerunning the deadline test the parent found that `node` on Windows can be a version-manager shim: the old timeout killed only the shim and left the real Node running. Five orphaned test processes were stopped by recorded PID.
 
 ## Verification
