@@ -125,6 +125,16 @@ class DocumentSyncTests(unittest.TestCase):
         missing = self.observe(before, default_inventory(self.root, before))
         self.assertIn({"kind": "missing_document", "path": study}, missing["findings"])
 
+    def test_separate_campaign_drafts_use_the_default_messaging_check(self):
+        name = "docs/gtm/campaigns/launch.md"
+        path = self.root / name
+        path.parent.mkdir(parents=True)
+        path.write_text("Messaging revision: MSG-1", encoding="utf-8")
+        (self.root / "docs/gtm/MESSAGING.md").write_text("Revision: MSG-2", encoding="utf-8")
+        result = self.observe(paths=default_inventory(self.root))
+        self.assertTrue(any(row["kind"] == "campaign_messaging_stale" and row["path"] == name
+                            for row in result["findings"]))
+
     def test_current_epic_line_must_name_an_existing_epic(self):
         index = self.root / "docs/DOCUMENTS.md"
         (self.root / "docs/epics").mkdir(parents=True)

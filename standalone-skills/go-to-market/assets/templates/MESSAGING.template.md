@@ -7,6 +7,7 @@ Approving owner:
 
 Save one record per project at `docs/gtm/MESSAGING.md`. Reuse the existing record.
 Replace each bracketed field with a fact from the product records. Leave a field empty and name the missing source when no record answers it.
+Use one revision token, such as `MSG-1`, `r1` or `v1.2.3`, in the `Revision:` field.
 
 ## ICP
 
@@ -31,17 +32,19 @@ Replace each bracketed field with a fact from the product records. Leave a field
 
 ## Approved Public Claims
 
-| Claim | Evidence | Check date |
-| --- | --- | --- |
-|  |  |  |
+| Claim ID | Claim | Evidence | Check date |
+| --- | --- | --- | --- |
+|  |  |  |  |
+
+Assign stable IDs such as `C01` or `CLAIM-001`. Keep the ID when evidence changes.
 
 Owner approval source and approved revision:
 
 ## Claims Not Allowed
 
-| Claim not allowed | Missing or conflicting evidence |
-| --- | --- |
-|  |  |
+| Claim ID | Claim not allowed | Missing or conflicting evidence |
+| --- | --- | --- |
+|  |  |  |
 
 ## Voice Rules
 

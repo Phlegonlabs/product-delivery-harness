@@ -14,6 +14,7 @@ import re
 import sys
 from pathlib import Path
 
+from campaign_handoff import campaign_findings, is_campaign
 from harness_contract import contract_digest
 from research_claims import ASSESSMENT, MESSAGING, research_claim_findings
 
@@ -162,7 +163,7 @@ def impact_for(name, reason):
         artifacts, stages, checks = ["public claims", "README and listing copy"], ["go-to-market", "readme-studio", "growth"], ["approved claims and per-surface one-liners"]
     elif name == "docs/product/research-assessment.md" or DISCOVERY_STUDY.fullmatch(name):
         artifacts, stages, checks = ["research findings", "approved public claims", "campaign drafts"], ["product", "go-to-market"], ["cited research and confidence after withdrawal"]
-    elif name == "docs/gtm/CAMPAIGN.md":
+    elif is_campaign(name):
         artifacts, stages, checks = ["campaign drafts"], ["go-to-market"], ["current messaging revision and approved claims"]
     elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
         artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
@@ -272,6 +273,7 @@ def default_inventory(root, baseline=None):
             paths.append(name)
     _scoped_markdown_children(root, "docs/epics", "Epic", paths)
     _scoped_markdown_children(root, "docs/product/deltas", "PRD delta", paths)
+    _scoped_markdown_children(root, "docs/gtm/campaigns", "campaign", paths)
     for folder in _bounded_children(root, "docs/research/discovery", "discovery"):
         name = f"docs/research/discovery/{folder.name}/DISCOVERY.md"
         if DISCOVERY_STUDY.fullmatch(name) and safe_path(root, name, document=True).is_file():
@@ -280,7 +282,7 @@ def default_inventory(root, baseline=None):
         for name in baseline["documents"]:
             if not isinstance(name, str) or name in paths:
                 continue
-            retained = name in OPTIONAL_HANDOFFS or DISCOVERY_STUDY.fullmatch(name) or is_epic(name) or (
+            retained = name in OPTIONAL_HANDOFFS or DISCOVERY_STUDY.fullmatch(name) or is_campaign(name) or is_epic(name) or (
                 name.startswith("docs/product/deltas/") and name.count("/") == 3
             )
             if retained:
@@ -337,8 +339,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         previous = {}
         findings.append({"kind": "baseline_review_required"})
     documents = {}
+    handoff_text = {}
     impacts = []
-    research_text = {}
     for name in sorted(set(previous) - set(paths)):
         safe_path(root, name, document=True)
         findings.append({"kind": "removed_from_inventory", "path": name})
@@ -348,8 +350,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         research_source = name in {ASSESSMENT, MESSAGING} or name.startswith("docs/research/discovery/")
         if not path.exists():
             documents[name] = None
-            if research_source:
-                research_text[name] = ""
+            if research_source and name != MESSAGING:
+                handoff_text[name] = ""
             if name in required or previous.get(name) is not None:
                 findings.append({"kind": "missing_document", "path": name})
                 impacts.append(impact_for(name, "missing_document"))
@@ -365,8 +367,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
-        if research_source:
-            research_text[name] = text
+        if research_source or is_campaign(name):
+            handoff_text[name] = text
         documents[name] = hashlib.sha256(data).hexdigest()
         accepted = {documents[name]}
         if is_epic(name):
@@ -382,7 +384,8 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             findings.append({"kind": "legacy_pointer_review", "path": name, "skill": skill})
         if name == "docs/DOCUMENTS.md":
             findings.extend(current_epic_findings(root, text))
-    findings.extend(research_claim_findings(research_text, full_inventory=full_inventory))
+    findings.extend(research_claim_findings(handoff_text, full_inventory=full_inventory))
+    findings.extend(campaign_findings(handoff_text))
     snapshot ={"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     review = [row for row in findings
