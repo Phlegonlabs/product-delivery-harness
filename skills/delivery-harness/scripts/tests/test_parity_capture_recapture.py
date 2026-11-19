@@ -182,6 +182,39 @@ class HifiRecaptureTests(unittest.TestCase):
         self.assertEqual("identical", details_row["classification"])
         self.assertIn(self.page_uri("details.html"), self.opens())
 
+    def test_a_one_page_correction_does_not_expire_the_other_page(self) -> None:
+        kept = self.before_change()
+        # Assembly rewrites the entry's manifest hash for the corrected child,
+        # so the entry page's bytes change too.
+        details = self.package / "details.html"
+        details.write_text("<html><body>corrected details</body></html>", encoding="utf-8")
+        entry = self.package / "index.html"
+        entry.write_text(entry.read_text(encoding="utf-8").replace(
+            "0" * 64, parity_capture._file_sha256(details)), encoding="utf-8")
+        code, output = self.run_main("--route-map", str(self.default_route_map()),
+                                     "--carry-from", str(kept))
+        self.assertEqual(0, code, output)
+        manifest = self.manifest()
+        classes = {(row["surface_id"], row["classification"]) for row in manifest["captured"]}
+        self.assertEqual({("UI-001", "carried"), ("UI-002", "identical")}, classes)
+        self.assertEqual([self.page_uri("details.html")],
+                         [uri for uri in self.opens() if uri.startswith("file:")])
+        # The package identity stays on record and follows every page.
+        before = json.loads(kept.read_text(encoding="utf-8"))["package_sha256"]
+        self.assertRegex(manifest["package_sha256"], "^[0-9a-f]{64}$")
+        self.assertNotEqual(before, manifest["package_sha256"])
+
+    def test_an_entry_page_change_outside_the_manifest_expires_its_captures(self) -> None:
+        kept = self.before_change()
+        entry = self.package / "index.html"
+        entry.write_text(entry.read_text(encoding="utf-8").replace(
+            "<body>", "<body><p>new hero</p>"), encoding="utf-8")
+        code, output = self.run_main("--route-map", str(self.default_route_map()),
+                                     "--carry-from", str(kept))
+        self.assertEqual(0, code, output)
+        classes = {(row["surface_id"], row["classification"]) for row in self.manifest()["captured"]}
+        self.assertEqual({("UI-001", "identical"), ("UI-002", "carried")}, classes)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -415,8 +415,8 @@ class ParityCaptureHifiPackageTests(unittest.TestCase):
                                   "--carry-from", str(self.out / "manifest.json"))
         self.assertEqual(0, code, out)
         manifest = self.manifest()
-        classifications = {row["classification"] for row in manifest["captured"]}
-        self.assertEqual({"identical"}, classifications)
+        classifications = {(row["surface_id"], row["classification"]) for row in manifest["captured"]}
+        self.assertEqual({("UI-001", "carried"), ("UI-002", "identical")}, classifications)
         self.assertEqual(1, self.opens().count(self.page_uri("details.html")))
 
 class ParityRouteMapTemplateTests(unittest.TestCase):

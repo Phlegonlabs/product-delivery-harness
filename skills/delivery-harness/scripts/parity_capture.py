@@ -557,8 +557,8 @@ def _hifi_surface_pages(manifest: dict[str, Any], package_dir: Path) -> dict[str
 def _package_identity(package_dir: Path, pages: dict[str, str]) -> str:
     """SHA-256 over the entry page and every manifest page's bytes.
 
-    The package is the reference, so any page byte change must force a
-    recapture even when the entry page itself is unchanged.
+    The manifest records it to name the package; carry decisions use each
+    tuple's own page (``_hifi_page_identity``) instead.
     """
 
     parts = []
@@ -566,6 +566,28 @@ def _package_identity(package_dir: Path, pages: dict[str, str]) -> str:
         path = package_dir / page
         parts.append(f"{page}:{_file_sha256(path)}" if path.is_file() else f"{page}:missing")
     return hashlib.sha256("\n".join(parts).encode("utf-8")).hexdigest()
+
+
+def _hifi_page_identity(package_dir: Path, page: str) -> str:
+    """SHA-256 of the one package page a capture renders.
+
+    A package page embeds every resource it renders with, so its bytes are the
+    whole target input. The entry page blanks the manifest's child page hashes
+    first: correcting a child rewrites them, and that must not expire the
+    entry page's captures.
+    """
+
+    data = (package_dir / page).read_bytes()
+    if page != "index.html":
+        return hashlib.sha256(data).hexdigest()
+    text = data.decode("utf-8", errors="replace")
+    match = _HIFI_MANIFEST_RE.search(text)   # _hifi_manifest_load proved it parses
+    manifest = json.loads(match.group(1))
+    for row in manifest.get("pages") or []:
+        if isinstance(row, dict):
+            row["sha256"] = ""
+    blanked = text[: match.start(1)] + json.dumps(manifest, sort_keys=True) + text[match.end(1):]
+    return hashlib.sha256(blanked.encode("utf-8")).hexdigest()
 
 
 _HIFI_TARGET_JS = """
@@ -992,6 +1014,7 @@ class _Run:
     reference_mode: str = "single-html"
     hifi_package: Path | None = None
     hifi_pages: dict[str, str] = field(default_factory=dict)
+    hifi_page_sha256: dict[str, str] = field(default_factory=dict)
     package_sha256: str = ""
     tolerance: float = 0.0
     previous: dict[str, dict[str, Any]] = field(default_factory=dict)
@@ -1095,11 +1118,12 @@ def _plan_job(
     if is_hifi:
         condition_reference_eval = None
         # Everything that shapes the target image; a change forces a recapture.
+        # Only this tuple's own page counts, so correcting another page keeps it.
         target_inputs = json.dumps(
             {
                 "reference_mode": run.reference_mode,
-                "package_sha256": run.package_sha256,
                 "hifi_page": page,
+                "hifi_page_sha256": run.hifi_page_sha256[page],
                 "viewport": [combo["breakpoint"], height],
                 "media_preference": combo.get("media_preference"),
             },
@@ -1554,6 +1578,9 @@ def capture(args: argparse.Namespace) -> int:
         reference_mode="hifi-package" if is_hifi else "single-html",
         hifi_package=hifi_package,
         hifi_pages=hifi_pages,
+        hifi_page_sha256={
+            page: _hifi_page_identity(hifi_package, page) for page in set(hifi_pages.values())
+        },
         package_sha256=_package_identity(hifi_package, hifi_pages) if is_hifi else "",
         full_page=args.full_page,
         tolerance=getattr(args, "tolerance", 0.0),
@@ -1627,6 +1654,7 @@ def capture(args: argparse.Namespace) -> int:
         "reference": None if is_hifi else args.reference.as_posix(),
         "reference_mode": run.reference_mode,
         "hifi_package": hifi_package.as_posix() if is_hifi else None,
+        "package_sha256": run.package_sha256 or None,
         "capture_mode": "hosted-browser",
         "base_url": base_url,
         "viewport_height": args.height or VIEWPORT_HEIGHT,
