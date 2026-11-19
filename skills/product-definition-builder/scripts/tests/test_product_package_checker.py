@@ -3519,6 +3519,7 @@ class GrowthContractTests(unittest.TestCase):
         prd: str,
         *,
         architecture: str | None = None,
+        repo_root: Path | None = None,
     ) -> list[str]:
         package = strictize_approved_package(
             prd, architecture or valid_architecture(), valid_stack()
@@ -3527,7 +3528,26 @@ class GrowthContractTests(unittest.TestCase):
             *package,
             require_filled=True,
             require_approved=True,
+            repo_root=repo_root,
         )
+
+    def test_keyword_citations_resolve_only_to_defined_clusters(self) -> None:
+        prd = shaped_prd().replace("| MS-110 |", "| MS-110; KW-001 |")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs/product/keyword-map.md"
+            self.assertTrue(any("keyword references require" in p for p in self.validate(prd, repo_root=root)))
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                "## Clusters\n| ID | Cluster | Intent | Queries | Demand evidence | Ranks now | Mapped page | Priority |\n"
+                "| KW-001 | venue | compare | venue hire | hypothesis | unknown | /launch | high |\n"
+                "## Change log\n| KW-999 | retired cluster |\n", encoding="utf-8")
+            self.assertEqual([], self.validate(prd, repo_root=root))
+            self.assertTrue(any("unknown KW-999" in p for p in self.validate(prd.replace("KW-001", "KW-999"), repo_root=root)))
+            self.assertTrue(any("must cite a KW" in p for p in self.validate(shaped_prd(), repo_root=root)))
+            ui_prd = prd + ui_contract().replace("title Fixture status", "KW-999 title Fixture status")
+            self.assertTrue(any("UI-001 SEO metadata references unknown KW-999" in p
+                                for p in self.validate(ui_prd, repo_root=root)))
 
     def test_growth_contract_without_shape_row_is_validated_but_optional(self) -> None:
         prd = valid_prd().replace(

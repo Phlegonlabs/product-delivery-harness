@@ -1268,6 +1268,48 @@ def _launch_day_bounds(cell: str) -> tuple[int, int] | None:
     return lower, upper
 
 
+def _validate_keyword_references(prd_text, ui_surfaces, repo_root, *, require_filled, problems):
+    """Resolve discovery and SEO citations against definitions in the map's Clusters table."""
+    relative = "docs/product/keyword-map.md"
+    path = repo_root / relative if repo_root is not None else None
+    map_present = path is not None and path.exists()
+    if not map_present and "kw-" not in prd_text.lower() and relative not in prd_text:
+        return
+    growth = _section(prd_text, "## Growth Contract") or ""
+    rows = _find_table(_subsection(growth, "### Discovery Surfaces") or "", GROWTH_DISCOVERY_HEADER) or []
+    public_kinds = {"seo-cluster", "geo-page", "store-listing", "landing"}
+    destinations = {row[0] for row in rows if len(row) == 4 and row[1].lower() in public_kinds}
+    citations = [(f"Discovery Surfaces {row[0]}", _ids(row[3], "KW"), row[1].lower() in public_kinds)
+                 for row in rows if len(row) == 4]
+    for surface, item in ui_surfaces.items():
+        metadata = item["contractFields"].get("SEO metadata", "")
+        mapped = surface in destinations or any(route in destinations for route in item["routes"])
+        citations.append((f"{surface} SEO metadata", _ids(metadata, "KW"), mapped))
+    declared = re.search(r"^\s*Keyword map:[^\n]*docs/product/keyword-map\.md\b", active_text(prd_text), re.I | re.M)
+    if not map_present:
+        if declared or any(ids for _, ids, _ in citations):
+            _add(problems, "prd", f"keyword references require {relative} under --repo-root")
+        return
+    if not path.resolve().is_relative_to(repo_root.resolve()) or not path.is_file():
+        _add(problems, "prd", f"{relative} must be a file inside the repository")
+        return
+    text, error = safe_read_text(path)
+    if error:
+        _add(problems, "prd", f"cannot read {relative} as UTF-8")
+        return
+    header = ("ID", "Cluster", "Intent", "Queries", "Demand evidence", "Ranks now", "Mapped page", "Priority")
+    clusters = _find_table(_section(text, "## Clusters") or "", header) or []
+    known = {
+        row[0].strip("`").upper() for row in clusters
+        if len(row) == len(header) and re.fullmatch(r"KW-\d+", row[0].strip("`"), re.I)
+    }
+    for label, ids, mapped in citations:
+        if require_filled and mapped and not ids:
+            _add(problems, "prd", f"{label} must cite a KW-* cluster from {relative}")
+        for unknown in sorted(ids - known):
+            _add(problems, "prd", f"{label} references unknown {unknown} in {relative}")
+
+
 def _validate_growth_contract(
     prd_text: str,
     *,
@@ -2801,6 +2843,7 @@ def validate_texts(
         web_floor=3,
     )
     problems.extend(ui_contract_errors)
+    _validate_keyword_references(prd_text, ui_surfaces, repo_root, require_filled=require_filled, problems=problems)
     if ui_contract in CURRENT_UI_CONTRACTS:
         # Parse operations from the active contract.  Reusing the parser also
         # checks one operation anchor per surface and its declared endpoints.
