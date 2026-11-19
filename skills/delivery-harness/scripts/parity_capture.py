@@ -19,7 +19,9 @@ Each pair is also diffed (Pillow, when importable) and classified
 ``identical`` or ``changed``; the board lists changed pairs first and folds
 the identical ones. The classification is reviewer input, not a verdict.
 ``--carry-from`` records a pair as ``carried`` (and skips its reference
-capture) when nothing that shapes it changed since an identical one.
+capture) when nothing that shapes it changed since an identical one. With
+``--recapture <IDs>`` only the named routes or surfaces are captured; every
+other entry whose earlier pair still holds carries without a new capture.
 """
 
 from __future__ import annotations
@@ -821,6 +823,13 @@ def _ratio(text: str) -> float:
     return value
 
 
+def _id_list(text: str) -> list[str]:
+    ids = [part.strip() for part in text.split(",") if part.strip()]
+    if not ids:
+        raise argparse.ArgumentTypeError("name at least one route or surface ID")
+    return ids
+
+
 REGION_PX = 4   # a differing region wider and taller than this is a structural change
 
 
@@ -875,28 +884,56 @@ def _load_carry_source(path: Path) -> dict[str, dict[str, Any]]:
     }
 
 
-def _can_carry(previous: dict[str, Any], job: dict[str, Any], tolerance: float) -> bool:
-    """True when nothing that shapes this pair changed since an identical one.
-
-    The geometry fingerprint alone cannot see a colour or text change, so the
-    fresh app screenshot must also hash the same as the previous one, and the
-    reference side (HTML file, route-map triggers, viewport) must be unchanged.
-    The previous files must still match their recorded hashes.
-    """
+def _previous_holds(previous: dict[str, Any], job: dict[str, Any], tolerance: float) -> bool:
+    """True when the earlier pair was identical, the reference side (HTML or
+    package page, route-map triggers, viewport) is unchanged, and both earlier
+    images still match their recorded hashes."""
 
     try:
         return (
             previous.get("classification") in ("identical", "carried")
             and _classify(previous.get("pixel_diff"), tolerance) == "identical"
-            and job["geometry_fingerprint"] is not None
-            and previous.get("geometry_fingerprint") == job["geometry_fingerprint"]
-            and previous.get("actual_sha256") == job["actual_sha256"]
             and previous.get("target_inputs_sha256") == job["target_inputs_sha256"]
             and _file_has_hash(previous.get("target"), previous.get("target_sha256"))
             and _file_has_hash(previous.get("actual"), previous.get("actual_sha256"))
         )
     except (KeyError, TypeError):
         return False
+
+
+def _can_carry(previous: dict[str, Any], job: dict[str, Any], tolerance: float) -> bool:
+    """True when nothing that shapes this pair changed since an identical one.
+
+    The geometry fingerprint alone cannot see a colour or text change, so the
+    fresh app screenshot must also hash the same as the previous one.
+    """
+
+    return (
+        job["geometry_fingerprint"] is not None
+        and previous.get("geometry_fingerprint") == job["geometry_fingerprint"]
+        and previous.get("actual_sha256") == job["actual_sha256"]
+        and _previous_holds(previous, job, tolerance)
+    )
+
+
+def _carry_outside_recapture(run: _Run, jobs: list[dict[str, Any]]) -> None:
+    """Carry each entry outside ``--recapture`` without a new capture when its
+    earlier pair still holds; the rest are captured as usual."""
+
+    scope = sorted(run.recapture)
+    for job in jobs:
+        combo = job["combo"]
+        previous = run.previous.get(job["tuple_sha256"])
+        if {combo["route"], combo["surface_id"]} & run.recapture or previous is None:
+            continue
+        if _previous_holds(previous, job, run.tolerance):
+            job.update(
+                carried=previous, done=True, recapture_scope=scope,
+                **{key: previous.get(key) for key in (
+                    "actual_sha256", "geometry", "geometry_error", "geometry_fingerprint",
+                )},
+            )
+            print(f"carried {job['name']} (outside --recapture)")
 
 
 _LOCAL_ASSET_RE = re.compile(r"""(?:src|href)\s*=\s*["']([^"'#?]+)""", re.IGNORECASE)
@@ -959,6 +996,7 @@ class _Run:
     tolerance: float = 0.0
     previous: dict[str, dict[str, Any]] = field(default_factory=dict)
     carry_from: str | None = None
+    recapture: frozenset[str] = frozenset()
     errors: list[str] = field(default_factory=list)
     skipped: list[dict[str, Any]] = field(default_factory=list)
     nav_methods: dict[str, str] = field(default_factory=dict)
@@ -1215,6 +1253,8 @@ def _row(job: dict[str, Any], carry_from: str | None) -> dict[str, Any]:
             classification="carried",
             carried_from={"manifest": carry_from, "classification": carried["classification"]},
         )
+        if job.get("recapture_scope"):
+            row["carried_from"]["recapture_scope"] = job["recapture_scope"]
     return row
 
 
@@ -1453,6 +1493,15 @@ def capture(args: argparse.Namespace) -> int:
     unsupported_groups = _unsupported_surface_groups(plan)
     all_combos = _matrix(plan, None)
     combos = _matrix(plan, args.only, hosted_only=True)
+    recapture: list[str] | None = getattr(args, "recapture", None)
+    if recapture is not None:
+        known = {combo[key] for combo in _matrix(plan, None, hosted_only=True)
+                 for key in ("route", "surface_id")}
+        unknown = sorted(set(recapture) - known)
+        if unknown:
+            print(f"error: --recapture names no hosted PLAN route or surface: {', '.join(unknown)}",
+                  file=sys.stderr)
+            return 1
     if not combos:
         if unsupported_groups:
             print(
@@ -1510,6 +1559,7 @@ def capture(args: argparse.Namespace) -> int:
         tolerance=getattr(args, "tolerance", 0.0),
         previous=previous,
         carry_from=carry_from.as_posix() if carry_from else None,
+        recapture=frozenset(recapture or ()),
     )
     base_url: str = str(args.base_url).rstrip("/")
     routes = sorted({combo["route"] for combo in combos})
@@ -1532,11 +1582,14 @@ def capture(args: argparse.Namespace) -> int:
             )
             if job:
                 jobs.append(job)
+    if recapture is not None:
+        _carry_outside_recapture(run, jobs)
 
     # One media-preference change covers every tuple that shares it.
     scopes: dict[Any, list[dict[str, Any]]] = {}
     for job in jobs:
-        scopes.setdefault(job["combo"].get("media_preference"), []).append(job)
+        if not job["carried"]:
+            scopes.setdefault(job["combo"].get("media_preference"), []).append(job)
     for media, scope_jobs in scopes.items():
         with _motion_scope(
             cli, scope_jobs[0]["combo"], original_media, run.errors, f"{media} media"
@@ -1586,6 +1639,7 @@ def capture(args: argparse.Namespace) -> int:
         "tolerance": run.tolerance,
         "carry_from": run.carry_from,
         "recapture_carried": recapture_carried,
+        "recapture_scope": sorted(run.recapture) if recapture is not None else None,
         "classification_counts": dict(Counter(row["classification"] for row in captured)),
         "captured": captured,
         "skipped": skipped,
@@ -1661,11 +1715,21 @@ def main(argv: list[str] | None = None) -> int:
         "--recapture-carried", action="store_true",
         help="with --carry-from, capture every pair again instead of carrying",
     )
+    parser.add_argument(
+        "--recapture", type=_id_list, metavar="IDS",
+        help="with --carry-from, comma-separated route or surface IDs a repair can affect: "
+        "only their entries are captured; every other entry whose earlier pair is still "
+        "identical, with unchanged target inputs and image hashes, carries without a new capture",
+    )
     args = parser.parse_args(argv)
     if (args.reference is None) == (args.hifi_package is None):
         parser.error("choose exactly one reference mode: --reference <html> or --hifi-package <dir>")
     if args.recapture_carried and args.carry_from is None:
         parser.error("--recapture-carried needs --carry-from")
+    if args.recapture is not None and args.carry_from is None:
+        parser.error("--recapture needs --carry-from")
+    if args.recapture is not None and args.recapture_carried:
+        parser.error("--recapture and --recapture-carried exclude each other")
     try:
         return capture(args)
     except subprocess.TimeoutExpired as exc:
