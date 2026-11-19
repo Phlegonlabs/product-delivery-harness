@@ -206,6 +206,13 @@ class ReadinessTests(unittest.TestCase):
                            "its a11y object is not the one --measure-a11y writes", False, False),
             "other run": (lambda sidecar, folder: sidecar["run"].update(finishedAt="2020-01-01T00:00:00+00:00"),
                           "names another subject or run than", False, False),
+            "subject dropped": (lambda sidecar, folder: sidecar.pop("subject"),
+                                "names another subject or run than", False, False),
+            "run times dropped": (lambda sidecar, folder: [sidecar["run"].pop(key) for key in ("startedAt", "finishedAt")],
+                                  "names another subject or run than", False, False),
+            "PASS without a screenshot": (lambda sidecar, folder: ready_case(sidecar).update(capture=None),
+                                          "UI-001/ready/390: is PASS without a screenshot of this run or a carried one",
+                                          False, False),
         }
         ledger = self.ledger([self.family("DF-001", "open", "UI-001", "ready", "390")])
         code, text = self.ready(self.capture(), ledger=ledger)

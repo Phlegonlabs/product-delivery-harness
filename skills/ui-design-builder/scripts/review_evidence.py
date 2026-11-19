@@ -491,6 +491,8 @@ def _record_problems(root, bound, record, fresh_path, recapture):
     found = []
     if capture is not None and carried is not None and not recapture:
         found.append("names both a capture and carriedFrom, without --recapture-carried")
+    if capture is None and carried is None and record.get("result") == "PASS":
+        found.append("is PASS without a screenshot of this run or a carried one")
     if capture is not None:
         found.append(_file_problem(root, bound, capture, "capture")
                      or (None if capture["path"] == fresh_path else "capture is not this run's screenshot"))
@@ -533,8 +535,8 @@ def _sidecar_problems(root, output_rel, output, sidecar_rel, sidecar, bound):
     problems = []
     execution = output.get("execution") if isinstance(output.get("execution"), dict) else {}
     run = sidecar.get("run") if isinstance(sidecar.get("run"), dict) else {}
-    if ("subject" in sidecar and sidecar["subject"] != output.get("subject")) or any(
-            run[key] != execution.get(key) for key in ("startedAt", "finishedAt") if key in run):
+    if sidecar.get("subject") != output.get("subject") or any(
+            run.get(key) is None or run.get(key) != execution.get(key) for key in ("startedAt", "finishedAt")):
         problems.append((f"{sidecar_rel} names another subject or run than {output_rel}", RERUN))
     matrix_keys = [(c.get("surface"), c.get("state"), c.get("target"))
                    for c in (output.get("matrix") or {}).get("cases") or [] if isinstance(c, dict)]
