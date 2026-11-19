@@ -493,6 +493,7 @@ GROWTH_NORTH_STAR_HEADER = (
 )
 GROWTH_REENGAGEMENT_HEADER = ("mechanism", "surface or event", "test id")
 GROWTH_DISCOVERY_HEADER = ("surface", "kind", "owner stage", "test or ms id")
+NO_DISCOVERY_SURFACE = re.compile(r"none\s*\(\s*[^()\s][^()]*\)", re.I)
 GROWTH_LAUNCH_WINDOW_HEADER = (
     "day",
     "channel class",
@@ -1402,13 +1403,20 @@ def _validate_growth_contract(
             if len(row) != len(GROWTH_DISCOVERY_HEADER):
                 continue
             kind = row[1].strip().casefold()
-            if kind not in VALID_DISCOVERY_KINDS:
+            surface = row[0].strip()
+            no_public_surface = (
+                kind == "none" and len(discovery_rows) == 1 and not ui_surface_ids
+                and track in {"tool", "agent"}
+                and NO_DISCOVERY_SURFACE.fullmatch(shape_fields.get("companion", ""))
+                and NO_DISCOVERY_SURFACE.fullmatch(surface)
+            )
+            if kind not in VALID_DISCOVERY_KINDS and not no_public_surface:
                 _add(
                     problems,
                     "prd",
                     "Discovery Surfaces kind must be seo-cluster, geo-page, store-listing, "
                     "directory, landing, social, video_channel, newsletter, community or "
-                    f"docs_site, not {row[1].strip()!r}",
+                    f"docs_site or a sole reasoned none row for a headless tool or agent; got {kind!r}",
                 )
             stage = row[2].strip().casefold()
             if stage not in VALID_DISCOVERY_OWNER_STAGES:
@@ -1418,7 +1426,8 @@ def _validate_growth_contract(
                     "Discovery Surfaces owner stage must be delivery, activation, gtm, "
                     f"growth or seo, not {row[2].strip()!r}",
                 )
-            surface = row[0].strip()
+            if no_public_surface:
+                continue  # The trace check below still applies to the local delivery.
             if kind in PRESENCE_DISCOVERY_KINDS:
                 if not PRESENCE_SURFACE_RE.fullmatch(surface):
                     _add(

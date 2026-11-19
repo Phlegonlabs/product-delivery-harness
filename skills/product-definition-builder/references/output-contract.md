@@ -167,6 +167,12 @@ Rungs are better, not bigger. The outside judge is never the model or the owner'
 | Surface | Kind (seo-cluster / geo-page / store-listing / directory / landing / social / video_channel / newsletter / community / docs_site) | Owner stage | TEST or MS ID |
 | --- | --- | --- | --- |
 
+A headless tool or agent with no public discovery surface and no companion records one row, for example:
+
+`| none (internal offline CLI) | none | delivery | TEST-001 |`
+
+Use the project's own reason and local TEST or MS identifier.
+
 ### Launch Window
 | Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |
 | --- | --- | --- | --- | --- | --- |

@@ -3610,6 +3610,17 @@ class GrowthContractTests(unittest.TestCase):
         )
         self.assertEqual([], self.validate(prd))
 
+    def test_headless_discovery_can_record_a_reason_and_local_trace(self) -> None:
+        existing = "| /launch | landing | gtm | MS-110 |"
+        absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
+        tool = shaped_prd("track: tool; companion: none (offline); console: none")
+        self.assertEqual([], self.validate(tool.replace(existing, absent)))
+        for invalid in (absent.replace("(internal offline CLI)", "( )"),
+                        absent.replace("TEST-001", "TEST-998"), absent + "\n" + existing):
+            with self.subTest(row=invalid):
+                self.assertTrue(self.validate(tool.replace(existing, invalid)))
+        self.assertTrue(self.validate(shaped_prd().replace(existing, absent)))
+
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
             "| email digest | Fixture digest surface on the home route | TEST-001 |",
