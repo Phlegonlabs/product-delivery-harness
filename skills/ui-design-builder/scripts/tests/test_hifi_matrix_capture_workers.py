@@ -120,37 +120,30 @@ def drop_clock_and_encoding(value):
 
 
 def process_table():
-    """{pid: parent pid} of every process on the machine."""
+    """{pid: (parent pid, start)} of every process on the machine. POSIX moves an orphan to init, so a parent id
+    there is never stale and every start reads 0."""
     if os.name == "nt":
-        command = ["powershell", "-NoProfile", "-Command",
-                   "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1}' -f $_.ProcessId, $_.ParentProcessId }"]
-    else:
-        command = ["ps", "-e", "-o", "pid=,ppid="]
+        return m.process_rows()
     table = {}
+    command = ["ps", "-e", "-o", "pid=,ppid="]
     for line in subprocess.run(command, capture_output=True, text=True, timeout=120, check=False).stdout.splitlines():
         parts = line.split()
         if len(parts) == 2 and all(part.isdigit() for part in parts):
-            table[int(parts[0])] = int(parts[1])
+            table[int(parts[0])] = (int(parts[1]), 0)
     return table
 
 
 def process_tree(pid):
-    """{pid: parent pid} for a process and everything below it: the Node driver and its Chromium."""
+    """{pid: (parent pid, start)} for a process and everything below it: the Node driver and its Chromium.
+    A process that started before its recorded parent is not below it: Windows reuses a dead parent's id."""
     table = process_table()
-    tree, found = {pid: table.get(pid)}, True
-    while found:
-        found = False
-        for child, parent in table.items():
-            if parent in tree and child not in tree:
-                tree[child] = parent
-                found = True
-    return tree
+    return {child: table.get(child) for child in m.descendants_first(table, pid)}
 
 
 def survivors(trees):
-    """The recorded processes still running: same pid under the same parent, so a reused pid does not count."""
+    """The recorded processes still running: the same pid, parent and start, so a reused pid does not count."""
     table = process_table()
-    return sorted(pid for tree in trees for pid, parent in tree.items() if table.get(pid) == parent and parent is not None)
+    return sorted(pid for tree in trees for pid, row in tree.items() if row is not None and table.get(pid) == row)
 
 
 class ScriptedProcess:
@@ -284,6 +277,19 @@ class InterruptDuringCreationTests(unittest.TestCase):
         self.assertFalse(closer.is_alive())
         self.assertFalse(drivers[0].attached)       # what the late start attached was stopped again
         self.assertGreaterEqual(drivers[0].stops, 2)
+
+
+class ProcessTreeTests(unittest.TestCase):
+    # {pid: (parent pid, creation time)}. 35976 is the driver. 30244, started long before it, still names a dead
+    # process whose id 35976 was later reused, as Windows keeps a dead parent's id on its children.
+    ROWS = {35976: (1000, 500), 40000: (35976, 510), 40001: (40000, 520), 30244: (35976, 100), 29824: (30244, 101)}
+
+    def test_a_reused_parent_id_never_reaches_an_older_program(self):
+        self.assertEqual([40001, 40000, 35976], m.descendants_first(self.ROWS, 35976))
+
+    def test_a_root_missing_from_the_list_has_no_known_children(self):
+        rows = {pid: row for pid, row in self.ROWS.items() if pid != 35976}
+        self.assertEqual([35976], m.descendants_first(rows, 35976))
 
 
 class PartitionTests(unittest.TestCase):

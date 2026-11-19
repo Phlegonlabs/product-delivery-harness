@@ -269,6 +269,42 @@ def run_example(artifact_hash, review, argv, bins, files, package, consumer, tim
     return {"status": "passed", "argv": argv, "exit_code": returncode}
 
 
+def process_rows():
+    """{pid: (parent pid, creation time)} of every Windows process; empty when the list cannot be read."""
+    command = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+               "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, "
+               "$(if ($_.CreationDate) { $_.CreationDate.ToFileTimeUtc() } else { 0 }) }"]
+    try:
+        out = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False).stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    rows = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            rows[int(parts[0])] = (int(parts[1]), int(parts[2]))
+    return rows
+
+
+def descendants_first(rows, root):
+    """``root`` and every process below it, deepest first, from ``process_rows()``.
+
+    Windows keeps a dead parent's id on its children and gives that id to new processes, so `taskkill /T` can reach
+    an unrelated program. Here a process is a child only when it started no earlier than its parent, and a root
+    missing from the list has no known children."""
+    if root not in rows:
+        return [root]
+    order, frontier = [root], [root]
+    while frontier:
+        parent = frontier.pop()
+        born = rows[parent][1]
+        for pid, (ppid, created) in rows.items():
+            if ppid == parent and pid not in order and created >= born:
+                order.append(pid)
+                frontier.append(pid)
+    return order[::-1]
+
+
 def stop_tree(process):
     """Stop a timed-out CLI and every process it started; return whether that is confirmed.
 
@@ -278,10 +314,12 @@ def stop_tree(process):
     try:
         try:
             if os.name == "nt":
-                # taskkill walks the tree by parent PID; the root is still alive here, so the walk is complete.
-                tree_stopped = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                              timeout=30).returncode == 0
+                # The root is still alive here, so its tree is complete. Exit 128: that process had already ended.
+                rows = process_rows()
+                codes = [subprocess.run(["taskkill", "/PID", str(pid), "/F"], stdout=subprocess.DEVNULL,
+                                        stderr=subprocess.DEVNULL, timeout=30).returncode
+                         for pid in descendants_first(rows, process.pid)]
+                tree_stopped = bool(rows) and all(code in (0, 128) for code in codes)
             else:
                 os.killpg(process.pid, signal.SIGKILL)
                 tree_stopped = True

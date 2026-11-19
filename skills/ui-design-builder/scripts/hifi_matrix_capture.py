@@ -1358,10 +1358,47 @@ class NodeDriver:
         self.stop()
 
 
+def process_rows():
+    """{pid: (parent pid, creation time)} of every Windows process; empty when the list cannot be read."""
+    command = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+               "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, "
+               "$(if ($_.CreationDate) { $_.CreationDate.ToFileTimeUtc() } else { 0 }) }"]
+    try:
+        out = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False).stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    rows = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            rows[int(parts[0])] = (int(parts[1]), int(parts[2]))
+    return rows
+
+
+def descendants_first(rows, root):
+    """``root`` and every process below it, deepest first, from ``process_rows()``.
+
+    Windows keeps a dead parent's id on its children and gives that id to new processes, so `taskkill /T` can reach
+    an unrelated program. Here a process is a child only when it started no earlier than its parent, and a root
+    missing from the list has no known children."""
+    if root not in rows:
+        return [root]
+    order, frontier = [root], [root]
+    while frontier:
+        parent = frontier.pop()
+        born = rows[parent][1]
+        for pid, (ppid, created) in rows.items():
+            if ppid == parent and pid not in order and created >= born:
+                order.append(pid)
+                frontier.append(pid)
+    return order[::-1]
+
+
 def kill_tree(proc):
-    """Stop only the process we spawned and its children."""
+    """Stop only the process we spawned and its children. Without a process list, only the process we spawned."""
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, check=False)
+        for pid in descendants_first(process_rows(), proc.pid):
+            subprocess.run(["taskkill", "/PID", str(pid), "/F"], capture_output=True, check=False)
     else:
         proc.kill()
     try:

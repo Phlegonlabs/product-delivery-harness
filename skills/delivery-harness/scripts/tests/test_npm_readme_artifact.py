@@ -313,6 +313,29 @@ class NpmReadmeArtifactTests(unittest.TestCase):
             self.assertFalse(CHECK.stop_tree(process))
         process.wait.assert_called_once_with(timeout=30)
 
+    def test_tree_walk_never_follows_a_reused_parent_id(self):
+        # 30244 started before the CLI it names as parent: that id belonged to a dead process and was reused.
+        rows = {123456: (1, 500), 123457: (123456, 510), 30244: (123456, 100)}
+        self.assertEqual([123457, 123456], CHECK.descendants_first(rows, 123456))
+        self.assertEqual([123456], CHECK.descendants_first({30244: (123456, 100)}, 123456))
+
+    @unittest.skipUnless(os.name == "nt", "the process list and taskkill are the Windows path")
+    def test_tree_stop_kills_each_process_it_found_and_nothing_else(self):
+        process = unittest.mock.Mock(pid=123456)
+        process.poll.return_value = None
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append(argv)
+            return subprocess.CompletedProcess(argv, 128 if argv[2] == "123457" else 0)    # 128: already ended
+
+        rows = {123456: (1, 500), 123457: (123456, 510), 30244: (123456, 100)}
+        with patch.object(CHECK, "process_rows", return_value=rows), patch.object(CHECK.subprocess, "run", side_effect=run):
+            self.assertTrue(CHECK.stop_tree(process))
+        self.assertEqual([["taskkill", "/PID", "123457", "/F"], ["taskkill", "/PID", "123456", "/F"]], calls)
+        with patch.object(CHECK, "process_rows", return_value={}), patch.object(CHECK.subprocess, "run", side_effect=run):
+            self.assertFalse(CHECK.stop_tree(process))      # no process list: the tree is not confirmed
+
     def test_cli_cannot_write_into_the_consumer(self):
         self.files["bin/cli.cjs"] = b"require('node:fs').writeFileSync('marker', 'unexpected');"
         with self.assertRaisesRegex(CHECK.CheckError, "ERR_ACCESS_DENIED"):
