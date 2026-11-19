@@ -35,7 +35,7 @@ Base matrix: every page, every approved responsive target and every non-`n/a`, n
 
 A derived state (PRD `derivedStates`) is captured once, at its surface's smallest responsive target (the lowest viewport width, or the first listed size class), with the geometry scan. It takes no other target and no stress axis.
 
-Stress axes, sampled: run these on each page's `ready` state and its densest non-derived state, each at the smallest and largest approved target. The lead names the densest state per page in the grading record.
+Stress axes, sampled: run these on each surface's `ready` state (or its first state) and its densest non-derived state, each at the smallest and largest approved target. The densest has the most product DOM nodes in the author's capture.
 
 - text enlarged to 200%, and fluid type or spacing (such as `clamp()`);
 - forced colors;
