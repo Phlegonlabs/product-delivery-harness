@@ -6,6 +6,7 @@ Fake drivers for the logic, real Chromium for the output. Synthetic fixture page
 from __future__ import annotations
 
 import _thread
+import ctypes
 import io
 import json
 import os
@@ -144,6 +145,42 @@ def survivors(trees):
     """The recorded processes still running: the same pid, parent and start, so a reused pid does not count."""
     table = process_table()
     return sorted(pid for tree in trees for pid, row in tree.items() if row is not None and table.get(pid) == row)
+
+
+class FakeKernel32:
+    """The kernel32 calls ``end_process`` makes, over {pid: creation time} of the processes running now. ``exited``
+    have ended but are still held open; ``denied`` refuse to be opened. No real process is touched."""
+
+    def __init__(self, running, exited=(), denied=()):
+        self.running, self.exited, self.denied = running, set(exited), set(denied)
+        self.access, self.handles, self.terminated, self.closed = None, {}, [], []
+
+    def OpenProcess(self, access, inherit, pid):
+        self.access = access
+        if pid in self.denied or pid not in self.running:
+            ctypes.set_last_error(5 if pid in self.denied else 87)     # ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER
+            return None
+        handle = 0x100 + 4 * len(self.handles)
+        self.handles[handle] = pid
+        return handle
+
+    def GetProcessTimes(self, handle, creation, *others):
+        creation.contents.value = self.running[self.handles[handle]]
+        return 1
+
+    def TerminateProcess(self, handle, code):
+        if self.handles[handle] in self.exited:
+            return 0
+        self.terminated.append(self.handles[handle])
+        return 1
+
+    def GetExitCodeProcess(self, handle, code):
+        code.contents.value = 0 if self.handles[handle] in self.exited else 259
+        return 1
+
+    def CloseHandle(self, handle):
+        self.closed.append(handle)
+        return 1
 
 
 class ScriptedProcess:
@@ -290,6 +327,55 @@ class ProcessTreeTests(unittest.TestCase):
     def test_a_root_missing_from_the_list_has_no_known_children(self):
         rows = {pid: row for pid, row in self.ROWS.items() if pid != 35976}
         self.assertEqual([35976], m.descendants_first(rows, 35976))
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_the_listed_process_is_terminated_through_the_handle_that_checked_it(self):
+        kernel32 = FakeKernel32({40000: 519})           # WMI drops the last digit of the 100 ns creation time
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual([40000], kernel32.terminated)
+        self.assertEqual(list(kernel32.handles), kernel32.closed)
+        self.assertEqual(0x0001 | 0x1000, kernel32.access)     # PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_an_id_that_now_names_a_later_process_is_left_alone_and_counts_as_ended(self):
+        kernel32 = FakeKernel32({40000: 521})
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual([], kernel32.terminated)
+        self.assertEqual(list(kernel32.handles), kernel32.closed)
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_an_id_no_process_holds_counts_as_ended(self):
+        kernel32 = FakeKernel32({})
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual(([], []), (kernel32.terminated, kernel32.closed))
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_a_process_that_exited_while_held_open_counts_as_ended(self):
+        kernel32 = FakeKernel32({40000: 510}, exited={40000})
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual(list(kernel32.handles), kernel32.closed)
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_a_process_that_cannot_be_verified_is_neither_terminated_nor_counted_as_ended(self):
+        for kernel32 in (FakeKernel32({40000: 510}, denied={40000}), FakeKernel32({40000: 400})):
+            with self.subTest(access_denied=bool(kernel32.denied)):
+                self.assertFalse(m.end_process(40000, 510, kernel32))
+                self.assertEqual([], kernel32.terminated)
+                self.assertEqual(list(kernel32.handles), kernel32.closed)
+
+    @unittest.skipUnless(os.name == "nt", "the process list and kernel32 are the Windows path")
+    def test_kill_tree_ends_the_listed_children_and_the_root_only_through_popen(self):
+        running = {pid: created for pid, (_, created) in self.ROWS.items()}
+        for rows, ended in ((self.ROWS, [40001, 40000]), ({}, [])):     # no list: only the process we spawned
+            with self.subTest(listed=bool(rows)):
+                proc, kernel32 = mock.Mock(pid=35976), FakeKernel32(running)
+                with mock.patch.object(m.subprocess, "run", side_effect=AssertionError("no command stops a process")), \
+                        mock.patch.object(m, "windows_kernel32", return_value=kernel32), \
+                        mock.patch.object(m, "process_rows", return_value=rows):
+                    m.kill_tree(proc)
+                self.assertEqual(ended, kernel32.terminated)
+                proc.kill.assert_called_once_with()
+                proc.wait.assert_called_once_with(timeout=10)
 
 
 class PartitionTests(unittest.TestCase):
