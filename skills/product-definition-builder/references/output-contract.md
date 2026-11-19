@@ -172,9 +172,9 @@ A headless tool or agent with no public discovery surface and no companion recor
 `| none (internal offline CLI) | none | delivery | TEST-001 |`
 
 Use the project's own reason and local TEST or MS identifier.
-When the companion reason declares `no public discovery`, use only the reasoned absence row.
+When the companion reason declares `no public discovery`, use only the reasoned absence row, and keep every Launch Window row `owned`. The same holds when Non-Goals excludes public discovery.
 An offline tool can still publish documentation. For `docs_site`, supply `docs:` followed by its public HTTP(S) URL.
-When neither a companion nor a launch destination supplies a public route, cite the discovery destination separately.
+When neither a companion nor a launch destination supplies a public route, cite the discovery destination separately. The checker applies this to the six-column Launch Window; an earlier package's five-column table is not checked.
 Record it in At a Glance, the Problem Statement or Functional Requirements. Reconcile explicit exclusions in Non-Goals.
 
 ### Launch Window

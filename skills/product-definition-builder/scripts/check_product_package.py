@@ -1283,10 +1283,12 @@ def _validate_keyword_references(prd_text, ui_surfaces, repo_root, *, require_fi
     destinations = {row[0] for row in rows if len(row) == 4 and row[1].lower() in public_kinds}
     citations = [(f"Discovery Surfaces {row[0]}", _ids(row[3], "KW"), row[1].lower() in public_kinds)
                  for row in rows if len(row) == 4]
+    ui_citations = []
     for surface, item in ui_surfaces.items():
         metadata = item["contractFields"].get("SEO metadata", "")
         mapped = surface in destinations or any(route in destinations for route in item["routes"])
-        citations.append((f"{surface} SEO metadata", _ids(metadata, "KW"), mapped))
+        ui_citations.append((f"{surface} SEO metadata", _ids(metadata, "KW"), mapped, set(item["routes"])))
+    citations.extend(citation[:3] for citation in ui_citations)
     declared = re.search(r"^\s*Keyword map:[^\n]*docs/product/keyword-map\.md\b", active_text(prd_text), re.I | re.M)
     if not map_present:
         if declared or any(ids for _, ids, _ in citations):
@@ -1305,6 +1307,14 @@ def _validate_keyword_references(prd_text, ui_surfaces, repo_root, *, require_fi
         row[0].strip("`").upper() for row in clusters
         if len(row) == len(header) and re.fullmatch(r"KW-\d+", row[0].strip("`"), re.I)
     }
+    # A route the map assigns to a cluster must cite it even when no Discovery Surfaces row names it.
+    map_routes = {
+        route for row in clusters if len(row) == len(header)
+        for route in re.findall(r"`(/[^`\s]*)`", row[6])
+    }
+    citations = citations[:len(citations) - len(ui_citations)] + [
+        (label, ids, mapped or bool(routes & map_routes)) for label, ids, mapped, routes in ui_citations
+    ]
     for label, ids, mapped in citations:
         if require_filled and mapped and not ids:
             _add(problems, "prd", f"{label} must cite a KW-* cluster from {relative}")
@@ -1441,6 +1451,14 @@ def _validate_growth_contract(
                 "prd",
                 f"{track} track requires a Re-engagement mechanism or a none row with a reason",
             )
+    companion = (shape_fields or {}).get("companion", "")
+    headless_track = track in {"tool", "agent"}
+    # The output contract names the literal phrase; any companion reason that contains it declares it.
+    shape_excludes_discovery = headless_track and re.search(r"\bno public discovery\b", companion, re.I)
+    exclusions = (_section(prd_text, "## Non-Goals") or "") if headless_track else ""
+    scope_excludes_discovery = re.search(
+        r"\bpublic discovery (?:is |remains )?(?:explicitly )?(?:forbidden|prohibited|out of scope|not permitted|not allowed)\b",
+        exclusions, re.I)
     discovery_rows = _find_table(
         _subsection(section, "### Discovery Surfaces") or "", GROWTH_DISCOVERY_HEADER
     )
@@ -1466,15 +1484,6 @@ def _validate_growth_contract(
                 "Growth Contract Discovery Surfaces must contain at least one row",
             )
         known_surface_ids = {surface.upper() for surface in ui_surface_ids}
-        companion = (shape_fields or {}).get("companion", "")
-        headless_track = track in {"tool", "agent"}
-        shape_excludes_discovery = headless_track and re.search(
-            r"\bno public discovery\b(?=\s*(?:[,.)]|$|(?:surfaces?|channels?|is permitted|is allowed)\b))",
-            companion, re.I)
-        exclusions = (_section(prd_text, "## Non-Goals") or "") if headless_track else ""
-        scope_excludes_discovery = re.search(
-            r"\bpublic discovery (?:is |remains )?(?:explicitly )?(?:forbidden|prohibited|out of scope|not permitted|not allowed)\b",
-            exclusions, re.I)
         for row in discovery_rows:
             if len(row) != len(GROWTH_DISCOVERY_HEADER):
                 continue
@@ -1583,6 +1592,13 @@ def _validate_growth_contract(
                     "prd",
                     "Launch Window channel class must be owned, earned, search or store, not "
                     f"{row[1].strip()!r}",
+                )
+            elif (shape_excludes_discovery or scope_excludes_discovery) and channel != "owned":
+                _add(
+                    problems,
+                    "prd",
+                    f"Launch Window {channel} row conflicts with the declared absence of public discovery; "
+                    "use owned channels only or reconcile Shape and Non-Goals",
                 )
             bounds = _launch_day_bounds(row[0])
             if bounds is not None and bounds[0] <= 7 and bounds[1] >= 0:

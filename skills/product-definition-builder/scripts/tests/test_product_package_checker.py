@@ -3676,6 +3676,46 @@ class GrowthContractTests(unittest.TestCase):
         self.assertEqual([], self.validate(v2.replace("## Problem Statement\n",
             "## Problem Statement\nThe CLI operators use https://guide.fixture.org/help for public documentation.\n")))
 
+    def test_any_companion_reason_with_the_phrase_declares_no_public_discovery(self):
+        pub = "| docs:https://guide.fixture.org/help | docs_site | growth | MS-110 |"
+        for reason in ("no public discovery of any kind", "internal team only, no public discovery",
+                       "No Public Discovery until the paid tier"):
+            with self.subTest(reason=reason):
+                prd = shaped_prd(f"track: tool; companion: none ({reason}); console: none").replace(
+                    "| /launch | landing | gtm | MS-110 |", pub)
+                self.assertTrue(any("declares no public discovery" in item for item in self.validate(prd)))
+
+    def test_launch_window_stays_owned_when_public_discovery_is_excluded(self):
+        absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
+        launch = "| Day 0 | owned | Announce the fixture launch | Owner | Return visits |"
+        for shape, extra in (("none (no public discovery)", ""),
+                             ("none (offline CLI)", "- Public discovery is explicitly forbidden.\n")):
+            prd = shaped_prd(f"track: tool; companion: {shape}; console: none").replace(
+                "| /launch | landing | gtm | MS-110 |", absent).replace("## Non-Goals\n", "## Non-Goals\n" + extra)
+            with self.subTest(shape=shape, channel="owned"):
+                self.assertEqual([], self.validate(prd))
+            for channel in ("search", "store", "earned"):
+                with self.subTest(shape=shape, channel=channel):
+                    findings = self.validate(prd.replace(launch, launch.replace("| owned |", f"| {channel} |")))
+                    self.assertTrue(any(f"Launch Window {channel} row conflicts" in item for item in findings), findings)
+
+    def test_route_mapped_by_the_keyword_map_cites_its_cluster(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            path = root / "docs/product/keyword-map.md"
+            path.parent.mkdir(parents=True)
+            path.write_text(
+                "## Clusters\n| ID | Cluster | Intent | Queries | Demand evidence | Ranks now | Mapped page | Priority |\n"
+                "| --- | --- | --- | --- | --- | --- | --- | --- |\n"
+                "| KW-001 | venue | compare | venue hire | hypothesis | unknown | `/launch`: venue hire | high |\n"
+                "| KW-002 | status | learn | fixture status | hypothesis | unknown | `/home`: fixture status | medium |\n",
+                encoding="utf-8")
+            prd = shaped_prd().replace("| MS-110 |", "| MS-110; KW-001 |") + ui_contract()
+            # UI-001 serves /home, which only the map names; it must cite KW-002.
+            self.assertTrue(any("UI-001 SEO metadata must cite a KW" in p for p in self.validate(prd, repo_root=root)))
+            cited = prd.replace("title Fixture status", "KW-002 title Fixture status")
+            self.assertFalse(any("UI-001 SEO metadata" in p for p in self.validate(cited, repo_root=root)))
+
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
             "| email digest | Fixture digest surface on the home route | TEST-001 |",
