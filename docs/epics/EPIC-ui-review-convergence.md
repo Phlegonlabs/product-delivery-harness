@@ -30,14 +30,14 @@ Not in scope: fewer interaction attempts (every operation at every target with c
 | Round version freeze; passed packets removed | `13bc5916`, `c8e835f7`, `4529bd1a` |
 | Per-page and per-operation restart budgets | `78cb8a69`, `6f0cb27c`, `8de2338b` |
 | `text-split` measurement | `80ed463f`, `f0627065`, `fc0ab193` |
-| Readiness check; repeated hangs go to the owner; sidecar records checked | `f310b74f`, `139ecd3c`, `e5c597df`, `e65ac817`, `4d403d65` |
+| Readiness check; repeated hangs go to the owner; sidecar records checked | `f310b74f`, `139ecd3c`, `e5c597df`, `e65ac817`, `4d403d65`, `c873f15f` |
 | Parity recapture by repair scope; per-page HiFi carry | `168b5304`, `ab8e6daf`, `efe6b985`, `a2330f10` |
 | Raw captures out of Git; cited captures in the index | `b78f9903`, `dc915f57`, `e0a1bdc5`, `262e44aa`, `49bcd930`, `8c3e3877` |
 | Intermediate sweep on the axis sample, no repeated interactions; earlier receipts stay valid | `0b32d38b`, `ff5423ce` |
 | Where a run's time went | `ea0775c8` |
-| Process-tree stop ignores reused parent ids and ends each process through a checked handle | `b13aacdf`, `7e6a69e0`, `e3b4fffa` |
-| Packet removal refuses links, foreign directories and work trees | `cc08bba3`, `78aa2693`, `a2fc79eb` |
-| Two-reviewer waves, the visual inspection set, re-check scope | `9cfd4cae`, `a0678b96`, `4b6e2941`, `3e61b378`, `d359cf46`, `6192a7e7` |
+| Process-tree stop ignores reused parent ids and ends each process through a checked handle | `b13aacdf`, `7e6a69e0`, `e3b4fffa`, `9d99e9d6` |
+| Packet removal refuses links, foreign directories, work trees and changed packets | `cc08bba3`, `78aa2693`, `a2fc79eb`, `740fb9e3`, `238f7d85` |
+| Two-reviewer waves, the visual inspection set, re-check scope | `9cfd4cae`, `a0678b96`, `4b6e2941`, `3e61b378`, `d359cf46`, `6192a7e7`, `1765027d` |
 | Release 0.95.0 | `e877f285`, `4a07bca3` |
 
 ## Review And Repairs
@@ -67,11 +67,17 @@ Final review point on `3cec026c` (`86ca5823` after four commit subjects were rew
 - Process-tree stops still used bare ids after the snapshot, and the packager could confirm a stop whose root had left the list. Each child now ends through a handle whose creation time matches the list, an id a later process took counts as ended and is never touched, and an unlisted root leaves the stop unconfirmed (`7e6a69e0`, `e3b4fffa`).
 - `review_input.py --remove` trusted three marker names and followed links. It now refuses a link or junction on the path or inside the packet, a packet holding the working directory or Git treats as a work tree root, and anything but a clone detached at the SHA in HEAD.txt with well-formed markers (`cc08bba3`, `78aa2693`, `a2fc79eb`).
 - `ready` trusted the sidecar's capture fields, and a page-open timeout missed the tool-limit route. It now checks every case record against the output's bound captures and this run's file names, and page-open hangs and screenshot errors take the tool-limit route (`e65ac817`, `4d403d65`). With `--recapture-carried` a record keeps both its fresh capture and its `carriedFrom`, as the driver writes it.
+Targeted re-check on `d65d6caf` (code and security, in parallel): 11 of the 13 findings resolved or superseded; a process root keeps its id while its Popen handle is open. Still open: observations at only the smallest target built a PASS receipt, though the inspection set includes the axis sample's largest target; a sidecar without its subject or run times reached READY; packet removal deleted a matching checkout holding an unlisted file. One consolidated repair closed them, with two notes: a PASS case needs a fresh or a carried screenshot, and a terminated process counts as ended only once it finishes (`1765027d`, `c873f15f`, `740fb9e3`, `9d99e9d6`).
+
+One scoped review on `9d99e9d6` confirmed those and kept one block: data kept inside `.git`, or in a folder named like a review-input file, was still deleted. The build now lists every file of the packet with its SHA-256, and removal refuses a packet in which anything changed since (`238f7d85`).
+
 - Not changed: a 0.94.0 parity manifest cannot carry into 0.95.0 because the HiFi carry key changed, so the first parity run after adoption recaptures every entry once; the cited-capture check compares file names with the index, not staged bytes, and a stale staged image fails the hash check in the next checkout.
 
 ## Verification
 
-Pending: the full Required Verification matrix, the final review point and pull-request CI.
+- Full Required Verification matrix on `3cec026c` (`86ca5823` after the subject rewording, same tree): 9 of 9 passed on Windows, about 20 minutes.
+- After each repair: the affected modules, pyflakes over every script tree and the diff check passed; each new test failed before its repair.
+- Pull-request CI: pending.
 
 ## Consumer Impact
 
