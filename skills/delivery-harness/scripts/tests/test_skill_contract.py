@@ -369,7 +369,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         self.assertIn("never make `fix_required`", graph)
         self.assertIn("Collect every required review result for the same candidate", skill)
         self.assertIn("it is not a fresh full review", skill)
-        self.assertIn("every remaining or newly found defect enters the Isolated Repair Protocol", verification)
+        self.assertIn("every blocking defect left open enters the Isolated Repair Protocol", verification)
 
     def test_review_convergence_rules_are_documented(self) -> None:
         skill = self.read("SKILL.md")
@@ -470,7 +470,7 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         # The loop docs route remaining defects into the protocol, which
         # verification-gates.md owns.
         self.assertIn("verification-gates.md#isolated-repair-protocol", gen_verify)
-        self.assertIn("every remaining or newly found defect enters the Isolated Repair Protocol", gates)
+        self.assertIn("every blocking defect left open enters the Isolated Repair Protocol", gates)
         self.assertIn(
             "stop only on a contract gap, a missing capability, or an unsafe repair",
             bounded,

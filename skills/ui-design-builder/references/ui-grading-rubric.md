@@ -172,7 +172,7 @@ For H5/H7/H9, compare the primary task and dense case against the selected direc
 ## Repair Re-review Scope
 
 The initial diagnostic wave covers the complete approved scope and every First-Wave Audit Axis.
-Its re-review is a closure check, not a second search: it follows the same lineage and [budget](#review-budget), adds no axis and opens no broad qualitative search.
+Its re-review is a closure check, not a second search: it judges only the ledger rows and the content the repair changed, with its direct consumers. It follows the same lineage and [budget](#review-budget) and adds no axis.
 The repair packet is the re-review block of [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md). Read the diff first, as [Diff-first re-review](review-evidence.md#diff-first-re-review) states.
 Direct consumers are the pages and states that render a changed source, including shared styles, navigation and motion dependencies.
 Use one consolidated response for Impeccable and rubric findings. Do not commission separate aesthetic or scoring reviews after that response.
@@ -187,7 +187,7 @@ Classify the repair by its diff. A copy or metadata repair changes only product 
 6. The Impeccable operator checks its own findings and the flagged cases. It starts no fresh critique or audit of unchanged pages.
 7. Inspect changed dimensions and confirm unaffected dimensions against current evidence and the reviewed source diff. Return a complete current `H1`–`H9` assessment, including remaining advisories. Do not copy old scores into a new result without inspection.
 
-A finding in unchanged content noticed during the re-review is a late finding for the owner's follow-up list. It joins the fix exchange only when it meets [Block Proof](#block-proof): for example a PRD contradiction, a dead control, an inaccessible required flow, or required content that overlaps, clips or is unreachable. It never reopens the diagnostic wave or a whole-HiFi re-grade.
+A defect the re-review notices in unchanged content that was already in the last reviewed capture is a late finding: a note for the owner's follow-up list under [Re-check scope](../../delivery-harness/references/verification-gates.md#review-topology). It lowers no score, never blocks this cycle and never joins the fix exchange. Only the two exceptions that rule names block, under [Block Proof](#block-proof); a dead control, or required content that overlaps, clips or is unreachable, blocks only when the repair caused it. A late finding never reopens the diagnostic wave or a whole-HiFi re-grade.
 
 Retain every current-candidate receipt, capture and input identity required by `review-evidence.md`.
 Do not relabel old captures or refresh stale receipt hashes. A re-review that skips part of its closure scope is partial coverage ([Browser Inspection Procedure](#browser-inspection-procedure)).
@@ -204,4 +204,4 @@ Preference-only suggestions remain advisories unless evidence proves an accepted
 | Fix exchanges | 1 |
 | Evidence-only rounds | 0 |
 
-The two reviews are the wave and the re-review. A below-threshold candidate gets one repair batch by `frontend-design`, re-reviewed on the new SHA-256. The one fix exchange sits inside the re-review: when it leaves a row open, the author fixes that one list and the same reviewers finish the same re-review on the fixed bytes, under the same repair gate. After that no review of any kind runs in this cycle. An open advisory goes to the owner's follow-up list. An open block leaves the candidate `blocked`: the owner sees the row with its captures and either starts a named new revision cycle or stops. Do not present a below-threshold candidate for Visual Approval. Return a missing or contradictory obligation to the PRD flow. No third review, whole-HiFi re-grade, or owner-granted extra round exists inside a cycle.
+The two reviews are the wave and the re-review. A below-threshold candidate gets one repair batch by `frontend-design`, re-reviewed on the new SHA-256. The one fix exchange sits inside the re-review: when it leaves a ledger row open or finds a new block, the author fixes that one list and the same reviewers finish the same re-review on the fixed bytes, under the same repair gate. After that no review of any kind runs in this cycle. An open advisory and every late finding go to the owner's follow-up list. An open block leaves the candidate `blocked`: the owner sees the row with its captures and either starts a named new revision cycle or stops. Do not present a below-threshold candidate for Visual Approval. Return a missing or contradictory obligation to the PRD flow. No third review, whole-HiFi re-grade, or owner-granted extra round exists inside a cycle.

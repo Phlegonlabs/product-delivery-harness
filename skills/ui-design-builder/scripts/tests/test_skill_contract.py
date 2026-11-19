@@ -372,7 +372,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("The Impeccable operator checks its own findings and the flagged cases", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("It never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
+        self.assertIn("A late finding never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
         self.assertIn("The two reviews are the wave and the re-review", scope)
         self.assertIn("No third review, whole-HiFi re-grade, or owner-granted extra round exists inside a cycle", scope)
         self.assertNotIn("and the full rubric once", rubric)
@@ -432,9 +432,9 @@ console.log("hybrid fallback and stale QA assertions completed");
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
         self.assertIn("A copy or metadata repair changes only", scope)
         self.assertIn("Every other repair is a visual repair", scope)
-        self.assertIn("late finding for the owner's follow-up list", scope)
-        for block in ("a PRD contradiction", "a dead control", "an inaccessible required flow",
-                      "overlaps, clips or is unreachable"):
+        self.assertIn("late finding: a note for the owner's follow-up list", scope)
+        self.assertIn("never joins the fix exchange", scope)
+        for block in ("a dead control", "overlaps, clips or is unreachable", "blocks only when the repair caused it"):
             self.assertIn(block, scope)
         self.assertIn("Impeccable severity alone does not decide readiness", rubric)
         contract = self.read("references/output-contract.md")

@@ -30,6 +30,7 @@ import manifest_fixtures as mf  # noqa: E402
 from harness_manifest import ManifestError, plan_digest, validate_run  # noqa: E402
 from render_review_packet import render_packet  # noqa: E402
 from select_ready_nodes import _pending_scoped_repair, select_ready_nodes  # noqa: E402
+from test_review_recheck_packet import assert_recheck_note_rule  # noqa: E402
 from test_security_review_result import valid_result  # noqa: E402
 from verifier_runtime import execution_key_from_document  # noqa: E402
 
@@ -1319,6 +1320,7 @@ class ScopedPacketRenderTests(unittest.TestCase):
         self.assertIn(
             "Inspect only the repair paths and their direct consumers.", packet
         )
+        assert_recheck_note_rule(self, packet)
         contract = packet_contract(packet)
         self.assertEqual(
             {

@@ -44,7 +44,7 @@ class ReviewMatrixDocsTests(unittest.TestCase):
             "one verdict per ledger row",
             "a render fingerprint does not see behaviour",
             "starts no fresh critique or audit of unchanged pages",
-            "late finding for the owner's follow-up list",
+            "late finding: a note for the owner's follow-up list",
             "[Render fingerprint carry-forward]",
             "[Diff-first re-review]",
         ):
@@ -139,6 +139,20 @@ class ReviewMatrixDocsTests(unittest.TestCase):
         evidence = read("references/review-evidence.md")
         self.assertNotIn("inspect every case", evidence)
         self.assertIn("ui-grading-rubric.md#browser-inspection-procedure", evidence)
+
+    def test_late_finding_in_unchanged_content_is_a_note_not_a_blocker(self):
+        rubric = read(RUBRIC)
+        scope = section(rubric, "## Repair Re-review Scope")
+        self.assertIn("judges only the ledger rows and the content the repair changed, with its direct consumers", scope)
+        self.assertIn("unchanged content that was already in the last reviewed capture is a late finding", scope)
+        self.assertIn("It lowers no score, never blocks this cycle and never joins the fix exchange", scope)
+        self.assertIn("(../../delivery-harness/references/verification-gates.md#review-topology)", scope)
+        self.assertIn("blocks only when the repair caused it", scope)
+        self.assertNotIn("joins the fix exchange only when", rubric)
+        self.assertNotIn("high or critical", rubric)
+        budget = section(rubric, "## Review Budget")
+        self.assertIn("leaves a ledger row open or finds a new block", budget)
+        self.assertIn("every late finding go to the owner's follow-up list", budget)
 
 
 if __name__ == "__main__":
