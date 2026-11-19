@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-review-evidence-and-principles](epics/EPIC-review-evidence-and-principles.md)
+Current Epic: [EPIC-workflow-validation](epics/EPIC-workflow-validation.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
