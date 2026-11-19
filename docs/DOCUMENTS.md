@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-workflow-validation](epics/EPIC-workflow-validation.md)
+Current Epic: [EPIC-ui-review-convergence](epics/EPIC-ui-review-convergence.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
