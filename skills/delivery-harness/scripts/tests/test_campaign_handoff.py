@@ -90,6 +90,19 @@ class CampaignHandoffTests(unittest.TestCase):
         self.assertEqual([], report["findings"])
         self.assertEqual({"schema", "installed_digest", "documents"}, set(report["snapshot"]))
 
+    def test_project_named_campaign_blocks_after_refresh(self):
+        alternate = "docs/marketing/summer.md"
+        self.write(alternate, DRAFT.replace("revision MSG-1", "revision MSG-0"))
+        self.write("docs/DOCUMENTS.md", "# Documents\n[Campaign](marketing/summer.md)\n")
+        for paths in ((), (MESSAGING, alternate)):
+            with self.subTest(paths=paths):
+                _, report = self.refreshed(paths=paths)
+                self.assertTrue(any(row["kind"] == "campaign_messaging_stale" and row["path"] == alternate
+                                    for row in report["findings"]), report["findings"])
+        (self.root / alternate).unlink()
+        _, report = self.refreshed(paths=())
+        self.assertIn({"kind": "missing_document", "path": alternate}, report["findings"])
+
     def test_source_change_stays_stale_after_refresh_then_restoration_clears(self):
         _, first = self.cli()
         self.write(MESSAGING, SOURCE.replace("MSG-1", "MSG-2"))

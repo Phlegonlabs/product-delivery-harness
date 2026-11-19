@@ -14,7 +14,7 @@ import re
 import sys
 from pathlib import Path
 
-from campaign_handoff import campaign_findings, is_campaign
+from campaign_handoff import campaign_findings, campaign_links, is_campaign
 from harness_contract import contract_digest
 from research_claims import ASSESSMENT, MESSAGING, research_claim_findings
 
@@ -265,7 +265,22 @@ def current_epic_findings(root, index_text):
     return findings
 
 
-def default_inventory(root, baseline=None):
+def _registered_campaigns(root):
+    index = safe_path(root, "docs/DOCUMENTS.md", document=True)
+    paths = set()
+    if index.is_file():
+        for target in campaign_links(read_bounded(index).decode("utf-8-sig")):
+            if target.startswith("/") or ":" in target:
+                continue
+            name = posixpath.normpath(posixpath.join("docs", target))
+            safe_path(root, name, document=True)
+            paths.add(name)
+            if len(paths) > 128:
+                raise ValueError("scope the campaign inventory explicitly")
+    return paths
+
+
+def default_inventory(root, baseline=None, *, registered=None):
     """Include live handoffs and retain previously inventoried paths to detect removal."""
     paths = list(DEFAULT_PATHS)
     for name in OPTIONAL_HANDOFFS:
@@ -274,6 +289,9 @@ def default_inventory(root, baseline=None):
     _scoped_markdown_children(root, "docs/epics", "Epic", paths)
     _scoped_markdown_children(root, "docs/product/deltas", "PRD delta", paths)
     _scoped_markdown_children(root, "docs/gtm/campaigns", "campaign", paths)
+    for name in sorted(_registered_campaigns(root) if registered is None else registered):
+        if name not in paths:
+            paths.append(name)
     for folder in _bounded_children(root, "docs/research/discovery", "discovery"):
         name = f"docs/research/discovery/{folder.name}/DISCOVERY.md"
         if DISCOVERY_STUDY.fullmatch(name) and safe_path(root, name, document=True).is_file():
@@ -292,7 +310,7 @@ def default_inventory(root, baseline=None):
 
 
 def inspect(root, paths, loaded_digest, installed_digest, baseline=None, required=(),
-            session_marker=None, *, full_inventory=False):
+            session_marker=None, *, full_inventory=False, registered=()):
     root = Path(root).resolve(strict=True)
     if not root.is_dir():
         raise ValueError("repository root must be a directory")
@@ -367,7 +385,7 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
             continue
         data = read_bounded(path)
         text = data.decode("utf-8-sig")
-        if research_source or is_campaign(name):
+        if research_source or name in registered or is_campaign(name, text):
             handoff_text[name] = text
         documents[name] = hashlib.sha256(data).hexdigest()
         accepted = {documents[name]}
@@ -385,7 +403,7 @@ def inspect(root, paths, loaded_digest, installed_digest, baseline=None, require
         if name == "docs/DOCUMENTS.md":
             findings.extend(current_epic_findings(root, text))
     findings.extend(research_claim_findings(handoff_text, full_inventory=full_inventory))
-    findings.extend(campaign_findings(handoff_text))
+    findings.extend(campaign_findings(handoff_text, registered))
     snapshot ={"schema": SCHEMA, "installed_digest": installed_digest,
                 "documents": documents}
     review = [row for row in findings
@@ -417,9 +435,11 @@ def main(argv=None):
             if path.suffix != ".json":
                 raise ValueError("baseline must be a JSON snapshot")
             baseline = json.loads(read_bounded(path).decode("utf-8-sig"), object_pairs_hook=unique_object)
-        report = inspect(root, args.paths or default_inventory(root, baseline), args.loaded_digest,
-                         installed_digest, baseline, args.required_path, args.session_marker,
-                         full_inventory=args.paths is None)
+        registered = _registered_campaigns(root) if args.paths is None else set()
+        paths = args.paths or default_inventory(root, baseline, registered=registered)
+        report = inspect(root, paths, args.loaded_digest, installed_digest, baseline,
+                         set(args.required_path) | registered, args.session_marker,
+                         full_inventory=args.paths is None, registered=registered)
     except (ValueError, OSError, UnicodeError, RecursionError) as exc:
         # Never echo document content, JSON bodies, or credential values.
         print(json.dumps({"status": "invalid", "error": type(exc).__name__}))

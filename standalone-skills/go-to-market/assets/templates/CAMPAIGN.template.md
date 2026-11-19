@@ -3,6 +3,7 @@
 Use sections needed for this campaign. Replace guidance with facts and complete copy.
 Keep unknowns explicit; never invent facts or approval.
 Save the project package at `docs/gtm/CAMPAIGN.md`, unless the project specifies another destination.
+For a custom path, add a local `[Campaign](relative/path.md)` link in `docs/DOCUMENTS.md`.
 
 ## Brief
 

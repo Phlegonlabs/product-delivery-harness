@@ -49,15 +49,21 @@ def _revision(value):
     return value if re.fullmatch(REVISION, value) else None
 
 
-def is_campaign(name):
-    return name == CAMPAIGN or (name.startswith("docs/gtm/campaigns/") and name.count("/") == 3
-                                and name.endswith(".md"))
+def is_campaign(name, text=""):
+    return (name == CAMPAIGN or
+            (name.startswith("docs/gtm/campaigns/") and name.count("/") == 3 and name.endswith(".md")) or
+            re.match(r"\A\s*# Campaign Review Package\s*(?:[:—-]|\r?$)", text, re.I | re.M) is not None)
 
 
-def campaign_findings(texts):
+def campaign_links(index_text):
+    for _, line in _live_lines(index_text):
+        yield from re.findall(r"\[(?:Campaign|Campaign Review Package)\]\(([^()\s#]+\.md)(?:#[^()\s]+)?\)", line, re.I)
+
+
+def campaign_findings(texts, registered=()):
     """Read only inventoried text. A missing dependency remains an explicit gap."""
     findings = []
-    campaigns = [name for name in texts if is_campaign(name)]
+    campaigns = [name for name, text in texts.items() if name in registered or is_campaign(name, text)]
     for name in campaigns:
         def finding(kind, **details):
             findings.append({"kind": kind, "path": name, "source": MESSAGING, **details})

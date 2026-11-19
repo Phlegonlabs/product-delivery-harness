@@ -58,6 +58,7 @@ For design consumers, continue with [Design Input Updates](design-input-updates.
 The global check resolves approved public claims that cite research findings against the current assessment and its local studies.
 Missing or withdrawn support requires review even after saving a fresh snapshot.
 The default inventory also checks each direct Markdown draft in `docs/gtm/campaigns/` against the current messaging revision and approved claims.
+Register a custom draft with a local `[Campaign](relative/path.md)` link in `docs/DOCUMENTS.md`. A missing registered draft requires review.
 
 This inventory and the project's **Repository Change Checkpoints** form one entry check with one record. The **Handoff Documentation Audit** is the one exit check. Both live in `governance/task-and-handoff.md`.
 
