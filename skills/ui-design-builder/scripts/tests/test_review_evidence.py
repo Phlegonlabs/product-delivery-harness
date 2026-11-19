@@ -162,9 +162,14 @@ class EvidenceTests(unittest.TestCase):
                 for surface in ("UI-001", "UI-002") for target in ("390", "1440")]
         self.assertEqual([], observe(*ends))
         self.assertEqual([], observe(*ends, {"surface": "UI-001", "state": "error", "target": "768"}))   # a flagged case
-        self.assertEqual(["review observations must inspect UI-002 at its largest target 1440"], observe(*ends[:3]))
-        self.assertEqual(["review observations must inspect UI-002 at its smallest target 390"],
+        self.assertEqual(["review observations must inspect UI-002 ready at its largest target 1440"], observe(*ends[:3]))
+        self.assertEqual(["review observations must inspect UI-002 ready at its smallest target 390"],
                          observe(*ends[:2], ends[3], {"surface": "UI-002", "state": "ready", "target": "768"}))
+        # Another state at both ends is not the default screen.
+        errors = [{"surface": "UI-002", "state": "error", "target": target} for target in ("390", "1440")]
+        self.assertEqual(["review observations must inspect UI-002 ready at its smallest target 390",
+                          "review observations must inspect UI-002 ready at its largest target 1440"],
+                         observe(*ends[:2], *errors))
         self.assertIn("review observations must name cases of the reviewed matrix",
                       observe(*ends, {"surface": "UI-003", "state": "ready", "target": "390"}))
 

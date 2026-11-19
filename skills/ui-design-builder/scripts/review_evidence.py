@@ -261,6 +261,22 @@ def execution_findings(root, output, receipt, subject):
     return errors
 
 
+def _required_inspections(cases):
+    """{surface: [(state, target, label)]}: the default state (`ready`, or the surface's first state) at its smallest
+    and largest target, as far as the matrix holds those cases."""
+    present, states = set(cases), {}
+    for surface, state, _ in cases:
+        states.setdefault(surface, [])
+        if state not in states[surface]:
+            states[surface].append(state)
+    required = {}
+    for surface, ends in _end_targets(cases).items():
+        default = "ready" if "ready" in states[surface] else states[surface][0]
+        required[surface] = [(default, target, label) for label, target in dict.fromkeys(zip(("smallest", "largest"), ends))
+                             if (surface, default, target) in present]
+    return required
+
+
 def _end_targets(cases):
     """{surface: (smallest, largest) target}: viewport widths by value, size classes in their listed order."""
     targets = {}
@@ -333,15 +349,15 @@ def assessment_findings(root, output, *, allow_blocks=False):
                     raise ValueError("review cases must retain distinct inspected captures")
                 captures.add(capture.casefold())
         # The author's matrix run covers every case by machine; a reviewer inspects a set by eye
-        # (ui-grading-rubric.md Browser Inspection Procedure). It includes each surface at its smallest target and
-        # the axis sample, which also takes the largest target.
+        # (ui-grading-rubric.md Browser Inspection Procedure). It includes each surface's default state at its
+        # smallest target and the axis sample, which also takes that state at the largest target.
         matrix_cases = [_case_key(row) for row in output["matrix"]["cases"]]
         if not set(seen) <= set(matrix_cases):
             errors.append("review observations must name cases of the reviewed matrix")
-        for surface, ends in sorted(_end_targets(matrix_cases).items()):
-            for label, target in dict.fromkeys(zip(("smallest", "largest"), ends)):
-                if not any(case[0] == surface and case[2] == target for case in seen):
-                    errors.append(f"review observations must inspect {surface} at its {label} target {target}")
+        for surface, required in sorted(_required_inspections(matrix_cases).items()):
+            for state, target, label in required:
+                if (surface, state, target) not in seen:
+                    errors.append(f"review observations must inspect {surface} {state} at its {label} target {target}")
     except (OSError, ValueError, TypeError, KeyError) as exc:
         errors.append(str(exc))
     return errors
