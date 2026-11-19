@@ -26,6 +26,8 @@ The probe scans at most 400 elements; past that the case is marked `fingerprintI
 
 Exit codes: 0 every case PASS; 1 a FAIL or BLOCKED case or an axis failure; 2 unusable input; 3 the written output failed validation.
 
+The printed JSON line's `seconds` object sums the measured browser seconds of the cases, interactions, axes, reviewer pass and intermediate sweep over all workers: where a slow run's time went.
+
 ## Flags
 
 | Flag | Effect |

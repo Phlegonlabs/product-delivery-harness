@@ -987,6 +987,7 @@ class IntermediateTests(unittest.TestCase):
         self.assertTrue(all(r["geometry"]["canvasWidth"] == 795.0 for r in inter_sidecar["cases"]))
         self.assertEqual({"output": f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}", "cases": 4, "fail": 0,
                           "interactionsFail": 0, "findings": []}, summary["intermediate"])
+        self.assertEqual({"cases", "interactions", "axes", "reviewer", "intermediate"}, set(summary["seconds"]))
         self.assertEqual(summary["intermediate"], sidecar["run"]["intermediate"])
         self.assertEqual("PASS", build_receipt(cli.root, f"docs/evidence/run1/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}")["result"])
 

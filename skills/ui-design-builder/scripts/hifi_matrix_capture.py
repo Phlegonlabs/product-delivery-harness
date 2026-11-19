@@ -2493,6 +2493,11 @@ def a11y_object(runner):
     return {"summary": summary, "notRun": not_run, "incomplete": incomplete, "findings": findings}
 
 
+def row_seconds(rows):
+    """Measured browser seconds of some rows, summed over every worker: where a run's time went."""
+    return round(sum(row.get("durationMs") or 0 for row in rows) / 1000, 1)
+
+
 def a11y_line(a11y):
     """The one summary line: failures per measurement, and what did not run."""
     line = {name: a11y["summary"][name]["fail"] for name in A11Y_MEASURES}
@@ -2808,7 +2813,10 @@ def execute(args, make_driver=node_driver):
                                         or intermediate["findings"])))
     line = {"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
             "output": output_path.relative_to(root).as_posix(), **summary,
-            "restarts": restarts, "problems": problems[:5], "intermediate": intermediate}
+            "restarts": restarts, "problems": problems[:5], "intermediate": intermediate,
+            "seconds": {"cases": row_seconds(runner.records.values()), "interactions": row_seconds(runner.interaction_records),
+                        "axes": row_seconds(runner.axis_records), "reviewer": row_seconds(runner.reviewer_records),
+                        "intermediate": row_seconds(intermediate_runner.records.values()) if intermediate_runner else 0}}
     if args.measure_a11y:
         line["a11y"] = a11y_line(a11y_object(runner))
     print(json.dumps(line))
