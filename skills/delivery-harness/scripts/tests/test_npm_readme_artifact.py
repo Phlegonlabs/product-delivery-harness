@@ -253,6 +253,36 @@ class NpmReadmeArtifactTests(unittest.TestCase):
         self.files["bin/cli.cjs"] = b"while (true) {}"
         with self.assertRaisesRegex(CHECK.CheckError, "deadline"):
             self.verify(timeout=0.2)
+        # The whole tree is gone: a surviving Node (for example behind a version-manager
+        # shim) would keep the consumer directory busy on Windows.
+        shutil.rmtree(self.consumer)
+
+    def test_shell_expansion_and_comments_are_refused(self):
+        for argument in ("*.txt", "input.?xt", "[i]nput.txt", "~/input.txt", "input.txt #note",
+                         "{input,other}.txt", "(input.txt)", "input.txt!"):
+            with self.subTest(argument=argument):
+                self.files["README.md"] = README.replace("hello input.txt", f"hello {argument}").encode()
+                with self.assertRaisesRegex(CHECK.CheckError, "shell syntax"):
+                    self.verify()
+
+    def test_first_definition_and_first_attribute_choose_the_image(self):
+        for extra in ("![x][id]\n[id]: assets/missing.svg\n[id]: assets/light.svg\n",
+                      '<img src="assets/missing.svg" src="assets/light.svg">\n'):
+            with self.subTest(extra=extra):
+                self.files["README.md"] = (README + extra).encode()
+                with self.assertRaisesRegex(CHECK.CheckError, "missing packaged README image"):
+                    self.verify()
+        self.files["README.md"] = (README + "![x][id]\n[id]: assets/light.svg\n[id]: assets/missing.svg\n").encode()
+        self.assertIn("assets/light.svg", self.verify()["images"]["local"])
+
+    def test_image_syntax_that_renders_no_image_is_ignored(self):
+        self.files["README.md"] = (README + "Write `![x](assets/missing.svg)` to embed.\n"
+                                   "<!-- ![x](assets/missing.svg) -->\n"
+                                   "\\![x](assets/missing.svg)\n").encode()
+        self.verify()
+        self.files["README.md"] = (README + "`code` ![x](assets/missing.svg)\n").encode()
+        with self.assertRaisesRegex(CHECK.CheckError, "missing packaged README image"):
+            self.verify()
 
     def test_cli_cannot_write_into_the_consumer(self):
         self.files["bin/cli.cjs"] = b"require('node:fs').writeFileSync('marker', 'unexpected');"

@@ -17,6 +17,7 @@ import posixpath
 import re
 import shlex
 import shutil
+import signal
 import subprocess
 import tarfile
 import tempfile
@@ -87,7 +88,10 @@ class ImageHTML(HTMLParser):
         self.image_tags = 0
 
     def handle_starttag(self, tag, attrs):
-        values = dict(attrs)
+        # Browsers keep the first of duplicated attributes; so does this check.
+        values = {}
+        for name, value in attrs:
+            values.setdefault(name, value)
         if tag in {"img", "picture", "source"}:
             self.image_tags += 1
         if tag == "picture":
@@ -121,7 +125,15 @@ class ImageHTML(HTMLParser):
 DESTINATION = r'(?:<([^<>\n]+)>|([^\s()<>]+))(?:\s+["\'][^\n]*["\'])?'
 
 
+def rendered(prose):
+    """Drop text that renders as no image: HTML comments, inline code and escaped `!`."""
+    prose = re.sub(r"<!--.*?-->", " ", prose, flags=re.S)
+    prose = re.sub(r"(?<!`)(`+)(?!`)((?:(?!\n[ \t]*\n).)+?)(?<!`)\1(?!`)", " ", prose, flags=re.S)
+    return re.sub(r"\\!(?=\[)", "", prose)
+
+
 def image_references(prose):
+    prose = rendered(prose)
     html = ImageHTML()
     html.feed(prose)
     html.close()
@@ -133,7 +145,8 @@ def image_references(prose):
     for match in re.finditer(r"(?m)^\s*\[([^\]]+)\]:\s*(.+)$", prose):
         target = re.fullmatch(DESTINATION, match[2].strip())
         if target:
-            definitions[" ".join(match[1].lower().split())] = target[1] or target[2]
+            # CommonMark uses the first definition of a repeated label.
+            definitions.setdefault(" ".join(match[1].lower().split()), target[1] or target[2])
     # Inline destinations support angle brackets, URL encoding and optional titles.
     pattern = r"!\[([^\]\n]*)\](?:\(([^\n]*?)\)|\[([^\]\n]*)\])?"
     for match in re.finditer(pattern, prose):
@@ -198,7 +211,8 @@ def primary_example(blocks, bins):
             if first not in bins:
                 continue
             require(language in {"sh", "shell", "bash", "console", ""}, "unsupported CLI code fence language")
-            require(not re.search(r"[;&|<>$`\\\r\n]", line), "shell syntax in README CLI example")
+            # Anything a shell would expand, group or comment out makes the argv differ from what users run.
+            require(not re.search(r"[;&|<>$`\\\r\n*?\[\]~#{}()!]", line), "shell syntax in README CLI example")
             try:
                 argv = shlex.split(line, posix=True)
             except ValueError as exc:
@@ -240,19 +254,43 @@ def run_example(artifact_hash, review, argv, bins, files, package, consumer, tim
                "--require", str(guard), str(package / binary), *argv[1:]]
     # Do not inherit NODE_OPTIONS, NODE_PATH, proxy credentials or user configuration.
     env = {key: os.environ[key] for key in ("SystemRoot", "WINDIR", "TEMP", "TMP") if key in os.environ}
+    # `node` can be a version-manager shim that starts the real Node as a child, so the
+    # CLI runs in its own process group and a timeout stops the whole tree.
+    group = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt"
+             else {"start_new_session": True})
     with tempfile.TemporaryFile() as stdout, tempfile.TemporaryFile() as stderr:
+        process = subprocess.Popen(command, cwd=consumer, env=env, shell=False, stdin=subprocess.DEVNULL,
+                                   stdout=stdout, stderr=stderr, **group)
         try:
-            result = subprocess.run(command, cwd=consumer, env=env, shell=False, stdin=subprocess.DEVNULL,
-                                    stdout=stdout, stderr=stderr, timeout=timeout)
+            returncode = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
-            raise CheckError("documented CLI exceeded its deadline; Node process terminated") from exc
+            stop_tree(process)
+            raise CheckError("documented CLI exceeded its deadline; Node process tree terminated") from exc
         stdout.seek(0)
         stderr.seek(0)
         out, err = stdout.read(65537), stderr.read(65537)
     require(len(out) <= 65536 and len(err) <= 65536, "CLI output exceeds 64 KiB per stream")
-    require(result.returncode == 0, f"documented CLI failed with exit {result.returncode}: {err.decode('utf-8', 'replace')[-2000:]}")
+    require(returncode == 0, f"documented CLI failed with exit {returncode}: {err.decode('utf-8', 'replace')[-2000:]}")
     require(out.decode("utf-8").replace("\r\n", "\n") == review["stdout"], "documented CLI stdout differs from reviewed expectation")
-    return {"status": "passed", "argv": argv, "exit_code": result.returncode}
+    return {"status": "passed", "argv": argv, "exit_code": returncode}
+
+
+def stop_tree(process):
+    """Stop a timed-out CLI and every process it started, then wait for the root."""
+    if os.name == "nt":
+        # taskkill walks the tree by parent PID; the root is still alive here, so the walk is complete.
+        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    try:
+        process.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        process.kill()
+        process.wait(timeout=30)
 
 
 def verify(artifact, consumer, review=None, timeout=10):
