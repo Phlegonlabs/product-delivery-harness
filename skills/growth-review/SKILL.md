@@ -21,7 +21,7 @@ Turn the product's release targets and presence surfaces into one short, priorit
 
 Separate observed first-party evidence from estimates and hypotheses. Explain what should improve, why it matters, how success will be measured, and which upstream workflow owns the change.
 
-Before the Product Definition is drafted, `demand_research` researches search demand for a product with a public search surface and writes the keyword map, so page lists and page titles start from demand. Before launch, `pre_launch` starts from that map, or plans query clusters, listing metadata, registry entries and the internal-link skeleton from hypotheses when no map exists. After launch, `growth_review` reads back the Growth Contract and the map at Day 7 and Day 30 and returns next-round PRD delta candidates with evidence.
+Before the Product Definition is drafted, or when an enhancement or PRD delta adds public pages, `demand_research` researches search demand for a product with a public search surface and writes or extends the keyword map, so page lists and page titles start from demand. Before launch, `pre_launch` starts from that map, or plans query clusters, listing metadata, registry entries and the internal-link skeleton from hypotheses when no map exists. After launch, `growth_review` reads back the Growth Contract and the map at Day 7 and Day 30 and returns next-round PRD delta candidates with evidence.
 
 This skill owns the review, opportunity ranking and the keyword map only. It does not own product requirements, implementation, external setup, API authentication, content publication, or a standing dashboard.
 
