@@ -1,6 +1,6 @@
 # EPIC-workflow-validation: test every skill end to end, then close the handoff gaps
 
-Status: candidate prepared as 0.94.0 on branch `fix/paperpair-workflow-validation`; merge, tag and install on the owner's word of 2026-11-19
+Status: published as 0.94.0 on 2026-11-19 (PR #205, `main` `a317c9b6`, tag `v0.94.0`); installed the same day (five-skill contract `f6f401da…`); consumers not yet adopted
 Design workflow: enhancement
 UI impact: none (UI test fixtures only)
 
@@ -52,7 +52,8 @@ While rerunning the deadline test the parent found that `node` on Windows can be
 - Full Required Verification matrix on `31e0ee6d`: 9 of 9 steps passed (Windows).
 - On `5abf5611`: spec check, pyflakes, docs weight, diff check and eight affected harness test modules passed.
 - On `abc576f6`: the product suite, 474 tests, passed.
-- The pull-request CI matrix runs on the final head.
+- Pull-request CI on `ef190ed4`: all 14 checks passed. The Codex bot review did not run: the account had reached its Codex review usage limit, so no bot findings exist.
+- `promotion_readback.py pre` passed against `main` `31c6d89a`; PR #205 merged as `a317c9b6`; `post` returned `tree_equal_S`. Tag `v0.94.0` points at `a317c9b6`. `./install.sh` exited 0 and the installed five-skill contract equals the source: `f6f401da21bb0147b268cad8093ffe3daad099911cb88b00dadf4610f9c2159c`. The five standalone skills need their own host registration and were not reinstalled.
 
 ## Consumer Impact
 
@@ -61,14 +62,14 @@ Three consumer PRDs still use the five-column Launch Window: agentic-commons-sit
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / fix/paperpair-workflow-validation / release candidate / none
+Repository / branch / HEAD / dirty paths: product-delivery-harness / main / a317c9b6 / task/ (untracked)
 Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main 31c6d89a (v0.93.0); owner requests of 2026-11-18 and 2026-11-19
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
 Approvals in force (gate, owner, date, candidate): owner, 2026-11-19: six-column Launch Window; commit, push, merge commit and branch removal
-Done and verified (command, exit code): ci_test_shards.py matrix on 31e0ee6d, exit 0; affected modules on 5abf5611 and the product suite on abc576f6, exit 0
-Remaining: pull-request CI and bot review; merge; tag v0.94.0; install; branch cleanup
+Done and verified (command, exit code): ci_test_shards.py matrix on 31e0ee6d, exit 0; pull-request CI on ef190ed4, 14 of 14; promotion_readback.py pre and post, exit 0; ./install.sh, exit 0
+Remaining: consumer adoption of 0.94.0; three consumer PRDs need a Destination column
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): open the pull request
-Next owner (skill or human): parent agent
+Next action (one command or one owner decision): the owner decides on consumer adoption
+Next owner (skill or human): owner
 ```
