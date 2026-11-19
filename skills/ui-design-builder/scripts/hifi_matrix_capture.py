@@ -1886,11 +1886,15 @@ class Runner:
 
     # A parallel run cuts the serial work into items: ("case" | "interaction" | "axis" | "reviewer", page, payload).
     def base_items(self, cases):
-        """Weighted items for every base case and interaction attempt, in the serial order."""
+        """Weighted items for every base case and interaction, in the serial order. An interaction's attempts are one
+        item, so its restart budget is spent in one browser, as in a serial run."""
         items = []
         for page, page_cases in group_by_page(cases).items():
             items += [(("case", page, case), 1) for case in page_cases]
-            items += [(("interaction", page, attempt), 1) for attempt in self.interaction_attempts(page)]
+            attempts = {}
+            for attempt in self.interaction_attempts(page):
+                attempts.setdefault(attempt[0]["id"], []).append(attempt)
+            items += [(("interaction", page, group), len(group)) for group in attempts.values()]
         return items
 
     def axis_items(self, cases):
@@ -1919,7 +1923,8 @@ class Runner:
             if kind == "case":
                 self.records[payload.key] = self.observe(payload)
             elif kind == "interaction":
-                self.interaction_records.append(self.observe_interaction(*payload, self.interaction_blocked(page)))
+                for attempt in payload:
+                    self.interaction_records.append(self.observe_interaction(*attempt, self.interaction_blocked(page)))
             elif kind == "axis":
                 self.run_axis(page, *payload)
             elif kind == "focus":
@@ -2357,7 +2362,10 @@ class DriverPool:
                     try:
                         runner.driver.start() if first else runner.driver.restart()
                     except DriverError as error:
-                        raise UsageError(f"browser could not start: {error}") from error
+                        if first:
+                            raise UsageError(f"browser could not start: {error}") from error
+                        # As a failed recovery restart: the share's first page tries a fresh browser.
+                        runner.down = f"browser driver could not restart: {error}"
                 runner.run_items(shares[index])
             except BaseException as error:    # carried to the caller; the other workers stop
                 failures[index] = error

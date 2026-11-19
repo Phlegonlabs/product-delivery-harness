@@ -359,7 +359,7 @@ class FakeWorkersTests(unittest.TestCase):
         fleet = Fleet(self)
         with mock.patch.object(m, "MAX_WORKERS", 50):      # the plain limit is checked on its own below
             code, summary, out = fleet.go("--only", "UI-001", "--workers", "50")
-        items = 6 + 4 + 2    # UI-001's cases and interaction attempts, then the reviewer pass of both pages
+        items = 6 + 1 + 2    # UI-001's cases, its one interaction (four attempts), then the reviewer pass of both pages
         self.assertEqual(0, code, summary)
         self.assertEqual(items, len(fleet.drivers))
         self.assertEqual(items, load(out)[1]["run"]["workers"])

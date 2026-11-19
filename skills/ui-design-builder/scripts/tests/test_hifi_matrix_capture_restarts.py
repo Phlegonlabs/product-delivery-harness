@@ -35,7 +35,7 @@ class StuckOperationTests(unittest.TestCase):
         fleet = workers.Fleet(self, configure)
         fleet.package = base.build_interactions_package(fleet.root, interactions=[SIGN_OUT] + base.INTERACTIONS)
         seen = {}
-        for count in ("1", "2"):
+        for count in ("1", "2", "3", "4"):      # at 4 the split falls inside the stuck operation's attempts
             with self.subTest(workers=count), mock.patch.object(m, "MAX_RESTARTS", 1):
                 fleet.drivers = []
                 code, summary, out = fleet.go("--axes", "dark", "--workers", count, out=f"docs/evidence/w{count}")
@@ -52,7 +52,7 @@ class StuckOperationTests(unittest.TestCase):
                 self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
                 self.assertEqual({"index.html", "details.html"}, {r["page"] for r in others + sidecar["axes"]})
                 seen[count] = rows(sidecar["interactions"])
-        self.assertEqual(seen["1"], seen["2"])
+        self.assertEqual([seen["1"]] * 4, list(seen.values()))
 
 
 def hang_then_fail_one_restart(case):
@@ -89,6 +89,25 @@ class FailedRestartTests(unittest.TestCase):
                 # The next page starts a fresh browser: its cases, operations and every reviewer row pass.
                 self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"] if r["page"] == "details.html"})
                 self.assertEqual({"PASS"}, {r["result"] for r in sidecar["reviewer"]})
+
+    def test_a_browser_that_cannot_restart_for_the_next_phase_does_not_stop_the_run(self):
+        failures = [m.DriverError("chromium did not start")]
+
+        def configure(driver):
+            restart = driver.restart
+
+            def flaky_restart():
+                restart()
+                if failures:
+                    raise failures.pop()
+
+            driver.restart = flaky_restart
+
+        # No case hangs, so the first restart is a worker's fresh browser for the axis phase, and it fails.
+        code, summary, out = workers.Fleet(self, configure).go("--axes", "dark", "--workers", "2")
+        _, sidecar = workers.load(out)
+        self.assertEqual((0, 1), (code, summary["restarts"]))     # its first page started a fresh browser
+        self.assertEqual({"PASS"}, {r["result"] for r in sidecar["axes"]})
 
     def test_a_worker_whose_browser_is_down_at_the_end_of_a_phase_runs_the_next_phase(self):
         # The first worker's last base item hangs and its browser cannot restart. In the axis phase that worker
