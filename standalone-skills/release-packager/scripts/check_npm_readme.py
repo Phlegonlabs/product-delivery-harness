@@ -357,10 +357,10 @@ def stop_tree(process):
     try:
         try:
             if os.name == "nt":
-                # The root is still alive here, so its tree is complete.
+                # The root is still alive here, so a list that holds it holds its whole tree.
                 rows, kernel32 = process_rows(), windows_kernel32()
                 ended = [end_process(pid, rows[pid][1], kernel32) for pid in descendants_first(rows, process.pid)[:-1]]
-                tree_stopped = bool(rows) and all(ended)
+                tree_stopped = process.pid in rows and all(ended)
             else:
                 os.killpg(process.pid, signal.SIGKILL)
                 tree_stopped = True

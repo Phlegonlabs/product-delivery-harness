@@ -390,6 +390,22 @@ class NpmReadmeArtifactTests(unittest.TestCase):
                 process.kill.assert_called_once_with()
                 process.wait.assert_called_once_with(timeout=30)
 
+    @unittest.skipUnless(os.name == "nt", "the process list and kernel32 are the Windows path")
+    def test_tree_stop_is_unconfirmed_when_the_root_is_not_in_the_list(self):
+        # Without the root its children are unknown, so a child it started may still run.
+        for rows in ({123457: (123456, 510), 30244: (1, 100)}, {}):
+            with self.subTest(listed=sorted(rows)):
+                process = unittest.mock.Mock(pid=123456)
+                process.poll.return_value = None
+                kernel32 = FakeKernel32({123456: 500, 123457: 510, 30244: 100})
+                with patch.object(CHECK.subprocess, "run", side_effect=AssertionError("no command stops a process")), \
+                        patch.object(CHECK, "windows_kernel32", return_value=kernel32), \
+                        patch.object(CHECK, "process_rows", return_value=rows):
+                    self.assertFalse(CHECK.stop_tree(process))
+                self.assertEqual([], kernel32.terminated)
+                process.kill.assert_called_once_with()          # the root still ends through its Popen handle
+                process.wait.assert_called_once_with(timeout=30)
+
     def test_cli_cannot_write_into_the_consumer(self):
         self.files["bin/cli.cjs"] = b"require('node:fs').writeFileSync('marker', 'unexpected');"
         with self.assertRaisesRegex(CHECK.CheckError, "ERR_ACCESS_DENIED"):
