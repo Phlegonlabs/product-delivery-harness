@@ -10,6 +10,11 @@ parent-status.txt and HEAD.txt instead of running git. parent-status.txt warns
 when the parent's info/attributes holds rules, since the clone does not get them.
 
 --scope name=pathspec[,pathspec...] limits one diff to those git pathspecs.
+
+--remove <packet dir> deletes a packet this script built (the --out directory)
+once its review point passed or a newer packet superseded it. It refuses any
+directory that does not hold only clone/ with clone/review-input/HEAD.txt,
+BASE.txt and tracked-files.sha256.
 Exit 0 on success, 2 on any failure.
 """
 
@@ -20,6 +25,8 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -28,6 +35,7 @@ from harness_git import GitMetadataError, run_git
 
 SCOPE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DIFF_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
+PACKET_MARKERS = ("HEAD.txt", "BASE.txt", "tracked-files.sha256")
 
 
 class ReviewInputError(Exception):
@@ -135,6 +143,30 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     }
 
 
+def remove(packet: Path) -> dict:
+    # Resolve first, so neither the delete nor the chmod below acts through a link.
+    packet = packet.resolve()
+    if not packet.is_dir():
+        raise ReviewInputError(f"not a review packet: {packet} does not exist or is not a directory")
+    for name in PACKET_MARKERS:
+        if not (packet / "clone" / "review-input" / name).is_file():
+            raise ReviewInputError(f"not a review packet: clone/review-input/{name} is missing in {packet}")
+    others = sorted(entry.name for entry in packet.iterdir() if entry.name != "clone")
+    if others:
+        raise ReviewInputError(f"not a review packet: {packet} also holds {', '.join(others)}")
+
+    def clear_read_only(function, path, _error) -> None:
+        # Git object files are read-only; on Windows that blocks unlink.
+        os.chmod(path, stat.S_IWRITE)
+        function(path)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(packet, onexc=clear_read_only)
+    else:
+        shutil.rmtree(packet, onerror=clear_read_only)
+    return {"removed": packet.as_posix()}
+
+
 def scope_arg(value: str) -> tuple[str, list[str]]:
     name, separator, spec = value.partition("=")
     paths = [item.strip() for item in spec.split(",") if item.strip()]
@@ -145,14 +177,23 @@ def scope_arg(value: str) -> tuple[str, list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--repo", type=Path, required=True, help="candidate checkout, HEAD at --head")
-    parser.add_argument("--base", required=True, help="base revision of the reviewed range")
-    parser.add_argument("--head", required=True, help="candidate revision")
-    parser.add_argument("--out", type=Path, required=True, help="new directory; must not exist")
+    parser.add_argument("--repo", type=Path, help="candidate checkout, HEAD at --head")
+    parser.add_argument("--base", help="base revision of the reviewed range")
+    parser.add_argument("--head", help="candidate revision")
+    parser.add_argument("--out", type=Path, help="new directory; must not exist")
     parser.add_argument("--scope", type=scope_arg, action="append", default=[], metavar="NAME=PATHSPEC[,...]")
+    parser.add_argument("--remove", type=Path, metavar="PACKET", help="delete a packet built by this script")
     args = parser.parse_args(argv)
+    build_args = (args.repo, args.base, args.head, args.out)
+    if args.remove is not None and (args.scope or any(value is not None for value in build_args)):
+        parser.error("--remove takes no other option")
+    if args.remove is None and None in build_args:
+        parser.error("--repo, --base, --head and --out are required to build a packet")
     try:
-        summary = build(args.repo, args.base, args.head, args.out, args.scope)
+        if args.remove is not None:
+            summary = remove(args.remove)
+        else:
+            summary = build(args.repo, args.base, args.head, args.out, args.scope)
     except (ReviewInputError, GitMetadataError, OSError, subprocess.SubprocessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2

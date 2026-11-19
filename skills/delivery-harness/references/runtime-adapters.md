@@ -88,7 +88,7 @@ Later reviews on that session and route reuse it.
 Re-prove capability only when the route or session changed, or a browser failure voided the receipt.
 
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
-A reviewer whose sandbox cannot run git receives the `review_input.py` output (a detached clone with `review-input/`: per-scope diffs, `HEAD.txt`, `parent-status.txt`, `tracked-files.sha256`). It proves identity and cleanliness from that manifest as the parent's attestation ([Security Review](security-review.md#required-inputs)).
+A reviewer whose sandbox cannot run git receives the `review_input.py` output (a detached clone with `review-input/`: per-scope diffs, `HEAD.txt`, `parent-status.txt`, `tracked-files.sha256`). It proves identity and cleanliness from that manifest as the parent's attestation ([Security Review](security-review.md#required-inputs)). Once the review point passes, or a newer packet supersedes it, the parent removes the packet with `python "<delivery-harness-skill-root>/scripts/review_input.py" --remove <packet dir>`; the reviewer's result stays in the record, outside the packet.
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
 For architecture-bearing reviews, apply [Architecture Method](architecture-method.md) to the affected boundaries.
 
