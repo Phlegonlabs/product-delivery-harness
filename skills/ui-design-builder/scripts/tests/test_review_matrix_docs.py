@@ -107,10 +107,10 @@ class ReviewMatrixDocsTests(unittest.TestCase):
     def test_wave_is_two_reviewers_and_never_split_for_size_or_time(self):
         rubric = read(RUBRIC)
         capability = section(rubric, "## Capability And Authorization")
-        self.assertIn("The wave is exactly two fresh reviewers, whatever the package size", capability)
+        self.assertIn("the wave is exactly two fresh reviewers, whatever the package size", capability)
         self.assertIn("never splits the wave into page-group calls and never adds a grader", capability)
         self.assertIn("a reviewer who needs longer gets a longer deadline", capability)
-        self.assertNotIn("Unless agent policy sets another topology", rubric)
+        self.assertIn("Unless agent policy sets another topology", rubric)     # AGENTS.md: agent policy owns topology
         self.assertNotIn("smaller scoped calls", rubric)
         self.assertIn("the same reviewer finishes it with a longer deadline", section(rubric, "## Reporting And Reconciliation"))
         self.assertNotIn("page group", read("references/stages/ui-design.md"))

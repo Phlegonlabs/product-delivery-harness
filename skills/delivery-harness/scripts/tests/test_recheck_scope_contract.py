@@ -95,7 +95,7 @@ class RecheckScopeContractTests(unittest.TestCase):
 
     def test_no_visual_review_is_split_by_page_group(self) -> None:
         capability = read(RUBRIC).split("## Capability And Authorization", 1)[1].split("\n## ", 1)[0]
-        self.assertIn("The wave is exactly two fresh reviewers, whatever the package size", capability)
+        self.assertIn("the wave is exactly two fresh reviewers, whatever the package size", capability)
         self.assertIn("never splits the wave into page-group calls and never adds a grader", capability)
         mentions = []
         for path in reference_docs():
