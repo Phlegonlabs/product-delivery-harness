@@ -88,12 +88,12 @@ Later reviews on that session and route reuse it.
 Re-prove capability only when the route or session changed, or a browser failure voided the receipt.
 
 Give each reviewer one bounded packet with exact SHA, scope, diff, acceptance, required tools and unresolved findings.
-A reviewer whose sandbox cannot run git receives the `review_input.py` output (a detached clone with `review-input/`: per-scope diffs, `HEAD.txt`, `parent-status.txt`, `tracked-files.sha256`). It proves identity and cleanliness from that manifest as the parent's attestation ([Security Review](security-review.md#required-inputs)).
+A reviewer whose sandbox cannot run git receives the `review_input.py` output (a detached clone with `review-input/`: per-scope diffs, `HEAD.txt`, `parent-status.txt`, `tracked-files.sha256`). It proves identity and cleanliness from that manifest as the parent's attestation ([Security Review](security-review.md#required-inputs)). Once the review point passes, or a newer packet supersedes it, the parent removes the packet with `python "<delivery-harness-skill-root>/scripts/review_input.py" --remove <packet dir>`; the reviewer's result stays in the record, outside the packet.
 A changed-code candidate needs fresh security review. Only the documented non-security tree-identity skip may reuse a review.
 For architecture-bearing reviews, apply [Architecture Method](architecture-method.md) to the affected boundaries.
 
 One review node may go out as several calls on one exact SHA: one per lens, or per disjoint path group when its packet exceeds the route's caps.
-Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; split by page group when that sample still exceeds the wall-clock cap.
+Size a browser review by its sample under Verify-Then-Sample Review, not by its full matrix; it is never split by page group ([UI wave topology](../../ui-design-builder/references/ui-grading-rubric.md#capability-and-authorization)).
 Each call carries the full finding contract and its lens or path group.
 Trust-boundary paths stay in one group so the security lens sees them together.
 A managed security result must report every `required_tools` entry of its node as run, so a node that requires a browser sends security with its visual lens and code in its own call.

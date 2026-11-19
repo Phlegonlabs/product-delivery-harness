@@ -23,11 +23,33 @@ From the target repository root:
 
 The tool checks recorded input identities and emits ui-evidence/3 with schema, check, result, reviewedArtifact and receipt. The receipt retains tool, method, matrix, results, outputArtifact and executedAt; executedAt is the observed finish time. It does not run a browser or create approval. It rejects stale inputs, traversal, linked paths and overwrites unless --overwrite is explicit. Missing/failed/blocked observations cannot become PASS. Collect new observations after relevant candidate changes; do not rebind old results.
 
-Keep receipts, inspected captures and source artifacts tracked when they are required evidence. Only the final candidate's receipts and the captures they cite, including carried rows, are required evidence. Do not commit evidence of earlier attempts; cite it by SHA-256 in the defect ledger. Temporary run logs/caches belong outside the product package or under a narrow existing ignore rule. Do not hide canonical HTML, manifests, token sources or evidence with a broad generated-file pattern.
+Capture images, recordings and run logs stay local under [UI Capture Output](../../delivery-harness/references/gitignore-contract.md#ui-capture-output); the receipts and outputs that hash them stay tracked. Only the final candidate's receipts and the captures they cite, including carried rows, are required evidence. The Visual Approval check re-reads those captures and lists any not yet added to Git, with the command; force-add what it lists before the approval commit. Earlier attempts stay local; cite them by SHA-256 in the defect ledger. Do not hide canonical HTML, manifests, token sources or receipts with a broad generated-file pattern.
+
+## Readiness Check
+
+The parent's [readiness gate](ui-grading-rubric.md#capability-and-authorization) command, from the target repository root, with repository-relative paths:
+
+    python "<ui-design-builder-skill-root>/scripts/review_evidence.py" ready --repo-root . --package docs/design/ui-references/<run-id> --capture docs/evidence/<run-id>/surface-1/ui-output.json
+
+Repeat `--capture` for each theme run. Before the re-review and the fix exchange, add `--ledger docs/design/evidence/<run-id>/defect-ledger.json`. It prints `READY <entry> @ sha256:<hash>` and exits 0, or prints `NOT READY` and one line per problem with its fix and exits 1. Unreadable or malformed input exits 2. It is not READY when:
+
+- the capture's subject or page SHA-256 values differ from the package bytes, its sidecar was edited, or its output fails the driver's own validation;
+- its matrix is smaller than the package's, as after `--only`;
+- a case, axis row, interaction, reviewer pass or intermediate-width sweep is not PASS. The author's last capture is a clean run; a hang or driver failure gets one rerun, then goes to the owner ([readiness gate](ui-grading-rubric.md#capability-and-authorization));
+- it ran without `--measure-a11y`, or a measured `fail` row has no disposition;
+- with `--ledger`, an `open` or `block` row has an acceptance case without a screenshot from this run. A carried case keeps its old screenshot; `--recapture-carried` takes a new one.
+
+The author records dispositions in `a11y-dispositions.json` beside `matrix-capture.json`, and copies it into each new `--out`:
+
+    {"schema": "a11y-dispositions/1", "dispositions": [
+      {"measure": "target-size", "selector": "#filters .chip", "surface": "UI-002", "reason": "<why this stays>"}
+    ]}
+
+`measure`, `selector` and a non-empty `reason` are required. `surface`, `state`, `target` and `axis` (`base` or the axis name) narrow the match when present. A disposition covers every failing row whose named fields are equal. The lead grader still judges each reason as `H4`/`H8` evidence.
 
 ## Diagnostic Wave Completeness
 
-Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or command runs earlier.
+Before one consolidated HiFi repair handoff, the lead confirms that the browser, critique, audit and H1–H9 receipts name the frozen candidate hash and cover every manifest surface, non-`n/a` state and that surface's responsive targets. Under the rubric's default staffing, the lead grader produces the browser and grading receipts, and the Impeccable operator produces the critique and audit receipts. `check_ui_design_contract.py` proves the same binding at Visual Approval; no separate request file or receipt check runs earlier.
 
 The browser evidence is the author's last self-check matrix capture on the exact frozen bytes; nobody captures those bytes again ([Matrix Capture](matrix-capture.md)). The lead grader checks that the output's candidate and page SHA-256 values equal the frozen candidate, samples its PASS rows under [Verify-Then-Sample Review](../../delivery-harness/references/runtime-adapters.md#verify-then-sample-review), and builds the browser receipt from that output with `review_evidence.py`; it does not re-judge the matrix. Reviewers never run the matrix driver. The driver reruns on unchanged bytes only when the identities differ or a sampled row disagrees. The `a11y` sidecar measurements and the author's dispositions are `H4` and `H8` inputs; an undisposed measured failure is a finding.
 
@@ -43,7 +65,7 @@ When a reviewer returns, the parent at once builds or validates its receipt with
 
 In the re-review, diff each recaptured case against its capture under the last receipt. A geometry diff plus pixel diff within the recorded tolerance auto-records the row as `identical`: it keeps its earlier verdict and cites both captures and the diff value. The reviewer's closure check judges only the flagged rows, one verdict per ledger row; interactions on changed pages are rechecked regardless, because a render fingerprint does not see behaviour. A case with no earlier capture, a failed geometry scan or an unreadable capture is flagged.
 
-Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect every case there, and a scan with zero findings is still not evidence.
+Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect its whole [inspection set](ui-grading-rubric.md#browser-inspection-procedure), and a scan with zero findings is still not evidence.
 
 The comparison sheet and the `slop_scan.py` output are author-produced inputs to the wave. The grading record cites each by path and SHA-256. They are not receipts and carry no verdict.
 

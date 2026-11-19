@@ -372,7 +372,7 @@ console.log("hybrid fallback and stale QA assertions completed");
         self.assertIn("The Impeccable operator checks its own findings and the flagged cases", scope)
         self.assertIn("complete required browser matrix on the current candidate", scope)
         self.assertIn("complete current `H1`–`H9` assessment", scope)
-        self.assertIn("It never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
+        self.assertIn("A late finding never reopens the diagnostic wave or a whole-HiFi re-grade", scope)
         self.assertIn("The two reviews are the wave and the re-review", scope)
         self.assertIn("No third review, whole-HiFi re-grade, or owner-granted extra round exists inside a cycle", scope)
         self.assertNotIn("and the full rubric once", rubric)
@@ -432,9 +432,9 @@ console.log("hybrid fallback and stale QA assertions completed");
         scope = rubric.split("## Repair Re-review Scope", 1)[1]
         self.assertIn("A copy or metadata repair changes only", scope)
         self.assertIn("Every other repair is a visual repair", scope)
-        self.assertIn("late finding for the owner's follow-up list", scope)
-        for block in ("a PRD contradiction", "a dead control", "an inaccessible required flow",
-                      "overlaps, clips or is unreachable"):
+        self.assertIn("late finding: a note for the owner's follow-up list", scope)
+        self.assertIn("never joins the fix exchange", scope)
+        for block in ("a dead control", "overlaps, clips or is unreachable", "blocks only when the repair caused it"):
             self.assertIn(block, scope)
         self.assertIn("Impeccable severity alone does not decide readiness", rubric)
         contract = self.read("references/output-contract.md")
@@ -445,10 +445,12 @@ console.log("hybrid fallback and stale QA assertions completed");
 
     def test_default_review_staffing_and_grader_packet(self):
         rubric = self.read("references/ui-grading-rubric.md")
-        self.assertIn("the wave has two fresh reviewers: a lead grader who also produces the browser receipt, "
-                      "and one Impeccable operator who runs critique and audit", rubric)
+        self.assertIn("Unless agent policy sets another topology, the wave is exactly two fresh reviewers, whatever "
+                      "the package size: a lead grader who also "
+                      "produces the browser receipt, and one Impeccable operator who runs critique and audit", rubric)
         self.assertIn("Neither reviews its own work", rubric)
-        self.assertIn("Add a specialist grader only on an owner request or a recorded high risk", rubric)
+        self.assertIn("Add a specialist grader only on an owner request, with a non-overlapping lens", rubric)
+        self.assertNotIn("recorded high risk", rubric)      # a third grader is the owner's decision alone
         self.assertIn("gets a filled [UI_REVIEW_PACKET.template.md](../assets/templates/UI_REVIEW_PACKET.template.md)", rubric)
         self.assertIn("references/ui-grading-rubric.md", self.read("assets/templates/UI_REVIEW_PACKET.template.md"))
         self.assertIn("the Impeccable operator produces the critique and audit receipts",
@@ -550,7 +552,8 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_only_final_candidate_evidence_is_committed(self):
         evidence = self.read("references/review-evidence.md")
         self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
-        self.assertIn("Do not commit evidence of earlier attempts", evidence)
+        self.assertIn("Earlier attempts stay local", evidence)
+        self.assertIn("gitignore-contract.md#ui-capture-output", evidence)
 
 
 class OneTurnAndLibraryConsentTests(unittest.TestCase):

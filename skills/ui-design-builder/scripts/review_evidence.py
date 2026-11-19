@@ -261,6 +261,40 @@ def execution_findings(root, output, receipt, subject):
     return errors
 
 
+def _required_inspections(cases):
+    """{surface: [(state, target, label)]}: the default state (`ready`, or the surface's first state) at its smallest
+    and largest target, as far as the matrix holds those cases."""
+    present, states = set(cases), {}
+    for surface, state, _ in cases:
+        states.setdefault(surface, [])
+        if state not in states[surface]:
+            states[surface].append(state)
+    required = {}
+    for surface, ends in _end_targets(cases).items():
+        default = "ready" if "ready" in states[surface] else states[surface][0]
+        required[surface] = [(default, target, label) for label, target in dict.fromkeys(zip(("smallest", "largest"), ends))
+                             if (surface, default, target) in present]
+    return required
+
+
+def _end_targets(cases):
+    """{surface: (smallest, largest) target}: viewport widths by value, size classes in their listed order."""
+    targets = {}
+    for surface, _, target in cases:
+        targets.setdefault(surface, [])
+        if target not in targets[surface]:
+            targets[surface].append(target)
+
+    def width(target):
+        try:
+            return float(target)
+        except ValueError:
+            return None
+    ordered = {surface: (sorted(listed, key=float) if all(width(t) is not None for t in listed) else listed)
+               for surface, listed in targets.items()}
+    return {surface: (listed[0], listed[-1]) for surface, listed in ordered.items()}
+
+
 def assessment_findings(root, output, *, allow_blocks=False):
     """Qualitative conclusions retain source captures and per-case observations."""
     check = output.get("check", "")
@@ -314,9 +348,16 @@ def assessment_findings(root, output, *, allow_blocks=False):
                 if capture.casefold() in captures:
                     raise ValueError("review cases must retain distinct inspected captures")
                 captures.add(capture.casefold())
-        expected_cases = [_case_key(row) for row in output["matrix"]["cases"]]
-        if sorted(seen) != sorted(expected_cases):
-            errors.append("review observations must cover the exact case matrix")
+        # The author's matrix run covers every case by machine; a reviewer inspects a set by eye
+        # (ui-grading-rubric.md Browser Inspection Procedure). It includes each surface's default state at its
+        # smallest target and the axis sample, which also takes that state at the largest target.
+        matrix_cases = [_case_key(row) for row in output["matrix"]["cases"]]
+        if not set(seen) <= set(matrix_cases):
+            errors.append("review observations must name cases of the reviewed matrix")
+        for surface, required in sorted(_required_inspections(matrix_cases).items()):
+            for state, target, label in required:
+                if (surface, state, target) not in seen:
+                    errors.append(f"review observations must inspect {surface} {state} at its {label} target {target}")
     except (OSError, ValueError, TypeError, KeyError) as exc:
         errors.append(str(exc))
     return errors
@@ -349,13 +390,360 @@ def build_receipt(root, output_path):
             "reviewedArtifact": output.get("subject"), "receipt": receipt}
 
 
-def main():
+# --- Readiness: the author's capture is complete before any review is spent ------------
+A11Y_DISPOSITIONS = "a11y-dispositions.json"
+DISPOSITION_KEYS = {"measure", "selector", "reason", "surface", "state", "target", "axis"}
+LEDGER_STATUSES = {"open", "closed", "advisory", "block"}
+RERUN = "rerun hifi_matrix_capture.py on the frozen bytes and never edit its output"
+
+
+def _json_object(root, relative, label):
+    path = safe_path(root, relative)
+    if not path.is_file() or path.stat().st_size > MAX_BYTES:
+        raise ValueError(f"{label} is missing or exceeds read limit: {relative}")
+    value = json.loads(path.read_bytes().decode("utf-8"))
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be a JSON object: {relative}")
+    return value
+
+
+def _case_name(row):
+    name = f"{row.get('surface')}/{row.get('state')}/{row.get('target')}"
+    axis = row.get("axis")
+    return name + (f" under {axis}" if axis and axis != "base" else "")
+
+
+def _where(names):
+    return ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
+
+
+# Reasons a hang or the driver gives, not the page: one rerun, then the owner decides (rubric Readiness gate).
+# They cover every reason hifi_matrix_capture.py writes for a DriverTimeout or DriverError and every BLOCKED reason;
+# "page did not open" is also the recovery reopen and each row of a page that never opened.
+TOOL_LIMIT_MARKERS = ("restart limit", "could not restart", "timed out after", "driver error:", "could not be set up",
+                      "page did not open", "screenshot failed:")
+TOOL_LIMIT_FIX = ("a hang or a driver failure: fix what hangs and rerun the driver once; if the row fails the same way "
+                  "again, it is a tool limit and the parent records the candidate blocked for the owner")
+
+
+def _failed_rows(rows, name):
+    """One problem per result and reason set, so one page-level cause on 300 cases is one line."""
+    groups = {}
+    for row in rows:
+        if isinstance(row, dict) and row.get("result") != "PASS":
+            key = (row.get("result"), tuple(str(reason) for reason in row.get("reasons") or ()))
+            groups.setdefault(key, []).append(name(row))
+    return [(f"{result}: {_where(names)} ({'; '.join(reasons) or 'no reason recorded'})",
+             TOOL_LIMIT_FIX if any(marker in reason for reason in reasons for marker in TOOL_LIMIT_MARKERS)
+             else "fix it and rerun the driver; the author's last capture is a clean run" if result == "FAIL"
+             else "rerun the driver; this was not observed")
+            for (result, reasons), names in groups.items()]
+
+
+def _dispositions(root, relative):
+    """The author's reasons for measured accessibility failures it keeps; no file means none."""
+    if not safe_path(root, relative).is_file():
+        return []
+    data = _json_object(root, relative, "a11y dispositions")
+    rows = data.get("dispositions")
+    if set(data) != {"schema", "dispositions"} or data["schema"] != "a11y-dispositions/1" or not isinstance(rows, list):
+        raise ValueError(f'{relative} must be {{"schema": "a11y-dispositions/1", "dispositions": [...]}}')
+    for row in rows:
+        if (not isinstance(row, dict) or not {"measure", "selector", "reason"} <= set(row) <= DISPOSITION_KEYS
+                or any(not isinstance(value, str) or not value.strip() for value in row.values())):
+            raise ValueError(f"{relative}: a disposition names measure, selector and a reason, "
+                             "and may narrow by surface, state, target and axis")
+    return rows
+
+
+def _a11y_problems(root, a11y, dispositions_path):
+    dispositions = _dispositions(root, dispositions_path)
+    groups = {}
+    for row in a11y.get("findings") or []:
+        if not isinstance(row, dict) or row.get("level") != "fail":
+            continue
+        if any(all(row.get(key) == value for key, value in d.items() if key != "reason") for d in dispositions):
+            continue
+        groups.setdefault((row.get("measure"), row.get("selector")), []).append(_case_name(row))
+    return [(f"{measure} fails on {selector} at {_where(names)} with no disposition",
+             f"fix it, or record the reason in {dispositions_path}")
+            for (measure, selector), names in groups.items()]
+
+
+def _screenshot(record):
+    return "fresh" if record.get("capture") else ("carried" if record.get("carriedFrom") else "none")
+
+
+A11Y_LEVELS = ("fail", "note", "unmeasured")
+CARRIED_KEYS = {"result", "pageSha256", "capture", "sourceOutput"}
+
+
+def _is_identity(value):
+    return (isinstance(value, dict) and set(value) == {"path", "sha256"} and isinstance(value["path"], str)
+            and isinstance(value["sha256"], str) and SHA.fullmatch(value["sha256"]) is not None)
+
+
+def _file_problem(root, bound, binding, label):
+    """Why a screenshot binding is not a file inside the repository that hashes to it and the output binds, or None."""
+    if not _is_identity(binding):
+        return f"{label} is not a path and sha256"
+    try:
+        path = safe_path(root, binding["path"])
+    except ValueError:
+        return f"{label} lies outside the repository or crosses a link"
+    if not path.is_file():
+        return f"{label} file is missing"
+    if hashlib.sha256(path.read_bytes()).hexdigest() != binding["sha256"]:
+        return f"{label} bytes differ from its sha256"
+    if bound.get(binding["path"]) != binding["sha256"]:
+        return f"{label} is not bound in the output's execution artifacts"
+    return None
+
+
+def _record_problems(root, bound, record, fresh_path, recapture):
+    """What in one case record's screenshot fields the driver does not write. ``fresh_path`` is where this run
+    saves the case's screenshot (hifi_matrix_capture.capture_name); a carried capture has the same file name."""
+    capture, carried = record.get("capture"), record.get("carriedFrom")
+    found = []
+    if capture is not None and carried is not None and not recapture:
+        found.append("names both a capture and carriedFrom, without --recapture-carried")
+    if capture is None and carried is None and record.get("result") == "PASS":
+        found.append("is PASS without a screenshot of this run or a carried one")
+    if capture is not None:
+        found.append(_file_problem(root, bound, capture, "capture")
+                     or (None if capture["path"] == fresh_path else "capture is not this run's screenshot"))
+    if carried is not None:
+        if (not isinstance(carried, dict) or set(carried) != CARRIED_KEYS or carried["result"] != "PASS"
+                or not isinstance(carried["pageSha256"], str) or not SHA.fullmatch(carried["pageSha256"])
+                or not _is_identity(carried["sourceOutput"])):
+            found.append("carriedFrom is not the record the driver writes")
+        else:
+            found.append(_file_problem(root, bound, carried["capture"], "carried capture")
+                         or (None if PurePosixPath(carried["capture"]["path"]).name == PurePosixPath(fresh_path).name
+                             else "carried capture is not this case's screenshot"))
+    return [phrase for phrase in found if phrase]
+
+
+def _a11y_written(a11y):
+    """True when ``a11y`` has the structure --measure-a11y writes and its summary counts its findings."""
+    import hifi_matrix_capture as matrix
+    if not isinstance(a11y, dict) or set(a11y) != {"summary", "notRun", "incomplete", "findings"}:
+        return False
+    summary = a11y["summary"]
+    if (not isinstance(summary, dict) or set(summary) != set(matrix.A11Y_MEASURES)
+            or any(not isinstance(a11y[key], list) for key in ("notRun", "incomplete", "findings"))):
+        return False
+    counts = {(name, level): 0 for name in matrix.A11Y_MEASURES for level in A11Y_LEVELS}
+    for row in a11y["findings"]:
+        if (not isinstance(row, dict) or (row.get("measure"), row.get("level")) not in counts
+                or any(not isinstance(row.get(key), str) for key in ("surface", "state", "target", "axis"))):
+            return False
+        counts[(row["measure"], row["level"])] += 1
+    return all(isinstance(summary[name], dict) and set(summary[name]) == {"checked", *A11Y_LEVELS}
+               and all(type(value) is int and value >= 0 for value in summary[name].values())
+               and all(summary[name][level] == counts[(name, level)] for level in A11Y_LEVELS)
+               for name in matrix.A11Y_MEASURES)
+
+
+def _sidecar_problems(root, output_rel, output, sidecar_rel, sidecar, bound):
+    """Where a hash-bound sidecar disagrees with its output or holds a case record the driver does not write."""
+    import hifi_matrix_capture as matrix
+    problems = []
+    execution = output.get("execution") if isinstance(output.get("execution"), dict) else {}
+    run = sidecar.get("run") if isinstance(sidecar.get("run"), dict) else {}
+    if sidecar.get("subject") != output.get("subject") or any(
+            run.get(key) is None or run.get(key) != execution.get(key) for key in ("startedAt", "finishedAt")):
+        problems.append((f"{sidecar_rel} names another subject or run than {output_rel}", RERUN))
+    matrix_keys = [(c.get("surface"), c.get("state"), c.get("target"))
+                   for c in (output.get("matrix") or {}).get("cases") or [] if isinstance(c, dict)]
+    rows = sidecar.get("cases") if isinstance(sidecar.get("cases"), list) else []
+    keys = [(r.get("surface"), r.get("state"), r.get("target")) if isinstance(r, dict) else None for r in rows]
+    missing = [key for key in matrix_keys if key not in keys]
+    if missing:
+        problems.append((f"{sidecar_rel} has no case record for {len(missing)} of the output's cases, "
+                         f"first {'/'.join(map(str, missing[0]))}", RERUN))
+    extra = [key for index, key in enumerate(keys) if key not in matrix_keys or key in keys[:index]]
+    if extra:
+        problems.append((f"{sidecar_rel} has {len(extra)} case records that are not one each of the output's cases", RERUN))
+    results = {(r.get("surface"), r.get("state"), r.get("target")): r.get("result")
+               for r in output.get("results") or [] if isinstance(r, dict)}
+    folder, recapture = PurePosixPath(output_rel).parent, run.get("recaptureCarried") is True
+    groups = {}
+    for record, key in zip(rows, keys):
+        if key is None or key not in matrix_keys:
+            continue
+        fresh_path = str(folder / matrix.capture_name(matrix.Case(key[0], "", key[1], key[2])))
+        found = _record_problems(root, bound, record, fresh_path, recapture)
+        if record.get("result") != results.get(key):
+            found.append("result differs from the output's")
+        for phrase in found:
+            groups.setdefault(phrase, []).append("/".join(key))
+    return problems + [(f"{sidecar_rel} {_where(names)}: {phrase}", RERUN) for phrase, names in groups.items()]
+
+
+def capture_problems(root, package_rel, package, output_rel):
+    """(problems, shots) for one hifi_matrix_capture.py output against the frozen package bytes.
+
+    ``shots`` maps each observed case to `fresh`, `carried` or `none`: whether this run
+    took its screenshot. It is None when the capture is not of these bytes."""
+    import hifi_matrix_capture as matrix     # imported here: the driver imports this module
+    output = _json_object(root, output_rel, "capture")
+    if output.get("schema") != "ui-output/3" or output.get("check") != matrix.CHECK:
+        raise ValueError(f"{output_rel} is not a ui-output.json written by hifi_matrix_capture.py")
+    index = f"{package_rel}/index.html"
+    subject = output.get("subject") if isinstance(output.get("subject"), dict) else {}
+    if subject.get("path") != index:
+        return [(f"{output_rel} observed {subject.get('path')}, not the frozen package {index}",
+                 "run the driver on the frozen package")], None
+    execution = output.get("execution") if isinstance(output.get("execution"), dict) else {}
+    artifacts = [b for b in execution.get("artifacts") or [] if isinstance(b, dict)]
+    bound = {b.get("path"): b.get("sha256") for b in artifacts}
+    bound[index] = subject.get("sha256")
+    stale = []
+    for name, digest in package.sha.items():
+        seen = bound.get(f"{package_rel}/{name}")
+        if seen != digest:
+            stale.append((f"{output_rel} observed {name} at {f'sha256:{seen[:12]}' if isinstance(seen, str) else 'no hash'}, "
+                          f"the frozen package has sha256:{digest[:12]}", RERUN))
+    if stale:
+        return stale, None
+    binding = next((b for b in artifacts if str(b.get("path", "")).rsplit("/", 1)[-1] == matrix.SIDECAR_NAME), None)
+    try:
+        if binding is None:
+            raise ValueError(f"it binds no {matrix.SIDECAR_NAME}")
+        sidecar = json.loads(read_identity(root, binding).decode("utf-8"))
+        if not isinstance(sidecar, dict) or sidecar.get("schema") != matrix.SIDECAR_SCHEMA:
+            raise ValueError(f"{binding['path']} is not {matrix.SIDECAR_SCHEMA}")
+    except (ValueError, UnicodeError) as error:
+        return [(f"{output_rel}: {error}", RERUN)], None
+
+    problems = [(f"{output_rel} fails the driver's own output check: {finding}", "fix what it names and rerun the driver")
+                for finding in matrix.validate_output(root, safe_path(root, output_rel), output)]
+    integrity = _sidecar_problems(root, output_rel, output, binding["path"], sidecar, bound)
+    if integrity:       # its records cannot be trusted, so nothing more is read from them
+        return problems + integrity, None
+    run = sidecar.get("run") if isinstance(sidecar.get("run"), dict) else {}
+    observed = {(c.get("surface"), c.get("state"), c.get("target"))
+                for c in (output.get("matrix") or {}).get("cases") or [] if isinstance(c, dict)}
+    derived = run.get("derived") if isinstance(run.get("derived"), dict) else None
+    missing = [case.key for case in matrix.expand_matrix(package, None, derived) if case.key not in observed]
+    if missing:
+        problems.append((f"{output_rel} lacks {len(missing)} of the package's cases, first {'/'.join(missing[0])}",
+                         "rerun the driver on the whole package, without --only"))
+    records = {(r.get("surface"), r.get("state"), r.get("target")): r for r in sidecar.get("cases") or [] if isinstance(r, dict)}
+    results = [dict(row, reasons=records.get((row.get("surface"), row.get("state"), row.get("target")), {}).get("reasons"))
+               for row in output.get("results") or [] if isinstance(row, dict)]
+    problems += _failed_rows(results, _case_name)
+    problems += _failed_rows(sidecar.get("axes") or [], _case_name)
+    problems += _failed_rows(sidecar.get("interactions") or [],
+                             lambda r: f"interaction {r.get('id')} by {r.get('trigger')} at {r.get('target')}")
+    problems += _failed_rows(sidecar.get("reviewer") or [], lambda r: f"reviewer pass on {r.get('page')}")
+    sweep = run.get("intermediate")
+    if isinstance(sweep, dict) and (sweep.get("fail") or sweep.get("interactionsFail") or sweep.get("findings")):
+        problems.append((f"{sweep.get('output')}: the intermediate-width sweep has {sweep.get('fail')} failed cases, "
+                         f"{sweep.get('interactionsFail')} failed interactions and {len(sweep.get('findings') or [])} "
+                         "coverage findings", "fix them and rerun the driver"))
+    a11y = sidecar.get("a11y")
+    if a11y is None:
+        problems.append((f"{output_rel} has no a11y measurements", "rerun the driver with --measure-a11y"))
+    elif not _a11y_written(a11y):
+        problems.append((f"{binding['path']}: its a11y object is not the one --measure-a11y writes", RERUN))
+    else:
+        problems += _a11y_problems(root, a11y, str(PurePosixPath(binding["path"]).parent / A11Y_DISPOSITIONS))
+    return problems, {key: _screenshot(record) for key, record in records.items()}
+
+
+def ledger_problems(root, ledger_rel, shots):
+    """Each open or block ledger row needs a screenshot of every acceptance case taken on the repaired bytes."""
+    ledger = _json_object(root, ledger_rel, "defect ledger")
+    families = ledger.get("families")
+    if ledger.get("schema") != "ui-defect-ledger/1" or not isinstance(families, list):
+        raise ValueError(f"{ledger_rel} is not a ui-defect-ledger/1 file with families")
+    problems = []
+    for family in families:
+        if (not isinstance(family, dict) or not isinstance(family.get("id"), str)
+                or family.get("status") not in LEDGER_STATUSES or not isinstance(family.get("acceptanceCases"), list)):
+            raise ValueError(f"{ledger_rel}: every family needs an id, a status and acceptanceCases")
+        if family["status"] not in {"open", "block"}:
+            continue
+        if not family["acceptanceCases"]:
+            problems.append((f"ledger row {family['id']} names no acceptance case, so it has no after-capture",
+                             "the parent adds its acceptance cases to the ledger"))
+        for case in family["acceptanceCases"]:
+            key = _case_key(case)
+            name = "/".join(key)
+            if key not in shots:
+                problems.append((f"ledger row {family['id']} case {name} is not in the capture",
+                                 "rerun the driver on the whole package"))
+            elif shots[key] == "carried":
+                problems.append((f"ledger row {family['id']} has no after-capture for {name}: the case was carried, "
+                                 "so its render did not change",
+                                 "check that the repair reached it, or rerun the driver with --recapture-carried"))
+            elif shots[key] == "none":
+                problems.append((f"ledger row {family['id']} has no after-capture for {name}",
+                                 "rerun the driver until the case is observed"))
+    return problems
+
+
+def review_readiness(root, package_rel, capture_rels, ledger_rel=None):
+    """(problems, candidate): the frozen candidate is READY for review when problems is empty."""
+    import hifi_matrix_capture as matrix
+    try:
+        package = matrix.read_package(safe_path(root, package_rel))
+    except matrix.UsageError as error:
+        raise ValueError(str(error)) from None
+    package_rel = str(PurePosixPath(package_rel))
+    rank = {"none": 0, "carried": 1, "fresh": 2}
+    problems, shots, comparable = [], {}, True
+    for capture_rel in capture_rels:
+        found, cases = capture_problems(root, package_rel, package, capture_rel)
+        problems += found
+        if cases is None:
+            comparable = False
+            continue
+        for key, shot in cases.items():
+            shots[key] = max(shots.get(key, "none"), shot, key=rank.get)
+    if ledger_rel is not None:
+        found = ledger_problems(root, ledger_rel, shots)    # read even when unused: a malformed ledger is invalid input
+        if comparable:
+            problems += found
+    return list(dict.fromkeys(problems)), {"path": f"{package_rel}/index.html", "sha256": package.sha["index.html"]}
+
+
+def ready_main(argv):
+    parser = argparse.ArgumentParser(
+        prog="review_evidence.py ready",
+        description="Before the wave or the re-review: is the author's capture of the frozen package complete?")
+    parser.add_argument("--repo-root", type=Path, required=True)
+    parser.add_argument("--package", required=True, help="frozen ui-hifi/2 package folder, repository-relative")
+    parser.add_argument("--capture", action="append", required=True,
+                        help="the author's ui-output.json from hifi_matrix_capture.py; repeat for each theme run")
+    parser.add_argument("--ledger", help="defect-ledger.json, before the re-review and the fix exchange")
+    args = parser.parse_args(argv)
+    try:
+        problems, candidate = review_readiness(args.repo_root.resolve(), args.package, args.capture, args.ledger)
+    except (OSError, ValueError, TypeError, KeyError) as exc:
+        print(f"INVALID: {exc}")
+        return 2
+    if not problems:
+        print(f"READY {candidate['path']} @ sha256:{candidate['sha256']}")
+        return 0
+    print(f"NOT READY: {len(problems)} problems; the candidate returns to its author and no review is spent")
+    for problem, fix in problems:
+        print(f"- {problem}. Fix: {fix}.")
+    return 1
+
+
+def main(argv=None):
+    argv = sys.argv[1:] if argv is None else argv
+    if argv[:1] == ["ready"]:
+        return ready_main(argv[1:])
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--output-artifact", required=True)
     parser.add_argument("--receipt-out", required=True)
     parser.add_argument("--overwrite", action="store_true")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
         root = args.repo_root.resolve()
         receipt = build_receipt(root, args.output_artifact)

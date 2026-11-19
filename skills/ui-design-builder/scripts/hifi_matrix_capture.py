@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import collections
 import copy
+import ctypes
 import hashlib
 import importlib.util
 import json
@@ -51,9 +52,9 @@ SIDECAR_NAME = "matrix-capture.json"
 INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
-A11Y_MEASURES = ("contrast", "target-size", "text-clip", "focus-visible", "text-growth")
-A11Y_BASE = ("contrast", "target-size", "text-clip")      # measured on every base case
-A11Y_AXIS = {"dark": ("contrast",), "zoom-200": ("text-clip", "text-growth"), "forced-colors": ("focus-visible",)}
+A11Y_MEASURES = ("contrast", "target-size", "text-clip", "text-split", "focus-visible", "text-growth")
+A11Y_BASE = ("contrast", "target-size", "text-clip", "text-split")      # measured on every base case
+A11Y_AXIS = {"dark": ("contrast",), "zoom-200": ("text-clip", "text-split", "text-growth"), "forced-colors": ("focus-visible",)}
 TRIGGERS = ("click", "keyboard")
 INTERACT_KINDS = ("navigate", "state", "feedback")
 DRIVER_BASE = "https://hifi.invalid/pkg/"
@@ -366,20 +367,21 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
     }
   }
 
+  // text cut by its own box: what text-clip reports, and what text-split leaves to it
+  const clips = (el, which) => { const o = getComputedStyle(el)['overflow' + which]; return o === 'hidden' || o === 'clip'; };
+  const beyond = (inner, outer, which) => which === 'X'
+    ? rect(inner).right > rect(outer).right + 1 || rect(inner).left < rect(outer).left - 1
+    : rect(inner).bottom > rect(outer).bottom + 1 || rect(inner).top < rect(outer).top - 1;
+  const cuts = el => FIELDS.includes(el.tagName) ? [] : ['X', 'Y'].filter(which => clips(el, which))
+    .map(which => ({ which, scroll: which === 'X' ? el.scrollWidth : el.scrollHeight, client: which === 'X' ? el.clientWidth : el.clientHeight }))
+    .filter(({ which, scroll, client }) => scroll > client + 1
+      && (hasText(el) || texts.some(t => t !== el && el.contains(t) && beyond(t, el, which))));
+
   if (measures.includes('text-clip')) {
-    const clips = (el, which) => { const o = getComputedStyle(el)['overflow' + which]; return o === 'hidden' || o === 'clip'; };
-    const beyond = (inner, outer, which) => which === 'X'
-      ? rect(inner).right > rect(outer).right + 1 || rect(inner).left < rect(outer).left - 1
-      : rect(inner).bottom > rect(outer).bottom + 1 || rect(inner).top < rect(outer).top - 1;
     for (const el of els) {
       if (FIELDS.includes(el.tagName)) continue;
-      for (const which of ['X', 'Y']) {
-        if (!clips(el, which)) continue;
-        const scroll = which === 'X' ? el.scrollWidth : el.scrollHeight, client = which === 'X' ? el.clientWidth : el.clientHeight;
-        if (scroll <= client + 1) continue;
-        if (hasText(el) || texts.some(t => t !== el && el.contains(t) && beyond(t, el, which)))
-          push('text-clip', el, 'fail', { kind: 'overflow-' + which.toLowerCase(), overflow: scroll - client, scroll, client, limit: 1 });
-      }
+      for (const { which, scroll, client } of cuts(el))
+        push('text-clip', el, 'fail', { kind: 'overflow-' + which.toLowerCase(), overflow: scroll - client, scroll, client, limit: 1 });
       if (hasText(el) || texts.some(t => el.contains(t))) checked['text-clip']++;
     }
     for (const el of els) {
@@ -392,6 +394,93 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
       checked['text-clip']++;
       if (wide > content + 1)
         push('text-clip', el, 'fail', { kind: 'placeholder', overflow: round(wide - content), scroll: round(wide), client: round(content), limit: 1 }, '::placeholder');
+    }
+  }
+
+  if (measures.includes('text-split')) {
+    // A figure, or a CJK word of 2 to 6 characters in a text of 24 characters or fewer, drawn on more than one line.
+    // A text node belongs to the nearest box that is not display:inline, so a token may cross an inline child
+    // (a currency span or a <br>) but never a block, cell or flex item. Text that text-clip reports is left to it.
+    const CODES = 'USD|HKD|MOP|CNY|RMB|TWD|JPY|KRW|SGD|MYR|THB|PHP|IDR|VND|INR|AUD|NZD|CAD|EUR|GBP|CHF|SEK|NOK|DKK|BRL|MXN|ZAR|AED|SAR';
+    const UNITS = String.raw`%|\u2030|\uFF05|\u00B0[CF]?|[\u4E07\u842C\u4EBF\u5104]?(?:[\u6E2F\u7F8E]?\u5143|\u5713|\u5706|\u5186|\uC6D0)`
+      + String.raw`|[\u4E07\u842C\u4EBF\u5104]|(?:${CODES}|kg|g|km|m|cm|mm|ml|mL|L|h|hr|hrs|min|s|ms|kWh|kW|W|GB|MB|KB|TB|px|pt|x|k|K|M|bn)(?![A-Za-z])`;
+    const MONTH = String.raw`(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?`;
+    const DATE = [String.raw`\d{4}\u5E74\d{1,2}\u6708(?:\d{1,2}\u65E5)?`, String.raw`\d{1,2}\u6708\d{1,2}\u65E5`,
+      String.raw`\d{4}[-/.]\d{1,2}[-/.]\d{1,2}`, String.raw`\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}`,
+      String.raw`${MONTH}\s+\d{1,2}(?:,?\s+\d{4})?`, String.raw`\d{1,2}\s+${MONTH}(?:,?\s+\d{4})?`].join('|');
+    const SIGN = String.raw`[+\-\u2212\u00B1]`;
+    const FIGURE = new RegExp(String.raw`(?<![A-Za-z\d])(?:${DATE}|${SIGN}?(?:(?:[A-Z]{0,2}\p{Sc}|(?:${CODES})(?![A-Za-z]))\s*)?`
+      + String.raw`${SIGN}?\d+(?:[,.'\u00A0\u202F]\d+)*(?:\s*(?:${UNITS}))?)`, 'gu');
+    const CJK = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u30FC]{2,6}$/u;
+    const segmenters = new Map();
+    const segmenter = box => {
+      const tag = box.closest('[lang]'), lang = (tag && tag.getAttribute('lang')) || undefined;
+      if (!segmenters.has(lang)) {
+        let made;
+        try { made = new Intl.Segmenter(lang, { granularity: 'word' }); } catch (_) { made = new Intl.Segmenter(undefined, { granularity: 'word' }); }
+        segmenters.set(lang, made);
+      }
+      return segmenters.get(lang);
+    };
+    const cut = els.filter(el => cuts(el).length);
+    const range = document.createRange();
+    for (const box of els) {
+      if (FIELDS.includes(box.tagName) || getComputedStyle(box).display === 'inline' || cut.some(c => c.contains(box))) continue;
+      const nodes = [];
+      let text = '';
+      const visit = parent => {
+        for (const n of parent.childNodes) {
+          if (n.nodeType === 3) {
+            if (getComputedStyle(n.parentElement).visibility === 'visible') { nodes.push({ node: n, at: text.length }); text += n.data; }
+          } else if (n.nodeType === 1) {
+            if (n instanceof HTMLElement && getComputedStyle(n).display === 'inline') visit(n);
+            else text += '\uFFFC';     // not white space, so no token runs across another box
+          }
+        }
+      };
+      visit(box);
+      if (!text.trim()) continue;
+      const locate = i => {
+        const hit = nodes.find(({ node, at }) => at <= i && i < at + node.data.length);
+        return hit ? [hit.node, i - hit.at] : null;
+      };
+      const lines = (start, end) => {
+        let count = 0, last = null;
+        for (let i = start, size; i < end; i += size) {
+          size = text.codePointAt(i) > 0xffff ? 2 : 1;
+          const at = /\s/.test(text[i]) ? null : locate(i);
+          if (!at) continue;
+          range.setStart(at[0], at[1]);
+          range.setEnd(at[0], Math.min(at[1] + size, at[0].data.length));
+          const r = Array.from(range.getClientRects()).find(c => c.height > 0);
+          if (!r) continue;
+          if (!last || Math.abs(r.top + r.bottom - last.top - last.bottom) / 2 >= Math.max(r.height, last.height) / 2) count++;
+          last = r;
+        }
+        return count;
+      };
+      const measure = (start, end) => {
+        checked['text-split']++;
+        const count = lines(start, end);
+        if (count < 2) return;
+        const first = locate(start), final = locate(end - 1);
+        range.setStart(first[0], first[1]);
+        range.setEnd(final[0], final[1] + 1);
+        const common = range.commonAncestorContainer;
+        push('text-split', common.nodeType === 3 ? common.parentElement : common, 'fail',
+          { token: text.slice(start, end).replace(/\s+/g, ' '), lines: count, limit: 1 });
+      };
+      const figures = [];
+      for (const found of text.matchAll(FIGURE)) {
+        if ([...found[0].replace(/\s/g, '')].length < 2) continue;
+        figures.push([found.index, found.index + found[0].length]);
+        measure(found.index, found.index + found[0].length);
+      }
+      if ([...text.replace(/[\s\uFFFC]+/g, ' ').trim()].length > 24) continue;
+      for (const { segment, index, isWordLike } of segmenter(box).segment(text)) {
+        const end = index + segment.length;
+        if (isWordLike && CJK.test(segment) && !figures.some(([a, b]) => index < b && a < end)) measure(index, end);
+      }
     }
   }
 
@@ -1270,12 +1359,93 @@ class NodeDriver:
         self.stop()
 
 
+def process_rows():
+    """{pid: (parent pid, creation time)} of every Windows process; empty when the list cannot be read."""
+    command = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+               "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, "
+               "$(if ($_.CreationDate) { $_.CreationDate.ToFileTimeUtc() } else { 0 }) }"]
+    try:
+        out = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False).stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    rows = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            rows[int(parts[0])] = (int(parts[1]), int(parts[2]))
+    return rows
+
+
+def descendants_first(rows, root):
+    """``root`` and every process below it, deepest first, from ``process_rows()``.
+
+    Windows keeps a dead parent's id on its children and gives that id to new processes, so `taskkill /T` can reach
+    an unrelated program. Here a process is a child only when it started no earlier than its parent, and a root
+    missing from the list has no known children."""
+    if root not in rows:
+        return [root]
+    order, frontier = [root], [root]
+    while frontier:
+        parent = frontier.pop()
+        born = rows[parent][1]
+        for pid, (ppid, created) in rows.items():
+            if ppid == parent and pid not in order and created >= born:
+                order.append(pid)
+                frontier.append(pid)
+    return order[::-1]
+
+
+PROCESS_TERMINATE, PROCESS_QUERY_LIMITED_INFORMATION, SYNCHRONIZE = 0x0001, 0x1000, 0x00100000
+ERROR_INVALID_PARAMETER, STILL_ACTIVE, WAIT_OBJECT_0, END_WAIT_MS = 87, 259, 0, 5000
+
+
+def windows_kernel32():
+    """kernel32 with the calls ``end_process`` makes, typed. A HANDLE is pointer-sized."""
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle, dword, ok = ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int
+    for name, restype, argtypes in (("OpenProcess", handle, [dword, ok, dword]),
+                                    ("GetProcessTimes", ok, [handle] + [ctypes.POINTER(ctypes.c_uint64)] * 4),
+                                    ("TerminateProcess", ok, [handle, ctypes.c_uint]),
+                                    ("GetExitCodeProcess", ok, [handle, ctypes.POINTER(dword)]),
+                                    ("WaitForSingleObject", dword, [handle, dword]),
+                                    ("CloseHandle", ok, [handle])):
+        function = getattr(kernel32, name)
+        function.restype, function.argtypes = restype, argtypes
+    return kernel32
+
+
+def end_process(pid, created, kernel32):
+    """Terminate ``pid`` only while it is the process ``process_rows()`` listed as created at ``created``.
+    Return whether that process has ended.
+
+    The identity check and the termination use one handle, and Windows gives no process's id to another while a
+    handle to it is open. WMI keeps creation times to the microsecond: 10 FILETIME ticks."""
+    handle = kernel32.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, False, pid)
+    if not handle:
+        return ctypes.get_last_error() == ERROR_INVALID_PARAMETER      # no process has this id any more
+    try:
+        times = [ctypes.c_uint64() for _ in range(4)]
+        if not kernel32.GetProcessTimes(handle, *map(ctypes.pointer, times)):
+            return False
+        if abs(times[0].value - created) > 10:
+            return times[0].value > created         # a later process has the id: the listed one has ended
+        if kernel32.TerminateProcess(handle, 1):        # it starts the end; the wait sees it finish
+            return kernel32.WaitForSingleObject(handle, END_WAIT_MS) == WAIT_OBJECT_0
+        code = ctypes.c_uint32()                    # TerminateProcess refuses a process that has already exited
+        return bool(kernel32.GetExitCodeProcess(handle, ctypes.pointer(code))) and code.value != STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def kill_tree(proc):
-    """Stop only the process we spawned and its children."""
+    """Stop only the process we spawned and its children. Without a process list, only the process we spawned.
+
+    The children end through ``end_process``, deepest first; the root last, through its own Popen handle."""
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(proc.pid), "/T", "/F"], capture_output=True, check=False)
-    else:
-        proc.kill()
+        rows, kernel32 = process_rows(), windows_kernel32()
+        for pid in descendants_first(rows, proc.pid)[:-1]:
+            end_process(pid, rows[pid][1], kernel32)
+    proc.kill()
     try:
         proc.wait(timeout=10)
     except subprocess.TimeoutExpired:
@@ -1522,17 +1692,13 @@ def midpoint_width(low, high):
     return str(int(value)) if value.is_integer() else str(value)
 
 
-def intermediate_plan(package, only=None):
-    """One case per non-n/a state, at the midpoint of each adjacent pair of numeric viewport targets."""
+def intermediate_plan(package, picks):
+    """The axis sample's states of each surface (``picks``: {surface: states}), at the midpoint of each adjacent
+    pair of numeric viewport targets."""
     cases = []
     for row in package.manifest["surfaces"]:
-        if only and row["id"] not in only:
-            continue
         widths = intermediate_widths(row)
-        states = [str(state) for state in row["states"] if not _is_na_state(state)]
-        if not widths or not states:
-            continue
-        for state in states:
+        for state in picks.get(row["id"], ()) if widths else ():
             for low, high in zip(widths, widths[1:]):
                 cases.append(Case(row["id"], row["page"], state, midpoint_width(low, high)))
     return cases
@@ -1676,8 +1842,8 @@ class Runner:
         self.transcript = {kind: [] for kind in TRANSCRIPT_KINDS}
         self.records, self.axis_records, self.interaction_records = {}, [], []
         self.page_reasons, self.unopened = {}, set()
-        self.restarts, self.aborted, self.active_axis = 0, False, None
-        self.page_restarts = {}
+        self.restarts, self.down, self.active_axis = 0, None, None     # down: why the browser is not running
+        self.unit_restarts = {}     # restarts spent by each ("page", name) and each ("operation", interaction id)
         self.kinds = {row["id"]: row["responsive"].get("kind") for row in package.manifest["surfaces"]}
         self.reviewer_plan, self.reviewer_records = reviewer_plan(package), []
         self.cancel = None      # a threading.Event a parallel run sets to stop every worker between items
@@ -1689,17 +1855,12 @@ class Runner:
                 self.transcript[kind].extend(dict(row, page=page) for row in events.get(kind, []))
         return event_reasons(events)
 
-    def recover(self, page):
-        self.restarts += 1
-        self.page_restarts[page] = self.page_restarts.get(page, 0) + 1
-        try:
-            self.driver.restart()
-        except DriverError:
-            self.aborted = True
-            return
-        # Discard the hung browser even when this page has spent its budget.
-        # Leave the fresh browser available for the next page.
-        if self.page_blocked(page) or page in self.unopened:
+    def recover(self, page, unit=None):
+        """Replace a hung browser and charge the restart to what hung: its page, or one operation on it."""
+        unit = unit or ("page", page)
+        self.unit_restarts[unit] = self.unit_restarts.get(unit, 0) + 1
+        # Discard the hung browser even when its budget is spent: the fresh one serves the remaining work.
+        if not self.fresh_browser() or self.page_blocked(page) or page in self.unopened:
             return
         try:
             reply = self.driver.call("open", page=page, timeoutMs=self.case_timeout_s * 1000)
@@ -1711,27 +1872,38 @@ class Runner:
             self.page_reasons[page] = [f"recovery page did not open: {error}"]
             self.absorb(error.events, page, keep=not self.active_axis)
             if isinstance(error, DriverTimeout):
-                self.restarts += 1
-                try:
-                    self.driver.restart()
-                except DriverError:
-                    self.aborted = True
+                self.fresh_browser()
+
+    def fresh_browser(self):
+        """Restart the browser. One that cannot restart blocks the rest of the current page; the next page tries again."""
+        self.restarts += 1
+        try:
+            self.driver.restart()
+        except DriverError as error:
+            self.down = f"browser driver could not restart: {error}"
+            return False
+        self.down = None
+        return True
+
+    def blocked(self, unit):
+        """Why a page or an operation gets no more browser work: its own budget is spent, or the browser is down."""
+        if self.unit_restarts.get(unit, 0) > MAX_RESTARTS:
+            return f"{unit[0]} browser driver restart limit ({MAX_RESTARTS}) reached: {unit[1]}"
+        return self.down
 
     def page_blocked(self, page):
-        if self.aborted:
-            return "browser driver could not restart"
-        if self.page_restarts.get(page, 0) > MAX_RESTARTS:
-            return f"page browser driver restart limit ({MAX_RESTARTS}) reached: {page}"
-        return None
+        return self.blocked(("page", page))
 
     def run(self, cases):
         for page, page_cases in group_by_page(cases).items():
             self.run_page(page, page_cases)
-        # The intermediate sweep is a width check; the reviewer object belongs to the base output only.
+        # The intermediate sweep is a width check; interactions and the reviewer object belong to the base output.
         if not self.intermediate:
             self.run_reviewer()
 
     def open_page(self, page):
+        if self.down:       # the last restart failed: a new page starts from a fresh browser
+            self.fresh_browser()
         if self.page_blocked(page) or page in self.unopened:       # a failed page stays failed in later phases
             return
         try:
@@ -1764,6 +1936,14 @@ class Runner:
                 counts[(case.surface, case.state)] = max(counts.get((case.surface, case.state), 0), geometry["elementCount"])
         return rows, sample_axis_cases(rows, page, self.package.widths[page], counts, self.derived)
 
+    def sampled_states(self, cases):
+        """{surface: the axis sample's states}, from the base cases this runner measured."""
+        picks = {}
+        for page, page_cases in group_by_page(cases).items():
+            for case in self.sample_for(page, page_cases)[1]:
+                picks.setdefault(case.surface, {})[case.state] = None
+        return {surface: list(states) for surface, states in picks.items()}
+
     def axis_picks(self, page, cases):
         """(axis, sampled cases) for one page."""
         if not self.axes:
@@ -1788,11 +1968,15 @@ class Runner:
 
     # A parallel run cuts the serial work into items: ("case" | "interaction" | "axis" | "reviewer", page, payload).
     def base_items(self, cases):
-        """Weighted items for every base case and interaction attempt, in the serial order."""
+        """Weighted items for every base case and interaction, in the serial order. An interaction's attempts are one
+        item, so its restart budget is spent in one browser, as in a serial run."""
         items = []
         for page, page_cases in group_by_page(cases).items():
             items += [(("case", page, case), 1) for case in page_cases]
-            items += [(("interaction", page, attempt), 1) for attempt in self.interaction_attempts(page)]
+            attempts = {}
+            for attempt in self.interaction_attempts(page):
+                attempts.setdefault(attempt[0]["id"], []).append(attempt)
+            items += [(("interaction", page, group), len(group)) for group in attempts.values()]
         return items
 
     def axis_items(self, cases):
@@ -1821,7 +2005,8 @@ class Runner:
             if kind == "case":
                 self.records[payload.key] = self.observe(payload)
             elif kind == "interaction":
-                self.interaction_records.append(self.observe_interaction(*payload, self.interaction_blocked(page)))
+                for attempt in payload:
+                    self.interaction_records.append(self.observe_interaction(*attempt, self.interaction_blocked(page)))
             elif kind == "axis":
                 self.run_axis(page, *payload)
             elif kind == "focus":
@@ -1837,8 +2022,8 @@ class Runner:
         worker.records, worker.axis_records, worker.interaction_records, worker.reviewer_records = {}, [], [], []
         worker.a11y_cases, worker.a11y_fonts = {}, dict(self.a11y_fonts)
         worker.page_reasons, worker.unopened = dict(self.page_reasons), set(self.unopened)
-        worker.restarts, worker.aborted, worker.active_axis = 0, False, None
-        worker.page_restarts = dict(self.page_restarts)
+        worker.restarts, worker.down, worker.active_axis = 0, None, None
+        worker.unit_restarts = dict(self.unit_restarts)
         return worker
 
     def adopt_unopened(self, failed):
@@ -1885,8 +2070,8 @@ class Runner:
     def fold(self, worker):
         """Add a worker's results to this runner. Folding workers in order keeps every list in the serial order."""
         self.unopened |= worker.unopened
-        for page, count in worker.page_restarts.items():
-            self.page_restarts[page] = max(self.page_restarts.get(page, 0), count)
+        for unit, count in worker.unit_restarts.items():
+            self.unit_restarts[unit] = max(self.unit_restarts.get(unit, 0), count)
         for page, reasons in worker.page_reasons.items():
             if page in worker.unopened or page not in self.page_reasons:
                 self.page_reasons[page] = reasons
@@ -1907,7 +2092,7 @@ class Runner:
                   "startedAt": now_iso(), "finishedAt": None, "durationMs": None}
         began = time.perf_counter()
         reasons = record["reasons"]
-        blocked = blocked or self.page_blocked(action["page"])
+        blocked = blocked or self.page_blocked(action["page"]) or self.blocked(("operation", action["id"]))
         if blocked:
             record["result"] = "BLOCKED"
             reasons.append(blocked)
@@ -1929,7 +2114,7 @@ class Runner:
         except DriverTimeout as error:
             reasons.append(f"interaction timed out after {self.case_timeout_s}s")
             events, result = error.events, {}
-            self.recover(action["page"])
+            self.recover(action["page"], ("operation", action["id"]))     # a stuck operation spends only its own budget
         except DriverError as error:
             reasons.append(f"driver error: {error}")
             events, result = error.events, {}
@@ -1973,7 +2158,7 @@ class Runner:
     def run_axis(self, page, axis, sampled):
         """One row per sampled case. An axis that cannot be applied gives BLOCKED rows, never none."""
         blocked = axis_unopened(axis) if page in self.unopened else self.page_blocked(page)
-        if blocked is None and not self.aborted:
+        if blocked is None:
             try:
                 self.driver.call("axis", name=axis)
                 self.active_axis = axis
@@ -2106,7 +2291,7 @@ class Runner:
     def run_focus(self, page, sampled):
         """Focus visibility on the axis sample in the base scheme: the page's own states, no screenshot, no result."""
         for case in sampled:
-            if page in self.unopened or self.aborted:
+            if page in self.unopened or self.page_blocked(page):
                 return
             request = dict(self.a11y_request(case, ("focus-visible",)), only=True)
             try:
@@ -2161,6 +2346,8 @@ class Runner:
         if not plan:
             return
         for page, page_plan in plan["pages"].items():
+            if self.down:       # as open_page: each page tries a fresh browser after a failed restart
+                self.fresh_browser()
             self.reviewer_records.append(self.observe_reviewer(page, page_plan))
 
     def observe_reviewer(self, page, page_plan):
@@ -2213,7 +2400,7 @@ def partition(items, workers):
 
 
 class DriverPool:
-    """Drivers made on demand; page restart budgets survive phase changes."""
+    """Drivers made on demand; page and operation restart budgets survive phase changes."""
 
     def __init__(self, make_driver, package, root, scratch, color_scheme):
         self.make_driver, self.package, self.root, self.scratch = make_driver, package, root, Path(scratch)
@@ -2227,7 +2414,7 @@ class DriverPool:
             folder.mkdir(parents=True, exist_ok=True)
             self.drivers.append(self.make_driver(self.package, self.root, folder, color_scheme=self.color_scheme))
             self.started.append(False)
-            self.state.append((0, False, {}))
+            self.state.append((0, None, {}))
         return self.drivers[index]
 
     @property
@@ -2245,11 +2432,11 @@ class DriverPool:
             runner = runners[index]
             try:
                 runner.cancel = self.cancel
-                runner.restarts, runner.aborted, previous_pages = self.state[index]
-                runner.page_restarts = dict(getattr(runner, "page_restarts", {}))
-                for page, count in previous_pages.items():
-                    runner.page_restarts[page] = max(runner.page_restarts.get(page, 0), count)
-                if not self.started[index] or not runner.aborted:
+                runner.restarts, runner.down, previous_units = self.state[index]
+                runner.unit_restarts = dict(getattr(runner, "unit_restarts", {}))
+                for unit, count in previous_units.items():
+                    runner.unit_restarts[unit] = max(runner.unit_restarts.get(unit, 0), count)
+                if not self.started[index] or not runner.down:      # a down browser is retried by the first page
                     # A later phase gets a fresh browser: the reviewer shell keeps its selections in session
                     # storage, so a page opened after another phase's pages could arrive in the wrong state.
                     first = not self.started[index]
@@ -2257,13 +2444,16 @@ class DriverPool:
                     try:
                         runner.driver.start() if first else runner.driver.restart()
                     except DriverError as error:
-                        raise UsageError(f"browser could not start: {error}") from error
+                        if first:
+                            raise UsageError(f"browser could not start: {error}") from error
+                        # As a failed recovery restart: the share's first page tries a fresh browser.
+                        runner.down = f"browser driver could not restart: {error}"
                 runner.run_items(shares[index])
             except BaseException as error:    # carried to the caller; the other workers stop
                 failures[index] = error
                 self.cancel.set()
             finally:
-                self.state[index] = (runner.restarts, runner.aborted, dict(runner.page_restarts))
+                self.state[index] = (runner.restarts, runner.down, dict(runner.unit_restarts))
 
         self.threads = [threading.Thread(target=work, args=(index,), daemon=True) for index in range(len(shares))]
         for thread in self.threads:
@@ -2294,11 +2484,12 @@ class DriverPool:
             thread.join(timeout=30)
 
 
-def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, intermediate_cases=()):
+def capture_parallel(pool, workers, runner, cases, intermediate_runner=None):
     """The run of ``runner`` (and the intermediate sweep of ``intermediate_runner``) on up to ``workers`` drivers.
+    Returns the intermediate cases it ran.
 
     Phase one is every base case, interaction attempt and reviewer row, which depend on nothing. The axis passes
-    follow, because the busiest state of a page comes from its measured base cases."""
+    and the intermediate sweep follow, because the busiest state of a surface comes from its measured base cases."""
     def phase(merged, items):
         shares = pool.run(partition(items, workers), merged.spawn)
         failed = {}
@@ -2312,10 +2503,13 @@ def capture_parallel(pool, workers, runner, cases, intermediate_runner=None, int
     phase(runner, runner.base_items(cases) + runner.reviewer_items())
     if runner.axes or runner.measure_a11y:
         phase(runner, runner.axis_items(cases))
-    if intermediate_runner is not None:
-        intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
-        intermediate_runner.page_restarts = dict(runner.page_restarts)
-        phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
+    if intermediate_runner is None:
+        return []
+    intermediate_cases = intermediate_plan(runner.package, runner.sampled_states(cases))
+    intermediate_runner.unopened, intermediate_runner.page_reasons = set(runner.unopened), dict(runner.page_reasons)
+    intermediate_runner.unit_restarts = dict(runner.unit_restarts)
+    phase(intermediate_runner, intermediate_runner.base_items(intermediate_cases))
+    return intermediate_cases
 
 
 def pixel_diff(before, after):
@@ -2379,6 +2573,11 @@ def a11y_object(runner):
     not_run = [{"measure": name, "axis": axis, "reason": f"axis {axis} was not requested; pass --axes {axis}"}
                for axis, names in A11Y_AXIS.items() if axis not in runner.axes for name in names]
     return {"summary": summary, "notRun": not_run, "incomplete": incomplete, "findings": findings}
+
+
+def row_seconds(rows):
+    """Measured browser seconds of some rows, summed over every worker: where a run's time went."""
+    return round(sum(row.get("durationMs") or 0 for row in rows) / 1000, 1)
 
 
 def a11y_line(a11y):
@@ -2534,13 +2733,13 @@ def parse_args(argv=None):
     parser.add_argument("--color-scheme", choices=("light", "dark"), default="light",
                         help="browser context theme for the whole run; dark writes its own base matrix output")
     parser.add_argument("--intermediate", action="store_true",
-                        help="also capture every state at the midpoints between adjacent viewport targets into OUT/intermediate")
+                        help="also capture each surface's axis-sample states at the midpoints between adjacent viewport targets into OUT/intermediate")
     parser.add_argument("--recapture-carried", action="store_true", help="new screenshot for carried cases too")
     parser.add_argument("--diff-against", type=Path, help="earlier --out directory for a pixel diff (needs Pillow)")
     parser.add_argument("--workers", type=int, default=1,
                         help=f"browsers to run at once, 1 to {MAX_WORKERS} (default 1); the same count splits the work the same way")
     parser.add_argument("--measure-a11y", action="store_true",
-                        help="also measure contrast, target size, text clip, focus visibility and text growth into the sidecar's a11y object")
+                        help="also measure contrast, target size, text clip, text split, focus visibility and text growth into the sidecar's a11y object")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
     return parser.parse_args(argv)
 
@@ -2612,9 +2811,10 @@ def execute(args, make_driver=node_driver):
     if not cases:
         raise UsageError("the selection has no applicable cases")
     interactions = interaction_plan(package, only)
-    intermediate_cases = intermediate_plan(package, only) if args.intermediate else []
-    if args.intermediate and not intermediate_cases:
+    selected = {case.surface for case in cases}
+    if args.intermediate and not any(intermediate_widths(row) for row in package.manifest["surfaces"] if row["id"] in selected):
         raise UsageError("--intermediate found no surface with two or more numeric viewport widths")
+    intermediate_cases = []
     carry_path = inside(root, args.carry_from, "--carry-from") if args.carry_from else None
     carry, carry_source = load_carry(root, carry_path) if carry_path else (None, None)
     if carry and args.overwrite and any(related(out_dir, folder) for folder in carry_folders(root, carry_path, carry)):
@@ -2637,14 +2837,15 @@ def execute(args, make_driver=node_driver):
                                 derived=derived, interactions=interactions, recapture=args.recapture_carried,
                                 diff_against=diff_against, measure_a11y=args.measure_a11y)
                 runner.run(cases)
-                if intermediate_cases:
+                if args.intermediate:
+                    intermediate_cases = intermediate_plan(package, runner.sampled_states(cases))
                     intermediate_dir = out_dir / INTERMEDIATE_DIR
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
-                    intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived,
-                                                 interactions=interactions, intermediate=True)
+                    intermediate_runner = Runner(driver, package, root, intermediate_dir, derived=derived, intermediate=True)
                     intermediate_runner.unopened = set(runner.unopened)
                     intermediate_runner.page_reasons = dict(runner.page_reasons)
-                    intermediate_runner.page_restarts = dict(runner.page_restarts)
+                    intermediate_runner.unit_restarts = dict(runner.unit_restarts)
+                    intermediate_runner.down = runner.down      # the shared browser may still be down
                     intermediate_runner.run(intermediate_cases)
                 environment = dict(driver.environment, python=platform.python_version(), platform=platform.platform())
             finally:
@@ -2656,12 +2857,11 @@ def execute(args, make_driver=node_driver):
                 runner = Runner(None, package, root, out_dir, axes=axes, carry=carry, carry_source=carry_source,
                                 derived=derived, interactions=interactions, recapture=args.recapture_carried,
                                 diff_against=diff_against, measure_a11y=args.measure_a11y)
-                if intermediate_cases:
+                if args.intermediate:
                     intermediate_dir = out_dir / INTERMEDIATE_DIR
                     intermediate_dir.mkdir(parents=True, exist_ok=True)
-                    intermediate_runner = Runner(None, package, root, intermediate_dir, derived=derived,
-                                                 interactions=interactions, intermediate=True)
-                capture_parallel(pool, args.workers, runner, cases, intermediate_runner, intermediate_cases)
+                    intermediate_runner = Runner(None, package, root, intermediate_dir, derived=derived, intermediate=True)
+                intermediate_cases = capture_parallel(pool, args.workers, runner, cases, intermediate_runner)
                 environment = dict(pool.drivers[0].environment, python=platform.python_version(),
                                    platform=platform.platform())
                 workers_used, restarts = len(pool.drivers), pool.restarts
@@ -2695,7 +2895,10 @@ def execute(args, make_driver=node_driver):
                                         or intermediate["findings"])))
     line = {"result": "invalid" if problems and not failed else ("FAIL" if failed else "PASS"),
             "output": output_path.relative_to(root).as_posix(), **summary,
-            "restarts": restarts, "problems": problems[:5], "intermediate": intermediate}
+            "restarts": restarts, "problems": problems[:5], "intermediate": intermediate,
+            "seconds": {"cases": row_seconds(runner.records.values()), "interactions": row_seconds(runner.interaction_records),
+                        "axes": row_seconds(runner.axis_records), "reviewer": row_seconds(runner.reviewer_records),
+                        "intermediate": row_seconds(intermediate_runner.records.values()) if intermediate_runner else 0}}
     if args.measure_a11y:
         line["a11y"] = a11y_line(a11y_object(runner))
     print(json.dumps(line))

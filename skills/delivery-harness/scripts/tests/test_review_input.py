@@ -80,9 +80,15 @@ class ReviewInputTests(unittest.TestCase):
         packet = clone / "review-input"
         self.assertEqual(
             {"HEAD.txt", "BASE.txt", "candidate.diff", "commit-log.txt", "changed-files.txt",
-             "parent-status.txt", "scope-src.diff", "tracked-files.sha256"},
+             "parent-status.txt", "scope-src.diff", "tracked-files.sha256", "packet-files.sha256"},
             {path.name for path in packet.iterdir()},
         )
+        # The listing names every file of the packet except itself, .git included, so removal can tell what it holds.
+        out = clone.parent
+        listed = dict(line.split("  ", 1)[::-1] for line in (packet / "packet-files.sha256").read_text(encoding="utf-8").splitlines())
+        on_disk = {path.relative_to(out).as_posix() for path in out.rglob("*") if path.is_file()}
+        self.assertEqual(on_disk - {"clone/review-input/packet-files.sha256"}, set(listed))
+        self.assertTrue(any(rel.startswith("clone/.git/") for rel in listed))
         self.assertEqual(self.head + "\n", (packet / "HEAD.txt").read_text(encoding="utf-8"))
         self.assertEqual(self.base + "\n", (packet / "BASE.txt").read_text(encoding="utf-8"))
         self.assertEqual(f"{self.head} second\n", (packet / "commit-log.txt").read_text(encoding="utf-8"))

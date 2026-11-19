@@ -7,6 +7,7 @@ The caller supplies an isolated consumer installed from these exact bytes.
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 from html.parser import HTMLParser
 import io
@@ -269,19 +270,98 @@ def run_example(artifact_hash, review, argv, bins, files, package, consumer, tim
     return {"status": "passed", "argv": argv, "exit_code": returncode}
 
 
+def process_rows():
+    """{pid: (parent pid, creation time)} of every Windows process; empty when the list cannot be read."""
+    command = ["powershell", "-NoProfile", "-NonInteractive", "-Command",
+               "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1} {2}' -f $_.ProcessId, $_.ParentProcessId, "
+               "$(if ($_.CreationDate) { $_.CreationDate.ToFileTimeUtc() } else { 0 }) }"]
+    try:
+        out = subprocess.run(command, capture_output=True, text=True, timeout=60, check=False).stdout or ""
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    rows = {}
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) == 3 and all(part.isdigit() for part in parts):
+            rows[int(parts[0])] = (int(parts[1]), int(parts[2]))
+    return rows
+
+
+def descendants_first(rows, root):
+    """``root`` and every process below it, deepest first, from ``process_rows()``.
+
+    Windows keeps a dead parent's id on its children and gives that id to new processes, so `taskkill /T` can reach
+    an unrelated program. Here a process is a child only when it started no earlier than its parent, and a root
+    missing from the list has no known children."""
+    if root not in rows:
+        return [root]
+    order, frontier = [root], [root]
+    while frontier:
+        parent = frontier.pop()
+        born = rows[parent][1]
+        for pid, (ppid, created) in rows.items():
+            if ppid == parent and pid not in order and created >= born:
+                order.append(pid)
+                frontier.append(pid)
+    return order[::-1]
+
+
+PROCESS_TERMINATE, PROCESS_QUERY_LIMITED_INFORMATION, SYNCHRONIZE = 0x0001, 0x1000, 0x00100000
+ERROR_INVALID_PARAMETER, STILL_ACTIVE, WAIT_OBJECT_0, END_WAIT_MS = 87, 259, 0, 5000
+
+
+def windows_kernel32():
+    """kernel32 with the calls ``end_process`` makes, typed. A HANDLE is pointer-sized."""
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle, dword, ok = ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int
+    for name, restype, argtypes in (("OpenProcess", handle, [dword, ok, dword]),
+                                    ("GetProcessTimes", ok, [handle] + [ctypes.POINTER(ctypes.c_uint64)] * 4),
+                                    ("TerminateProcess", ok, [handle, ctypes.c_uint]),
+                                    ("GetExitCodeProcess", ok, [handle, ctypes.POINTER(dword)]),
+                                    ("WaitForSingleObject", dword, [handle, dword]),
+                                    ("CloseHandle", ok, [handle])):
+        function = getattr(kernel32, name)
+        function.restype, function.argtypes = restype, argtypes
+    return kernel32
+
+
+def end_process(pid, created, kernel32):
+    """Terminate ``pid`` only while it is the process ``process_rows()`` listed as created at ``created``.
+    Return whether that process has ended.
+
+    The identity check and the termination use one handle, and Windows gives no process's id to another while a
+    handle to it is open. WMI keeps creation times to the microsecond: 10 FILETIME ticks."""
+    handle = kernel32.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, False, pid)
+    if not handle:
+        return ctypes.get_last_error() == ERROR_INVALID_PARAMETER      # no process has this id any more
+    try:
+        times = [ctypes.c_uint64() for _ in range(4)]
+        if not kernel32.GetProcessTimes(handle, *map(ctypes.pointer, times)):
+            return False
+        if abs(times[0].value - created) > 10:
+            return times[0].value > created         # a later process has the id: the listed one has ended
+        if kernel32.TerminateProcess(handle, 1):        # it starts the end; the wait sees it finish
+            return kernel32.WaitForSingleObject(handle, END_WAIT_MS) == WAIT_OBJECT_0
+        code = ctypes.c_uint32()                    # TerminateProcess refuses a process that has already exited
+        return bool(kernel32.GetExitCodeProcess(handle, ctypes.pointer(code))) and code.value != STILL_ACTIVE
+    finally:
+        kernel32.CloseHandle(handle)
+
+
 def stop_tree(process):
     """Stop a timed-out CLI and every process it started; return whether that is confirmed.
 
-    The root is always killed and waited for, whatever happens to the tree stop.
+    The children end through ``end_process``, deepest first. The root is always killed through its Popen handle and
+    waited for, whatever happens to the tree stop.
     """
     tree_stopped = False
     try:
         try:
             if os.name == "nt":
-                # taskkill walks the tree by parent PID; the root is still alive here, so the walk is complete.
-                tree_stopped = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-                                              timeout=30).returncode == 0
+                # The root is still alive here, so a list that holds it holds its whole tree.
+                rows, kernel32 = process_rows(), windows_kernel32()
+                ended = [end_process(pid, rows[pid][1], kernel32) for pid in descendants_first(rows, process.pid)[:-1]]
+                tree_stopped = process.pid in rows and all(ended)
             else:
                 os.killpg(process.pid, signal.SIGKILL)
                 tree_stopped = True

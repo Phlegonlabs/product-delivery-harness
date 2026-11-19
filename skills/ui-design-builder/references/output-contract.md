@@ -61,6 +61,8 @@ A case's `render fingerprint` is the lowercase SHA-256 over two browser measurem
 
 After a repair, observe again every case whose fingerprint differs from the one recorded under the last PASS receipt. A case with an equal fingerprint may carry forward into the new receipt with its original capture and verdict, whatever its page bytes. The receipt records each carried row's source receipt, source page SHA-256 and fingerprint; the defect ledger names each carried row's source receipt and page SHA-256.
 
+The delivery parity matrix probes every case this way only when the parent cannot name the routes a repair affects. Otherwise it follows the [UI Evidence Gate](../../delivery-harness/references/verification-gates.md#ui-evidence-gate): entries outside the named routes carry without a probe while their own package page and earlier images are unchanged. Neither rule keys a case to the whole package hash, so correcting one page never expires cases on other pages by itself.
+
 A fingerprint shows a case renders as it did when judged. It cannot prove text readability, colour or a layer's usability, so first-wave judgment of those still happens once, on the original capture.
 
 ## Human Review Presentation
@@ -199,7 +201,7 @@ Every `motion` or `image + motion` intent has exactly one row in this Style Inte
 
 ## HiFi Review
 
-`ui-design/3` also records `Intermediate width check`. Its PASS evidence is an ordinary `ui-evidence/3` receipt built by `scripts/review_evidence.py` from an actual `ui-output/3` observation of the Approved target, with the same check, tool/method, sandbox transcript, execution identities and current inputs as the `HiFi surface check`. Only its case matrix differs: each case names an approved web surface and state at a `target` width strictly between two adjacent approved viewports, and every adjacent pair of each web surface is covered. All results must be PASS; a hand-written summary or boolean record is not evidence. These observations add to, and never replace, the checks at every approved width.
+`ui-design/3` also records `Intermediate width check`. Its PASS evidence is an ordinary `ui-evidence/3` receipt built by `scripts/review_evidence.py` from an actual `ui-output/3` observation of the Approved target, with the same check, tool/method, sandbox transcript, execution identities and current inputs as the `HiFi surface check`. Its case matrix differs: each case names an approved web surface and state at a `target` width strictly between two adjacent approved viewports, and every adjacent pair of each web surface is covered. It carries no interaction rows; the `HiFi surface check` receipt holds them. All results must be PASS; a hand-written summary or boolean record is not evidence. These observations add to, and never replace, the checks at every approved width.
 
 When the validated Approved target has no adjacent web viewport widths, record exactly `Intermediate width check: not_applicable — no adjacent approved web viewport widths`. Native and desktop size classes have no web interval; in a mixed package inspect every per-surface target, since any web interval still requires the observed PASS receipt. Missing or invalid scope cannot claim this exception. Ordinary HiFi evidence and all approved size-class checks remain required.
 

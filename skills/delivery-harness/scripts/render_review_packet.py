@@ -20,6 +20,16 @@ from check_launch_packet import (
     check_message,
 )
 
+# Re-check scope in verification-gates.md, as the reviewer reads it.
+RECHECK_NOTE_RULE = (
+    "A defect in content the repair did not change, already present at the"
+    " prior reviewed head, is a non-blocking note for the next round; the"
+    " owner decides on it. Only two kinds of new finding block: a regression"
+    " the repair caused, in changed content or in a consumer of a changed"
+    " source, and a validated high or critical security finding. Report"
+    " notes separately; do not turn them into blocking findings."
+)
+
 
 def validate_artifact_path(path: Path, repo_root: Path) -> None:
     """Review sidecars cannot dirty the reviewed checkout or replace data."""
@@ -153,10 +163,7 @@ def _recheck_lines(
         "Inspect the repair range and the direct consumers of the changed"
         " code. The security lens re-binds to the reviewed head with full"
         " scope.",
-        "An observation outside the prior findings and the repair range is a"
-        " non-blocking note unless it is a validated security finding or a"
-        " correctness defect in the repair range. Report notes separately;"
-        " do not turn them into blocking findings.",
+        RECHECK_NOTE_RULE,
         "Do not reopen design direction, accepted scope, or stack decisions."
         " Do not reset the repair budget.",
         "If you cannot inspect the candidate (checkout or branch mismatch,"
@@ -232,9 +239,7 @@ def _scoped_repair_lines(
         "",
         verdict,
         "Inspect only the repair paths and their direct consumers.",
-        "An observation outside the repair paths and their direct consumers"
-        " is a non-blocking note unless it is a validated security finding;"
-        " report notes separately and do not turn them into blocking findings.",
+        RECHECK_NOTE_RULE,
     ]
     return lines
 

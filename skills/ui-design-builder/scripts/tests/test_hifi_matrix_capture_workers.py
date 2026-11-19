@@ -6,6 +6,7 @@ Fake drivers for the logic, real Chromium for the output. Synthetic fixture page
 from __future__ import annotations
 
 import _thread
+import ctypes
 import io
 import json
 import os
@@ -120,37 +121,70 @@ def drop_clock_and_encoding(value):
 
 
 def process_table():
-    """{pid: parent pid} of every process on the machine."""
+    """{pid: (parent pid, start)} of every process on the machine. POSIX moves an orphan to init, so a parent id
+    there is never stale and every start reads 0."""
     if os.name == "nt":
-        command = ["powershell", "-NoProfile", "-Command",
-                   "Get-CimInstance Win32_Process | ForEach-Object { '{0} {1}' -f $_.ProcessId, $_.ParentProcessId }"]
-    else:
-        command = ["ps", "-e", "-o", "pid=,ppid="]
+        return m.process_rows()
     table = {}
+    command = ["ps", "-e", "-o", "pid=,ppid="]
     for line in subprocess.run(command, capture_output=True, text=True, timeout=120, check=False).stdout.splitlines():
         parts = line.split()
         if len(parts) == 2 and all(part.isdigit() for part in parts):
-            table[int(parts[0])] = int(parts[1])
+            table[int(parts[0])] = (int(parts[1]), 0)
     return table
 
 
 def process_tree(pid):
-    """{pid: parent pid} for a process and everything below it: the Node driver and its Chromium."""
+    """{pid: (parent pid, start)} for a process and everything below it: the Node driver and its Chromium.
+    A process that started before its recorded parent is not below it: Windows reuses a dead parent's id."""
     table = process_table()
-    tree, found = {pid: table.get(pid)}, True
-    while found:
-        found = False
-        for child, parent in table.items():
-            if parent in tree and child not in tree:
-                tree[child] = parent
-                found = True
-    return tree
+    return {child: table.get(child) for child in m.descendants_first(table, pid)}
 
 
 def survivors(trees):
-    """The recorded processes still running: same pid under the same parent, so a reused pid does not count."""
+    """The recorded processes still running: the same pid, parent and start, so a reused pid does not count."""
     table = process_table()
-    return sorted(pid for tree in trees for pid, parent in tree.items() if table.get(pid) == parent and parent is not None)
+    return sorted(pid for tree in trees for pid, row in tree.items() if row is not None and table.get(pid) == row)
+
+
+class FakeKernel32:
+    """The kernel32 calls ``end_process`` makes, over {pid: creation time} of the processes running now. ``exited``
+    have ended but are still held open; ``denied`` refuse to be opened; ``lingering`` are still running when the
+    wait after TerminateProcess ends. No real process is touched."""
+
+    def __init__(self, running, exited=(), denied=(), lingering=()):
+        self.running, self.exited, self.denied, self.lingering = running, set(exited), set(denied), set(lingering)
+        self.access, self.handles, self.terminated, self.closed = None, {}, [], []
+
+    def OpenProcess(self, access, inherit, pid):
+        self.access = access
+        if pid in self.denied or pid not in self.running:
+            ctypes.set_last_error(5 if pid in self.denied else 87)     # ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER
+            return None
+        handle = 0x100 + 4 * len(self.handles)
+        self.handles[handle] = pid
+        return handle
+
+    def GetProcessTimes(self, handle, creation, *others):
+        creation.contents.value = self.running[self.handles[handle]]
+        return 1
+
+    def TerminateProcess(self, handle, code):
+        if self.handles[handle] in self.exited:
+            return 0
+        self.terminated.append(self.handles[handle])
+        return 1
+
+    def GetExitCodeProcess(self, handle, code):
+        code.contents.value = 0 if self.handles[handle] in self.exited else 259
+        return 1
+
+    def WaitForSingleObject(self, handle, milliseconds):
+        return 258 if self.handles[handle] in self.lingering else 0      # WAIT_TIMEOUT, WAIT_OBJECT_0
+
+    def CloseHandle(self, handle):
+        self.closed.append(handle)
+        return 1
 
 
 class ScriptedProcess:
@@ -286,6 +320,71 @@ class InterruptDuringCreationTests(unittest.TestCase):
         self.assertGreaterEqual(drivers[0].stops, 2)
 
 
+class ProcessTreeTests(unittest.TestCase):
+    # {pid: (parent pid, creation time)}. 35976 is the driver. 30244, started long before it, still names a dead
+    # process whose id 35976 was later reused, as Windows keeps a dead parent's id on its children.
+    ROWS = {35976: (1000, 500), 40000: (35976, 510), 40001: (40000, 520), 30244: (35976, 100), 29824: (30244, 101)}
+
+    def test_a_reused_parent_id_never_reaches_an_older_program(self):
+        self.assertEqual([40001, 40000, 35976], m.descendants_first(self.ROWS, 35976))
+
+    def test_a_root_missing_from_the_list_has_no_known_children(self):
+        rows = {pid: row for pid, row in self.ROWS.items() if pid != 35976}
+        self.assertEqual([35976], m.descendants_first(rows, 35976))
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_the_listed_process_is_terminated_through_the_handle_that_checked_it(self):
+        kernel32 = FakeKernel32({40000: 519})           # WMI drops the last digit of the 100 ns creation time
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual([40000], kernel32.terminated)
+        self.assertEqual(list(kernel32.handles), kernel32.closed)
+        self.assertEqual(0x0001 | 0x1000 | 0x00100000, kernel32.access)    # terminate, query, wait for the end
+        lingering = FakeKernel32({40000: 519}, lingering={40000})
+        self.assertFalse(m.end_process(40000, 510, lingering))      # asked to end, still running after the wait
+        self.assertEqual(list(lingering.handles), lingering.closed)
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_an_id_that_now_names_a_later_process_is_left_alone_and_counts_as_ended(self):
+        kernel32 = FakeKernel32({40000: 521})
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual([], kernel32.terminated)
+        self.assertEqual(list(kernel32.handles), kernel32.closed)
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_an_id_no_process_holds_counts_as_ended(self):
+        kernel32 = FakeKernel32({})
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual(([], []), (kernel32.terminated, kernel32.closed))
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_a_process_that_exited_while_held_open_counts_as_ended(self):
+        kernel32 = FakeKernel32({40000: 510}, exited={40000})
+        self.assertTrue(m.end_process(40000, 510, kernel32))
+        self.assertEqual(list(kernel32.handles), kernel32.closed)
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_a_process_that_cannot_be_verified_is_neither_terminated_nor_counted_as_ended(self):
+        for kernel32 in (FakeKernel32({40000: 510}, denied={40000}), FakeKernel32({40000: 400})):
+            with self.subTest(access_denied=bool(kernel32.denied)):
+                self.assertFalse(m.end_process(40000, 510, kernel32))
+                self.assertEqual([], kernel32.terminated)
+                self.assertEqual(list(kernel32.handles), kernel32.closed)
+
+    @unittest.skipUnless(os.name == "nt", "the process list and kernel32 are the Windows path")
+    def test_kill_tree_ends_the_listed_children_and_the_root_only_through_popen(self):
+        running = {pid: created for pid, (_, created) in self.ROWS.items()}
+        for rows, ended in ((self.ROWS, [40001, 40000]), ({}, [])):     # no list: only the process we spawned
+            with self.subTest(listed=bool(rows)):
+                proc, kernel32 = mock.Mock(pid=35976), FakeKernel32(running)
+                with mock.patch.object(m.subprocess, "run", side_effect=AssertionError("no command stops a process")), \
+                        mock.patch.object(m, "windows_kernel32", return_value=kernel32), \
+                        mock.patch.object(m, "process_rows", return_value=rows):
+                    m.kill_tree(proc)
+                self.assertEqual(ended, kernel32.terminated)
+                proc.kill.assert_called_once_with()
+                proc.wait.assert_called_once_with(timeout=10)
+
+
 class PartitionTests(unittest.TestCase):
     def test_every_item_lands_in_one_share_in_order_and_the_split_never_changes(self):
         items = [(index, 1 + index % 3) for index in range(40)]
@@ -359,7 +458,7 @@ class FakeWorkersTests(unittest.TestCase):
         fleet = Fleet(self)
         with mock.patch.object(m, "MAX_WORKERS", 50):      # the plain limit is checked on its own below
             code, summary, out = fleet.go("--only", "UI-001", "--workers", "50")
-        items = 6 + 4 + 2    # UI-001's cases and interaction attempts, then the reviewer pass of both pages
+        items = 6 + 1 + 2    # UI-001's cases, its one interaction (four attempts), then the reviewer pass of both pages
         self.assertEqual(0, code, summary)
         self.assertEqual(items, len(fleet.drivers))
         self.assertEqual(items, load(out)[1]["run"]["workers"])
@@ -574,7 +673,7 @@ class RealBrowserWorkersTests(unittest.TestCase):
             self.assertEqual("PASS", base.build_receipt(root, f"docs/evidence/second/{m.OUTPUT_NAME}")["result"])
             inter, inter_sidecar = load(second / m.INTERMEDIATE_DIR)
             self.assertEqual({"PASS"}, {r["result"] for r in inter["results"]})
-            self.assertEqual(8, len(inter_sidecar["interactions"]))
+            self.assertEqual([], inter_sidecar["interactions"])
             self.assertEqual("PASS", base.build_receipt(
                 root, f"docs/evidence/second/{m.INTERMEDIATE_DIR}/{m.OUTPUT_NAME}")["result"])
 

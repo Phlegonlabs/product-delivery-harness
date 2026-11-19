@@ -44,7 +44,7 @@ class ReviewMatrixDocsTests(unittest.TestCase):
             "one verdict per ledger row",
             "a render fingerprint does not see behaviour",
             "starts no fresh critique or audit of unchanged pages",
-            "late finding for the owner's follow-up list",
+            "late finding: a note for the owner's follow-up list",
             "[Render fingerprint carry-forward]",
             "[Diff-first re-review]",
         ):
@@ -103,6 +103,56 @@ class ReviewMatrixDocsTests(unittest.TestCase):
         self.assertIn("nobody captures those bytes again", evidence)
         self.assertIn("A candidate gets one full matrix capture", read("references/review-workflow.md"))
         self.assertIn("one repair batch of the kit and composition approach", read("references/review-workflow.md"))
+
+    def test_wave_is_two_reviewers_and_never_split_for_size_or_time(self):
+        rubric = read(RUBRIC)
+        capability = section(rubric, "## Capability And Authorization")
+        self.assertIn("the wave is exactly two fresh reviewers, whatever the package size", capability)
+        self.assertIn("never splits the wave into page-group calls and never adds a grader", capability)
+        self.assertIn("a reviewer who needs longer gets a longer deadline", capability)
+        self.assertIn("Unless agent policy sets another topology", rubric)     # AGENTS.md: agent policy owns topology
+        self.assertNotIn("smaller scoped calls", rubric)
+        self.assertIn("the same reviewer finishes it with a longer deadline", section(rubric, "## Reporting And Reconciliation"))
+        self.assertNotIn("page group", read("references/stages/ui-design.md"))
+
+    def test_inspection_set_is_the_reviewers_complete_visual_coverage(self):
+        rubric = read(RUBRIC)
+        procedure = rubric.split("### Browser Inspection Procedure", 1)[1].split("\n### ", 1)[0]
+        for phrase in (
+            "checks every capture by machine: the DOM geometry scan, console errors and the `--measure-a11y` measurements",
+            "- each page at its smallest approved target, in its default state;",
+            "- every case those machine results flag; and",
+            "- the stress-axis sample of [First-Wave Audit Axes](#first-wave-audit-axes).",
+            "it does not open every capture",
+            "Skipping any case of the set is not coverage",
+            "MISSING/BLOCKED, never PASS",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, procedure)
+        self.assertNotIn("Render every required base-matrix case", rubric)
+        self.assertNotIn("in the retained all-screens HTML", rubric)
+        self.assertEqual(1, rubric.count("MISSING/BLOCKED"))
+        for dimension in ("- `H2 Layout safety`:", "- `H4 Responsive and edge states`:"):
+            line = rubric.split(dimension, 1)[1].split("\n", 1)[0]
+            with self.subTest(dimension=dimension):
+                self.assertIn("(#browser-inspection-procedure)", line)
+        evidence = read("references/review-evidence.md")
+        self.assertNotIn("inspect every case", evidence)
+        self.assertIn("ui-grading-rubric.md#browser-inspection-procedure", evidence)
+
+    def test_late_finding_in_unchanged_content_is_a_note_not_a_blocker(self):
+        rubric = read(RUBRIC)
+        scope = section(rubric, "## Repair Re-review Scope")
+        self.assertIn("judges only the ledger rows and the content the repair changed, with its direct consumers", scope)
+        self.assertIn("unchanged content that was already in the last reviewed capture is a late finding", scope)
+        self.assertIn("It lowers no score, never blocks this cycle and never joins the fix exchange", scope)
+        self.assertIn("(../../delivery-harness/references/verification-gates.md#review-topology)", scope)
+        self.assertIn("blocks only when the repair caused it", scope)
+        self.assertNotIn("joins the fix exchange only when", rubric)
+        self.assertNotIn("high or critical", rubric)
+        budget = section(rubric, "## Review Budget")
+        self.assertIn("leaves a ledger row open or finds a new block", budget)
+        self.assertIn("every late finding go to the owner's follow-up list", budget)
 
 
 if __name__ == "__main__":

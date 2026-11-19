@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import stat
+import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -30,8 +31,10 @@ from review_evidence import (
     author_usage_findings,
     execution_findings,
     line_ending_note,
+    read_identity,
     score_findings,
 )
+from design_workflow import git
 from reviewer_shell import product_css_findings
 from hifi_reviewer import ReviewerParser, _is_na_state, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
@@ -900,7 +903,7 @@ def _intermediate_width_evidence(value: str | None, scope: dict[str, Any] | None
         return
     before = len(problems)
     _resolve_evidence(value, repo_root=repo_root, label="Intermediate width check", problems=problems,
-                      require_machine=True, validate_reviewer=False, **evidence)
+                      require_machine=True, intermediate=True, **evidence)
     parsed = EVIDENCE_RE.fullmatch((value or "").strip())
     if len(problems) != before or parsed is None:
         return
@@ -2107,7 +2110,7 @@ def _resolve_evidence(
     alternate_matrix: dict[str, list[str]] | None = None,
     recorded_scores: dict[str, int | None] | None = None,
     required_inputs: list[dict[str, str]] | None = None,
-    validate_reviewer: bool = True,
+    intermediate: bool = False,
 ) -> None:
     parsed = _pass_evidence(value, label, problems)
     if parsed is None:
@@ -2318,12 +2321,16 @@ def _resolve_evidence(
                             elif offline:
                                 findings = (
                                     _motion_transcript_findings(output_json, local_pages) if expected_motion is not None
-                                    else _bundle_transcript_findings(output_json, bundle) if bundle is not None
+                                    # The intermediate sweep observes widths only; the base receipt holds the
+                                    # interaction rows. A receipt from an earlier driver still has all of them.
+                                    else _bundle_transcript_findings(output_json, dict(bundle, interactions=[])
+                                                                     if intermediate and not output_json.get("interactions")
+                                                                     else bundle) if bundle is not None
                                     else _offline_transcript_findings(output_json)
                                 )
                                 for finding in findings:
                                     _add(problems, finding)
-                                if review_contract is not None and validate_reviewer:
+                                if review_contract is not None and not intermediate:
                                     for finding in reviewer_evidence_findings(output_json.get("reviewer"), review_contract):
                                         _add(problems, finding)
                             if machine and isinstance(output_json, dict):
@@ -2386,6 +2393,55 @@ def _receipt_instant(value: str | None, repo_root: Path) -> datetime | None:
     if executed.tzinfo is None:
         return None
     return executed.astimezone(timezone.utc)
+
+
+def _require_indexed_captures(root: Path, receipt_values: list[str | None], problems: list[str]) -> None:
+    """Every capture the approved receipts cite must be in the Git index.
+
+    Capture images are git-ignored, so a forgotten one stays on disk here and
+    fails only in a later checkout. Outside a Git work tree, such as the
+    Harness PLAN check's copied tree, there is no index and nothing to compare.
+    """
+
+    cited: set[str] = set()
+    for value in receipt_values:
+        match = EVIDENCE_RE.fullmatch((value or "").strip())
+        if match is None:
+            continue
+        try:
+            evidence = json.loads(read_identity(root, {"path": match.group("path"), "sha256": match.group("sha256")}))
+            output = json.loads(read_identity(root, evidence["receipt"]["outputArtifact"]))
+            bindings = list(output["execution"]["artifacts"])
+            for row in (output.get("assessment") or {}).get("observations", []):
+                bindings.extend(row["evidence"])
+        except (AttributeError, OSError, ValueError, TypeError, KeyError):
+            continue  # the receipt checks report an unreadable or stale receipt
+        cited.update(binding["path"] for binding in bindings
+                     if isinstance(binding, dict) and isinstance(binding.get("path"), str))
+    if not cited or not any((folder / ".git").exists() for folder in (root.resolve(), *root.resolve().parents)):
+        return
+    try:
+        indexed = set(git(root, "ls-files", "--cached", "-z").split("\0"))
+    except (OSError, ValueError, subprocess.TimeoutExpired) as error:
+        _add(problems, "Visual Approval receipts cite captures, but this Git checkout's index could not be read "
+             f"({str(error).strip()[:200] or type(error).__name__}); fix Git access and rerun the check")
+        return
+    missing = sorted(cited - indexed)
+    if missing:
+        _add(problems, "Visual Approval receipts cite files that are not in the Git index, so later "
+             "checkouts cannot re-read them; " + _force_add_instruction(missing))
+
+
+FORCE_ADD_INLINE_LIMIT = 40   # beyond this a single command line can exceed the Windows length limit
+
+
+def _force_add_instruction(paths: list[str]) -> str:
+    """How to add ignored files: one quoted command, or a path list for --pathspec-from-file."""
+
+    if len(paths) <= FORCE_ADD_INLINE_LIMIT and not any("'" in path for path in paths):    # quoting both shells read
+        return "add them: git add -f -- " + " ".join("'" + path.replace("'", "'\\''") + "'" for path in paths)
+    return (f"add these {len(paths)} paths with git add -f --pathspec-from-file=<file>, "
+            "where <file> holds one path per line:\n" + "\n".join(paths))
 
 
 def _evidence_check(label: str, capture_mode: str | None) -> str | None:
@@ -3586,6 +3642,7 @@ def _validate_impl(
             *([_field(review_section, "Intermediate width check")] if version == UI_CONTRACT_V3 else []),
             *(f"PASS — evidence={item['path']} @ sha256:{item['sha256']}" for item in motion_effect_evidence.values()),
         ]
+        _require_indexed_captures(root, receipt_values, problems)
         receipt_dates = [
             receipt_date
             for value in receipt_values

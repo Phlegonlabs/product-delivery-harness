@@ -35,7 +35,7 @@ A git failure in your sandbox is expected. The clean-checkout proof is a `tracke
 - Prior notes (no verdict needed): <note | none>
 - Repair range: <prior head>..<head SHA>
 
-Give each prior finding a verdict: resolved, unresolved or superseded. Inspect the repair range and its direct consumers; anything else is a note unless it is a validated security finding or a correctness defect inside the range.
+Give each prior finding a verdict: resolved, unresolved or superseded. Judge only the repair range and its direct consumers, and classify anything else under Re-check scope in `delivery-harness/references/verification-gates.md`.
 
 ## Route Caps
 

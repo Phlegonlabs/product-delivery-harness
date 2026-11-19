@@ -28,6 +28,23 @@ def _git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
+def assert_recheck_note_rule(case: unittest.TestCase, packet: str) -> None:
+    """A pre-existing defect in unchanged content is a note; two kinds block."""
+
+    case.assertIn(
+        "A defect in content the repair did not change, already present at"
+        " the prior reviewed head, is a non-blocking note for the next round",
+        packet,
+    )
+    case.assertIn(
+        "a regression the repair caused, in changed content or in a consumer"
+        " of a changed source",
+        packet,
+    )
+    case.assertIn("a validated high or critical security finding", packet)
+    case.assertNotIn("unless it is a validated security finding", packet)
+
+
 def _contract(packet: str) -> dict:
     block = packet.split("## Contract", 1)[1].split("```json", 1)[1]
     return json.loads(block.split("```", 1)[0])
@@ -136,6 +153,7 @@ class RecheckPacketTests(unittest.TestCase):
         )
         self.assertIn("Do not reset the repair budget.", packet)
         self.assertIn("environment blocker with evidence", packet)
+        assert_recheck_note_rule(self, packet)
         recheck = contract["recheck"]
         self.assertEqual(self.prior, recheck["prior_reviewed_sha"])
         self.assertEqual("RW-1", recheck["prior_worker_id"])

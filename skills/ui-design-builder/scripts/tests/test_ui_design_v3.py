@@ -30,8 +30,9 @@ def _study_html(title):
 def intermediate_receipt(root, text, targets, *, results=None):
     """Synthetic ui-output/3 HiFi browser observation at in-between widths.
 
-    It copies the fixture's HiFi surface observation and changes only its case
-    matrix; it is validator input, not an actual browser run.
+    It copies the fixture's HiFi surface observation and changes its case matrix.
+    The interaction and navigation rows belong to the surface observation, so the
+    sweep has none. It is validator input, not an actual browser run.
     """
     surface = re.search(r"^HiFi surface check: PASS — evidence=(\S+) @", text, re.M).group(1)
     source = json.loads((root / surface).read_text(encoding="utf-8"))
@@ -40,6 +41,7 @@ def intermediate_receipt(root, text, targets, *, results=None):
     cases = [{"surface": "UI-001", "state": state, "target": target} for target in targets for state in states]
     output["matrix"] = {"cases": cases}
     output["results"] = results or [dict(case, result="PASS") for case in cases]
+    output["interactions"], output["navigation"] = [], []
     out_path = root / "docs/evidence/hifi-intermediate-widths-output.json"
     out_path.write_text(json.dumps(output), encoding="utf-8")
     receipt = root / "docs/evidence/hifi-intermediate-widths.json"

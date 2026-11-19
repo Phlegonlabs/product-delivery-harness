@@ -6,6 +6,7 @@ python skills/delivery-harness/scripts/tests/test_npm_readme_artifact.py --archi
 from __future__ import annotations
 
 import argparse
+import ctypes
 import hashlib
 import importlib.util
 import io
@@ -48,6 +49,46 @@ def review_for(artifact, argv=None, stdout="Hello, fixture!\n"):
     return {"artifact_sha256": hashlib.sha256(artifact.read_bytes()).hexdigest(),
             "argv": argv or [NAME, "hello", "input.txt"], "stdout": stdout,
             "offline_code_reviewed": True}
+
+
+class FakeKernel32:
+    """The kernel32 calls ``end_process`` makes, over {pid: creation time} of the processes running now. ``exited``
+    have ended but are still held open; ``denied`` refuse to be opened; ``lingering`` are still running when the
+    wait after TerminateProcess ends. No real process is touched."""
+
+    def __init__(self, running, exited=(), denied=(), lingering=()):
+        self.running, self.exited, self.denied, self.lingering = running, set(exited), set(denied), set(lingering)
+        self.access, self.handles, self.terminated, self.closed = None, {}, [], []
+
+    def OpenProcess(self, access, inherit, pid):
+        self.access = access
+        if pid in self.denied or pid not in self.running:
+            ctypes.set_last_error(5 if pid in self.denied else 87)     # ERROR_ACCESS_DENIED, ERROR_INVALID_PARAMETER
+            return None
+        handle = 0x100 + 4 * len(self.handles)
+        self.handles[handle] = pid
+        return handle
+
+    def GetProcessTimes(self, handle, creation, *others):
+        creation.contents.value = self.running[self.handles[handle]]
+        return 1
+
+    def TerminateProcess(self, handle, code):
+        if self.handles[handle] in self.exited:
+            return 0
+        self.terminated.append(self.handles[handle])
+        return 1
+
+    def GetExitCodeProcess(self, handle, code):
+        code.contents.value = 0 if self.handles[handle] in self.exited else 259
+        return 1
+
+    def WaitForSingleObject(self, handle, milliseconds):
+        return 258 if self.handles[handle] in self.lingering else 0      # WAIT_TIMEOUT, WAIT_OBJECT_0
+
+    def CloseHandle(self, handle):
+        self.closed.append(handle)
+        return 1
 
 
 class NpmReadmeArtifactTests(unittest.TestCase):
@@ -312,6 +353,63 @@ class NpmReadmeArtifactTests(unittest.TestCase):
                 patch.object(CHECK.os, "killpg", side_effect=OSError("no group"), create=True):
             self.assertFalse(CHECK.stop_tree(process))
         process.wait.assert_called_once_with(timeout=30)
+
+    def test_tree_walk_never_follows_a_reused_parent_id(self):
+        # 30244 started before the CLI it names as parent: that id belonged to a dead process and was reused.
+        rows = {123456: (1, 500), 123457: (123456, 510), 30244: (123456, 100)}
+        self.assertEqual([123457, 123456], CHECK.descendants_first(rows, 123456))
+        self.assertEqual([123456], CHECK.descendants_first({30244: (123456, 100)}, 123456))
+
+    @unittest.skipUnless(os.name == "nt", "kernel32 is the Windows path")
+    def test_only_the_listed_process_is_terminated_and_through_the_handle_that_checked_it(self):
+        # The list saw 123457 created at 510. (running now, exited but held open, refusing access) -> (ended, terminated)
+        cases = {"the listed process": (({123457: 519}, (), ()), (True, [123457])),     # WMI drops the last digit
+                 "a later process has the id": (({123457: 521}, (), ()), (True, [])),
+                 "no process has the id": (({}, (), ()), (True, [])),
+                 "exited, still held open": (({123457: 510}, {123457}, ()), (True, [])),
+                 "an earlier process has the id": (({123457: 400}, (), ()), (False, [])),
+                 "access denied": (({123457: 510}, (), {123457}), (False, [])),
+                 "asked to end, still running after the wait": (({123457: 510}, (), (), {123457}), (False, [123457]))}
+        for name, (state, (ended, terminated)) in cases.items():
+            with self.subTest(name):
+                kernel32 = FakeKernel32(*state)
+                self.assertEqual(ended, CHECK.end_process(123457, 510, kernel32))
+                self.assertEqual(terminated, kernel32.terminated)
+                self.assertEqual(list(kernel32.handles), kernel32.closed)
+                self.assertEqual(0x0001 | 0x1000 | 0x00100000, kernel32.access)    # terminate, query, wait for the end
+
+    @unittest.skipUnless(os.name == "nt", "the process list and kernel32 are the Windows path")
+    def test_tree_stop_ends_each_listed_child_through_its_handle_and_the_root_through_popen(self):
+        # 123458 ended after the list was read. 30244 started before the CLI it names as parent.
+        rows = {123456: (1, 500), 123457: (123456, 510), 123458: (123457, 520), 30244: (123456, 100)}
+        for denied, confirmed in (((), True), ({123457}, False)):
+            with self.subTest(denied=denied):
+                process = unittest.mock.Mock(pid=123456)
+                process.poll.return_value = None
+                kernel32 = FakeKernel32({123456: 500, 123457: 510, 30244: 100}, denied=denied)
+                with patch.object(CHECK.subprocess, "run", side_effect=AssertionError("no command stops a process")), \
+                        patch.object(CHECK, "windows_kernel32", return_value=kernel32), \
+                        patch.object(CHECK, "process_rows", return_value=rows):
+                    self.assertEqual(confirmed, CHECK.stop_tree(process))
+                self.assertEqual([] if denied else [123457], kernel32.terminated)
+                process.kill.assert_called_once_with()
+                process.wait.assert_called_once_with(timeout=30)
+
+    @unittest.skipUnless(os.name == "nt", "the process list and kernel32 are the Windows path")
+    def test_tree_stop_is_unconfirmed_when_the_root_is_not_in_the_list(self):
+        # Without the root its children are unknown, so a child it started may still run.
+        for rows in ({123457: (123456, 510), 30244: (1, 100)}, {}):
+            with self.subTest(listed=sorted(rows)):
+                process = unittest.mock.Mock(pid=123456)
+                process.poll.return_value = None
+                kernel32 = FakeKernel32({123456: 500, 123457: 510, 30244: 100})
+                with patch.object(CHECK.subprocess, "run", side_effect=AssertionError("no command stops a process")), \
+                        patch.object(CHECK, "windows_kernel32", return_value=kernel32), \
+                        patch.object(CHECK, "process_rows", return_value=rows):
+                    self.assertFalse(CHECK.stop_tree(process))
+                self.assertEqual([], kernel32.terminated)
+                process.kill.assert_called_once_with()          # the root still ends through its Popen handle
+                process.wait.assert_called_once_with(timeout=30)
 
     def test_cli_cannot_write_into_the_consumer(self):
         self.files["bin/cli.cjs"] = b"require('node:fs').writeFileSync('marker', 'unexpected');"

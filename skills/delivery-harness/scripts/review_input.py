@@ -10,6 +10,14 @@ parent-status.txt and HEAD.txt instead of running git. parent-status.txt warns
 when the parent's info/attributes holds rules, since the clone does not get them.
 
 --scope name=pathspec[,pathspec...] limits one diff to those git pathspecs.
+
+--remove <packet dir> deletes a packet this script built (the --out directory)
+once its review point passed or a newer packet superseded it. It refuses a path
+that is or passes through a link or junction, a packet holding one or the
+current directory, a Git work tree root, and any directory that is not what
+the build makes: only clone/, a Git checkout detached at the SHA in
+clone/review-input/HEAD.txt, with BASE.txt holding one SHA and
+tracked-files.sha256 holding "<sha256>  <relative path>" lines.
 Exit 0 on success, 2 on any failure.
 """
 
@@ -20,14 +28,22 @@ import hashlib
 import json
 import os
 import re
+import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
 
-from harness_git import GitMetadataError, run_git
+from harness_git import GitMetadataError, git_argv, git_environment, run_git
 
 SCOPE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DIFF_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
+PACKET_MARKERS = ("HEAD.txt", "BASE.txt", "tracked-files.sha256")
+# Written last by the build: every file of the packet, .git and review-input included, with its SHA-256.
+PACKET_LISTING = "packet-files.sha256"
+FULL_SHA = re.compile(rb"(?:[0-9a-f]{40}|[0-9a-f]{64})\n")
+# "<sha256>  <relative path>", as build() writes tracked-files.sha256.
+MANIFEST_LINE = re.compile(rb"[0-9a-f]{64}  (?!/|[A-Za-z]:/)([^\r]+)")
 
 
 class ReviewInputError(Exception):
@@ -126,6 +142,7 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
         scope_lines[name] = data.count(b"\n")
     files = manifest(clone)
     put("tracked-files.sha256", "".join(f"{digest}  {rel}\n" for rel, digest in files))
+    put(PACKET_LISTING, "".join(f"{digest}  {rel}\n" for rel, digest in sorted(packet_listing(out).items())))
     return {
         "clone": clone.as_posix(),
         "head": head,
@@ -133,6 +150,126 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
         "candidate_diff_lines": candidate.count(b"\n"),
         "scope_diff_lines": scope_lines,
     }
+
+
+def packet_listing(packet: Path) -> dict[str, str]:
+    """{path relative to the packet: SHA-256} for every file under it except the listing itself. A link counts as
+    its target text, as in manifest()."""
+    listing = {}
+    for root, _, files in os.walk(packet):
+        for name in files:
+            path = Path(root, name)
+            rel = path.relative_to(packet).as_posix()
+            if rel != f"clone/review-input/{PACKET_LISTING}":
+                data = os.readlink(path).encode() if path.is_symlink() else path.read_bytes()
+                listing[rel] = hashlib.sha256(data).hexdigest()
+    return listing
+
+
+def is_link(info: os.stat_result) -> bool:
+    """True for a symlink and, on Windows, for any reparse point such as a junction."""
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
+def first_bad_manifest_line(data: bytes) -> int:
+    """Number of the first line that is not "<sha256>  <relative path>" and a newline, else 0."""
+    lines = data.split(b"\n")
+    unterminated = lines.pop()
+    for number, line in enumerate(lines, 1):
+        match = MANIFEST_LINE.fullmatch(line)
+        if not match or b".." in match.group(1).split(b"/"):
+            return number
+    return len(lines) + 1 if unterminated else 0
+
+
+def remove(packet: Path) -> dict:
+    def refuse(reason: str) -> ReviewInputError:
+        return ReviewInputError(f"not a review packet: {reason}")
+
+    given = Path(os.path.abspath(packet))
+    packet = given.resolve()
+    if os.path.normcase(given) != os.path.normcase(packet) or any(
+        os.path.lexists(part) and is_link(os.lstat(part)) for part in (given, *given.parents)
+    ):
+        raise refuse(f"{given} is or passes through a link or junction")
+    if not packet.is_dir():
+        raise refuse(f"{packet} does not exist or is not a directory")
+    cwd = Path.cwd().resolve()
+    if cwd == packet or packet in cwd.parents:
+        raise refuse(f"{packet} holds the current working directory")
+    clone = packet / "clone"
+    for name in PACKET_MARKERS:
+        if not (clone / "review-input" / name).is_file():
+            raise refuse(f"clone/review-input/{name} is missing in {packet}")
+    others = sorted(entry.name for entry in packet.iterdir() if entry.name != "clone")
+    if others:
+        raise refuse(f"{packet} also holds {', '.join(others)}")
+    pending = [packet]
+    while pending:
+        with os.scandir(pending.pop()) as entries:
+            for entry in entries:
+                info = entry.stat(follow_symlinks=False)
+                if is_link(info):
+                    inside = Path(entry.path).relative_to(packet).as_posix()
+                    raise refuse(f"{inside} in {packet} is a link or junction")
+                if stat.S_ISDIR(info.st_mode):
+                    pending.append(entry.path)
+
+    markers = {name: (clone / "review-input" / name).read_bytes() for name in PACKET_MARKERS}
+    for name in ("HEAD.txt", "BASE.txt"):
+        if not FULL_SHA.fullmatch(markers[name]):
+            raise refuse(f"clone/review-input/{name} in {packet} does not hold one full SHA")
+    bad_line = first_bad_manifest_line(markers["tracked-files.sha256"])
+    if bad_line:
+        raise refuse(f"clone/review-input/tracked-files.sha256 in {packet} line {bad_line} "
+                     "is not '<sha256>  <relative path>'")
+    if not (clone / ".git").is_dir():
+        raise refuse(f"clone/.git is missing in {packet}, so clone/ is not a Git checkout")
+    # One call: top level, HEAD commit, then "HEAD" when detached or the branch ref.
+    found = run_git(clone, "rev-parse", "--show-toplevel", "HEAD", "--symbolic-full-name", "HEAD", timeout=30)
+    lines = found.stdout.splitlines() if found.returncode == 0 else []
+    if len(lines) != 3 or Path(lines[0]).resolve() != clone:
+        raise refuse(f"clone/ in {packet} is not a Git checkout of its own")
+    head = markers["HEAD.txt"].decode("ascii").strip()
+    if lines[1:] != [head, "HEAD"]:
+        raise refuse(f"clone/ in {packet} is at {lines[1]} ({lines[2]}), "
+                     f"not detached at {head} as clone/review-input/HEAD.txt says")
+    # A packet may sit inside another work tree, but Git must not treat the packet itself as one
+    # (an outer repository's core.worktree can). Plain discovery: no repository-config preflight.
+    outer = subprocess.run(
+        git_argv("rev-parse", "--show-toplevel"), cwd=packet, env=git_environment(), capture_output=True,
+        text=True, encoding="utf-8", errors="surrogateescape", timeout=30, check=False,
+    )
+    if outer.returncode == 0 and Path(outer.stdout.strip()).resolve() == packet:
+        raise refuse(f"{packet} is a Git work tree root")
+    # Provenance: the build listed every file it wrote, .git and review-input included. Anything added, removed
+    # or changed since, such as a file someone saved anywhere in the packet, keeps the packet.
+    listing = clone / "review-input" / PACKET_LISTING
+    if not listing.is_file():
+        raise refuse(f"{packet} has no clone/review-input/{PACKET_LISTING}: an earlier build made it, so nothing "
+                     "proves what it holds; check it and delete it by hand")
+    data = listing.read_bytes()
+    if first_bad_manifest_line(data):
+        raise refuse(f"clone/review-input/{PACKET_LISTING} in {packet} line {first_bad_manifest_line(data)} "
+                     "is not '<sha256>  <relative path>'")
+    recorded = dict(line.split("  ", 1)[::-1] for line in data.decode("utf-8").splitlines())
+    current = packet_listing(packet)
+    changed = sorted(set(current) ^ set(recorded) | {rel for rel in current.keys() & recorded.keys()
+                                                     if current[rel] != recorded[rel]})
+    if changed:
+        raise refuse(f"{packet} changed since it was built: {changed[0]}"
+                     + (f" and {len(changed) - 1} more" if len(changed) > 1 else ""))
+
+    def clear_read_only(function, path, _error) -> None:
+        # Git object files are read-only; on Windows that blocks unlink.
+        os.chmod(path, stat.S_IWRITE)
+        function(path)
+
+    if sys.version_info >= (3, 12):
+        shutil.rmtree(packet, onexc=clear_read_only)
+    else:
+        shutil.rmtree(packet, onerror=clear_read_only)
+    return {"removed": packet.as_posix()}
 
 
 def scope_arg(value: str) -> tuple[str, list[str]]:
@@ -145,14 +282,23 @@ def scope_arg(value: str) -> tuple[str, list[str]]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--repo", type=Path, required=True, help="candidate checkout, HEAD at --head")
-    parser.add_argument("--base", required=True, help="base revision of the reviewed range")
-    parser.add_argument("--head", required=True, help="candidate revision")
-    parser.add_argument("--out", type=Path, required=True, help="new directory; must not exist")
+    parser.add_argument("--repo", type=Path, help="candidate checkout, HEAD at --head")
+    parser.add_argument("--base", help="base revision of the reviewed range")
+    parser.add_argument("--head", help="candidate revision")
+    parser.add_argument("--out", type=Path, help="new directory; must not exist")
     parser.add_argument("--scope", type=scope_arg, action="append", default=[], metavar="NAME=PATHSPEC[,...]")
+    parser.add_argument("--remove", type=Path, metavar="PACKET", help="delete a packet built by this script")
     args = parser.parse_args(argv)
+    build_args = (args.repo, args.base, args.head, args.out)
+    if args.remove is not None and (args.scope or any(value is not None for value in build_args)):
+        parser.error("--remove takes no other option")
+    if args.remove is None and None in build_args:
+        parser.error("--repo, --base, --head and --out are required to build a packet")
     try:
-        summary = build(args.repo, args.base, args.head, args.out, args.scope)
+        if args.remove is not None:
+            summary = remove(args.remove)
+        else:
+            summary = build(args.repo, args.base, args.head, args.out, args.scope)
     except (ReviewInputError, GitMetadataError, OSError, subprocess.SubprocessError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
