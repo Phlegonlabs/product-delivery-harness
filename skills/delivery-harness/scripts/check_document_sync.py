@@ -30,7 +30,9 @@ DEFAULT_PATHS = (
     "docs/DEPLOYMENT.md", "docs/goal/PLAN.md",
     "docs/goal/RUN.md",
 )
-OPTIONAL_HANDOFFS = ("docs/product/keyword-map.md", "docs/gtm/MESSAGING.md")
+OPTIONAL_HANDOFFS = ("docs/product/keyword-map.md", "docs/gtm/MESSAGING.md",
+                     "docs/product/research-assessment.md", "docs/gtm/CAMPAIGN.md")
+DISCOVERY_STUDY = re.compile(r"docs/research/discovery/\d{4}-\d{2}-\d{2}/DISCOVERY\.md\Z")
 DIGEST = re.compile(r"[0-9a-f]{64}\Z")
 SESSION_MARKER = re.compile(r"[A-Za-z0-9._-]{1,128}:[0-9a-f]{64}\Z")
 # Skills that install.sh retires; keep the two lists in step.
@@ -157,6 +159,10 @@ def impact_for(name, reason):
         checks = ["cluster IDs and mapped destinations", "page titles and descriptions or listing fields by locale"]
     elif name == "docs/gtm/MESSAGING.md":
         artifacts, stages, checks = ["public claims", "README and listing copy"], ["go-to-market", "readme-studio", "growth"], ["approved claims and per-surface one-liners"]
+    elif name == "docs/product/research-assessment.md" or DISCOVERY_STUDY.fullmatch(name):
+        artifacts, stages, checks = ["research findings", "approved public claims", "campaign drafts"], ["product", "go-to-market"], ["cited research and confidence after withdrawal"]
+    elif name == "docs/gtm/CAMPAIGN.md":
+        artifacts, stages, checks = ["campaign drafts"], ["go-to-market"], ["current messaging revision and approved claims"]
     elif name in {"docs/product/architecture.md", "docs/product/stack-decisions.md"}:
         artifacts, stages, checks = ["implementation", "deployment", "acceptance"], ["product", "delivery"], ["product package", "API and permission tests", "migration and recovery"]
     elif name.startswith("docs/product/deltas/"):
@@ -204,11 +210,10 @@ def _retired_pointers(text):
     return sorted(pointers)
 
 
-def _scoped_markdown_children(root, name, label, paths):
-    """Append direct .md children of one scoped folder; never follow links."""
+def _bounded_children(root, name, label):
     folder = safe_path(root, name)
     if not folder.exists():
-        return
+        return []
     if not folder.is_dir():
         raise ValueError(f"{label} inventory must be a directory")
     entries = []
@@ -217,7 +222,12 @@ def _scoped_markdown_children(root, name, label, paths):
             if len(entries) >= 128:
                 raise ValueError(f"scope the {label} directory explicitly")
             entries.append(Path(entry.path))
-    for path in sorted(entries):
+    return sorted(entries)
+
+
+def _scoped_markdown_children(root, name, label, paths):
+    """Append direct .md children of one scoped folder; never follow links."""
+    for path in _bounded_children(root, name, label):
         if path.suffix == ".md":
             relative = path.relative_to(root).as_posix()
             if excluded_name(relative):
@@ -261,12 +271,15 @@ def default_inventory(root, baseline=None):
             paths.append(name)
     _scoped_markdown_children(root, "docs/epics", "Epic", paths)
     _scoped_markdown_children(root, "docs/product/deltas", "PRD delta", paths)
-    # Retain removed Epic and PRD delta paths so a missing document cannot disappear silently.
+    for folder in _bounded_children(root, "docs/research/discovery", "discovery"):
+        name = f"docs/research/discovery/{folder.name}/DISCOVERY.md"
+        if DISCOVERY_STUDY.fullmatch(name) and safe_path(root, name, document=True).is_file():
+            paths.append(name)
     if isinstance(baseline, dict) and isinstance(baseline.get("documents"), dict):
         for name in baseline["documents"]:
             if not isinstance(name, str) or name in paths:
                 continue
-            retained = name in OPTIONAL_HANDOFFS or is_epic(name) or (
+            retained = name in OPTIONAL_HANDOFFS or DISCOVERY_STUDY.fullmatch(name) or is_epic(name) or (
                 name.startswith("docs/product/deltas/") and name.count("/") == 3
             )
             if retained:

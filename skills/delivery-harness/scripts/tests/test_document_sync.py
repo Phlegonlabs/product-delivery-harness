@@ -104,6 +104,27 @@ class DocumentSyncTests(unittest.TestCase):
         result = self.observe(observed["snapshot"], paths)
         self.assertIn({"kind": "missing_document", "path": "docs/epics/EPIC-1.md"}, result["findings"])
 
+    def test_default_inventory_tracks_published_research_and_campaign(self):
+        study = "docs/research/discovery/2026-11-18/DISCOVERY.md"
+        assessment = "docs/product/research-assessment.md"
+        campaign = "docs/gtm/CAMPAIGN.md"
+        raw_note = "docs/research/discovery/2026-11-18/interviews.md"
+        for name in (study, assessment, campaign, raw_note):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("# Original", encoding="utf-8")
+        paths = default_inventory(self.root)
+        self.assertNotIn(raw_note, paths)
+        before = self.observe(paths=paths)["snapshot"]
+        for name in (study, assessment, campaign):
+            (self.root / name).write_text("# Revised", encoding="utf-8")
+        changed = self.observe(before, default_inventory(self.root, before))
+        affected = {row["source"] for row in changed["impacts"] if row["reason"] == "document_changed"}
+        self.assertEqual({study, assessment, campaign}, affected)
+        (self.root / study).unlink()
+        missing = self.observe(before, default_inventory(self.root, before))
+        self.assertIn({"kind": "missing_document", "path": study}, missing["findings"])
+
     def test_current_epic_line_must_name_an_existing_epic(self):
         index = self.root / "docs/DOCUMENTS.md"
         (self.root / "docs/epics").mkdir(parents=True)
