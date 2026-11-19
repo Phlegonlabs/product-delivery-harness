@@ -13,10 +13,11 @@ when the parent's info/attributes holds rules, since the clone does not get them
 
 --remove <packet dir> deletes a packet this script built (the --out directory)
 once its review point passed or a newer packet superseded it. It refuses a path
-that is or passes through a link or junction, a packet holding one, and any
-directory that is not what the build makes: only clone/, a Git checkout
-detached at the SHA in clone/review-input/HEAD.txt, with BASE.txt holding one
-SHA and tracked-files.sha256 holding "<sha256>  <relative path>" lines.
+that is or passes through a link or junction, a packet holding one or the
+current directory, a Git work tree root, and any directory that is not what
+the build makes: only clone/, a Git checkout detached at the SHA in
+clone/review-input/HEAD.txt, with BASE.txt holding one SHA and
+tracked-files.sha256 holding "<sha256>  <relative path>" lines.
 Exit 0 on success, 2 on any failure.
 """
 
@@ -33,7 +34,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from harness_git import GitMetadataError, run_git
+from harness_git import GitMetadataError, git_argv, git_environment, run_git
 
 SCOPE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*")
 DIFF_FLAGS = ("--no-color", "--no-ext-diff", "--no-textconv")
@@ -176,6 +177,9 @@ def remove(packet: Path) -> dict:
         raise refuse(f"{given} is or passes through a link or junction")
     if not packet.is_dir():
         raise refuse(f"{packet} does not exist or is not a directory")
+    cwd = Path.cwd().resolve()
+    if cwd == packet or packet in cwd.parents:
+        raise refuse(f"{packet} holds the current working directory")
     clone = packet / "clone"
     for name in PACKET_MARKERS:
         if not (clone / "review-input" / name).is_file():
@@ -213,6 +217,14 @@ def remove(packet: Path) -> dict:
     if lines[1:] != [head, "HEAD"]:
         raise refuse(f"clone/ in {packet} is at {lines[1]} ({lines[2]}), "
                      f"not detached at {head} as clone/review-input/HEAD.txt says")
+    # A packet may sit inside another work tree, but Git must not treat the packet itself as one
+    # (an outer repository's core.worktree can). Plain discovery: no repository-config preflight.
+    outer = subprocess.run(
+        git_argv("rev-parse", "--show-toplevel"), cwd=packet, env=git_environment(), capture_output=True,
+        text=True, encoding="utf-8", errors="surrogateescape", timeout=30, check=False,
+    )
+    if outer.returncode == 0 and Path(outer.stdout.strip()).resolve() == packet:
+        raise refuse(f"{packet} is a Git work tree root")
 
     def clear_read_only(function, path, _error) -> None:
         # Git object files are read-only; on Windows that blocks unlink.

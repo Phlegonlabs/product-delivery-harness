@@ -199,6 +199,27 @@ class RemovePacketTests(unittest.TestCase):
                 self.assert_refused(out, reason)
                 (review / name).write_bytes(original)
 
+    def test_refuses_a_packet_holding_the_current_directory(self) -> None:
+        out = self.build_packet()
+        for cwd in (out, out / "clone", out / "clone" / "review-input"):
+            with self.subTest(cwd=cwd.relative_to(self.tmp).as_posix()):
+                self.assert_refused(out, "holds the current working directory", cwd=cwd)
+
+    def test_refuses_a_packet_that_is_a_git_work_tree_root(self) -> None:
+        outer = self.tmp / "outer"
+        outer.mkdir()
+        git(outer, "init", "-q")
+        out = self.build_packet(outer / "packet")
+        git(outer, "config", "core.worktree", out.as_posix())
+        self.assert_refused(out, "is a Git work tree root")
+
+    def test_removes_a_packet_inside_another_work_tree(self) -> None:
+        out = self.build_packet(self.repo / "packet")
+        result = run("--remove", str(out))
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertFalse(out.exists())
+        self.assertEqual("print('two')\n", (self.repo / "app.py").read_text(encoding="utf-8"))
+
     def test_refuses_a_link_to_a_packet_and_keeps_the_target(self) -> None:
         out = self.build_packet(self.tmp / "area" / "packet")
         before = listing(out)
