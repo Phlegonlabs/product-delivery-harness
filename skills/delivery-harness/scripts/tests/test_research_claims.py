@@ -240,6 +240,21 @@ class ResearchClaimTests(unittest.TestCase):
                 self.assertEqual([("RA-001", "malformed_claim_row")],
                                  [(item["research_id"], item["reason"]) for item in findings])
 
+    def test_emphasized_headers_stay_readable_and_findings_name_the_live_row(self):
+        for header in ("| *Claim* |", "| _Claim_ |", "| **Claim** |", "| `Claim` |"):
+            with self.subTest(header):
+                docs = documents()
+                docs[MESSAGING] = docs[MESSAGING].replace("| Claim |", header)
+                self.assertEqual([], research_claim_findings(docs, full_inventory=True))
+        row = "| C01: Three operators reconstructed enquiry status | RA-001 / S-01 | 2026-11-18 |"
+        bad = row + " extra |"
+        docs = documents()
+        docs[MESSAGING] = docs[MESSAGING].replace(row, bad).replace(
+            "# Messaging Record\n", "# Messaging Record\n```text\n" + bad + "\n```\n")
+        live = [number for number, text in enumerate(docs[MESSAGING].splitlines(), 1) if text == bad][-1]
+        findings = research_claim_findings(docs, full_inventory=True)
+        self.assertEqual([(live, "malformed_claim_row")], [(item["line"], item["reason"]) for item in findings])
+
     def test_unreadable_support_rows_are_refused(self):
         cases = (
             (ASSESSMENT, "| RA-001 | 3 operators reconstructed enquiry status | sourced |",

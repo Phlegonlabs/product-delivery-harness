@@ -18,7 +18,9 @@ WITHDRAWN = re.compile(r"\b(?:withdrawn|retracted|retired)\b", re.IGNORECASE)
 
 
 def _plain(value):
-    return value.replace("`", "").replace("**", "").strip()
+    value = value.replace("`", "").replace("**", "").replace("__", "").strip()
+    # Single emphasis around a whole cell (`*Claim*`, `_Claim_`) is markup, not text.
+    return re.sub(r"^([*_])(.+)\1$", r"\2", value).strip()
 
 
 def _rows(text, section, malformed=None):
@@ -63,7 +65,7 @@ def _rows(text, section, malformed=None):
         elif separated and len(cells) == len(header):
             yield dict(zip(header, cells)), line_number
         elif malformed is not None:
-            malformed.append(stripped)
+            malformed.append((line_number, stripped))
 
 
 def _indexed(text, section, key):
@@ -77,7 +79,7 @@ def _indexed(text, section, key):
 
 def _mentions(lines, pattern, value):
     """True when a skipped table line names ``value`` (an RA, S or P ID)."""
-    return any(value.upper() in {match.upper() for match in pattern.findall(line)} for line in lines)
+    return any(value.upper() in {match.upper() for match in pattern.findall(line)} for _, line in lines)
 
 
 def _support_problem(row):
@@ -169,9 +171,7 @@ def research_claim_findings(documents, *, full_inventory=False):
     skipped_claims = []
     claims = [(claim, line) for claim, line in _rows(documents[MESSAGING], "Approved Public Claims", skipped_claims)]
     # A claim row the table cannot read still names its research; refuse it rather than skip it.
-    lines = documents[MESSAGING].splitlines()
-    for raw in skipped_claims:
-        number = next(index for index, text in enumerate(lines, 1) if text.strip() == raw)
+    for number, raw in skipped_claims:
         for research_id in sorted({value.upper() for value in RA_ID.findall(raw)}):
             findings.append({"kind": "approved_claim_research_conflict", "path": MESSAGING,
                              "line": number, "research_id": research_id,
