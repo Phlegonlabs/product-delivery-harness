@@ -21,11 +21,31 @@ def git(root: Path, *args: str) -> str:
     ).stdout.strip()
 
 
-def run(*args: str) -> subprocess.CompletedProcess[str]:
+def run(*args: str, cwd: Path | None = None) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [sys.executable, "-B", str(SCRIPT), *args],
-        capture_output=True, text=True, encoding="utf-8", check=False,
+        capture_output=True, text=True, encoding="utf-8", check=False, cwd=cwd,
     )
+
+
+def listing(root: Path) -> list[str]:
+    return sorted(path.relative_to(root).as_posix() for path in root.rglob("*"))
+
+
+def make_dir_link(link: Path, target: Path) -> None:
+    """A directory symlink, or a junction where symlinks need a privilege."""
+    try:
+        os.symlink(target, link, target_is_directory=True)
+    except OSError:
+        if os.name != "nt":
+            raise
+        subprocess.run(["cmd", "/c", "mklink", "/J", str(link), str(target)], check=True, capture_output=True)
+
+
+def remove_link(link: Path) -> None:
+    # Remove the link itself; never delete through it.
+    if os.path.lexists(link):
+        (os.rmdir if os.name == "nt" else os.unlink)(link)
 
 
 class RemovePacketTests(unittest.TestCase):
@@ -47,21 +67,26 @@ class RemovePacketTests(unittest.TestCase):
         git(self.repo, "commit", "-q", "-am", "second")
         self.head = git(self.repo, "rev-parse", "HEAD")
 
-    def build_packet(self) -> Path:
-        out = self.tmp / "packet"
+    def build_packet(self, out: Path | None = None) -> Path:
+        out = out or self.tmp / "packet"
         built = run("--repo", str(self.repo), "--base", self.base, "--head", self.head, "--out", str(out))
         self.assertEqual(0, built.returncode, built.stderr)
         return out
 
-    def assert_refused(self, target: Path, reason: str) -> None:
-        before = sorted(path.relative_to(target).as_posix() for path in target.rglob("*")) if target.exists() else None
-        result = run("--remove", str(target))
+    def link(self, link: Path, target: Path) -> Path:
+        make_dir_link(link, target)
+        self.addCleanup(remove_link, link)
+        return link
+
+    def assert_refused(self, target: Path, reason: str, cwd: Path | None = None) -> None:
+        before = listing(target) if target.exists() else None
+        result = run("--remove", str(target), cwd=cwd)
         self.assertEqual(2, result.returncode, result.stdout)
         self.assertEqual("", result.stdout)
         self.assertIn("error: not a review packet", result.stderr)
         self.assertIn(reason, result.stderr)
-        after = sorted(path.relative_to(target).as_posix() for path in target.rglob("*")) if target.exists() else None
-        self.assertEqual(before, after)
+        self.assertEqual(1, len(result.stderr.splitlines()), result.stderr)
+        self.assertEqual(before, listing(target) if target.exists() else None)
 
     def test_removes_a_packet_the_script_built(self) -> None:
         out = self.build_packet()
@@ -118,6 +143,25 @@ class RemovePacketTests(unittest.TestCase):
     def test_refuses_the_clone_folder_itself(self) -> None:
         out = self.build_packet()
         self.assert_refused(out / "clone", "clone/review-input/HEAD.txt is missing")
+
+    def test_refuses_a_link_to_a_packet_and_keeps_the_target(self) -> None:
+        out = self.build_packet(self.tmp / "area" / "packet")
+        before = listing(out)
+        to_packet = self.link(self.tmp / "to-packet", out)
+        through = self.link(self.tmp / "to-area", out.parent) / "packet"
+        for given in (to_packet, through):
+            with self.subTest(path=given.relative_to(self.tmp).as_posix()):
+                self.assert_refused(given, "is or passes through a link or junction")
+                self.assertEqual(before, listing(out))
+
+    def test_refuses_a_link_inside_the_packet_and_keeps_its_target(self) -> None:
+        out = self.build_packet()
+        outside = self.tmp / "outside"
+        outside.mkdir()
+        (outside / "keep.txt").write_text("keep\n", encoding="utf-8")
+        self.link(out / "clone" / "linked", outside)
+        self.assert_refused(out, "clone/linked")
+        self.assertEqual("keep\n", (outside / "keep.txt").read_text(encoding="utf-8"))
 
     def test_remove_takes_no_build_options(self) -> None:
         out = self.build_packet()

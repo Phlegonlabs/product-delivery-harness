@@ -12,7 +12,8 @@ when the parent's info/attributes holds rules, since the clone does not get them
 --scope name=pathspec[,pathspec...] limits one diff to those git pathspecs.
 
 --remove <packet dir> deletes a packet this script built (the --out directory)
-once its review point passed or a newer packet superseded it. It refuses any
+once its review point passed or a newer packet superseded it. It refuses a path
+that is or passes through a link or junction, a packet holding one, and any
 directory that does not hold only clone/ with clone/review-input/HEAD.txt,
 BASE.txt and tracked-files.sha256.
 Exit 0 on success, 2 on any failure.
@@ -143,17 +144,39 @@ def build(repo: Path, base: str, head: str, out: Path, scopes: list[tuple[str, l
     }
 
 
+def is_link(info: os.stat_result) -> bool:
+    """True for a symlink and, on Windows, for any reparse point such as a junction."""
+    return stat.S_ISLNK(info.st_mode) or bool(getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT)
+
+
 def remove(packet: Path) -> dict:
-    # Resolve first, so neither the delete nor the chmod below acts through a link.
-    packet = packet.resolve()
+    def refuse(reason: str) -> ReviewInputError:
+        return ReviewInputError(f"not a review packet: {reason}")
+
+    given = Path(os.path.abspath(packet))
+    packet = given.resolve()
+    if os.path.normcase(given) != os.path.normcase(packet) or any(
+        os.path.lexists(part) and is_link(os.lstat(part)) for part in (given, *given.parents)
+    ):
+        raise refuse(f"{given} is or passes through a link or junction")
     if not packet.is_dir():
-        raise ReviewInputError(f"not a review packet: {packet} does not exist or is not a directory")
+        raise refuse(f"{packet} does not exist or is not a directory")
     for name in PACKET_MARKERS:
         if not (packet / "clone" / "review-input" / name).is_file():
-            raise ReviewInputError(f"not a review packet: clone/review-input/{name} is missing in {packet}")
+            raise refuse(f"clone/review-input/{name} is missing in {packet}")
     others = sorted(entry.name for entry in packet.iterdir() if entry.name != "clone")
     if others:
-        raise ReviewInputError(f"not a review packet: {packet} also holds {', '.join(others)}")
+        raise refuse(f"{packet} also holds {', '.join(others)}")
+    pending = [packet]
+    while pending:
+        with os.scandir(pending.pop()) as entries:
+            for entry in entries:
+                info = entry.stat(follow_symlinks=False)
+                if is_link(info):
+                    inside = Path(entry.path).relative_to(packet).as_posix()
+                    raise refuse(f"{inside} in {packet} is a link or junction")
+                if stat.S_ISDIR(info.st_mode):
+                    pending.append(entry.path)
 
     def clear_read_only(function, path, _error) -> None:
         # Git object files are read-only; on Windows that blocks unlink.
