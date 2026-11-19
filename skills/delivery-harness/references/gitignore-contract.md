@@ -37,6 +37,42 @@ Document writers retain `.pdh-conflict-*` entries when native replacement or rec
 These local recovery files can contain owner bytes. Ignore this exact class in projects using these writers; never delete it automatically.
 Inspect the reported entries before an authorized manual recovery or cleanup. Successful writes remove only their unchanged displaced snapshot.
 
+## UI Capture Output
+
+Raw UI capture output is local working data. A capture run writes screenshots, recordings, per-case folders and run logs, often thousands per run, and the next run replaces them. The committed record is the JSON that binds them: `ui-output.json`, `matrix-capture.json`, receipts, the defect ledger and the parity `manifest.json` list every capture by path and SHA-256. The comparison sheet stays committed too; it embeds its images.
+
+Add these rules in the first task that captures UI:
+
+```gitignore
+# UI capture output stays local; the JSON records that hash it stay tracked
+docs/evidence/**/*.png
+docs/evidence/**/*.jpg
+docs/evidence/**/*.jpeg
+docs/evidence/**/*.webp
+docs/evidence/**/*.webm
+docs/evidence/**/*.mp4
+docs/evidence/**/*.log
+docs/design/evidence/**/*.png
+docs/design/evidence/**/*.jpg
+docs/design/evidence/**/*.jpeg
+docs/design/evidence/**/*.webp
+docs/design/evidence/**/*.webm
+docs/design/evidence/**/*.mp4
+docs/design/evidence/**/*.log
+```
+
+Some images are still committed, because a check reads them again in other checkouts:
+
+- The captures the approved Visual Approval receipts cite. `check_ui_design_contract.py` re-reads them, and the Harness PLAN check re-runs it in every later delivery checkout. Before the approval commit, force-add (`git add -f`) each path the approved outputs list in `execution.artifacts` and in assessment evidence.
+- The RUN's `ui_evidence` images under `docs/goal/evidence/`. Archive moves them, and validation reads them from Git at the recorded head.
+- Delivery acceptance evidence under `docs/verification/evidence/`, which must be committed at HEAD.
+
+Never add an ignore rule for `docs/goal/evidence/` or `docs/verification/evidence/`.
+
+A fresh clone holds the records and the committed images, so every check still passes there. It lacks the local captures: their records still name each image and its SHA-256, but seeing one again needs the capturing checkout or a recapture. Reviewers on the same machine open local captures by absolute path in the capturing checkout; a `review_input.py` clone holds committed files only.
+
+The rules apply to new captures. Git keeps tracking a file it already tracks whatever the ignore rules say; do not untrack, move or delete it ([Editing Rules](#editing-rules)).
+
 ## Environment Files
 
 Select patterns for the framework and platform actually present. The normal dotenv shape ignores value-bearing variants while explicitly keeping examples visible:
