@@ -62,7 +62,8 @@ class AuthorSideDocsTests(unittest.TestCase):
     def test_author_measures_accessibility_and_owns_the_one_capture(self):
         stage = read("references/stages/ui-design.md")
         pass_guide = read("references/ui-design-pass.md")
-        self.assertIn("`--measure-a11y` measurements (contrast, target size, text clip, focus visible, text growth) change no case result", stage)
+        self.assertIn("`--measure-a11y` measurements (contrast, target size, text clip, text split, focus visible, text growth) change no case result",
+                      stage)
         self.assertIn("records a disposition with a reason", stage)
         self.assertIn("an undisposed measured failure is a finding", stage)
         self.assertIn("is the candidate's one matrix capture. Nobody captures the same bytes again", stage)
