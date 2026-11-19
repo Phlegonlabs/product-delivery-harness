@@ -12,6 +12,7 @@ from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from harness_contract import contract_digest
+import check_document_sync
 from check_document_sync import main
 
 
@@ -197,6 +198,39 @@ class CampaignHandoffTests(unittest.TestCase):
         code, report = self.refreshed(paths=(MESSAGING, alternate))
         self.assertEqual(1, code)
         self.assertEqual(alternate, report["findings"][0]["path"])
+
+    def test_unreadable_or_duplicate_approval_rows_approve_nothing(self):
+        row = "| C01: Three operators reconstructed enquiry status | RA-001 | 2026-11-18 |"
+        template = SOURCE.replace("| Claim | Evidence | Check date |", "| Claim ID | Claim | Evidence | Check date |").replace(
+            "| --- | --- | --- |\n| C01: Three operators", "| --- | --- | --- | --- |\n| C01 | Three operators")
+        template_row = "| C01 | Three operators reconstructed enquiry status | RA-001 | 2026-11-18 |"
+        cases = {
+            "one cell": SOURCE.replace(row, "| C01 |"),
+            "ID without claim text": SOURCE.replace(row, "| C01: | RA-001 | 2026-11-18 |"),
+            "second row for the same ID": SOURCE.replace(row, row + "\n| C01: Instant booking for every venue | RA-009 | 2026-11-18 |"),
+            "template row without claim text": template.replace(template_row, "| C01 |  | RA-001 | 2026-11-18 |"),
+            "template duplicate": template.replace(template_row, template_row + "\n| C01 | Instant booking | RA-009 | 2026-11-18 |"),
+        }
+        self.write(MESSAGING, template)
+        self.assertEqual(0, self.refreshed()[0])
+        for label, source in cases.items():
+            with self.subTest(label):
+                self.write(MESSAGING, source)
+                code, report = self.refreshed()
+                self.assertEqual(1, code)
+                self.assertIn(("C01", "unreadable_or_duplicate_approval_row"),
+                              {(row.get("claim_id"), row.get("reason")) for row in report["findings"]})
+
+    def test_absolute_campaign_registration_is_invalid_and_web_links_are_ignored(self):
+        for target in ("/outside/draft.md", "C:/outside/draft.md"):
+            with self.subTest(target):
+                self.write("docs/DOCUMENTS.md", f"# Documents\n[Campaign]({target})\n")
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), patch("check_document_sync.contract_digest", return_value=self.digest):
+                    code = main(["--repo-root", str(self.root), "--loaded-digest", self.digest])
+                self.assertEqual(2, code, output.getvalue())
+        self.write("docs/DOCUMENTS.md", "# Documents\n[Campaign](https://example.com/draft.md)\n")
+        self.assertEqual(set(), check_document_sync._registered_campaigns(self.root))
 
     def test_missing_or_ambiguous_source_revision_cannot_be_baselined_away(self):
         for source in (SOURCE.replace("Revision: MSG-1", "Revision:"),

@@ -106,7 +106,10 @@ def campaign_findings(texts, registered=()):
         source = list(_live_lines(texts[MESSAGING]))
         revisions = []
         approved, forbidden = set(), set()
+        unreadable, seen = set(), set()
         approval = []
+        header = None
+        separated = False
         for section, line in source:
             field = FIELD.match(line)
             if field and field[1].lower() == "revision":
@@ -114,11 +117,34 @@ def campaign_findings(texts, registered=()):
             if field and field[1].lower() == "owner approval source and approved revision":
                 approval.append(_value(field[2]))
             if section == "approved public claims" and line.lstrip().startswith("|"):
-                # Only the claim columns declare IDs; evidence references do not.
-                cells = line.strip().strip("|").split("|")
-                approved.update(CLAIM_ID.findall(cells[0]))
+                cells = [cell.strip() for cell in re.split(r"(?<!\\)\|", line.strip().strip("|"))]
+                if header is None:
+                    header = [cell.strip("*` ").lower() for cell in cells]
+                    continue
+                if not separated and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+                    separated = True
+                    continue
+                # Only the claim columns declare IDs; evidence references do not. The
+                # template keeps the ID in "Claim ID"; older records write "C01: text" in "Claim".
+                id_cell = cells[header.index("claim id")] if "claim id" in header and len(cells) == len(header) else cells[0]
+                text_cell = cells[header.index("claim")] if "claim" in header and len(cells) == len(header) else cells[0]
+                ids = set(CLAIM_ID.findall(id_cell))
+                if not ids and not "".join(cells).strip():
+                    continue  # the template's empty placeholder row
+                text = CLAIM_ID.sub("", text_cell).strip(" :*`-—()")
+                if not separated or len(cells) != len(header) or not text:
+                    unreadable.update(ids or CLAIM_ID.findall(line))
+                    continue
+                # One approved row per claim ID; a second row makes the approval ambiguous.
+                unreadable.update(ids & seen)
+                seen.update(ids)
+                approved.update(ids)
+            else:
+                header = None
+                separated = False
             if section in {"claims not allowed", "withdrawn claims"}:
                 forbidden.update(CLAIM_ID.findall(line))
+        approved -= unreadable
         current = revisions[0] if len(revisions) == 1 else None
         if current is None:
             finding("campaign_handoff_unverified", reason="missing_or_unreadable_source_revision")
@@ -132,8 +158,10 @@ def campaign_findings(texts, registered=()):
             line for _, line in _live_lines(texts[name], include_fenced=True))))
         for claim in sorted(used):
             if claim in forbidden or claim not in approved:
-                finding("campaign_claim_not_approved", claim_id=claim,
-                        reason="withdrawn" if claim in forbidden else "not_in_approved_public_claims")
+                reason = ("withdrawn" if claim in forbidden else
+                          "unreadable_or_duplicate_approval_row" if claim in unreadable else
+                          "not_in_approved_public_claims")
+                finding("campaign_claim_not_approved", claim_id=claim, reason=reason)
         if used & approved and current is not None:
             bound_approval = len(approval) == 1 and re.search(
                 rf"(?<![A-Za-z0-9._/-]){re.escape(current)}(?![A-Za-z0-9._/-])", approval[0])

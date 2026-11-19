@@ -270,8 +270,11 @@ def _registered_campaigns(root):
     paths = set()
     if index.is_file():
         for target in campaign_links(read_bounded(index).decode("utf-8-sig")):
-            if target.startswith("/") or ":" in target:
+            # A web link is not a repository draft; a local absolute path cannot be checked.
+            if re.match(r"^[A-Za-z][A-Za-z0-9+.-]+:", target):
                 continue
+            if re.match(r"^(?:[A-Za-z]:)?[\\/]", target):
+                raise ValueError(f"campaign registration must be a repository-relative path: {target}")
             name = posixpath.normpath(posixpath.join("docs", target))
             safe_path(root, name, document=True)
             paths.add(name)
