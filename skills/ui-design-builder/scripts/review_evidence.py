@@ -261,6 +261,23 @@ def execution_findings(root, output, receipt, subject):
     return errors
 
 
+def _smallest_targets(cases):
+    """{surface: its smallest target}: the lowest viewport width, or the first listed size class."""
+    targets = {}
+    for surface, _, target in cases:
+        targets.setdefault(surface, [])
+        if target not in targets[surface]:
+            targets[surface].append(target)
+
+    def width(target):
+        try:
+            return float(target)
+        except ValueError:
+            return None
+    return {surface: (min(listed, key=float) if all(width(t) is not None for t in listed) else listed[0])
+            for surface, listed in targets.items()}
+
+
 def assessment_findings(root, output, *, allow_blocks=False):
     """Qualitative conclusions retain source captures and per-case observations."""
     check = output.get("check", "")
@@ -314,9 +331,14 @@ def assessment_findings(root, output, *, allow_blocks=False):
                 if capture.casefold() in captures:
                     raise ValueError("review cases must retain distinct inspected captures")
                 captures.add(capture.casefold())
-        expected_cases = [_case_key(row) for row in output["matrix"]["cases"]]
-        if sorted(seen) != sorted(expected_cases):
-            errors.append("review observations must cover the exact case matrix")
+        # The author's matrix run covers every case by machine; a reviewer inspects a set by eye
+        # (ui-grading-rubric.md Browser Inspection Procedure), which includes each surface at its smallest target.
+        matrix_cases = [_case_key(row) for row in output["matrix"]["cases"]]
+        if not set(seen) <= set(matrix_cases):
+            errors.append("review observations must name cases of the reviewed matrix")
+        for surface, target in sorted(_smallest_targets(matrix_cases).items()):
+            if not any(case[0] == surface and case[2] == target for case in seen):
+                errors.append(f"review observations must inspect {surface} at its smallest target {target}")
     except (OSError, ValueError, TypeError, KeyError) as exc:
         errors.append(str(exc))
     return errors

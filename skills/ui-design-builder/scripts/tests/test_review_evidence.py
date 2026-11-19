@@ -139,6 +139,32 @@ class EvidenceTests(unittest.TestCase):
         self.output["assessment"]["observations"] = []
         self.assertTrue(evidence.assessment_findings(self.root, self.output))
 
+    def test_a_reviewer_inspects_each_surface_at_its_smallest_target_not_every_case(self):
+        self.output["check"] = "hifi-browser-grading"
+        cases = [{"surface": surface, "state": state, "target": target} for surface in ("UI-001", "UI-002")
+                 for state in ("ready", "error") for target in ("1440", "390", "768")]
+        self.output["matrix"] = {"cases": cases}
+        self.output["results"] = [dict(case, result="PASS") for case in cases]
+        captures = []
+        for index in range(3):
+            path = self.root / f"inspected-{index}.png"
+            path.write_bytes(b"synthetic capture %d" % index)
+            captures.append({"path": path.name, "sha256": hashlib.sha256(path.read_bytes()).hexdigest()})
+
+        def observe(*picked):
+            self.output["assessment"] = {"scores": {f"H{n}": 90 for n in range(1, 10)}, "blocks": [], "observations": [
+                dict(case, finding="Synthetic inspected layout at this width.", evidence=[capture])
+                for case, capture in zip(picked, captures)]}
+            return evidence.assessment_findings(self.root, self.output)
+
+        smallest = [{"surface": "UI-001", "state": "ready", "target": "390"}, {"surface": "UI-002", "state": "ready", "target": "390"}]
+        self.assertEqual([], observe(*smallest))
+        self.assertEqual([], observe(*smallest, {"surface": "UI-001", "state": "error", "target": "1440"}))   # a flagged case
+        self.assertEqual(["review observations must inspect UI-002 at its smallest target 390"],
+                         observe(smallest[0], {"surface": "UI-002", "state": "ready", "target": "768"}))
+        self.assertIn("review observations must name cases of the reviewed matrix",
+                      observe(*smallest, {"surface": "UI-003", "state": "ready", "target": "390"}))
+
 
 def modern_contract():
     text = contract().replace("## Wireframe Approval", "## Wireframe Validation")
