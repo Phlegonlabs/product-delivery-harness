@@ -268,7 +268,7 @@ class NpmReadmeArtifactTests(unittest.TestCase):
         review.write_text(json.dumps(approval), encoding="utf-8")
         result = subprocess.run([sys.executable, "-B", str(HELPER), "--tarball", str(artifact),
                                  "--consumer", str(self.consumer), "--review", str(review)],
-                                capture_output=True, text=True, timeout=15, shell=False)
+                                capture_output=True, text=True, encoding="utf-8", timeout=15, shell=False)
         self.assertEqual(result.returncode, 1)
         self.assertEqual(json.loads(result.stdout)["status"], "failed")
 
@@ -313,7 +313,7 @@ def replay_archives(directory):
             review.write_text(json.dumps(approval), encoding="utf-8")
             result = subprocess.run([sys.executable, "-B", str(HELPER), "--tarball", str(artifact),
                                      "--consumer", str(consumer), "--review", str(review), "--timeout", "5"],
-                                    capture_output=True, text=True, timeout=15, shell=False)
+                                    capture_output=True, text=True, encoding="utf-8", timeout=15, shell=False)
             report = json.loads(result.stdout)
             expected_code = 1 if case.startswith("bad-") else 0
             if result.returncode != expected_code:
