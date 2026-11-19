@@ -22,6 +22,35 @@ Confirm README examples, compatibility, download links and release notes against
 
 Repository-relative images/links may not work in a registry or extracted package. Check the distributed README and intended renderer, or reuse the project's derived registry copy. A local build or publication dry-run does not prove that a public download URL exists. npm package-page README updates follow package publication; a repository edit alone cannot update it. Source: [npm README behavior](https://docs.npmjs.com/about-package-readme-files).
 
+### npm README Check
+
+For every npm tarball, run this local helper before recording README/artifact verification as passed:
+
+```text
+python <release-packager-root>/scripts/check_npm_readme.py --tarball <actual.tgz> --consumer <isolated-installed-consumer> --review <review.json> --timeout 10
+```
+
+First install the exact tarball into a fresh consumer using the reviewed native command, offline and with lifecycle scripts disabled. Prepare its tiny input fixture. The helper checks packaged files against installed bytes and rejects linked installations. It never installs dependencies or executes hooks.
+
+For packages declaring `bin`, review the first useful direct CLI example in the packaged README. Review its code, dependencies and arguments for offline execution. Write a task-local JSON approval that binds those reviewed bytes:
+
+```json
+{
+  "artifact_sha256": "<SHA-256 of actual.tgz>",
+  "argv": ["example-cli", "hello", "input.txt"],
+  "stdout": "Hello, fixture!\n",
+  "offline_code_reviewed": true
+}
+```
+
+The helper compares that argv with the documented command before execution. It resolves the installed manifest's bin directly and checks exact stdout. It never evaluates README chunks, shell syntax, npm scripts, `npx` or global commands. Examples containing shell syntax need separate reviewed verification; they cannot receive this helper's PASS.
+
+Supported CLI bins are Node `.js`, `.cjs` and `.mjs` files with read-only consumer inputs. Node must support `--permission` (Node 22.13+). Child processes, workers, native addons, WASI and writes receive no permission. A preload blocks ordinary Node network APIs; it is defense in depth, not containment for hostile code. Review code before execution. The helper makes no external requests and does not verify external images or registry rendering.
+
+Supported image syntax includes Markdown inline/reference images, HTML `img` and `picture/source` `src`/`srcset`, including dark SVGs. Local paths must exist with exact case in the tarball. Unsupported or unparseable applicable syntax fails. The helper checks file presence, not image rendering or SVG safety.
+
+Packages without `bin` receive `cli: not_applicable`; their required import behavior check remains separate. Missing README, review, runtime, installed bytes or useful CLI example prevents PASS. Other artifact formats keep their native verification routes; this helper makes no claim about them.
+
 If publication is authorized, use the selected native release path and verify the remote name/version and immutable artifact identity afterward. Rebuilding between verification and upload changes the artifact: verify the uploaded bytes or bind them to the checked package. Preserve previous releases and registry immutability. GitHub's automatic source archives do not prove that an installable binary/package was produced; see [GitHub releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
 
 ## Delivery Record
