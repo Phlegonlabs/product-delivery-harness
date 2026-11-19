@@ -11,6 +11,8 @@ REVIEWER_CSS = _TEMPLATE.split("<!-- hifi-reviewer:css:start -->", 1)[1].split("
 REVIEWER_SEGMENT = '<!-- hifi-reviewer:css:start -->' + REVIEWER_CSS + '<!-- hifi-reviewer:css:end -->'
 REVIEWER_RUNTIME = _TEMPLATE.split("<!-- hifi-reviewer:runtime:start -->", 1)[1].split("<!-- hifi-reviewer:runtime:end -->", 1)[0]
 STYLE = ('<style>:root{--ink:#243447}.product-button,.product-input,.product-select,.product-link,.product-feedback{color:var(--ink)}'
+         '.product-link,.product-input{box-sizing:border-box;min-width:44px;min-height:44px}'
+         '.product-link{display:inline-flex;align-items:center;justify-content:center}'
          '[data-hifi-canvas][data-hifi-target="390"]{width:390px}[data-hifi-canvas][data-hifi-target="768"]{width:768px}'
          '[data-hifi-canvas][data-hifi-target="1200"]{width:1200px}@container (max-width:779px){.product-feedback{padding:14px}}</style>'
          + REVIEWER_SEGMENT)

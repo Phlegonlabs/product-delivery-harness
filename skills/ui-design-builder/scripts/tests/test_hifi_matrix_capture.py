@@ -1538,12 +1538,16 @@ class RealBrowserTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             _, _, hifi = v3_publication(root)
-            code, text = self.run_main(module, root, hifi.parent, "--out", "docs/evidence/live-publication")
+            out = root / "docs/evidence/live-publication"
+            code, text = self.run_main(module, root, hifi.parent, "--out", str(out), "--measure-a11y")
             self.assertEqual(0, code, text)
             report = json.loads(text)
             self.assertEqual(6, report["pass"])
             self.assertEqual(18, report["interactions"])
             self.assertEqual(0, report["interactionsFail"])
+            sidecar = json.loads((out / m.SIDECAR_NAME).read_text(encoding="utf-8"))
+            self.assertEqual({"checked": 18, "fail": 0, "note": 0, "unmeasured": 0},
+                             sidecar["a11y"]["summary"]["target-size"])
 
     def test_matrix_capture_in_real_chromium(self):
         module = self.playwright()
