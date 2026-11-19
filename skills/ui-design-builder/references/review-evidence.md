@@ -35,7 +35,7 @@ Repeat `--capture` for each theme run. Before the re-review and the fix exchange
 
 - the capture's subject or page SHA-256 values differ from the package bytes, its sidecar was edited, or its output fails the driver's own validation;
 - its matrix is smaller than the package's, as after `--only`;
-- a case, axis row, interaction, reviewer pass or intermediate-width sweep is not PASS. The author's last capture is a clean run;
+- a case, axis row, interaction, reviewer pass or intermediate-width sweep is not PASS. The author's last capture is a clean run; a hang or driver failure gets one rerun, then goes to the owner ([readiness gate](ui-grading-rubric.md#capability-and-authorization));
 - it ran without `--measure-a11y`, or a measured `fail` row has no disposition;
 - with `--ledger`, an `open` or `block` row has an acceptance case without a screenshot from this run. A carried case keeps its old screenshot; `--recapture-carried` takes a new one.
 

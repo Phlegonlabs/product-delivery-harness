@@ -81,9 +81,11 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn("NOT READY", text)
         self.assertIn("- BLOCKED: UI-001/empty/390, UI-001/empty/1200 (", text)
         self.assertIn("restart limit", text)
-        self.assertIn("Fix: rerun the driver; this was not observed.", text)
         self.assertIn("- FAIL: UI-001/ready/390, UI-001/ready/1200, UI-001/loading/390 and 1 more (case timed out", text)
-        self.assertIn("Fix: fix it and rerun the driver; the author's last capture is a clean run.", text)
+        # A hang gets one rerun, then goes to the owner: no endless reruns for a tool limit.
+        self.assertIn("Fix: a hang or a driver failure: fix what hangs and rerun the driver once; if the row fails the "
+                      "same way again, it is a tool limit and the parent records the candidate blocked for the owner.", text)
+        self.assertNotIn("this was not observed", text)
 
     def test_a_blocked_axis_row_is_not_ready(self):
         driver = FakeDriver()
@@ -92,6 +94,7 @@ class ReadinessTests(unittest.TestCase):
         self.assertEqual(1, code, text)
         self.assertIn("- BLOCKED: UI-001/ready/390 under forced-colors", text)
         self.assertIn("forced colors are not supported", text)
+        self.assertIn("it is a tool limit and the parent records the candidate blocked for the owner", text)
 
     def test_a_partial_capture_is_not_ready(self):
         code, text = self.ready(self.capture("--only", "UI-001"))

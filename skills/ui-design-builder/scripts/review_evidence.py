@@ -376,6 +376,12 @@ def _where(names):
     return ", ".join(names[:3]) + (f" and {len(names) - 3} more" if len(names) > 3 else "")
 
 
+# Reasons a hang or the driver gives, not the page: one rerun, then the owner decides (rubric Readiness gate).
+TOOL_LIMIT_MARKERS = ("restart limit", "could not restart", "timed out after", "driver error:", "could not be set up")
+TOOL_LIMIT_FIX = ("a hang or a driver failure: fix what hangs and rerun the driver once; if the row fails the same way "
+                  "again, it is a tool limit and the parent records the candidate blocked for the owner")
+
+
 def _failed_rows(rows, name):
     """One problem per result and reason set, so one page-level cause on 300 cases is one line."""
     groups = {}
@@ -384,7 +390,8 @@ def _failed_rows(rows, name):
             key = (row.get("result"), tuple(str(reason) for reason in row.get("reasons") or ()))
             groups.setdefault(key, []).append(name(row))
     return [(f"{result}: {_where(names)} ({'; '.join(reasons) or 'no reason recorded'})",
-             "fix it and rerun the driver; the author's last capture is a clean run" if result == "FAIL"
+             TOOL_LIMIT_FIX if any(marker in reason for reason in reasons for marker in TOOL_LIMIT_MARKERS)
+             else "fix it and rerun the driver; the author's last capture is a clean run" if result == "FAIL"
              else "rerun the driver; this was not observed")
             for (result, reasons), names in groups.items()]
 
