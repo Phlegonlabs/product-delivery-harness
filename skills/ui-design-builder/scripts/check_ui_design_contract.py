@@ -9,6 +9,7 @@ import hashlib
 import json
 import re
 import stat
+import subprocess
 import sys
 from html.parser import HTMLParser
 from pathlib import Path
@@ -30,8 +31,10 @@ from review_evidence import (
     author_usage_findings,
     execution_findings,
     line_ending_note,
+    read_identity,
     score_findings,
 )
+from design_workflow import git
 from reviewer_shell import product_css_findings
 from hifi_reviewer import ReviewerParser, _is_na_state, has_current_reviewer_shell, is_product_control, product_control_findings, reviewer_contract, reviewer_evidence_findings
 
@@ -2388,6 +2391,42 @@ def _receipt_instant(value: str | None, repo_root: Path) -> datetime | None:
     return executed.astimezone(timezone.utc)
 
 
+def _require_indexed_captures(root: Path, receipt_values: list[str | None], problems: list[str]) -> None:
+    """Every capture the approved receipts cite must be in the Git index.
+
+    Capture images are git-ignored, so a forgotten one stays on disk here and
+    fails only in a later checkout. Outside a Git work tree, such as the
+    Harness PLAN check's copied tree, there is no index and nothing to compare.
+    """
+
+    cited: set[str] = set()
+    for value in receipt_values:
+        match = EVIDENCE_RE.fullmatch((value or "").strip())
+        if match is None:
+            continue
+        try:
+            evidence = json.loads(read_identity(root, {"path": match.group("path"), "sha256": match.group("sha256")}))
+            output = json.loads(read_identity(root, evidence["receipt"]["outputArtifact"]))
+            bindings = list(output["execution"]["artifacts"])
+            for row in (output.get("assessment") or {}).get("observations", []):
+                bindings.extend(row["evidence"])
+        except (AttributeError, OSError, ValueError, TypeError, KeyError):
+            continue  # the receipt checks report an unreadable or stale receipt
+        cited.update(binding["path"] for binding in bindings
+                     if isinstance(binding, dict) and isinstance(binding.get("path"), str))
+    if not cited:
+        return
+    try:
+        indexed = set(git(root, "ls-files", "--cached", "-z").split("\0"))
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return
+    missing = sorted(cited - indexed)
+    if missing:
+        _add(problems, "Visual Approval receipts cite files that are not in the Git index, so later "
+             "checkouts cannot re-read them; add them: git add -f -- "
+             + " ".join("'" + path.replace("'", "'\\''") + "'" for path in missing))
+
+
 def _evidence_check(label: str, capture_mode: str | None) -> str | None:
     suffix = {
         "hosted-browser": "browser",
@@ -3586,6 +3625,7 @@ def _validate_impl(
             *([_field(review_section, "Intermediate width check")] if version == UI_CONTRACT_V3 else []),
             *(f"PASS — evidence={item['path']} @ sha256:{item['sha256']}" for item in motion_effect_evidence.values()),
         ]
+        _require_indexed_captures(root, receipt_values, problems)
         receipt_dates = [
             receipt_date
             for value in receipt_values
