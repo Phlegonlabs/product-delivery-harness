@@ -71,6 +71,8 @@ Targeted re-check on `d65d6caf` (code and security, in parallel): 11 of the 13 f
 
 One scoped review on `9d99e9d6` confirmed those and kept one block: data kept inside `.git`, or in a folder named like a review-input file, was still deleted. The build now lists every file of the packet with its SHA-256, and removal refuses a packet in which anything changed since (`238f7d85`).
 
+The Codex review on PR #207 (`fc1b2de2`) found two more. The two-reviewer bullet had dropped "unless agent policy sets another topology", though AGENTS.md gives worker topology to agent policy; restored (`0a8dc9e5`). The inspection-set check ignored the state, so observing only an error screen at both end targets passed; each surface now needs its default state there (`c2f7a7cb`). Both threads were answered and resolved.
+
 - Not changed: a 0.94.0 parity manifest cannot carry into 0.95.0 because the HiFi carry key changed, so the first parity run after adoption recaptures every entry once; the cited-capture check compares file names with the index, not staged bytes, and a stale staged image fails the hash check in the next checkout.
 
 ## Verification
