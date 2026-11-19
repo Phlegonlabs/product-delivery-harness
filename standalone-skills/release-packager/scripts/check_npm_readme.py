@@ -125,15 +125,7 @@ class ImageHTML(HTMLParser):
 DESTINATION = r'(?:<([^<>\n]+)>|([^\s()<>]+))(?:\s+["\'][^\n]*["\'])?'
 
 
-def rendered(prose):
-    """Drop text that renders as no image: HTML comments, inline code and escaped `!`."""
-    prose = re.sub(r"<!--.*?-->", " ", prose, flags=re.S)
-    prose = re.sub(r"(?<!`)(`+)(?!`)((?:(?!\n[ \t]*\n).)+?)(?<!`)\1(?!`)", " ", prose, flags=re.S)
-    return re.sub(r"\\!(?=\[)", "", prose)
-
-
 def image_references(prose):
-    prose = rendered(prose)
     html = ImageHTML()
     html.feed(prose)
     html.close()
@@ -264,8 +256,10 @@ def run_example(artifact_hash, review, argv, bins, files, package, consumer, tim
         try:
             returncode = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired as exc:
-            stop_tree(process)
-            raise CheckError("documented CLI exceeded its deadline; Node process tree terminated") from exc
+            stopped = stop_tree(process)
+            raise CheckError("documented CLI exceeded its deadline; " + (
+                "Node process tree terminated" if stopped else
+                "termination of its process tree could not be confirmed")) from exc
         stdout.seek(0)
         stderr.seek(0)
         out, err = stdout.read(65537), stderr.read(65537)
@@ -276,21 +270,31 @@ def run_example(artifact_hash, review, argv, bins, files, package, consumer, tim
 
 
 def stop_tree(process):
-    """Stop a timed-out CLI and every process it started, then wait for the root."""
-    if os.name == "nt":
-        # taskkill walks the tree by parent PID; the root is still alive here, so the walk is complete.
-        subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=30)
-    else:
+    """Stop a timed-out CLI and every process it started; return whether that is confirmed.
+
+    The root is always killed and waited for, whatever happens to the tree stop.
+    """
+    tree_stopped = False
+    try:
         try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+            if os.name == "nt":
+                # taskkill walks the tree by parent PID; the root is still alive here, so the walk is complete.
+                tree_stopped = subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                                              timeout=30).returncode == 0
+            else:
+                os.killpg(process.pid, signal.SIGKILL)
+                tree_stopped = True
+        except (OSError, subprocess.SubprocessError):
+            tree_stopped = False
+    finally:
+        if process.poll() is None:
+            process.kill()
     try:
         process.wait(timeout=30)
     except subprocess.TimeoutExpired:
-        process.kill()
-        process.wait(timeout=30)
+        return False
+    return tree_stopped
 
 
 def verify(artifact, consumer, review=None, timeout=10):

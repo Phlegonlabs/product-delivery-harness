@@ -275,14 +275,35 @@ class NpmReadmeArtifactTests(unittest.TestCase):
         self.files["README.md"] = (README + "![x][id]\n[id]: assets/light.svg\n[id]: assets/missing.svg\n").encode()
         self.assertIn("assets/light.svg", self.verify()["images"]["local"])
 
-    def test_image_syntax_that_renders_no_image_is_ignored(self):
-        self.files["README.md"] = (README + "Write `![x](assets/missing.svg)` to embed.\n"
-                                   "<!-- ![x](assets/missing.svg) -->\n"
-                                   "\\![x](assets/missing.svg)\n").encode()
+    def test_image_syntax_outside_a_fenced_block_is_always_checked(self):
+        # The helper does not render Markdown: inline code, comments and escapes still count,
+        # so no real image can hide behind them. A fenced example is the documented way out.
+        for extra in ("Write `![x](assets/missing.svg)` to embed.\n", "<!-- ![x](assets/missing.svg) -->\n",
+                      "\\\\![x](assets/missing.svg)\n", "`<!--` ![x](assets/missing.svg) `-->`\n"):
+            with self.subTest(extra=extra):
+                self.files["README.md"] = (README + extra).encode()
+                with self.assertRaises(CHECK.CheckError):
+                    self.verify()
+        self.files["README.md"] = (README + "```md\n![x](assets/missing.svg)\n```\n").encode()
         self.verify()
-        self.files["README.md"] = (README + "`code` ![x](assets/missing.svg)\n").encode()
-        with self.assertRaisesRegex(CHECK.CheckError, "missing packaged README image"):
-            self.verify()
+        self.files["assets/`a`.svg"] = b"<svg/>"
+        self.files["README.md"] = (README + '<img src="assets/`a`.svg">\n').encode()
+        self.assertIn("assets/`a`.svg", self.verify()["images"]["local"])
+
+    def test_tree_stop_always_waits_for_the_root_and_reports_failure(self):
+        for failure in (subprocess.TimeoutExpired("taskkill", 30), FileNotFoundError("taskkill"),
+                        subprocess.CompletedProcess([], 128)):
+            with self.subTest(failure=failure):
+                process = unittest.mock.Mock(pid=123456)
+                process.poll.return_value = None
+                run = (patch.object(CHECK.subprocess, "run", return_value=failure)
+                       if isinstance(failure, subprocess.CompletedProcess)
+                       else patch.object(CHECK.subprocess, "run", side_effect=failure))
+                killpg = patch.object(CHECK.os, "killpg", side_effect=OSError("no group"), create=True)
+                with run, killpg:
+                    self.assertFalse(CHECK.stop_tree(process))
+                process.kill.assert_called_once()
+                process.wait.assert_called_once_with(timeout=30)
 
     def test_cli_cannot_write_into_the_consumer(self):
         self.files["bin/cli.cjs"] = b"require('node:fs').writeFileSync('marker', 'unexpected');"
