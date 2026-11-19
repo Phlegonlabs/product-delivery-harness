@@ -18,7 +18,7 @@ Draw at least 36 rough marks for a `new` scope, and at least 12 for a `refresh` 
 Draw each sketch as real vector art, black on white, at one common size. Do not polish.
 Number the sketches `S01` upward and give each a note of about five words.
 
-Spread the sketches over four families, with at least six in each:
+Spread the sketches over four families, with at least six in each for a `new` scope and at least three in each for a `refresh` scope:
 
 | Family | What it holds |
 | --- | --- |
