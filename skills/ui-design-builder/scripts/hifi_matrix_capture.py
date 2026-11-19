@@ -1395,8 +1395,8 @@ def descendants_first(rows, root):
     return order[::-1]
 
 
-PROCESS_TERMINATE, PROCESS_QUERY_LIMITED_INFORMATION = 0x0001, 0x1000
-ERROR_INVALID_PARAMETER, STILL_ACTIVE = 87, 259
+PROCESS_TERMINATE, PROCESS_QUERY_LIMITED_INFORMATION, SYNCHRONIZE = 0x0001, 0x1000, 0x00100000
+ERROR_INVALID_PARAMETER, STILL_ACTIVE, WAIT_OBJECT_0, END_WAIT_MS = 87, 259, 0, 5000
 
 
 def windows_kernel32():
@@ -1407,6 +1407,7 @@ def windows_kernel32():
                                     ("GetProcessTimes", ok, [handle] + [ctypes.POINTER(ctypes.c_uint64)] * 4),
                                     ("TerminateProcess", ok, [handle, ctypes.c_uint]),
                                     ("GetExitCodeProcess", ok, [handle, ctypes.POINTER(dword)]),
+                                    ("WaitForSingleObject", dword, [handle, dword]),
                                     ("CloseHandle", ok, [handle])):
         function = getattr(kernel32, name)
         function.restype, function.argtypes = restype, argtypes
@@ -1419,7 +1420,7 @@ def end_process(pid, created, kernel32):
 
     The identity check and the termination use one handle, and Windows gives no process's id to another while a
     handle to it is open. WMI keeps creation times to the microsecond: 10 FILETIME ticks."""
-    handle = kernel32.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
+    handle = kernel32.OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION | SYNCHRONIZE, False, pid)
     if not handle:
         return ctypes.get_last_error() == ERROR_INVALID_PARAMETER      # no process has this id any more
     try:
@@ -1428,8 +1429,8 @@ def end_process(pid, created, kernel32):
             return False
         if abs(times[0].value - created) > 10:
             return times[0].value > created         # a later process has the id: the listed one has ended
-        if kernel32.TerminateProcess(handle, 1):
-            return True
+        if kernel32.TerminateProcess(handle, 1):        # it starts the end; the wait sees it finish
+            return kernel32.WaitForSingleObject(handle, END_WAIT_MS) == WAIT_OBJECT_0
         code = ctypes.c_uint32()                    # TerminateProcess refuses a process that has already exited
         return bool(kernel32.GetExitCodeProcess(handle, ctypes.pointer(code))) and code.value != STILL_ACTIVE
     finally:

@@ -53,10 +53,11 @@ def review_for(artifact, argv=None, stdout="Hello, fixture!\n"):
 
 class FakeKernel32:
     """The kernel32 calls ``end_process`` makes, over {pid: creation time} of the processes running now. ``exited``
-    have ended but are still held open; ``denied`` refuse to be opened. No real process is touched."""
+    have ended but are still held open; ``denied`` refuse to be opened; ``lingering`` are still running when the
+    wait after TerminateProcess ends. No real process is touched."""
 
-    def __init__(self, running, exited=(), denied=()):
-        self.running, self.exited, self.denied = running, set(exited), set(denied)
+    def __init__(self, running, exited=(), denied=(), lingering=()):
+        self.running, self.exited, self.denied, self.lingering = running, set(exited), set(denied), set(lingering)
         self.access, self.handles, self.terminated, self.closed = None, {}, [], []
 
     def OpenProcess(self, access, inherit, pid):
@@ -81,6 +82,9 @@ class FakeKernel32:
     def GetExitCodeProcess(self, handle, code):
         code.contents.value = 0 if self.handles[handle] in self.exited else 259
         return 1
+
+    def WaitForSingleObject(self, handle, milliseconds):
+        return 258 if self.handles[handle] in self.lingering else 0      # WAIT_TIMEOUT, WAIT_OBJECT_0
 
     def CloseHandle(self, handle):
         self.closed.append(handle)
@@ -364,14 +368,15 @@ class NpmReadmeArtifactTests(unittest.TestCase):
                  "no process has the id": (({}, (), ()), (True, [])),
                  "exited, still held open": (({123457: 510}, {123457}, ()), (True, [])),
                  "an earlier process has the id": (({123457: 400}, (), ()), (False, [])),
-                 "access denied": (({123457: 510}, (), {123457}), (False, []))}
+                 "access denied": (({123457: 510}, (), {123457}), (False, [])),
+                 "asked to end, still running after the wait": (({123457: 510}, (), (), {123457}), (False, [123457]))}
         for name, (state, (ended, terminated)) in cases.items():
             with self.subTest(name):
                 kernel32 = FakeKernel32(*state)
                 self.assertEqual(ended, CHECK.end_process(123457, 510, kernel32))
                 self.assertEqual(terminated, kernel32.terminated)
                 self.assertEqual(list(kernel32.handles), kernel32.closed)
-                self.assertEqual(0x0001 | 0x1000, kernel32.access)  # PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION
+                self.assertEqual(0x0001 | 0x1000 | 0x00100000, kernel32.access)    # terminate, query, wait for the end
 
     @unittest.skipUnless(os.name == "nt", "the process list and kernel32 are the Windows path")
     def test_tree_stop_ends_each_listed_child_through_its_handle_and_the_root_through_popen(self):
