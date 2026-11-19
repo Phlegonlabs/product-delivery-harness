@@ -550,7 +550,8 @@ console.log("hybrid fallback and stale QA assertions completed");
     def test_only_final_candidate_evidence_is_committed(self):
         evidence = self.read("references/review-evidence.md")
         self.assertIn("Only the final candidate's receipts and the captures they cite", evidence)
-        self.assertIn("Do not commit evidence of earlier attempts", evidence)
+        self.assertIn("Earlier attempts stay local", evidence)
+        self.assertIn("gitignore-contract.md#ui-capture-output", evidence)
 
 
 class OneTurnAndLibraryConsentTests(unittest.TestCase):

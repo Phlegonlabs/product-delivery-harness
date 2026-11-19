@@ -29,6 +29,8 @@ Use `docs/design/.ui-staging/<run-id>/` only for unapproved drafts. Before colle
 - the consolidated defect ledger at `docs/design/evidence/<run-id>/defect-ledger.json`, shaped by [UI_DEFECT_LEDGER.template.json](../assets/templates/UI_DEFECT_LEDGER.template.json); and
 - `docs/design/design-system.md` plus `docs/design/design-system.json` and their derived `docs/design/design-system-preview.html` when required.
 
+Capture images, recordings and logs under `docs/evidence/` and `docs/design/evidence/` are not published; only those the final receipts cite are committed ([Receipt Assembly](review-evidence.md#receipt-assembly)).
+
 The approved Product Definition remains under `docs/product/`; preserve its exact bytes and all non-design source files so `Selected` stack source evidence resolves.
 
 Run `python "<ui-design-builder-skill-root>/scripts/check_ui_design_contract.py" --ui-design docs/design/ui-design.md --repo-root . --prd docs/product/PRD.md --hifi docs/design/ui-references/<run-id>/index.html --require-filled --require-visual-approved` at those paths. Add `--design-system-markdown` and `--design-system-registry` when the pair is required. Approval links name the final paths. Any content change, upstream drift, missing sibling or path change requires reconciliation and renewed affected approvals. The commit needs exact publication authorization.
