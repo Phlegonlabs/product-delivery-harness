@@ -6,10 +6,12 @@ from __future__ import annotations
 import argparse
 import datetime
 import hashlib
+import ipaddress
 import re
 import sys
 from collections import Counter
 from pathlib import Path
+from urllib.parse import urlsplit
 
 from markdown_contract import active_text, active_machine_block
 from platform_delivery import parse_platform_delivery, PROTOCOL
@@ -1310,6 +1312,29 @@ def _validate_keyword_references(prd_text, ui_surfaces, repo_root, *, require_fi
             _add(problems, "prd", f"{label} references unknown {unknown} in {relative}")
 
 
+def _public_docs_locator(surface: str) -> bool:
+    prefix, _, url = surface.partition(":")
+    if prefix != "docs" or any(char.isspace() or char == "\\" for char in url):
+        return False
+    try:
+        parsed = urlsplit(url)
+        host = (parsed.hostname or "").rstrip(".")
+        if parsed.scheme not in {"http", "https"} or parsed.username is not None or parsed.port == 0:
+            return False
+        if not host or host.endswith((".local", ".localhost", ".internal")):
+            return False
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            labels = host.encode("idna").decode("ascii").split(".")
+            return (len(labels) > 1 and not labels[-1].isdigit()
+                    and all(re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?", label)
+                            for label in labels))
+        return address.is_global and not address.is_multicast
+    except (ValueError, UnicodeError):
+        return False
+
+
 def _validate_growth_contract(
     prd_text: str,
     *,
@@ -1441,11 +1466,17 @@ def _validate_growth_contract(
                 "Growth Contract Discovery Surfaces must contain at least one row",
             )
         known_surface_ids = {surface.upper() for surface in ui_surface_ids}
+        companion = (shape_fields or {}).get("companion", "")
+        discovery_absent = track in {"tool", "agent"} and NO_DISCOVERY_SURFACE.fullmatch(companion) and re.search(
+            r"\bno public discovery(?: surface| channel)?s?\s*[.)]", companion, re.I
+        )
         for row in discovery_rows:
             if len(row) != len(GROWTH_DISCOVERY_HEADER):
                 continue
             kind = row[1].strip().casefold()
             surface = row[0].strip()
+            if discovery_absent and kind != "none":
+                _add(problems, "prd", "Shape declares no public discovery; use one reasoned none row or reconcile Shape")
             no_public_surface = (
                 kind == "none" and len(discovery_rows) == 1 and not ui_surface_ids
                 and track in {"tool", "agent"}
@@ -1471,7 +1502,9 @@ def _validate_growth_contract(
             if no_public_surface:
                 continue  # The trace check below still applies to the local delivery.
             if kind in PRESENCE_DISCOVERY_KINDS:
-                if not PRESENCE_SURFACE_RE.fullmatch(surface):
+                if kind == "docs_site" and not _public_docs_locator(surface):
+                    _add(problems, "prd", "Discovery Surfaces docs_site requires docs: followed by a public HTTP(S) URL")
+                elif not PRESENCE_SURFACE_RE.fullmatch(surface):
                     _add(
                         problems,
                         "prd",

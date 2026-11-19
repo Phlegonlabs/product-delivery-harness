@@ -172,6 +172,8 @@ A headless tool or agent with no public discovery surface and no companion recor
 `| none (internal offline CLI) | none | delivery | TEST-001 |`
 
 Use the project's own reason and local TEST or MS identifier.
+When the companion reason declares `no public discovery`, use only the reasoned absence row.
+An offline tool can still publish documentation. For `docs_site`, supply `docs:` followed by its public HTTP(S) URL.
 
 ### Launch Window
 | Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |

@@ -3641,6 +3641,25 @@ class GrowthContractTests(unittest.TestCase):
                 self.assertTrue(self.validate(tool.replace(existing, invalid)))
         self.assertTrue(self.validate(shaped_prd().replace(existing, absent)))
 
+    def test_offline_tool_can_have_public_docs_only_if_discovery_is_allowed(self):
+        existing = "| /launch | landing | gtm | MS-110 |"
+        shape = "track: tool; companion: none (offline CLI); console: none"
+        for locator in ("docs:internal", "docs:http://localhost/guide", "docs:https://10.0.0.1",
+                        "docs:https://[::1]", "docs:https://[bad", "docs:https://user:pw@docs.example.com",
+                        "docs:https://docs.invalid_port.example:bad", "site:https://docs.example.com"):
+            with self.subTest(locator=locator):
+                prd = shaped_prd(shape).replace(existing, f"| {locator} | docs_site | growth | MS-110 |")
+                self.assertTrue(any("public HTTP" in item for item in self.validate(prd)))
+        public = "| docs:https://docs.example.com/guide | docs_site | growth | MS-110 |"
+        self.assertEqual([], self.validate(shaped_prd(shape).replace(existing, public)))
+        private = shaped_prd(shape.replace("offline CLI", "offline CLI with no public discovery"))
+        for row in (public, "| instagram:@operator | social | growth | MS-110 |", existing):
+            with self.subTest(row=row):
+                self.assertTrue(any("declares no public discovery" in item for item in
+                                    self.validate(private.replace(existing, row))))
+        absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
+        self.assertEqual([], self.validate(private.replace(existing, absent)))
+
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
             "| email digest | Fixture digest surface on the home route | TEST-001 |",
