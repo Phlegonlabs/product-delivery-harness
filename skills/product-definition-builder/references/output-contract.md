@@ -174,6 +174,8 @@ A headless tool or agent with no public discovery surface and no companion recor
 Use the project's own reason and local TEST or MS identifier.
 When the companion reason declares `no public discovery`, use only the reasoned absence row.
 An offline tool can still publish documentation. For `docs_site`, supply `docs:` followed by its public HTTP(S) URL.
+When neither a companion nor a launch destination supplies a public route, cite the discovery destination separately.
+Record it in At a Glance, the Problem Statement or Functional Requirements. Reconcile explicit exclusions in Non-Goals.
 
 ### Launch Window
 | Day | Channel class (owned / earned / search / store) | Action | Owner | Readback metric | Destination |

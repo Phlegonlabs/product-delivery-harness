@@ -3660,6 +3660,22 @@ class GrowthContractTests(unittest.TestCase):
         absent = "| none (internal offline CLI) | none | delivery | TEST-001 |"
         self.assertEqual([], self.validate(private.replace(existing, absent)))
 
+    def test_headless_discovery_reconciles_explicit_exclusions_and_all_private_launches(self):
+        shape = "track: tool; companion: none (offline CLI); console: none"
+        pub = "| docs:https://guide.fixture.org/help | docs_site | growth | MS-110 |"
+        prd = shaped_prd(shape).replace("| /launch | landing | gtm | MS-110 |", pub)
+        for reason in ("no public discovery, private distribution only", "no public discovery is permitted"):
+            self.assertTrue(self.validate(prd.replace("none (offline CLI)", f"none ({reason})")))
+        self.assertTrue(self.validate(prd.replace("## Non-Goals\n", "## Non-Goals\n- Public discovery is explicitly forbidden.\n")))
+        self.assertTrue(self.validate(prd.replace("guide.fixture.org", "docs.invalid")))
+        v2 = prd.replace("Readback metric |", "Readback metric | Destination |").replace(
+            "| Return visits |", "| Return visits | none (internal distribution) |").replace(
+            "| Readback metric | Destination |\n| --- | --- | --- | --- | --- |",
+            "| Readback metric | Destination |\n| --- | --- | --- | --- | --- | --- |")
+        self.assertTrue(any("needs its destination" in item for item in self.validate(v2)))
+        self.assertEqual([], self.validate(v2.replace("## Problem Statement\n",
+            "## Problem Statement\nThe CLI operators use https://guide.fixture.org/help for public documentation.\n")))
+
     def test_reengagement_is_blocking_for_web(self) -> None:
         prd = shaped_prd().replace(
             "| email digest | Fixture digest surface on the home route | TEST-001 |",

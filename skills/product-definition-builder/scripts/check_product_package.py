@@ -1321,7 +1321,7 @@ def _public_docs_locator(surface: str) -> bool:
         host = (parsed.hostname or "").rstrip(".")
         if parsed.scheme not in {"http", "https"} or parsed.username is not None or parsed.port == 0:
             return False
-        if not host or host.endswith((".local", ".localhost", ".internal")):
+        if not host or host.endswith((".local", ".localhost", ".localdomain", ".internal", ".invalid", ".test")):
             return False
         try:
             address = ipaddress.ip_address(host)
@@ -1467,16 +1467,23 @@ def _validate_growth_contract(
             )
         known_surface_ids = {surface.upper() for surface in ui_surface_ids}
         companion = (shape_fields or {}).get("companion", "")
-        discovery_absent = track in {"tool", "agent"} and NO_DISCOVERY_SURFACE.fullmatch(companion) and re.search(
-            r"\bno public discovery(?: surface| channel)?s?\s*[.)]", companion, re.I
-        )
+        headless_track = track in {"tool", "agent"}
+        shape_excludes_discovery = headless_track and re.search(
+            r"\bno public discovery\b(?=\s*(?:[,.)]|$|(?:surfaces?|channels?|is permitted|is allowed)\b))",
+            companion, re.I)
+        exclusions = (_section(prd_text, "## Non-Goals") or "") if headless_track else ""
+        scope_excludes_discovery = re.search(
+            r"\bpublic discovery (?:is |remains )?(?:explicitly )?(?:forbidden|prohibited|out of scope|not permitted|not allowed)\b",
+            exclusions, re.I)
         for row in discovery_rows:
             if len(row) != len(GROWTH_DISCOVERY_HEADER):
                 continue
             kind = row[1].strip().casefold()
             surface = row[0].strip()
-            if discovery_absent and kind != "none":
+            if shape_excludes_discovery and kind != "none":
                 _add(problems, "prd", "Shape declares no public discovery; use one reasoned none row or reconcile Shape")
+            elif scope_excludes_discovery and kind != "none":
+                _add(problems, "prd", "Discovery Surfaces conflicts with the public discovery exclusion in Non-Goals")
             no_public_surface = (
                 kind == "none" and len(discovery_rows) == 1 and not ui_surface_ids
                 and track in {"tool", "agent"}
@@ -1550,6 +1557,22 @@ def _validate_growth_contract(
         if not launch_rows:
             _add(problems, "prd", "Growth Contract Launch Window must contain at least one row")
         launch_day_seen = False
+        # With neither a companion nor a public launch destination, the discovery
+        # row needs an independent product reference to an existing public route.
+        if (track in {"agent", "tool"} and not ui_surface_ids and launch_rows
+                and NO_DISCOVERY_SURFACE.fullmatch((shape_fields or {}).get("companion", ""))
+                and all(len(row) == len(GROWTH_LAUNCH_WINDOW_HEADER_V2)
+                        and (NO_DISCOVERY_SURFACE.fullmatch(row[-1]) or _absent_cell(row[-1])) for row in launch_rows)):
+            product_sources = "\n".join(_section(prd_text, heading) or "" for heading in
+                                        ("## At a Glance", "## Problem Statement", "## Functional Requirements"))
+            for row in discovery_rows or []:
+                if len(row) != len(GROWTH_DISCOVERY_HEADER) or row[1].casefold() == "none":
+                    continue
+                surface = row[0].strip()
+                locator = surface.partition(":")[2] if row[1].casefold() in PRESENCE_DISCOVERY_KINDS else surface
+                if not locator or not re.search(r"(?<![\w/-])" + re.escape(locator) + r"(?=$|[\s`)>\],;]|[.!?](?:\s|$))", product_sources):
+                    _add(problems, "prd", f"Discovery Surfaces {surface!r} needs its destination in the product scope "
+                         "when both companion and launch destinations are absent")
         for row in launch_rows:
             if len(row) != launch_width:
                 continue
