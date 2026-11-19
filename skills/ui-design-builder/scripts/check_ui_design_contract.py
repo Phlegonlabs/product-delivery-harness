@@ -2423,8 +2423,19 @@ def _require_indexed_captures(root: Path, receipt_values: list[str | None], prob
     missing = sorted(cited - indexed)
     if missing:
         _add(problems, "Visual Approval receipts cite files that are not in the Git index, so later "
-             "checkouts cannot re-read them; add them: git add -f -- "
-             + " ".join("'" + path.replace("'", "'\\''") + "'" for path in missing))
+             "checkouts cannot re-read them; " + _force_add_instruction(missing))
+
+
+FORCE_ADD_INLINE_LIMIT = 40   # beyond this a single command line can exceed the Windows length limit
+
+
+def _force_add_instruction(paths: list[str]) -> str:
+    """How to add ignored files: one quoted command, or a path list for --pathspec-from-file."""
+
+    if len(paths) <= FORCE_ADD_INLINE_LIMIT:
+        return "add them: git add -f -- " + " ".join("'" + path.replace("'", "'\\''") + "'" for path in paths)
+    return (f"add these {len(paths)} paths with git add -f --pathspec-from-file=<file>, "
+            "where <file> holds one path per line:\n" + "\n".join(paths))
 
 
 def _evidence_check(label: str, capture_mode: str | None) -> str | None:

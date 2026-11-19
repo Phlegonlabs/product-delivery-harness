@@ -87,6 +87,14 @@ class CitedCaptureIndexTests(unittest.TestCase):
             git("add", "-f", "--", *captures)
             self.assertEqual((0, ""), approval_check(root))
 
+    def test_a_long_capture_list_becomes_a_pathspec_file(self):
+        limit = checker.FORCE_ADD_INLINE_LIMIT
+        paths = [f"docs/design/evidence/run-1/case {index:03}.png" for index in range(limit + 1)]
+        self.assertNotIn("\n", checker._force_add_instruction(paths[:limit]))
+        message = checker._force_add_instruction(paths)
+        self.assertIn("git add -f --pathspec-from-file=<file>", message)
+        self.assertEqual(paths, message.split("\n")[1:])
+
 
 if __name__ == "__main__":
     unittest.main()
