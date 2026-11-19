@@ -153,6 +153,73 @@ class ReadinessTests(unittest.TestCase):
         self.assertIn("artifact identity is stale", text)
         self.assertIn(m.SIDECAR_NAME, text)
 
+    def reseal(self, capture, edit):
+        """Edit a capture's sidecar and bind its new hash in the output, as a hand edit that hides itself would."""
+        output_path = self.root / capture
+        output = json.loads(output_path.read_text(encoding="utf-8"))
+        binding = next(b for b in output["execution"]["artifacts"] if b["path"].endswith("/" + m.SIDECAR_NAME))
+        sidecar_path = self.root / binding["path"]
+        sidecar = json.loads(sidecar_path.read_text(encoding="utf-8"))
+        edit(sidecar, capture.rsplit("/", 1)[0])
+        data = json.dumps(sidecar).encode("utf-8")
+        sidecar_path.write_bytes(data)
+        binding["sha256"] = hashlib.sha256(data).hexdigest()
+        output_path.write_text(json.dumps(output), encoding="utf-8")
+
+    def test_a_resealed_sidecar_must_hold_what_the_driver_wrote(self):
+        """Each edit keeps every hash consistent; only the records disagree with what the driver writes."""
+        def ready_case(sidecar):        # the UI-001/ready/390 record, the ledger row's acceptance case
+            return sidecar["cases"][0]
+
+        def both(sidecar, folder):
+            record = ready_case(sidecar)
+            record["carriedFrom"] = {"result": "PASS", "pageSha256": record["pageSha256"], "capture": dict(record["capture"]),
+                                     "sourceOutput": {"path": "docs/evidence/run0/ui-output.json", "sha256": "1" * 64}}
+
+        def old_as_fresh(sidecar, folder):
+            record = ready_case(sidecar)
+            record["capture"], record["carriedFrom"] = record["carriedFrom"]["capture"], None
+
+        def other_case(sidecar, folder):
+            ready_case(sidecar)["carriedFrom"]["capture"] = dict(sidecar["cases"][1]["carriedFrom"]["capture"])
+
+        def set_capture(**fields):
+            return lambda sidecar, folder: ready_case(sidecar)["capture"].update(
+                {key: value.format(folder=folder) for key, value in fields.items()})
+        rerun = "Fix: rerun hifi_matrix_capture.py on the frozen bytes and never edit its output."
+        # (edit, the line it gives, carried run, open ledger row on the edited case)
+        edits = {
+            "outside path": (set_capture(path="../../outside.png"),
+                             "UI-001/ready/390: capture lies outside the repository", False, True),
+            "missing file": (set_capture(path="{folder}/UI-001-ready-390-none.png"),
+                             "UI-001/ready/390: capture file is missing", False, True),
+            "other bytes": (set_capture(sha256="0" * 64),
+                            "UI-001/ready/390: capture bytes differ from its sha256", False, True),
+            "capture and carriedFrom": (both, "UI-001/ready/390: names both a capture and carriedFrom", False, True),
+            "earlier screenshot as fresh": (old_as_fresh,
+                                            "UI-001/ready/390: capture is not this run's screenshot", True, True),
+            "another case carried": (other_case,
+                                     "UI-001/ready/390: carried capture is not this case's screenshot", True, False),
+            "case dropped": (lambda sidecar, folder: sidecar["cases"].pop(),
+                             "has no case record for 1 of the output's cases", False, False),
+            "empty a11y": (lambda sidecar, folder: sidecar.update(a11y={}),
+                           "its a11y object is not the one --measure-a11y writes", False, False),
+            "other run": (lambda sidecar, folder: sidecar["run"].update(finishedAt="2020-01-01T00:00:00+00:00"),
+                          "names another subject or run than", False, False),
+        }
+        ledger = self.ledger([self.family("DF-001", "open", "UI-001", "ready", "390")])
+        code, text = self.ready(self.capture(), ledger=ledger)
+        self.assertEqual(0, code, "a fresh screenshot of this run is the after-capture: " + text)
+        for name, (edit, expected, carried, with_ledger) in edits.items():
+            with self.subTest(edit=name):
+                capture = self.capture("--carry-from", self.capture(), driver=FakeDriver()) if carried else self.capture()
+                self.reseal(capture, edit)
+                code, text = self.ready(capture, ledger=ledger if with_ledger else None)
+                self.assertEqual(1, code, text)
+                line = next((row for row in text.splitlines() if expected in row), None)
+                self.assertIsNotNone(line, f"{expected!r} not in:\n{text}")
+                self.assertTrue(line.endswith(rerun), line)
+
     def test_a_capture_without_measured_accessibility_is_not_ready(self):
         code, text = self.ready(self.capture(measure=False))
         self.assertEqual(1, code, text)

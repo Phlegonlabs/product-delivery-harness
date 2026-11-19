@@ -455,6 +455,111 @@ def _screenshot(record):
     return "fresh" if record.get("capture") else ("carried" if record.get("carriedFrom") else "none")
 
 
+A11Y_LEVELS = ("fail", "note", "unmeasured")
+CARRIED_KEYS = {"result", "pageSha256", "capture", "sourceOutput"}
+
+
+def _is_identity(value):
+    return (isinstance(value, dict) and set(value) == {"path", "sha256"} and isinstance(value["path"], str)
+            and isinstance(value["sha256"], str) and SHA.fullmatch(value["sha256"]) is not None)
+
+
+def _file_problem(root, bound, binding, label):
+    """Why a screenshot binding is not a file inside the repository that hashes to it and the output binds, or None."""
+    if not _is_identity(binding):
+        return f"{label} is not a path and sha256"
+    try:
+        path = safe_path(root, binding["path"])
+    except ValueError:
+        return f"{label} lies outside the repository or crosses a link"
+    if not path.is_file():
+        return f"{label} file is missing"
+    if hashlib.sha256(path.read_bytes()).hexdigest() != binding["sha256"]:
+        return f"{label} bytes differ from its sha256"
+    if bound.get(binding["path"]) != binding["sha256"]:
+        return f"{label} is not bound in the output's execution artifacts"
+    return None
+
+
+def _record_problems(root, bound, record, fresh_path, recapture):
+    """What in one case record's screenshot fields the driver does not write. ``fresh_path`` is where this run
+    saves the case's screenshot (hifi_matrix_capture.capture_name); a carried capture has the same file name."""
+    capture, carried = record.get("capture"), record.get("carriedFrom")
+    found = []
+    if capture is not None and carried is not None and not recapture:
+        found.append("names both a capture and carriedFrom, without --recapture-carried")
+    if capture is not None:
+        found.append(_file_problem(root, bound, capture, "capture")
+                     or (None if capture["path"] == fresh_path else "capture is not this run's screenshot"))
+    if carried is not None:
+        if (not isinstance(carried, dict) or set(carried) != CARRIED_KEYS or carried["result"] != "PASS"
+                or not isinstance(carried["pageSha256"], str) or not SHA.fullmatch(carried["pageSha256"])
+                or not _is_identity(carried["sourceOutput"])):
+            found.append("carriedFrom is not the record the driver writes")
+        else:
+            found.append(_file_problem(root, bound, carried["capture"], "carried capture")
+                         or (None if PurePosixPath(carried["capture"]["path"]).name == PurePosixPath(fresh_path).name
+                             else "carried capture is not this case's screenshot"))
+    return [phrase for phrase in found if phrase]
+
+
+def _a11y_written(a11y):
+    """True when ``a11y`` has the structure --measure-a11y writes and its summary counts its findings."""
+    import hifi_matrix_capture as matrix
+    if not isinstance(a11y, dict) or set(a11y) != {"summary", "notRun", "incomplete", "findings"}:
+        return False
+    summary = a11y["summary"]
+    if (not isinstance(summary, dict) or set(summary) != set(matrix.A11Y_MEASURES)
+            or any(not isinstance(a11y[key], list) for key in ("notRun", "incomplete", "findings"))):
+        return False
+    counts = {(name, level): 0 for name in matrix.A11Y_MEASURES for level in A11Y_LEVELS}
+    for row in a11y["findings"]:
+        if (not isinstance(row, dict) or (row.get("measure"), row.get("level")) not in counts
+                or any(not isinstance(row.get(key), str) for key in ("surface", "state", "target", "axis"))):
+            return False
+        counts[(row["measure"], row["level"])] += 1
+    return all(isinstance(summary[name], dict) and set(summary[name]) == {"checked", *A11Y_LEVELS}
+               and all(type(value) is int and value >= 0 for value in summary[name].values())
+               and all(summary[name][level] == counts[(name, level)] for level in A11Y_LEVELS)
+               for name in matrix.A11Y_MEASURES)
+
+
+def _sidecar_problems(root, output_rel, output, sidecar_rel, sidecar, bound):
+    """Where a hash-bound sidecar disagrees with its output or holds a case record the driver does not write."""
+    import hifi_matrix_capture as matrix
+    problems = []
+    execution = output.get("execution") if isinstance(output.get("execution"), dict) else {}
+    run = sidecar.get("run") if isinstance(sidecar.get("run"), dict) else {}
+    if ("subject" in sidecar and sidecar["subject"] != output.get("subject")) or any(
+            run[key] != execution.get(key) for key in ("startedAt", "finishedAt") if key in run):
+        problems.append((f"{sidecar_rel} names another subject or run than {output_rel}", RERUN))
+    matrix_keys = [(c.get("surface"), c.get("state"), c.get("target"))
+                   for c in (output.get("matrix") or {}).get("cases") or [] if isinstance(c, dict)]
+    rows = sidecar.get("cases") if isinstance(sidecar.get("cases"), list) else []
+    keys = [(r.get("surface"), r.get("state"), r.get("target")) if isinstance(r, dict) else None for r in rows]
+    missing = [key for key in matrix_keys if key not in keys]
+    if missing:
+        problems.append((f"{sidecar_rel} has no case record for {len(missing)} of the output's cases, "
+                         f"first {'/'.join(map(str, missing[0]))}", RERUN))
+    extra = [key for index, key in enumerate(keys) if key not in matrix_keys or key in keys[:index]]
+    if extra:
+        problems.append((f"{sidecar_rel} has {len(extra)} case records that are not one each of the output's cases", RERUN))
+    results = {(r.get("surface"), r.get("state"), r.get("target")): r.get("result")
+               for r in output.get("results") or [] if isinstance(r, dict)}
+    folder, recapture = PurePosixPath(output_rel).parent, run.get("recaptureCarried") is True
+    groups = {}
+    for record, key in zip(rows, keys):
+        if key is None or key not in matrix_keys:
+            continue
+        fresh_path = str(folder / matrix.capture_name(matrix.Case(key[0], "", key[1], key[2])))
+        found = _record_problems(root, bound, record, fresh_path, recapture)
+        if record.get("result") != results.get(key):
+            found.append("result differs from the output's")
+        for phrase in found:
+            groups.setdefault(phrase, []).append("/".join(key))
+    return problems + [(f"{sidecar_rel} {_where(names)}: {phrase}", RERUN) for phrase, names in groups.items()]
+
+
 def capture_problems(root, package_rel, package, output_rel):
     """(problems, shots) for one hifi_matrix_capture.py output against the frozen package bytes.
 
@@ -493,6 +598,9 @@ def capture_problems(root, package_rel, package, output_rel):
 
     problems = [(f"{output_rel} fails the driver's own output check: {finding}", "fix what it names and rerun the driver")
                 for finding in matrix.validate_output(root, safe_path(root, output_rel), output)]
+    integrity = _sidecar_problems(root, output_rel, output, binding["path"], sidecar, bound)
+    if integrity:       # its records cannot be trusted, so nothing more is read from them
+        return problems + integrity, None
     run = sidecar.get("run") if isinstance(sidecar.get("run"), dict) else {}
     observed = {(c.get("surface"), c.get("state"), c.get("target"))
                 for c in (output.get("matrix") or {}).get("cases") or [] if isinstance(c, dict)}
@@ -515,8 +623,10 @@ def capture_problems(root, package_rel, package, output_rel):
                          f"{sweep.get('interactionsFail')} failed interactions and {len(sweep.get('findings') or [])} "
                          "coverage findings", "fix them and rerun the driver"))
     a11y = sidecar.get("a11y")
-    if not isinstance(a11y, dict):
+    if a11y is None:
         problems.append((f"{output_rel} has no a11y measurements", "rerun the driver with --measure-a11y"))
+    elif not _a11y_written(a11y):
+        problems.append((f"{binding['path']}: its a11y object is not the one --measure-a11y writes", RERUN))
     else:
         problems += _a11y_problems(root, a11y, str(PurePosixPath(binding["path"]).parent / A11Y_DISPOSITIONS))
     return problems, {key: _screenshot(record) for key, record in records.items()}
