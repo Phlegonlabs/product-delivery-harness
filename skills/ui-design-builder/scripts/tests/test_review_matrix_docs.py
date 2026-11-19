@@ -115,6 +115,31 @@ class ReviewMatrixDocsTests(unittest.TestCase):
         self.assertIn("the same reviewer finishes it with a longer deadline", section(rubric, "## Reporting And Reconciliation"))
         self.assertNotIn("page group", read("references/stages/ui-design.md"))
 
+    def test_inspection_set_is_the_reviewers_complete_visual_coverage(self):
+        rubric = read(RUBRIC)
+        procedure = rubric.split("### Browser Inspection Procedure", 1)[1].split("\n### ", 1)[0]
+        for phrase in (
+            "checks every capture by machine: the DOM geometry scan, console errors and the `--measure-a11y` measurements",
+            "- each page at its smallest approved target, in its default state;",
+            "- every case those machine results flag; and",
+            "- the stress-axis sample of [First-Wave Audit Axes](#first-wave-audit-axes).",
+            "it does not open every capture",
+            "Skipping any case of the set is not coverage",
+            "MISSING/BLOCKED, never PASS",
+        ):
+            with self.subTest(phrase=phrase):
+                self.assertIn(phrase, procedure)
+        self.assertNotIn("Render every required base-matrix case", rubric)
+        self.assertNotIn("in the retained all-screens HTML", rubric)
+        self.assertEqual(1, rubric.count("MISSING/BLOCKED"))
+        for dimension in ("- `H2 Layout safety`:", "- `H4 Responsive and edge states`:"):
+            line = rubric.split(dimension, 1)[1].split("\n", 1)[0]
+            with self.subTest(dimension=dimension):
+                self.assertIn("(#browser-inspection-procedure)", line)
+        evidence = read("references/review-evidence.md")
+        self.assertNotIn("inspect every case", evidence)
+        self.assertIn("ui-grading-rubric.md#browser-inspection-procedure", evidence)
+
 
 if __name__ == "__main__":
     unittest.main()

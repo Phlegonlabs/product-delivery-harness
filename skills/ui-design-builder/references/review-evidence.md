@@ -65,7 +65,7 @@ When a reviewer returns, the parent at once builds or validates its receipt with
 
 In the re-review, diff each recaptured case against its capture under the last receipt. A geometry diff plus pixel diff within the recorded tolerance auto-records the row as `identical`: it keeps its earlier verdict and cites both captures and the diff value. The reviewer's closure check judges only the flagged rows, one verdict per ledger row; interactions on changed pages are rechecked regardless, because a render fingerprint does not see behaviour. A case with no earlier capture, a failed geometry scan or an unreadable capture is flagged.
 
-Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect every case there, and a scan with zero findings is still not evidence.
+Record the tolerance once, in the `tolerance` field of the Approved target in `ui-design.md`; keep no second table. The first diagnostic wave is not diff-first: inspect its whole [inspection set](ui-grading-rubric.md#browser-inspection-procedure), and a scan with zero findings is still not evidence.
 
 The comparison sheet and the `slop_scan.py` output are author-produced inputs to the wave. The grading record cites each by path and SHA-256. They are not receipts and carry no verdict.
 
