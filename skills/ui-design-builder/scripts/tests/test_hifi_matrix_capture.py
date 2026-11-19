@@ -2000,9 +2000,9 @@ class MeasuredAccessibilityFakeTests(unittest.TestCase):
         self.assertEqual({"measure": "contrast", "surface": "UI-001", "state": "ready", "target": "390", "axis": "base",
                           "selector": "p#ready", "level": "fail", "limit": 1}, a11y["findings"][0])
         # per page: its base cases, then the axis sample in the base scheme
-        self.assertEqual((["contrast", "target-size", "text-clip"] * 6 + ["focus-visible"] * 4) * 2,
+        self.assertEqual((["contrast", "target-size", "text-clip", "text-split"] * 6 + ["focus-visible"] * 4) * 2,
                          [f["measure"] for f in a11y["findings"]])
-        self.assertEqual({"contrast": 12, "target-size": 12, "text-clip": 12, "focus-visible": 8, "text-growth": 0},
+        self.assertEqual({"contrast": 12, "target-size": 12, "text-clip": 12, "text-split": 12, "focus-visible": 8, "text-growth": 0},
                          {name: row["fail"] for name, row in a11y["summary"].items()})
         self.assertEqual(24, a11y["summary"]["contrast"]["checked"])
         self.assertEqual(12, summary["a11y"]["contrast"])
@@ -2010,10 +2010,11 @@ class MeasuredAccessibilityFakeTests(unittest.TestCase):
 
     def test_an_axis_that_is_not_requested_is_not_run_and_reported_once(self):
         _, _, summary, (_, sidecar) = self.go("--measure-a11y")
-        expected = [("contrast", "dark"), ("text-clip", "zoom-200"), ("text-growth", "zoom-200"), ("focus-visible", "forced-colors")]
+        expected = [("contrast", "dark"), ("text-clip", "zoom-200"), ("text-split", "zoom-200"), ("text-growth", "zoom-200"),
+                    ("focus-visible", "forced-colors")]
         self.assertEqual(expected, [(row["measure"], row["axis"]) for row in sidecar["a11y"]["notRun"]])
-        self.assertEqual(["contrast needs --axes dark", "text-clip needs --axes zoom-200", "text-growth needs --axes zoom-200",
-                          "focus-visible needs --axes forced-colors"], summary["a11y"]["notRun"])
+        self.assertEqual(["contrast needs --axes dark", "text-clip needs --axes zoom-200", "text-split needs --axes zoom-200",
+                          "text-growth needs --axes zoom-200", "focus-visible needs --axes forced-colors"], summary["a11y"]["notRun"])
         self.assertEqual({"base"}, {f["axis"] for f in sidecar["a11y"]["findings"]})
 
     def test_each_axis_runs_its_own_measurements_on_the_axis_sample(self):
@@ -2023,8 +2024,8 @@ class MeasuredAccessibilityFakeTests(unittest.TestCase):
         by_axis = {}
         for row in a11y["findings"]:
             by_axis.setdefault(row["axis"], set()).add(row["measure"])
-        self.assertEqual({"base": {"contrast", "target-size", "text-clip", "focus-visible"}, "dark": {"contrast"},
-                          "zoom-200": {"text-clip", "text-growth"}, "forced-colors": {"focus-visible"}}, by_axis)
+        self.assertEqual({"base": {"contrast", "target-size", "text-clip", "text-split", "focus-visible"}, "dark": {"contrast"},
+                          "zoom-200": {"text-clip", "text-split", "text-growth"}, "forced-colors": {"focus-visible"}}, by_axis)
         for axis in ("dark", "zoom-200", "forced-colors"):
             self.assertEqual(8, len({(f["surface"], f["state"], f["target"]) for f in a11y["findings"] if f["axis"] == axis}))
         # text growth compares each case with the same case measured without the axis
@@ -2043,15 +2044,15 @@ class MeasuredAccessibilityFakeTests(unittest.TestCase):
         a11y = sidecar["a11y"]
         failed = [f for f in a11y["findings"] if (f["surface"], f["state"], f["target"]) == ("UI-002", "ready", "1200")
                   and f["measure"] != "focus-visible"]
-        self.assertEqual(["unmeasured"] * 3, [f["level"] for f in failed])
+        self.assertEqual(["unmeasured"] * 4, [f["level"] for f in failed])
         self.assertTrue(all(f["reason"] == "the measurement failed: boom" and f["selector"] is None for f in failed))
         self.assertEqual({("contrast", "UI-001", "empty", "390"), ("contrast", "UI-001", "empty", "1200")},
                          {(r["measure"], r["surface"], r["state"], r["target"]) for r in a11y["incomplete"]
                           if r["measure"] == "contrast"})
         self.assertTrue(all(r["incomplete"] is True and r["axis"] == "base" for r in a11y["incomplete"]))
         self.assertEqual(0, code)
-        self.assertEqual(3, a11y["summary"]["text-clip"]["unmeasured"] + a11y["summary"]["contrast"]["unmeasured"]
-                         + a11y["summary"]["target-size"]["unmeasured"])
+        self.assertEqual(4, a11y["summary"]["text-clip"]["unmeasured"] + a11y["summary"]["contrast"]["unmeasured"]
+                         + a11y["summary"]["target-size"]["unmeasured"] + a11y["summary"]["text-split"]["unmeasured"])
 
     def test_text_growth_without_a_measured_base_case_is_unmeasured(self):
         script = lambda fields, axis: dict(fake_a11y(fields, axis), fonts=None)
@@ -2233,8 +2234,8 @@ class MeasuredAccessibilityBrowserTests(unittest.TestCase):
     def test_an_axis_that_was_not_requested_is_reported_not_run(self):
         base = self.runs["base"]
         self.assertEqual({"base"}, {f["axis"] for f in base["sidecar"]["a11y"]["findings"]})
-        self.assertEqual(["contrast needs --axes dark", "text-clip needs --axes zoom-200", "text-growth needs --axes zoom-200",
-                          "focus-visible needs --axes forced-colors"], base["line"]["a11y"]["notRun"])
+        self.assertEqual(["contrast needs --axes dark", "text-clip needs --axes zoom-200", "text-split needs --axes zoom-200",
+                          "text-growth needs --axes zoom-200", "focus-visible needs --axes forced-colors"], base["line"]["a11y"]["notRun"])
         self.assertEqual(2, base["line"]["a11y"]["focus-visible"])       # the base-scheme focus check still ran
         self.assertEqual([], self.runs["one"]["sidecar"]["a11y"]["notRun"])
         self.assertEqual(0, len(base["sidecar"]["axes"]))

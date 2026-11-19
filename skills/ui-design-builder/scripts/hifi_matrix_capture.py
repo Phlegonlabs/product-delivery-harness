@@ -51,9 +51,9 @@ SIDECAR_NAME = "matrix-capture.json"
 INTERMEDIATE_DIR = "intermediate"
 CHECK = "hifi-browser"
 AXES = ("dark", "reduced-motion", "forced-colors", "zoom-200", "reflow-320")
-A11Y_MEASURES = ("contrast", "target-size", "text-clip", "focus-visible", "text-growth")
-A11Y_BASE = ("contrast", "target-size", "text-clip")      # measured on every base case
-A11Y_AXIS = {"dark": ("contrast",), "zoom-200": ("text-clip", "text-growth"), "forced-colors": ("focus-visible",)}
+A11Y_MEASURES = ("contrast", "target-size", "text-clip", "text-split", "focus-visible", "text-growth")
+A11Y_BASE = ("contrast", "target-size", "text-clip", "text-split")      # measured on every base case
+A11Y_AXIS = {"dark": ("contrast",), "zoom-200": ("text-clip", "text-split", "text-growth"), "forced-colors": ("focus-visible",)}
 TRIGGERS = ("click", "keyboard")
 INTERACT_KINDS = ("navigate", "state", "feedback")
 DRIVER_BASE = "https://hifi.invalid/pkg/"
@@ -366,20 +366,21 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
     }
   }
 
+  // text cut by its own box: what text-clip reports, and what text-split leaves to it
+  const clips = (el, which) => { const o = getComputedStyle(el)['overflow' + which]; return o === 'hidden' || o === 'clip'; };
+  const beyond = (inner, outer, which) => which === 'X'
+    ? rect(inner).right > rect(outer).right + 1 || rect(inner).left < rect(outer).left - 1
+    : rect(inner).bottom > rect(outer).bottom + 1 || rect(inner).top < rect(outer).top - 1;
+  const cuts = el => FIELDS.includes(el.tagName) ? [] : ['X', 'Y'].filter(which => clips(el, which))
+    .map(which => ({ which, scroll: which === 'X' ? el.scrollWidth : el.scrollHeight, client: which === 'X' ? el.clientWidth : el.clientHeight }))
+    .filter(({ which, scroll, client }) => scroll > client + 1
+      && (hasText(el) || texts.some(t => t !== el && el.contains(t) && beyond(t, el, which))));
+
   if (measures.includes('text-clip')) {
-    const clips = (el, which) => { const o = getComputedStyle(el)['overflow' + which]; return o === 'hidden' || o === 'clip'; };
-    const beyond = (inner, outer, which) => which === 'X'
-      ? rect(inner).right > rect(outer).right + 1 || rect(inner).left < rect(outer).left - 1
-      : rect(inner).bottom > rect(outer).bottom + 1 || rect(inner).top < rect(outer).top - 1;
     for (const el of els) {
       if (FIELDS.includes(el.tagName)) continue;
-      for (const which of ['X', 'Y']) {
-        if (!clips(el, which)) continue;
-        const scroll = which === 'X' ? el.scrollWidth : el.scrollHeight, client = which === 'X' ? el.clientWidth : el.clientHeight;
-        if (scroll <= client + 1) continue;
-        if (hasText(el) || texts.some(t => t !== el && el.contains(t) && beyond(t, el, which)))
-          push('text-clip', el, 'fail', { kind: 'overflow-' + which.toLowerCase(), overflow: scroll - client, scroll, client, limit: 1 });
-      }
+      for (const { which, scroll, client } of cuts(el))
+        push('text-clip', el, 'fail', { kind: 'overflow-' + which.toLowerCase(), overflow: scroll - client, scroll, client, limit: 1 });
       if (hasText(el) || texts.some(t => el.contains(t))) checked['text-clip']++;
     }
     for (const el of els) {
@@ -392,6 +393,93 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
       checked['text-clip']++;
       if (wide > content + 1)
         push('text-clip', el, 'fail', { kind: 'placeholder', overflow: round(wide - content), scroll: round(wide), client: round(content), limit: 1 }, '::placeholder');
+    }
+  }
+
+  if (measures.includes('text-split')) {
+    // A figure, or a CJK word of 2 to 6 characters in a text of 24 characters or fewer, drawn on more than one line.
+    // A text node belongs to the nearest box that is not display:inline, so a token may cross an inline child
+    // (a currency span or a <br>) but never a block, cell or flex item. Text that text-clip reports is left to it.
+    const CODES = 'USD|HKD|MOP|CNY|RMB|TWD|JPY|KRW|SGD|MYR|THB|PHP|IDR|VND|INR|AUD|NZD|CAD|EUR|GBP|CHF|SEK|NOK|DKK|BRL|MXN|ZAR|AED|SAR';
+    const UNITS = String.raw`%|\u2030|\uFF05|\u00B0[CF]?|[\u4E07\u842C\u4EBF\u5104]?(?:[\u6E2F\u7F8E]?\u5143|\u5713|\u5706|\u5186|\uC6D0)`
+      + String.raw`|[\u4E07\u842C\u4EBF\u5104]|(?:${CODES}|kg|g|km|m|cm|mm|ml|mL|L|h|hr|hrs|min|s|ms|kWh|kW|W|GB|MB|KB|TB|px|pt|x|k|K|M|bn)(?![A-Za-z])`;
+    const MONTH = String.raw`(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|June?|July?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?`;
+    const DATE = [String.raw`\d{4}\u5E74\d{1,2}\u6708(?:\d{1,2}\u65E5)?`, String.raw`\d{1,2}\u6708\d{1,2}\u65E5`,
+      String.raw`\d{4}[-/.]\d{1,2}[-/.]\d{1,2}`, String.raw`\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}`,
+      String.raw`${MONTH}\s+\d{1,2}(?:,?\s+\d{4})?`, String.raw`\d{1,2}\s+${MONTH}(?:,?\s+\d{4})?`].join('|');
+    const SIGN = String.raw`[+\-\u2212\u00B1]`;
+    const FIGURE = new RegExp(String.raw`(?<![A-Za-z\d])(?:${DATE}|${SIGN}?(?:(?:[A-Z]{0,2}\p{Sc}|(?:${CODES})(?![A-Za-z]))\s*)?`
+      + String.raw`${SIGN}?\d+(?:[,.'\u00A0\u202F]\d+)*(?:\s*(?:${UNITS}))?)`, 'gu');
+    const CJK = /^[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\u30FC]{2,6}$/u;
+    const segmenters = new Map();
+    const segmenter = box => {
+      const tag = box.closest('[lang]'), lang = (tag && tag.getAttribute('lang')) || undefined;
+      if (!segmenters.has(lang)) {
+        let made;
+        try { made = new Intl.Segmenter(lang, { granularity: 'word' }); } catch (_) { made = new Intl.Segmenter(undefined, { granularity: 'word' }); }
+        segmenters.set(lang, made);
+      }
+      return segmenters.get(lang);
+    };
+    const cut = els.filter(el => cuts(el).length);
+    const range = document.createRange();
+    for (const box of els) {
+      if (FIELDS.includes(box.tagName) || getComputedStyle(box).display === 'inline' || cut.some(c => c.contains(box))) continue;
+      const nodes = [];
+      let text = '';
+      const visit = parent => {
+        for (const n of parent.childNodes) {
+          if (n.nodeType === 3) {
+            if (getComputedStyle(n.parentElement).visibility === 'visible') { nodes.push({ node: n, at: text.length }); text += n.data; }
+          } else if (n.nodeType === 1) {
+            if (n instanceof HTMLElement && getComputedStyle(n).display === 'inline') visit(n);
+            else text += '\uFFFC';     // not white space, so no token runs across another box
+          }
+        }
+      };
+      visit(box);
+      if (!text.trim()) continue;
+      const locate = i => {
+        const hit = nodes.find(({ node, at }) => at <= i && i < at + node.data.length);
+        return hit ? [hit.node, i - hit.at] : null;
+      };
+      const lines = (start, end) => {
+        let count = 0, last = null;
+        for (let i = start, size; i < end; i += size) {
+          size = text.codePointAt(i) > 0xffff ? 2 : 1;
+          const at = /\s/.test(text[i]) ? null : locate(i);
+          if (!at) continue;
+          range.setStart(at[0], at[1]);
+          range.setEnd(at[0], Math.min(at[1] + size, at[0].data.length));
+          const r = Array.from(range.getClientRects()).find(c => c.height > 0);
+          if (!r) continue;
+          if (!last || Math.abs(r.top + r.bottom - last.top - last.bottom) / 2 >= Math.max(r.height, last.height) / 2) count++;
+          last = r;
+        }
+        return count;
+      };
+      const measure = (start, end) => {
+        checked['text-split']++;
+        const count = lines(start, end);
+        if (count < 2) return;
+        const first = locate(start), final = locate(end - 1);
+        range.setStart(first[0], first[1]);
+        range.setEnd(final[0], final[1] + 1);
+        const common = range.commonAncestorContainer;
+        push('text-split', common.nodeType === 3 ? common.parentElement : common, 'fail',
+          { token: text.slice(start, end).replace(/\s+/g, ' '), lines: count, limit: 1 });
+      };
+      const figures = [];
+      for (const found of text.matchAll(FIGURE)) {
+        if ([...found[0].replace(/\s/g, '')].length < 2) continue;
+        figures.push([found.index, found.index + found[0].length]);
+        measure(found.index, found.index + found[0].length);
+      }
+      if ([...text.replace(/[\s\uFFFC]+/g, ' ').trim()].length > 24) continue;
+      for (const { segment, index, isWordLike } of segmenter(box).segment(text)) {
+        const end = index + segment.length;
+        if (isWordLike && CJK.test(segment) && !figures.some(([a, b]) => index < b && a < end)) measure(index, end);
+      }
     }
   }
 
@@ -2548,7 +2636,7 @@ def parse_args(argv=None):
     parser.add_argument("--workers", type=int, default=1,
                         help=f"browsers to run at once, 1 to {MAX_WORKERS} (default 1); the same count splits the work the same way")
     parser.add_argument("--measure-a11y", action="store_true",
-                        help="also measure contrast, target size, text clip, focus visibility and text growth into the sidecar's a11y object")
+                        help="also measure contrast, target size, text clip, text split, focus visibility and text growth into the sidecar's a11y object")
     parser.add_argument("--overwrite", action="store_true", help="write into a non-empty --out directory")
     return parser.parse_args(argv)
 
