@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-modern-web-guidance](epics/EPIC-modern-web-guidance.md)
+Current Epic: [EPIC-ui-one-shot](epics/EPIC-ui-one-shot.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
