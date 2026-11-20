@@ -37,6 +37,7 @@ class FakeRun:
             "files": sorted(path.name for path in directory.iterdir()),
             "mwgrc": json.loads((directory / ".mwgrc").read_text(encoding="utf-8")),
             "telemetry": env.get("DISABLE_TELEMETRY"),
+            "file logging": env.get("ENABLE_FILE_LOGGING"),
         })
         return mock.Mock(returncode=self.returncode)
 
@@ -46,7 +47,7 @@ def run_cli(*argv: str, returncode: int = 0, npx: str | None = "/fake/npx"):
     stdout, stderr = io.StringIO(), io.StringIO()
     with mock.patch.object(modern_web_guidance, "find_npx", return_value=npx), \
             mock.patch.object(modern_web_guidance.subprocess, "run", fake), \
-            mock.patch.dict(os.environ, {"DISABLE_TELEMETRY": "0"}), \
+            mock.patch.dict(os.environ, {"DISABLE_TELEMETRY": "0", "ENABLE_FILE_LOGGING": "true"}), \
             redirect_stdout(stdout), redirect_stderr(stderr):
         try:
             code = modern_web_guidance.main(list(argv))
@@ -63,7 +64,7 @@ class ModernWebGuidanceTests(unittest.TestCase):
         npx, flag, package, *rest = call["command"]
         self.assertEqual(("/fake/npx", "-y", ["retrieve", "dialog,menu"]), (npx, flag, rest))
         self.assertRegex(package, r"^modern-web-guidance@\d+\.\d+\.\d+$")
-        self.assertEqual("1", call["telemetry"])
+        self.assertEqual(("1", "false"), (call["telemetry"], call["file logging"]))
         self.assertEqual([".mwgrc"], call["files"])
         self.assertEqual({"baseline": "2024"}, call["mwgrc"])
         self.assertNotEqual(Path.cwd().resolve(), call["cwd"].resolve())

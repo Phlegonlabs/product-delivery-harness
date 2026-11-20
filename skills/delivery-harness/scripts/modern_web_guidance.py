@@ -8,7 +8,8 @@ the CLI never installs its skill, edits configuration or scans the code.
 `retrieve` needs --baseline with the PRD's `Browser support` value. The CLI
 runs in an empty temporary directory whose `.mwgrc` holds only that target, so
 the guide names the fallbacks the target still needs, no project or user
-`.mwgrc` applies, and nothing is written to the project. A guide too long for
+`.mwgrc` applies, and nothing is written to the project: the CLI's own file
+logging is switched off too. A guide too long for
 the console is saved to a file whose path the CLI prints.
 
 npx is looked up only in absolute PATH directories, never in the current
@@ -101,7 +102,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     with tempfile.TemporaryDirectory(prefix="mwg-", ignore_cleanup_errors=True) as directory:
         Path(directory, ".mwgrc").write_text(json.dumps(config), encoding="utf-8")
-        environment = dict(os.environ, DISABLE_TELEMETRY="1")
+        environment = dict(os.environ, DISABLE_TELEMETRY="1", ENABLE_FILE_LOGGING="false")
         command = [npx, "-y", PACKAGE, args.command, *args.arguments]
         return subprocess.run(command, cwd=directory, env=environment, check=False).returncode
 
