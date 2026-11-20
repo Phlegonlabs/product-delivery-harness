@@ -119,6 +119,26 @@ Decision: not_required
         self.assertNotIn(self.other, packet)
         self.assertIn("- Approved target: pending", packet)
 
+    def test_hifi_and_implementation_carry_browser_support_and_the_guidance_rule(self):
+        self.write(self.prd, "# Product\n\n## Frontend Delivery Requirements\n"
+                             "- Browser support: Baseline 2024\n- Target devices: phones and desktops\n")
+        self.contract(target=True, hifi=True)
+        for stage in ("hifi", "implementation"):
+            with self.subTest(stage=stage):
+                rows = build_visual_inputs(self.root, self.ui, stage).splitlines()
+                self.assertIn("- Browser support (PRD): Baseline 2024", rows)
+                [rule] = [row for row in rows if row.startswith("- Modern Web Guidance: ")]
+                self.assertIn("frontend-visual-inputs.md#modern-web-guidance", rule)
+        self.write(self.prd, "# Product\n\n## Frontend Delivery Requirements\n<!--\n- Browser support: Baseline 2020\n-->\n"
+                             "- Target devices: phones\n")
+        self.contract(target=True, hifi=True)
+        self.assertIn("- Browser support (PRD): none recorded",
+                      build_visual_inputs(self.root, self.ui, "hifi").splitlines())
+        self.contract(selected="pending")
+        packet = build_visual_inputs(self.root, self.ui, "direction")
+        self.assertNotIn("Browser support", packet)
+        self.assertNotIn("Modern Web Guidance", packet)
+
     def test_selected_study_is_retained_for_hifi_and_implementation(self):
         for stage in ("hifi", "implementation"):
             with self.subTest(stage=stage):

@@ -152,7 +152,7 @@ Discovery is complete enough to draft when the agent can state:
 - The user, buyer, primary problem, product archetype, and target surfaces.
 - The top workflows with end states, core data objects, integrations, v1 scope, non-goals, constraints, architecture assumptions, and high-risk unknowns.
 - A complete expected deployable-surface inventory with stable surface IDs and stable development and production target IDs for every surface, each recording the release answers above under main-preview/1. Native targets are not forced into a web environment model.
-- For products with a browser frontend, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
+- For products with a browser frontend, the Baseline browser support target, the content/interactivity profile, rendering needs, deployment constraints, and evidence needed to recommend a stack.
 - For products with a backend, persistent data, or auth requirement, the resolved database category and auth strategy (or explicit recommendation request), and the evidence needed to recommend a backend framework, database engine, and auth provider.
 - For mobile, desktop, or browser-extension products, the exact v1 operating-system/browser targets.
 - The Stack Decision Mode and named human decision owner.

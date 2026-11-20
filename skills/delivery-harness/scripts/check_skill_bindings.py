@@ -7,7 +7,10 @@ installed skill trees; the `code_security_verification` slot binds the Harness
 security reference `delivery-harness/references/security-review.md` by file
 digest. The checker recomputes each hash and fails on prose or a
 compound binding, a mismatch, an unpinned binding, or a target it cannot
-locate. Changing bound content therefore requires an explicit pin update,
+locate. The optional `web_platform_guidance` row stays `pending` in both cells
+or binds the Modern Web Guidance package and tarball SHA-256 pinned in
+`modern_web_guidance.py`; nothing is installed for it, so the checker compares
+the row with that pin at the stages that use it. Changing bound content therefore requires an explicit pin update,
 which is the review moment: a skill update is a code change to the instruction
 path.
 
@@ -26,6 +29,10 @@ import re
 import sys
 from pathlib import Path
 
+from modern_web_guidance import PACKAGE as WEB_GUIDANCE_PACKAGE
+from modern_web_guidance import SLOT as WEB_GUIDANCE_SLOT
+from modern_web_guidance import TARBALL_SHA256 as WEB_GUIDANCE_PIN
+
 PIN_RE = re.compile(r"^[0-9a-f]{64}$")
 SKILL_NAME_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 REQUIRED_SLOTS = {
@@ -43,6 +50,7 @@ STAGE_SLOTS = {
     "design-compilation": {"design_compilation", "style_integration"},
     "backend": {"code_security_verification"},
 }
+WEB_GUIDANCE_STAGES = {"all", "ui-design"}
 TEXT_SUFFIXES = {
     ".css", ".html", ".js", ".json", ".md", ".ps1", ".py", ".sh",
     ".toml", ".ts", ".txt", ".yaml", ".yml",
@@ -212,7 +220,7 @@ def parse_binding_contract(
         seen_slots.add(slot)
         rows.append((slot, bound, pin.strip("`"), number))
     missing = sorted(required - seen_slots)
-    extra = sorted(seen_slots - REQUIRED_SLOTS)
+    extra = sorted(seen_slots - REQUIRED_SLOTS - {WEB_GUIDANCE_SLOT})
     if missing or extra:
         findings.append(
             "Skill Bindings must use exactly the required slots; missing: "
@@ -239,6 +247,8 @@ def binding_target(slot: str, cell: str, *, required: bool) -> str | None:
             return SECURITY_REFERENCE
         if required:
             return None
+    if slot == WEB_GUIDANCE_SLOT:
+        return WEB_GUIDANCE_PACKAGE if cell.strip().strip("`") == WEB_GUIDANCE_PACKAGE else None
     return bound_skill_name(cell)
 
 
@@ -366,6 +376,17 @@ def check_bindings(
     rows, parse_findings = parse_binding_contract(text, stage=stage)
     findings.extend(parse_findings)
     for slot, cell, pin, number in rows:
+        if slot == WEB_GUIDANCE_SLOT:
+            unused = cell.strip("`") == pin == "pending"
+            if stage in WEB_GUIDANCE_STAGES and not unused and (
+                binding_target(slot, cell, required=True) is None or pin != WEB_GUIDANCE_PIN
+            ):
+                findings.append(
+                    f"line {number}: slot {slot!r} stays pending/pending or binds "
+                    f"`{WEB_GUIDANCE_PACKAGE}` with pin {WEB_GUIDANCE_PIN}, the SHA-256 of its "
+                    f"registry tarball (modern_web_guidance.py --pin prints the row); got {cell!r} and {pin!r}"
+                )
+            continue
         if slot not in STAGE_SLOTS[stage] and cell.strip("`") == pin == "pending":
             continue
         if slot == "code_security_verification" and slot in STAGE_SLOTS[stage]:

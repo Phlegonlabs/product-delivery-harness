@@ -17,6 +17,8 @@ import check_ui_design_contract as contract
 from design_workflow import report as workflow_report
 from review_evidence import HIFI_MANIFEST_RE, MAX_BYTES, read_identity, safe_path
 
+BROWSER_SUPPORT_RE = re.compile(r"^- Browser support:[ \t]*(\S.*?)[ \t]*$", re.MULTILINE)
+
 
 def _identity(root: Path, relative: str) -> dict[str, str]:
     path = safe_path(root, relative)
@@ -90,6 +92,7 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
         return data
 
     historical = []
+    prd_text = ""
     if task_record:
         if stage != "implementation":
             raise ValueError("task record context is only for implementation maintenance")
@@ -105,9 +108,11 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
             if not binding:
                 raise ValueError("required product source identity is missing")
             historical.append(binding)
-            retain(_identity(root, binding["path"]))
+            data = retain(_identity(root, binding["path"]))
         else:
-            retain(binding)
+            data = retain(binding)
+        if key == "prd":
+            prd_text = data.decode("utf-8")
 
     studies = []
     pending = []
@@ -200,6 +205,8 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
         return binding["path"] + " @ sha256:" + binding["sha256"]
 
     board = _reference_board(root, rounds) if stage != "implementation" else []
+    frontend = contract._section(contract.active_text(prd_text), "## Frontend Delivery Requirements") or ""
+    browser_support = BROWSER_SUPPORT_RE.search(frontend)
 
     rows = ["Visual inputs:", "- Stage: " + stage,
             "- Authority: " + label(authority),
@@ -221,6 +228,11 @@ def build_visual_inputs(root: Path, ui_design: str, stage: str, *, task_record: 
             "- Fonts: read Style Integration, Candidate theme and Platform rules; inspect bound study and HiFi font declarations, weights and language fallbacks.",
             "- Assets: read Motion And Media Intent and every bound study/HiFi page; use its approved inline images, icons, media and font bytes.",
             "- Visual features: read the Design Brief, selected direction rationale and Candidate theme; retain their concrete composition, typography, material and motion choices.",
+            *(["- Browser support (PRD): " + (browser_support.group(1) if browser_support else "none recorded"),
+               "- Modern Web Guidance: when AGENTS.md Skill Bindings bind `web_platform_guidance`, consult it for a web "
+               "surface with that Browser support value, as "
+               "`delivery-harness/references/frontend-visual-inputs.md#modern-web-guidance` says."]
+              if stage != "direction" else []),
             "- Source files:"]
     rows.extend("  - " + label(binding) for binding in inputs.values())
     rows.extend([

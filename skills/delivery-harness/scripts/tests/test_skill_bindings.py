@@ -19,6 +19,7 @@ if str(SCRIPTS_DIR) not in sys.path:
     sys.path.insert(0, str(SCRIPTS_DIR))
 
 import check_skill_bindings  # noqa: E402
+import modern_web_guidance  # noqa: E402
 
 
 AGENTS_TEMPLATE = """# Project Rules
@@ -249,10 +250,65 @@ class SkillBindingTests(unittest.TestCase):
         rows = check_skill_bindings.parse_binding_rows(
             template_path.read_text(encoding="utf-8")
         )
-        self.assertEqual(check_skill_bindings.REQUIRED_SLOTS, {slot for slot, _, _, _ in rows})
+        self.assertEqual(
+            check_skill_bindings.REQUIRED_SLOTS | {"web_platform_guidance"},
+            {slot for slot, _, _, _ in rows},
+        )
         for _slot, cell, pin, _ in rows:
             self.assertIsNone(check_skill_bindings.bound_skill_name(cell))
             self.assertNotRegex(pin, re.compile(r"^[0-9a-f]{64}$"))
+        # The printed row replaces the template row without changing its slot and stage cells.
+        template_row = next(
+            line for line in template_path.read_text(encoding="utf-8").splitlines()
+            if line.startswith("| web_platform_guidance |")
+        )
+        printed = modern_web_guidance.binding_row()
+        self.assertEqual(template_row.split("|")[1:3], printed.split("|")[1:3])
+
+    def test_web_guidance_row_is_optional_and_binds_only_the_harness_pin(self) -> None:
+        self.write_agents(
+            "`taste-skill`",
+            check_skill_bindings.hash_skill(self.skills / "taste-skill"),
+            "`front-skill`",
+            check_skill_bindings.hash_skill(self.skills / "front-skill"),
+        )
+        table = self.agents.read_text(encoding="utf-8")
+        security_row = next(line for line in table.splitlines() if line.startswith("| code_security_verification |"))
+        package, pin = modern_web_guidance.PACKAGE, modern_web_guidance.TARBALL_SHA256
+        name = package.split("@")[0]
+
+        def with_row(row: str) -> str:
+            return table.replace(security_row, security_row + "\n" + row)
+
+        def row(bound: str, digest: str) -> str:
+            return with_row(f"| web_platform_guidance | optional | {bound} | {digest} |")
+
+        accepted = {
+            "absent": table,
+            "pending": row("pending", "pending"),
+            "printed row": with_row(modern_web_guidance.binding_row()),
+            "pin": row(f"`{package}`", f"`{pin}`"),
+        }
+        rejected = {
+            "latest": row(f"`{name}@latest`", f"`{pin}`"),
+            "no version": row(f"`{name}`", f"`{pin}`"),
+            "other version": row(f"`{name}@0.0.206`", f"`{pin}`"),
+            "other pin": row(f"`{package}`", "`" + "0" * 64 + "`"),
+            "pending pin": row(f"`{package}`", "pending"),
+        }
+        for label, text in accepted.items():
+            self.agents.write_text(text, encoding="utf-8")
+            for stage in ("all", "ui-design", "backend"):
+                with self.subTest(case=label, stage=stage):
+                    self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage=stage)[0])
+        for label, text in rejected.items():
+            self.agents.write_text(text, encoding="utf-8")
+            for stage in ("all", "ui-design"):
+                with self.subTest(case=label, stage=stage):
+                    [finding] = check_skill_bindings.check_bindings(self.agents, [self.skills], stage=stage)[0]
+                    self.assertIn("web_platform_guidance", finding)
+            with self.subTest(case=label, stage="backend"):
+                self.assertEqual([], check_skill_bindings.check_bindings(self.agents, [self.skills], stage="backend")[0])
 
     def test_fenced_missing_duplicate_and_malformed_contracts_fail(self) -> None:
         valid = AGENTS_TEMPLATE.format(
