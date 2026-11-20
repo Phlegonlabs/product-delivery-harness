@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.95.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.95.1-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -205,6 +205,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.95.1** — 修补版本，收录用 0.95.0 实测十个 repo 后的三项修正。`hifi_matrix_capture.py` 的无障碍测量在任何画布缩放下都略过只给屏幕阅读器的文字：在 `zoom-200` 下，这类文字的 1 px 方框被放大一倍而被测量，上一次 jolvex run 的 652 条 `text-clip` 失败里有 580 条是这种情况。目的地在来源页面上的交互，现在 10 秒后判定失败，不再等满 30 秒的动作上限；那几次 run 的 276 次目的地等待失败里，有 236 次是这种状态切换。会加载页面的尝试仍保留 30 秒上限，因为进入 jolvex 大页面的导航最多等了约 10.4 秒。在 direct 路线上，修复只重跑失败的套件和改动文件选出的检查，其他套件沿用原结果并注明执行时的 SHA；tree 与已验证 tree 相同的 head 直接引用那次的确定性结果，不再重跑。这取代了“修复不沿用任何结果”的旧规则。
+
 - **0.95.0** — UI review 的次数更少，浏览器时间更短。一轮 review 固定两位 reviewer，即 lead grader 和 Impeccable operator，不按页组拆分；他们用肉眼看每页的最小尺寸、机器结果标记的每个案例和 stress axis 样本。他们的观察记录只需涵盖这个范围：critique、audit 和 grading 的 receipt 不再要求每个案例都有观察。复查只判断先前的发现和这次修复：未改动内容里原本就有的缺陷记为下一轮的备注，除非它是修复造成的，或属高或严重的安全问题。派出一轮 review 或复查之前，`review_evidence.py ready` 检查作者对冻结 package 的截取，打印 READY、NOT READY 或 INVALID；卡死或 driver 故障只重跑一次，之后交给 owner。`hifi_matrix_capture.py` 的中间宽度只扫每个画面的 axis 取样状态，也不再在那里重跑所有交互：jolvex 上一次 run 的 630 个案例变成 150 个，4,344 次重复尝试不再执行，约占那次浏览器时间的一半。旧的中间宽度 receipt 仍然有效。重启次数上限按页面和操作计算，同一操作的尝试无论几个 worker 都在同一个浏览器执行；无法重启的浏览器只挡住它所在的页面；结果行会打印时间花在哪里。新的 `text-split` 测量找出被断成两行的数字和短的中日韩词语。`parity_capture.py --recapture <IDs>` 只重拍修复影响的路由，HiFi 沿用改为逐页比对。一轮工作在结束前保持它的 Harness 版本，`review_input.py --remove` 删除已通过的 review packet，`docs/evidence/` 和 `docs/design/evidence/` 下的原始截取不进 Git，审批检查会列出需要强制加入的引用截图。停止卡住的 driver 或发布包 CLI 时，不再沿用 Windows 重用的父进程 id，因此不会误杀无关的程序。
 
 - **0.94.0** — 交接检查遇到读不懂的内容，现在会拒绝而不是跳过。已批准的公开主张会对照当前的研究：研究发现已撤回、未验证，或观察到的受访者少于三人，都会失败；campaign 稿引用过期、读不懂或重复的批准，也会失败。PRD 引用不存在的 `KW-*` 会失败，关键词地图指定的页面必须引用对应的 cluster。无界面的工具可以记录"没有公开曝光"及其理由，之后只能经自有渠道上线。Growth Contract 的 Launch Window 必须用六列表格，每行写明 Destination；旧的五列表格要补上这一列。`growth-review` 会把搜索需求对应到各语言的商店上架字段，优化新增公开页面时也会做需求研究。Release packager 会检查 npm 包文件内实际的图片和 CLI 示例，拒绝 shell 语法，并在时限到时停止 CLI 的整个进程树；无法确认已停止时会如实说明。默认的规范检查涵盖五个独立 skill。
@@ -212,7 +214,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.93.0** — 阻断性的代码发现现在必须附上他人可重跑的证据：命令或输入、实际结果和要求的结果；没有证据的只算备注。改动碰到信任边界，或 owner 指明设计有争议时，若 agent 配置提供另一厂商的 reviewer，同一个 review 点会加入第二位 reviewer。项目的 `AGENTS.md` 模板加入 24 条工程原则全文，改编自 PStack plugin，依其 MIT 许可。同一类修正出现第二次时，先改结构、加检查或加测试，最后才新增规则。
 
 - **0.92.0** — owner 一次批准现在可以涵盖一个 Epic 的推送、pull request、review 留言、合并、正式环境部署和清理。符合资格的 repository 在新增的 `.harness/landing-policy.json` 设置 `"landing": "epic_grant"`，owner 的授权记录在 checkout 之外，新增的 `landing_gate.py` 在每个动作之前对照确切候选版本检查。所有 review、检查和回读关卡不变，新建立的 repository 默认每次落地都由 owner 决定。
-
-- **0.91.0** — 直接任务现在只需读入口文件和一张短卡，不必读遍所有契约。直接路线的步骤拆成三张卡：每个直接任务一张，首次交付另加一张，改动界面另加一张。只属于 managed run 或只属于界面工作的阅读要求，现在都写明触发条件。新增的 `check_commit_message.py` 会检查提交信息并指出修正方法，因此只有检查失败时才需要读提交规范。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。
