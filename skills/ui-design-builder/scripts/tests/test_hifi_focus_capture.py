@@ -207,6 +207,17 @@ class FocusBrowserTests(unittest.TestCase):
                     result = self.attempt_focus(markup, trigger)
                     self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
 
+    def test_a_closed_details_opens_through_its_summary(self):
+        save = '<button data-control-id="save" onclick="this.textContent+=\' saved\'">Save</button>'
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt_focus('<details id="more"><summary>More</summary>' + save + '</details>', trigger)
+                self.assertEqual((True, ["more"]), (result["focusCorrect"], result["observed"]["openers"]), result)
+        driver = self.driver('<details><summary>More</summary>' + save + '</details>')
+        result = self.attempt(driver)["result"]
+        driver.stop()
+        self.assertIn("product control is missing or hidden; no instance is reachable: save", result["problems"])
+
 
 class FocusObservationTests(unittest.TestCase):
     def test_reviewer_focus_sites_require_exact_runtime_bytes(self):

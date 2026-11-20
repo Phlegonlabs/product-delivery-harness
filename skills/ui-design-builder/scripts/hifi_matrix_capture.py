@@ -805,6 +805,14 @@ async function interact(request) {
             }
             if (opener)
               panels.unshift({ panel: panel.id, index: buttons.indexOf(opener), selected: opener.hasAttribute('data-product-tab') });
+            // A closed native details element is a disclosure that its own summary opens.
+            const summary = panel.tagName === 'DETAILS' && panel !== el ? panel.querySelector(':scope > summary') : null;
+            if (summary && !panel.open && !summary.contains(el)) {
+              if (!panel.id || document.querySelectorAll('#' + CSS.escape(panel.id)).length !== 1) {
+                reachable = false; break;
+              }
+              panels.unshift({ panel: panel.id, details: true });
+            }
             if (panel === surface) break;
           }
           if (reachable) return panels;
@@ -815,16 +823,19 @@ async function interact(request) {
         + surface + ' button[data-product-tab],' + surface + ' button[data-product-disclosure]');
       for (const step of chain) {
         const panel = page.locator('[id=' + quote(step.panel) + ']');
-        if (await panel.isVisible()) continue;
-        const opener = buttons.nth(step.index);
+        const open = () => step.details ? panel.evaluate(el => el.open) : panel.isVisible();
+        if (await open()) continue;
+        const opener = step.details ? panel.locator(':scope > summary') : buttons.nth(step.index);
         if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
         const focusStep = 'opener:' + opened.length;
         await opener.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), [focusStep, request.surface, true]);
         await opener.click({ timeout });
         opened.push(step.panel);
-        try { await panel.waitFor({ state: 'visible', timeout }); }
-        catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
-        if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
+        try {
+          if (step.details) await page.waitForFunction(id => document.getElementById(id)?.open, step.panel, { timeout });
+          else await panel.waitFor({ state: 'visible', timeout });
+        } catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+        if ((step.details ? !await open() : await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true')
             || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
         const focus = await assessOpenerFocus(focusStep, focusCursor);
         openerFocusCorrect = openerFocusCorrect && focus.correct;
