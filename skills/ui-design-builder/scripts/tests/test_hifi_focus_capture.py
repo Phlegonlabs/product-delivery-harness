@@ -1,8 +1,10 @@
 """Where operation focus ends, layer entry and return, and complete product-focus recording."""
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
+import test_hifi_matrix_capture as matrix_tests
 import test_hifi_operation_alignment as alignment
 import test_ui_design_contract as contract
 import check_ui_design_contract as checker
@@ -258,6 +260,36 @@ class FocusBrowserTests(unittest.TestCase):
                     'aria-expanded="false">Pick</button><details id="picker" open hidden><summary>More</summary>'
                     '<button data-control-id="save" onclick="const d=this.closest(\'details\');' + handler
                     + '">Close</button></details>', True, "focusReturn")
+
+    def test_a_return_to_a_closed_panels_opener_stands_outside_the_destination_surface(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        scratch = self.enterContext(tempfile.TemporaryDirectory())
+        third = ('<main data-ui-surface="UI-003" data-ui-route="/third" hidden><h1 tabindex="-1">Destination</h1>'
+                 '<section data-hifi-state-view="ready"><p>Ready</p></section></main>')
+
+        def add_surface(manifest):
+            manifest.update(interactions=matrix_tests.INTERACTIONS)
+            manifest["surfaces"].append({"id": "UI-003", "page": "details.html", "route": "/third",
+                                         "platformGroup": "Web", "states": ["ready"],
+                                         "responsive": {"kind": "viewports", "targets": [390, 1200]},
+                                         "navigation": [], "controls": []})
+
+        menu = ('<details id="source-panel" open><summary id="source-summary">More</summary>'
+                '<button data-control-id="save" onclick="this.closest(\'details\').open=false;'
+                'const destination=document.querySelector(\'[data-ui-surface=UI-003]\');destination.hidden=false;'
+                'destination.dataset.hifiState=\'ready\';document.getElementById(\'source-summary\').focus()">Go</button>'
+                '</details>')
+        package = matrix_tests.build_package(root, details_extra=menu, manifest_edit=add_surface,
+            page_edit=lambda html: html.replace("</main>", "</main>" + third, 1) if 'data-ui-surface="UI-002"' in html else html)
+        driver = capture.NodeDriver(shutil.which("node"), self.playwright(), capture.read_package(package).files, scratch)
+        self.addCleanup(driver.stop)
+        driver.start()
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt(driver, kind="state", trigger=trigger,
+                                      destination={"surface": "UI-003", "state": "ready"})["result"]
+                self.assertEqual(([], True, "source-panel"),
+                                 (result["problems"], result["focusCorrect"], result["observed"].get("focusReturn")), result)
 
     def test_a_details_keeps_its_identity_when_its_summary_inserts_another(self):
         result = self.attempt_focus('<details><summary id="more">More</summary><button data-control-id="save" '
