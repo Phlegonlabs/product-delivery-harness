@@ -2114,6 +2114,10 @@ A11Y_EXTRA = f"""<style>
 <p id="clip" style="width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">A very long berth name that cannot fit</p>
 <span id="srclip" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Screen reader text that a person never sees</span>
 <span id="srinset" style="position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">Screen reader text that a person never sees</span>
+<span id="srbox" style="position:absolute;width:1px;height:1px;overflow:hidden;white-space:nowrap">Screen reader text that a person never sees</span>
+<span id="srclipwide" style="position:absolute;width:40px;height:20px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap">Screen reader text that a person never sees</span>
+<span id="srinsetwide" style="position:absolute;width:40px;height:20px;overflow:hidden;clip-path:inset(50%);white-space:nowrap">Screen reader text that a person never sees</span>
+<p id="staticclip" style="width:120px;overflow:hidden;white-space:nowrap;clip:rect(0 0 0 0)">A very long berth name that cannot fit</p>
 <p id="short" style="width:120px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">Short</p>
 <p id="clamp" style="width:120px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu xi omicron</p>
 <input id="phclip" placeholder="Search the harbour berth directory by name" style="width:100px">
@@ -2225,7 +2229,8 @@ class MeasuredAccessibilityBrowserTests(unittest.TestCase):
     def test_text_clip_reports_clipped_text_and_placeholders_not_text_that_fits(self):
         clip = self.rows("text-clip", surface="UI-002", state="ready", target="390", axis="base")
         by_selector = {f["selector"]: f for f in clip}
-        self.assertEqual({"p#clip", "p#clamp", "input#phclip::placeholder"}, set(by_selector))
+        # clip does nothing on a static box, so p#staticclip is visible and cut like p#clip
+        self.assertEqual({"p#clip", "p#staticclip", "p#clamp", "input#phclip::placeholder"}, set(by_selector))
         # the text width depends on the platform font; the box width does not
         cut = by_selector["p#clip"]
         self.assertEqual(("overflow-x", 120), (cut["kind"], cut["client"]))
@@ -2235,9 +2240,11 @@ class MeasuredAccessibilityBrowserTests(unittest.TestCase):
         self.assertEqual("placeholder", by_selector["input#phclip::placeholder"]["kind"])
         self.assertTrue(all(f["limit"] == 1 and f["level"] == "fail" for f in clip))
         self.assertNotIn("p#short", self.selectors("text-clip"))
-        # screen-reader-only text is clipped on purpose, also when zoom-200 doubles its 1 px box
+        # screen-reader-only text is clipped on purpose, also when zoom-200 doubles its 1 px box; each fixture
+        # needs one rule: srbox only the zoom-scaled size, srclipwide only clip, srinsetwide only clip-path
+        hidden = {"span#srclip", "span#srinset", "span#srbox", "span#srclipwide", "span#srinsetwide"}
         for axis in ("base", "zoom-200"):
-            self.assertFalse({"span#srclip", "span#srinset"} & self.selectors("text-clip", axis=axis), axis)
+            self.assertFalse(hidden & self.selectors("text-clip", axis=axis), axis)
         # text that fits at the base size and is cut at 200% shows only on the axis
         self.assertNotIn("p#zoomclip", self.selectors("text-clip", axis="base"))
         self.assertEqual({("390", "overflow-x")}, {(f["target"], f["kind"]) for f in self.rows("text-clip", axis="zoom-200", selector="p#zoomclip")})
