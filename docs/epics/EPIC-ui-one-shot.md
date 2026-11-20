@@ -1,6 +1,6 @@
 # EPIC-ui-one-shot: HiFi interactions that pass on the first full run
 
-Status: in_progress (0.98.0 on branch `focus-end-state`, measured; review pending)
+Status: in_progress (0.98.0 on branch `focus-end-state`; review point repaired, re-check and final re-run pending)
 Design workflow: enhancement
 UI impact: none (driver, reviewer runtime, readiness check and contracts; no product UI)
 
@@ -39,7 +39,9 @@ Not in this round: the seven older packages. Their manifests and markup were app
 | Runtime focus after a hidden control | `6b22c3b3` |
 | Unreachable control names its starting state | `2a83c441` |
 | Focus read after the product's next frames | `935e4976` |
-| Release 0.98.0; this Epic | `7608e3c4`, this commit |
+| Release 0.98.0; this Epic | `7608e3c4`, `57b0d7e3` |
+| Review point repairs: inherited disabled state; same-document navigation, closing details and held details; contract wording | `fd1dea27`, `7f8a01c8`, `1b730240` |
+| Review record | this commit |
 
 ## Measurement
 
@@ -67,6 +69,18 @@ What remains sits in the packages, and each failure now names its cause:
 - hk-car-care: controls its declared starting state does not show, such as a cancel button that appears only after editing, and three deletion states without state controls.
 - ticketradar and ticketradar-en-app: pre-0.85 navigation and same-state declarations, confirm buttons disabled in their starting state, and an admin retry that closes its panel without returning focus.
 
+## Review
+
+Review point, gpt-6.1-sol xhigh read-only, on `57b0d7e3`: HOLD, four blocking findings and two notes, all repaired.
+- R1: every navigate operation skipped the final-focus check, so a same-document navigation (`history.pushState`) that left focus on the page passed. The check is now skipped only when a new document loaded.
+- R2: the contract allowed focus to stay on a shown control and also failed focus outside the destination surface. Staying on a shown control stays allowed, as in a list beside its detail; the surface rule applies once focus leaves the control.
+- R3: an open native details holding the control was no return panel. It is now, and the driver asks `checkVisibility` whether an element is shown, because a closed details keeps its content's boxes in current Chrome.
+- R4: an id-free details was found again by its place after its opener step. It is now held by element.
+- R5 (note): a control disabled through a fieldset or an `aria-disabled` ancestor still timed out. The check now uses `:disabled` and an `aria-disabled` ancestor.
+- R6 (note): matrix-capture.md's reachability summary did not mention native details.
+
+After the repairs, each of 18 broken variants of the driver, the runtime and the readiness check failed a test; the UI suite (36 modules) and the design-system suite (20) passed with browsers.
+
 ## Consumer Impact
 
 Rounds keep their recorded Harness version. A new round on 0.98.0 gets the new runtime when its HiFi is assembled from the current template, and its readiness check needs the full command. A package from before 0.85.0 that a round reuses needs, in that round: re-assembly from the current template (state controls and runtime), same-state operations declared as `feedback`, navigation declared only on links to the declared page, and operations started from states that show and enable their control. The checker and the driver name each of these.
@@ -80,8 +94,8 @@ Inputs consumed (path + hash or revision): main 272fa168 (v0.97.0); the eight Hi
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): pending; rerun after 0.98.0 is installed
 Approvals in force (gate, owner, date, candidate): owner, 2026-11-20: "做成 0.98.0"; then fix every cause so a round passes in one shot
 Done and verified (command, exit code): see Measurement
-Remaining: review point; pull request, CI, merge, tag v0.98.0, install; each older package's update in its repository's next UI round
+Remaining: targeted re-check of 57b0d7e3..HEAD; final re-run on the repaired driver; pull request, CI, merge, tag v0.98.0, install; each older package's update in its repository's next UI round
 Blocked / waiting (gate name or owner decision): none
-Next action (one command or one owner decision): run the review point on the candidate
+Next action (one command or one owner decision): run the targeted re-check of 57b0d7e3..HEAD
 Next owner (skill or human): parent session
 ```
