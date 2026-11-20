@@ -226,6 +226,36 @@ class FocusBrowserTests(unittest.TestCase):
                     self.assertEqual(events, len(product), product)
             driver.stop()
 
+    def test_a_navigation_inside_the_same_document_keeps_the_focus_rule(self):
+        driver = self.driver('<a data-control-id="save" href="details.html#hifi-state=UI-002/loading" onclick="'
+                             'event.preventDefault();history.pushState(null,\'\',this.getAttribute(\'href\'));'
+                             'document.__hifiReviewerRuntime.selectState(\'loading\');this.blur()">Go</a>')
+        result = self.attempt(driver, kind="navigate", destination={"surface": "UI-002", "state": "loading"})["result"]
+        driver.stop()
+        self.assertEqual((False, "was lost"), (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_closing_a_details_returns_focus_to_its_summary(self):
+        close = "const d=this.closest(\'details\');d.open=false;"
+        cases = {"summary": (close + "d.querySelector(\'summary\').focus()", None),
+                 "old content": (close + "document.getElementById(\'old\').focus()",
+                                 "did not return to the closed panel's opener")}
+        for label, (handler, problem) in cases.items():
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt_focus('<details open><summary>More</summary><button data-control-id="save" '
+                        'onclick="' + handler + '">Close</button></details><p id="old" tabindex="-1">Existing</p>', trigger)
+                    self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
+                    if problem is None:
+                        self.assertEqual("details:0", result["observed"].get("focusReturn"), result)
+
+    def test_a_details_keeps_its_identity_when_its_summary_inserts_another(self):
+        result = self.attempt_focus('<details><summary id="more">More</summary><button data-control-id="save" '
+            'onclick="this.textContent+=\' saved\'">Save</button></details><script>'
+            'document.getElementById("more").addEventListener("click", function () {'
+            'this.parentElement.insertAdjacentHTML("beforebegin", "<details><summary>Inserted</summary></details>");'
+            '});</script>', "click")
+        self.assertEqual((True, ["details:0"]), (result["focusCorrect"], result["observed"]["openers"]), result)
+
     def test_a_closed_details_opens_through_its_summary(self):
         save = '<button data-control-id="save" onclick="this.textContent+=\' saved\'">Save</button>'
         hiding = '<style>details:not([open]) > nav { display: none }</style>'
