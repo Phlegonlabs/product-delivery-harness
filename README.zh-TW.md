@@ -205,7 +205,7 @@ Archive-only A 須為 C 的直接子 commit，通過準確、receipt-bound 歸�
 
 ## 版本紀錄
 
-- **0.97.0** — 專案現在可以讓 HiFi 和前端作者查詢 Google 的 Modern Web Guidance，而不必安裝它。Skill Bindings 多了選用的 `web_platform_guidance` 列：保持 `pending`，或綁定 `modern-web-guidance@1.0.1` 和它 registry tarball 的 SHA-256；`check_skill_bindings.py` 只接受這個 pin。作者一律透過 `delivery-harness/scripts/modern_web_guidance.py` 執行：固定這個版本、關閉用量資料、只允許 `search`、`list`、`retrieve`，並把 PRD 的 Baseline 目標交給 `retrieve`，讓指南只列出這個目標還需要的 fallback。在 HiFi 裡，output contract 要求的標記和 ARIA 屬性優先於任何指南。PRD 的 Frontend Delivery Requirements 改為以 `Browser support:` 開頭，填 `Baseline Widely available`、`Baseline Newly available` 或 `Baseline <年份>` 其中之一；現有 PRD 不受影響。
+- **0.97.0** — 專案現在可以讓 HiFi 和前端作者查詢 Google 的 Modern Web Guidance，而不必安裝它。Skill Bindings 多了選用的 `web_platform_guidance` 列：保持 `pending`，或綁定 `modern-web-guidance@1.0.1` 和它 registry tarball 的 SHA-256；`check_skill_bindings.py` 只接受這個 pin。作者一律透過 `delivery-harness/scripts/modern_web_guidance.py` 執行：固定這個版本、關閉用量資料和它自己的檔案記錄、只允許 `search`、`list`、`retrieve`，並把 PRD 的 Baseline 目標交給 `retrieve`，讓指南只列出這個目標還需要的 fallback。`visual_inputs.py` 產生的 HiFi 和 implementation 作者區塊，現在會帶上 PRD 的 Browser support 值和 Modern Web Guidance 規則的位置。在 HiFi 裡，output contract 要求的標記和 ARIA 屬性優先於任何指南。PRD 的 Frontend Delivery Requirements 改為以 `Browser support:` 開頭，填 `Baseline Widely available`、`Baseline Newly available` 或 `Baseline <年份>` 其中之一；現有 PRD 不受影響。
 
 - **0.96.0** — `hifi_matrix_capture.py` 的互動測試改成每個產品互動只在最小的來源寬度用鍵盤觸發一次，點擊仍在每個寬度都測。在 0.95.0 實測的十個 repo 裡，1,293 個操作中只有 3 個的點擊和鍵盤結果不同，不同寬度結果不同的則有 56 個；而其他寬度的鍵盤測試佔了互動時間的 35%。用那幾次 run 重算，測試從 9,946 次減為 6,266 次，623 個有錯的操作中只會漏掉 1 個：hk-car-care 較大手機寬度上的一個鍵盤焦點錯誤。檢查器接受新的結果列，也接受舊版 driver 寫的、每個寬度都有鍵盤列的收據；介於兩者之間的都不通過。0.96.0 driver 寫的收據需要 0.96.0 的檢查器。
 
