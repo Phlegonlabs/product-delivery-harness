@@ -253,9 +253,10 @@ A derived state and its parent are both listed, non-`n/a` states of the same sur
 SEO metadata is part of the surface contract, not an implementation-time invention. Each route's entry records its own unique `<title>` and meta description at launch, with their character limits and the `KW-*` they serve. Both are content fields: the keyword map's Content fields table holds their current values. A later rewrite that keeps the route's cluster and what the page answers, stays inside the limits and stays unique per route is a content change, recorded in the map's change log, with no PRD delta and no UI review. A new route, a change of cluster, or a change to copy visible on the page is still a PRD delta. Without a keyword map the PRD line holds the current values. Site-level SEO obligations are recorded in Frontend Delivery Requirements, and a required SEO obligation traces to its own `TEST-*` row like any other requirement. That row checks presence, uniqueness, the limit and equality with the current value (the map's, or the PRD's without a map), not a string frozen in the PRD.
 
 ## Frontend Delivery Requirements
-- [Target devices and browsers, content/interactivity profile, rendering, performance, accessibility, localization, offline, and deployment constraints; site-level SEO — indexing strategy, sitemap and robots policy, canonical policy, default structured data — while each route's launch `<title>` and meta description live in its `UI-*` entry]
+- Browser support: [`Baseline Widely available`, `Baseline Newly available` or `Baseline <year>`]
+- [Target devices, content/interactivity profile, rendering, performance, accessibility, localization, offline, and deployment constraints; site-level SEO — indexing strategy, sitemap and robots policy, canonical policy, default structured data — while each route's launch `<title>` and meta description live in its `UI-*` entry]
 
-Omit this section only when the product has no browser frontend.
+`Browser support` names exactly one Baseline target, written in one of those three forms. A web feature the target does not cover needs a fallback. Omit this section only when the product has no browser frontend.
 
 ## Data and Integration Requirements
 - [Data objects, external systems, freshness, retention]
