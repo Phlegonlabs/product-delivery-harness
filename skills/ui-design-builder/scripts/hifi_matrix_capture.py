@@ -850,7 +850,9 @@ async function interact(request) {
     }
     const instances = await product.count();
     observed = { instances, ...(opened.length ? { openers: opened } : {}) };
-    if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
+    if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control
+      + ' in ' + request.state + '; start the operation from the state that shows it, or reveal it through a declared '
+      + 'opener or a details element');
     else {
       const unselected = instances > 1 ? await product.evaluateAll(list => list.findIndex(el => {
         const selected = ['aria-pressed', 'aria-selected', 'aria-checked'].some(name => el.getAttribute(name) === 'true');

@@ -469,7 +469,8 @@ class OperationBrowserTests(unittest.TestCase):
         save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'
         opener = '<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
         panel = '<div id="editor" hidden>' + save + '</div>'
-        for markup, reason in ((opener + '<div hidden>' + panel + '</div>', 'no instance is reachable'),
+        for markup, reason in ((opener + '<div hidden>' + panel + '</div>', 'no instance is reachable: save in ready; '
+                                'start the operation from the state that shows it'),
                                (opener + '<div style="display:none">' + panel + '</div>', 'no instance is reachable'),
                                (opener + opener + panel, 'no instance is reachable'),
                                (opener.replace('<button ', '<button hidden ') + panel, 'declared opener is hidden'),
