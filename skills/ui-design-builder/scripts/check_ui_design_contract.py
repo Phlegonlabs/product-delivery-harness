@@ -2466,8 +2466,12 @@ def _evidence_check(label: str, capture_mode: str | None) -> str | None:
         return f"hifi-{suffix}-impeccable-{'critique' if 'critique' in label.casefold() else 'audit'}"
 
 
-def _interaction_expectations(manifest: dict[str, Any]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
-    """Return the closed success and navigation rows bound to manifest interactions."""
+def _interaction_expectations(manifest: dict[str, Any], keyboard_at_every_target: bool = False) -> tuple[list[dict[str, Any]], list[dict[str, Any]]] | None:
+    """Return the closed success and navigation rows bound to manifest interactions.
+
+    A click runs at every source target and the keyboard at the smallest one. A receipt from an earlier
+    driver holds a keyboard row at every target; `keyboard_at_every_target` expects that form instead.
+    """
 
     try:
         by_id = {row["id"]: row for row in manifest["surfaces"]}
@@ -2476,10 +2480,13 @@ def _interaction_expectations(manifest: dict[str, Any]) -> tuple[list[dict[str, 
         for action in manifest["interactions"]:
             source = by_id[action["source"]["surface"]]
             destination = by_id[action["destination"]["surface"]]
-            for target in source["responsive"]["targets"]:
+            targets = [str(target) for target in source["responsive"]["targets"]]
+            for target in targets:
                 for trigger in ("click", "keyboard"):
+                    if trigger == "keyboard" and not keyboard_at_every_target and target != representative_targets(targets)[0]:
+                        continue
                     expected.append({
-                        "id": action["id"], "target": str(target), "trigger": trigger,
+                        "id": action["id"], "target": target, "trigger": trigger,
                         "source": action["source"], "destination": action["destination"],
                         "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS",
                     })
@@ -2497,11 +2504,10 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
     expected_sandbox = dict(baseline["sandbox"], topNavigation="allowlisted-local-pages")
     if output.get("sandbox") != expected_sandbox:
         findings.append("HiFi bundle requires the allowlisted-local-pages offline sandbox")
-    expectations = _interaction_expectations(manifest)
-    if expectations is None:
+    forms = [_interaction_expectations(manifest, every) for every in (False, True)]
+    if None in forms:
         findings.append("HiFi bundle interaction manifest is invalid")
         return findings
-    expected, navigation = expectations
     def rows_equal(actual: Any, required: list[dict[str, Any]]) -> bool:
         return isinstance(actual, list) and sorted(json.dumps(row, sort_keys=True) for row in actual) == sorted(json.dumps(row, sort_keys=True) for row in required)
     actual = output.get("interactions")
@@ -2540,9 +2546,10 @@ def _bundle_transcript_findings(output: dict[str, Any], manifest: dict[str, Any]
                     or change.get("beforeSha256") == change.get("afterSha256")):
                     observations_valid = False
         normalized.append({key: value for key, value in row.items() if key != "observed"})
-    if not observations_valid or not rows_equal(normalized, expected):
-        findings.append("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target")
-    if not rows_equal(output.get("navigation"), navigation):
+    matched = [form for form in forms if rows_equal(normalized, form[0])]
+    if not observations_valid or not matched:
+        findings.append("HiFi interaction evidence must exactly cover click destination, visibility, and focus results at every target and keyboard results at the smallest target")
+    if not any(rows_equal(output.get("navigation"), navigation) for _, navigation in matched or forms):
         findings.append("HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail")
     return findings
 

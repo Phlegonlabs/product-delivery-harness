@@ -521,10 +521,10 @@ class OperationBrowserTests(unittest.TestCase):
                 output = json.loads((root / "evidence/ui-output.json").read_text(encoding="utf-8"))
                 self.assertEqual({"PASS"} if passes else {"FAIL"}, {r["result"] for r in output["interactions"]})
                 if passes:
-                    self.assertEqual(4, len(output["navigation"]))
+                    self.assertEqual(3, len(output["navigation"]))
                     expected, navigation = checker._interaction_expectations(capture.read_package(package).manifest)
-                    self.assertEqual(expected[:4], [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
-                    self.assertEqual(navigation[:4], output["navigation"])
+                    self.assertEqual(expected[:3], [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
+                    self.assertEqual(navigation[:3], output["navigation"])
 
     def test_cross_page_state_supports_encoded_state_names(self):
         state = "saved (now)!*'~ / 已存"
