@@ -188,10 +188,10 @@ After reviewer setup, the driver records every focus event inside any product su
 
 - Focus may stay on the control while the control is still shown.
 - While the control is still shown, focus may move only into content the activation showed, such as a newly opened panel or dialog, a confirmation message or a new view's heading. Moving to content that was already shown fails.
-- When a declared panel that contained the control closed, focus returns to that panel's opener or moves into newly shown content. If nested containing panels close together, any of their openers may take it.
+- When a declared panel that contained the control closed, including an open native `details`, focus returns to that panel's opener (a `details` summary) or moves into newly shown content. If nested containing panels close together, any of their openers may take it.
 - When the control went for another reason, for example it was removed or its view was replaced, focus may rest on any shown element of the destination surface, such as the next list item.
-- Focus on the page body, outside the destination surface, or on a control that was hidden while holding it, is lost and fails.
-- A page the operation loads keeps its own initial focus; only the control's own focus is checked.
+- Focus is lost, and fails, when it ends on the page body, on a control that was hidden while holding it, or, after leaving the control, outside the destination surface. Staying on a shown control is allowed even when the destination is another surface, as in a list beside its detail.
+- A page the operation loads, a new document, keeps its own initial focus; only the control's own focus is checked. A navigation that stays in the same document keeps the rules above.
 
 Intermediate focus moves do not count. When a state change through the reviewer runtime hides the focused product control, the runtime moves focus to the new view's first visible heading, or to the view itself, so a HiFi needs no focus code of its own for that case. `observed.focusEntry` records the declared layer that holds the final focus, and `observed.focusReturn` the closed panel whose opener holds it.
 Verified reviewer heading focus remains recorded as reviewer setup and does not count as product focus. Verification requires an exact accepted runtime body and its direct focus call location.
