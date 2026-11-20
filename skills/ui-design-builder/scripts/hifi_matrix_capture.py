@@ -258,8 +258,14 @@ const A11Y = ({ surfaceId, limit, measures, axis, baseFonts, fonts }) => {
   const all = [surface].concat(Array.from(surface.querySelectorAll('*')))
     .filter(el => !['SCRIPT', 'STYLE', 'TEMPLATE'].includes(el.tagName) && visible(el));
   const scanned = all.slice(0, limit);
-  // an element clipped to 1 px or less is visually hidden; it is not measured
-  const els = scanned.filter(el => el instanceof HTMLElement && (rect(el).width > 1 || rect(el).height > 1));
+  // Visually hidden text is not measured: a box of 1 px or less in the canvas's own CSS px (zoom-200 doubles every
+  // rect), or the clip and clip-path that screen-reader-only text uses.
+  const zoom = parseFloat(getComputedStyle(canvas).zoom) || 1;
+  const hidden = el => {
+    const r = rect(el), s = getComputedStyle(el);
+    return (r.width / zoom <= 1 && r.height / zoom <= 1) || s.clip === 'rect(0px, 0px, 0px, 0px)' || s.clipPath === 'inset(50%)';
+  };
+  const els = scanned.filter(el => el instanceof HTMLElement && !hidden(el));
   const rows = [], checked = {};
   for (const name of measures) checked[name] = 0;
   const selector = el => {
