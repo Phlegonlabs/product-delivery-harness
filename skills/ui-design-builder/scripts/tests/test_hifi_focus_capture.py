@@ -216,10 +216,10 @@ class FocusBrowserTests(unittest.TestCase):
                 with self.subTest(css=markup.startswith("<style>"), trigger=trigger):
                     result = self.attempt_focus(markup, trigger)
                     self.assertEqual((True, ["more"]), (result["focusCorrect"], result["observed"]["openers"]), result)
-        driver = self.driver('<details><summary>More</summary>' + save + '</details>')
-        result = self.attempt(driver)["result"]
-        driver.stop()
-        self.assertIn("product control is missing or hidden; no instance is reachable: save", result["problems"])
+        # Without an id, the details is named by its place among the surface's details elements.
+        result = self.attempt_focus('<details open><summary>Other</summary></details>'
+                                    '<details><summary>More</summary>' + save + '</details>', "click")
+        self.assertEqual((True, ["details:1"]), (result["focusCorrect"], result["observed"]["openers"]), result)
 
 
 class FocusObservationTests(unittest.TestCase):

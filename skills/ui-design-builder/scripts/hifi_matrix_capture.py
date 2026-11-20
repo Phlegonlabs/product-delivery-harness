@@ -812,10 +812,9 @@ async function interact(request) {
             // A closed native details element is a disclosure that its own summary opens.
             const summary = panel.tagName === 'DETAILS' && panel !== el ? panel.querySelector(':scope > summary') : null;
             if (summary && !panel.open && !summary.contains(el)) {
-              if (!panel.id || document.querySelectorAll('#' + CSS.escape(panel.id)).length !== 1) {
-                reachable = false; break;
-              }
-              panels.unshift({ panel: panel.id, details: true });
+              const unique = panel.id && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1;
+              panels.unshift({ panel: unique ? panel.id : null,
+                details: Array.from(surface.querySelectorAll('details')).indexOf(panel) });
             }
             if (panel === surface) break;
           }
@@ -826,21 +825,24 @@ async function interact(request) {
       const buttons = page.locator(surface + ' button[data-product-menu],'
         + surface + ' button[data-product-tab],' + surface + ' button[data-product-disclosure]');
       for (const step of chain) {
-        const panel = page.locator('[id=' + quote(step.panel) + ']');
-        const open = () => step.details ? panel.evaluate(el => el.open) : panel.isVisible();
+        // A details without a unique id is named by its place among the surface's details elements.
+        const isDetails = typeof step.details === 'number';
+        const name = step.panel || 'details:' + step.details;
+        const panel = step.panel ? page.locator('[id=' + quote(step.panel) + ']') : page.locator(surface + ' details').nth(step.details);
+        const open = () => isDetails ? panel.evaluate(el => el.open) : panel.isVisible();
         if (await open()) continue;
-        const opener = step.details ? panel.locator(':scope > summary') : buttons.nth(step.index);
-        if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
+        const opener = isDetails ? panel.locator(':scope > summary') : buttons.nth(step.index);
+        if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + name); break; }
         const focusStep = 'opener:' + opened.length;
         await opener.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), [focusStep, request.surface, true]);
         await opener.click({ timeout });
-        opened.push(step.panel);
+        opened.push(name);
         try {
-          if (step.details) await page.waitForFunction(id => document.getElementById(id)?.open, step.panel, { timeout });
+          if (isDetails) await page.waitForFunction(el => el.open, await panel.elementHandle(), { timeout });
           else await panel.waitFor({ state: 'visible', timeout });
-        } catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
-        if ((step.details ? !await open() : await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true')
-            || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
+        } catch (_) { problems.push('declared opener did not reveal its panel: ' + name); break; }
+        if ((isDetails ? !await open() : await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true')
+            || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + name); break; }
         const focus = await assessOpenerFocus(focusStep, focusCursor);
         openerFocusCorrect = openerFocusCorrect && focus.correct;
         focusCursor = focus.next;
