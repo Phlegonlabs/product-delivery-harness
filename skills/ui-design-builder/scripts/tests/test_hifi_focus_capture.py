@@ -209,10 +209,13 @@ class FocusBrowserTests(unittest.TestCase):
 
     def test_a_closed_details_opens_through_its_summary(self):
         save = '<button data-control-id="save" onclick="this.textContent+=\' saved\'">Save</button>'
-        for trigger in ("click", "keyboard"):
-            with self.subTest(trigger=trigger):
-                result = self.attempt_focus('<details id="more"><summary>More</summary>' + save + '</details>', trigger)
-                self.assertEqual((True, ["more"]), (result["focusCorrect"], result["observed"]["openers"]), result)
+        hiding = '<style>details:not([open]) > nav { display: none }</style>'
+        for markup in ('<details id="more"><summary>More</summary>' + save + '</details>',
+                       hiding + '<details id="more"><summary>More</summary><nav>' + save + '</nav></details>'):
+            for trigger in ("click", "keyboard"):
+                with self.subTest(css=markup.startswith("<style>"), trigger=trigger):
+                    result = self.attempt_focus(markup, trigger)
+                    self.assertEqual((True, ["more"]), (result["focusCorrect"], result["observed"]["openers"]), result)
         driver = self.driver('<details><summary>More</summary>' + save + '</details>')
         result = self.attempt(driver)["result"]
         driver.stop()

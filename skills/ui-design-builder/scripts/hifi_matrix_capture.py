@@ -800,7 +800,11 @@ async function interact(request) {
             const style = getComputedStyle(panel);
             const hidesVisibility = (style.visibility === 'hidden' || style.visibility === 'collapse')
               && (!panel.parentElement || getComputedStyle(panel.parentElement).visibility !== style.visibility);
-            if ((panel.hidden || style.display === 'none' || hidesVisibility) && !opener) {
+            // Author CSS often hides a closed details element's content as well; its summary still reveals it.
+            const closedDetails = panel.parentElement?.closest('details:not([open])');
+            const inClosedDetails = Boolean(closedDetails)
+              && !closedDetails.querySelector(':scope > summary')?.contains(panel);
+            if ((panel.hidden || style.display === 'none' || hidesVisibility) && !opener && !inClosedDetails) {
               reachable = false; break;
             }
             if (opener)
