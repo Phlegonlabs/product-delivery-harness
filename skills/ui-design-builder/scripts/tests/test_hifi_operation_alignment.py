@@ -481,6 +481,19 @@ class OperationBrowserTests(unittest.TestCase):
                 self.assertEqual(0, reply["observed"]["instances"])
                 driver.stop()
 
+    def test_a_disabled_control_is_named_instead_of_waited_out(self):
+        hint = "the control is disabled in ready; start the operation from the state that enables it"
+        for markup in ('<button data-control-id="save" disabled>Confirm</button>',
+                       '<button data-control-id="save" aria-disabled="true">Confirm</button>'):
+            with self.subTest(markup=markup):
+                driver = self.driver(markup)
+                began = time.monotonic()
+                reply = self.attempt(driver, kind="state", destination={"surface": "UI-002", "state": "error"},
+                                     timeout_ms=20000, destinationWaitMs=300)
+                driver.stop()
+                self.assertIn(hint, "\n".join(reply["result"]["problems"]), reply)
+                self.assertLess(time.monotonic() - began, 10)
+
     def test_opener_exemption_does_not_allow_unrelated_product_focus(self):
         for field in ('<button id="thief" data-control-id="thief">Other</button>',
                       '<textarea id="thief" data-control-for="save"></textarea>'):

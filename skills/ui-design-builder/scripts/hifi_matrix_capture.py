@@ -880,6 +880,11 @@ async function interact(request) {
       });
       if (field && (!await handle.isEnabled() || await handle.getAttribute('readonly') !== null))
         return { problems: ['data-entry control is disabled or read-only'], visible, focusCorrect: false, observed };
+      // A control disabled in the declared source state (natively or by aria-disabled) cannot be activated, and
+      // a click on it waits out the action limit: name it instead.
+      if (await handle.evaluate(el => el.disabled === true || el.getAttribute('aria-disabled') === 'true'))
+        return { problems: ['the control is disabled in ' + request.state + '; start the operation from the state that '
+          + 'enables it, or declare the step that enables it first'], visible, focusCorrect: false, observed };
       let pressedFocused = null;
       let before = null;
       await handle.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), ['operation', request.destination.surface, false]);
