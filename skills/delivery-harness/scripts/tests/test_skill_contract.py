@@ -460,6 +460,10 @@ class DeliveryHarnessSkillContractTests(unittest.TestCase):
         )
         self.assertIn("record-review-attempt --scoped", gates)
         self.assertIn("rerun only the failing suites plus the changed-file selection", gates)
+        # The ladder agrees: a repair reruns what it can affect, and a verified tree is not run twice.
+        self.assertIn("reruns only the failed suites and the checks selected from the repair's changed files", gates)
+        self.assertIn("reuses that run's deterministic suite results", gates)
+        self.assertNotIn("reuses nothing", gates)
         # The scoped PASS re-binds the repaired paths; untouched paths carry forward.
         self.assertIn("Scope-bound carry-forward", gates)
         self.assertIn("Record the origin PASS SHA, the repair path list", gates)
