@@ -725,6 +725,10 @@ async function assessOperationFocus(from, loadsPage) {
   const focus = events.focus.slice(from).filter(event => !event.reviewer);
   if (focus[0]?.target !== true || focus[0]?.step !== 'operation')
     return { problem: 'did not start on the control', entered: null, returned: null };
+  // A product often moves focus a frame after the change, once the new view has rendered: let two frames and
+  // their timers run before reading where focus ends.
+  if (!loadsPage) await page.evaluate(() => new Promise(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0))))).catch(() => {});
   const end = loadsPage ? null : await page.evaluate(() => window.__pdhFocusTrace.end()).catch(() => null);
   const problem = loadsPage ? null : !end ? 'could not be read' : end.onTarget ? null
     : end.targetShown ? (end.fresh ? null : 'left the shown control for content that was already shown')

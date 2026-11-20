@@ -183,6 +183,9 @@ class FocusBrowserTests(unittest.TestCase):
             "moves to a new message": ('<button data-control-id="save" onclick="this.hidden=true;'
                 'const note=document.getElementById(\'note\');note.hidden=false;note.focus()">Allow</button>'
                 '<p id="note" tabindex="-1" hidden>Saved</p>', None),
+            "moves to the list a frame later": ('<div id="list" tabindex="-1"><button data-control-id="save" onclick="'
+                'this.remove();requestAnimationFrame(()=>document.getElementById(\'list\').focus())">Remove</button>'
+                '<p>Other item</p></div>', None),
             "falls to the page": ('<div id="list"><button data-control-id="save" onclick="this.remove()">Remove</button>'
                 '<p>Other item</p></div>', "was lost"),
         }
