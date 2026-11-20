@@ -44,6 +44,8 @@ Not in scope: fewer interaction attempts (every operation at every target with c
 | A destination on the source page fails after 10 s; page loads keep 30 s | `6dcb0d48` |
 | A repair reruns only what it can affect; a verified tree is not run twice | `9ac20fa9` |
 | Release 0.95.1 | `3b7a13af` |
+| Every evidence owner allows the tree reuse, for deterministic suites only | `0590f801` |
+| `clip` counts as hiding only on absolute and fixed boxes | `586322c9` |
 
 ## Review And Repairs
 
@@ -93,13 +95,19 @@ Owner decision, 2026-11-19: ship 0.95.1 with the hidden-text fix, a 10 s destina
 
 The rule fix covers the direct route. Managed RUNs still verify each new head fresh, because the runtime binds every gate PASS to the exact head; reusing a tree across RUNs needs runtime work. Fewer interaction attempts stays the owner's coverage decision.
 
+Review point on `a0d3bddd`: one GPT-6.1 Sol call with the code, rules and security lenses returned `fix_required`. The Codex review of the same head found nothing, and its CI passed.
+
+- R1: the tree reuse contradicted `source-maintenance.md` (same exact SHA only) and `branch-promotion-contract.md` (archive A and main S only). Both now allow it for deterministic suites only, and the gate rule says it covers no review, security, browser, live-state or migration result (`0590f801`).
+- R2, reproduced in Chromium with the reviewer's command: the hidden-text rule counted `clip: rect(0 0 0 0)` on any box, so a visible 20 px static button lost its target-size failure. `clip` applies only to absolute and fixed boxes, and now counts only there (`586322c9`).
+- R3 (note): both screen-reader fixtures also had a clip, so neither the zoom division nor a clip rule was tested alone. Each new fixture needs one rule, and the text-clip test fails when that rule is removed.
+
 ## Verification
 
 - Full Required Verification matrix on `3cec026c` (`86ca5823` after the subject rewording, same tree): 9 of 9 passed on Windows, about 20 minutes.
 - After each repair: the affected modules, pyflakes over every script tree and the diff check passed; each new test failed before its repair.
 - Pull-request CI on `588008ac`: all 14 checks passed (Linux, macOS, Windows, browser and golden path). The Codex review threads were answered and resolved.
 - `promotion_readback.py pre` passed against `main` `0613b863`; PR #207 merged as `61278db1`; `post` returned `tree_equal_S`. Tag `v0.95.0` points at `61278db1`. `./install.sh` exited 0 and the installed contract equals the source: `dac0ed2dd3d2bd0a467b0cad4d74f301a297a7601651ca00b6558e16f2f6960a`.
-- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. The full matrix runs as pull-request CI.
+- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. Pull-request CI on `a0d3bddd`: all 14 checks passed. After the repair: the UI suite (36 modules), the measured-accessibility browser tests and 249 contract and document tests passed; the reviewer's R2 command gives the 0.95.0 row again. The full matrix runs as pull-request CI on the repaired head.
 
 ## Consumer Impact
 
@@ -113,9 +121,9 @@ Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main 61278db1 (v0.95.0); ten-repository and backend runs of 2026-11-19; owner decision of 2026-11-19
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.0, bundle dac0ed2d…; the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
 Approvals in force (gate, owner, date, candidate): owner, 2026-11-19: publish 0.95.1 with the hidden-text fix, the destination wait and the rule fix
-Done and verified (command, exit code): UI suite, doc-asserting Harness modules, spec, pyflakes and release checks, exit 0
-Remaining: review point, pull request, CI, merge, tag, install
+Done and verified (command, exit code): UI suite, doc-asserting Harness modules, spec, pyflakes and release checks, exit 0; review point on a0d3bddd and one consolidated repair
+Remaining: targeted re-check, CI on the repaired head, merge, tag, install
 Blocked / waiting (gate name or owner decision): fewer interaction attempts (owner); removal of this round's worker worktrees and branches and the remote ui-review-speed branch (owner)
-Next action (one command or one owner decision): run the review point on the 0.95.1 candidate
+Next action (one command or one owner decision): run the targeted re-check of a0d3bddd..HEAD
 Next owner (skill or human): parent
 ```
