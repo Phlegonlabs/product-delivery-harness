@@ -11,6 +11,10 @@ the guide names the fallbacks the target still needs, no project or user
 `.mwgrc` applies, and nothing is written to the project. A guide too long for
 the console is saved to a file whose path the CLI prints.
 
+npx is looked up only in absolute PATH directories, never in the current
+directory, and queries and guide IDs are limited to characters that Windows
+`cmd` passes through unchanged when npx is a `.cmd` script.
+
 The pin is the exact npm version: a published version cannot be replaced, and
 npm checks the registry integrity when it downloads one. TARBALL_SHA256 is the
 SHA-256 of `npm pack modern-web-guidance@<version>`; recompute it before
@@ -34,6 +38,7 @@ STAGE = "optional: Modern Web Guidance for HiFi authoring and frontend implement
 PACKAGE = "modern-web-guidance@1.0.1"
 TARBALL_SHA256 = "713d3d344d6fad5c9267fb1ed8daff5dd72df4634e9ad6b2bd3b0ca17f8438a3"
 COMMANDS = ("search", "list", "retrieve")
+ARGUMENT_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9 ,.:_/'+-]*")
 BASELINE_RE = re.compile(
     r"Baseline (?:(?P<widely>Widely available)|(?P<newly>Newly available)|(?P<year>\d{4}))",
     re.IGNORECASE,
@@ -50,6 +55,17 @@ def baseline_target(value: str) -> str:
             f"`Baseline Newly available` or `Baseline <year>`; got {value!r}"
         )
     return "widely" if match["widely"] else "newly" if match["newly"] else match["year"]
+
+
+def find_npx() -> str | None:
+    """npx from an absolute PATH directory; on Windows, shutil.which alone also searches the current one."""
+
+    for directory in os.environ.get("PATH", "").split(os.pathsep):
+        if directory and Path(directory).is_absolute():
+            found = shutil.which(str(Path(directory) / "npx"))
+            if found:
+                return found
+    return None
 
 
 def binding_row() -> str:
@@ -76,7 +92,10 @@ def main(argv: list[str] | None = None) -> int:
             parser.error(str(error))
     elif args.command == "retrieve":
         parser.error("retrieve needs --baseline with the PRD's Browser support value")
-    npx = shutil.which("npx")
+    for argument in args.arguments:
+        if not ARGUMENT_RE.fullmatch(argument):
+            parser.error(f"queries and guide IDs take letters, digits, spaces and ,.:_/'+- only; got {argument!r}")
+    npx = find_npx()
     if npx is None:
         print("npx not found: Modern Web Guidance needs Node.js 22 or later", file=sys.stderr)
         return 2

@@ -6,7 +6,9 @@ from __future__ import annotations
 import io
 import json
 import os
+import stat
 import sys
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -42,7 +44,7 @@ class FakeRun:
 def run_cli(*argv: str, returncode: int = 0, npx: str | None = "/fake/npx"):
     fake = FakeRun(returncode)
     stdout, stderr = io.StringIO(), io.StringIO()
-    with mock.patch.object(modern_web_guidance.shutil, "which", return_value=npx), \
+    with mock.patch.object(modern_web_guidance, "find_npx", return_value=npx), \
             mock.patch.object(modern_web_guidance.subprocess, "run", fake), \
             mock.patch.dict(os.environ, {"DISABLE_TELEMETRY": "0"}), \
             redirect_stdout(stdout), redirect_stderr(stderr):
@@ -88,6 +90,34 @@ class ModernWebGuidanceTests(unittest.TestCase):
             with self.subTest(argv=argv):
                 code, calls, _, _ = run_cli(*argv)
                 self.assertEqual((2, []), (code, calls))
+
+    def test_cmd_metacharacters_and_options_never_reach_npx(self) -> None:
+        for argument in ("dialog & calc", "a|b", "100%", 'say "hi"', "x^y", "<tag>", "--json", "-v", "(menu)", ""):
+            with self.subTest(argument=argument):
+                code, calls, _, _ = run_cli("search", argument)
+                self.assertEqual((2, []), (code, calls))
+        code, [call], _, _ = run_cli("search", "user's sign-in form, step 2/3: retry+help")
+        self.assertEqual((0, ["search", "user's sign-in form, step 2/3: retry+help"]), (code, call["command"][3:]))
+
+    def test_npx_is_found_on_path_but_never_in_the_current_directory(self) -> None:
+        name = "npx.cmd" if sys.platform == "win32" else "npx"
+        with tempfile.TemporaryDirectory() as temp:
+            planted, installed = Path(temp, "project"), Path(temp, "bin")
+            for directory in (planted, installed):
+                directory.mkdir()
+                tool = directory / name
+                tool.write_text("@echo off\n" if sys.platform == "win32" else "#!/bin/sh\n", encoding="utf-8")
+                tool.chmod(tool.stat().st_mode | stat.S_IEXEC)
+            previous = os.getcwd()
+            os.chdir(planted)
+            try:
+                for path, expected in ((os.pathsep.join(["", ".", str(installed)]), installed / name),
+                                       (os.pathsep.join(["", "."]), None)):
+                    with self.subTest(path=path), mock.patch.dict(os.environ, {"PATH": path}):
+                        found = modern_web_guidance.find_npx()
+                        self.assertEqual(expected, found and Path(found))
+            finally:
+                os.chdir(previous)
 
     def test_missing_npx_is_reported(self) -> None:
         code, calls, _, stderr = run_cli("search", "menu", npx=None)
