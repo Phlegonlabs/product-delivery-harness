@@ -890,7 +890,7 @@ async function interact(request) {
         return { problems: ['data-entry control is disabled or read-only'], visible, focusCorrect: false, observed };
       // A control disabled in the declared source state (natively or by aria-disabled) cannot be activated, and
       // a click on it waits out the action limit: name it instead.
-      if (await handle.evaluate(el => el.disabled === true || el.getAttribute('aria-disabled') === 'true'))
+      if (await handle.evaluate(el => el.matches(':disabled') || Boolean(el.closest('[aria-disabled="true"]'))))
         return { problems: ['the control is disabled in ' + request.state + '; start the operation from the state that '
           + 'enables it, or declare the step that enables it first'], visible, focusCorrect: false, observed };
       let pressedFocused = null;

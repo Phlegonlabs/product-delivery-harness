@@ -485,7 +485,9 @@ class OperationBrowserTests(unittest.TestCase):
     def test_a_disabled_control_is_named_instead_of_waited_out(self):
         hint = "the control is disabled in ready; start the operation from the state that enables it"
         for markup in ('<button data-control-id="save" disabled>Confirm</button>',
-                       '<button data-control-id="save" aria-disabled="true">Confirm</button>'):
+                       '<button data-control-id="save" aria-disabled="true">Confirm</button>',
+                       '<fieldset disabled><button data-control-id="save">Confirm</button></fieldset>',
+                       '<div aria-disabled="true"><button data-control-id="save">Confirm</button></div>'):
             with self.subTest(markup=markup):
                 driver = self.driver(markup)
                 began = time.monotonic()
