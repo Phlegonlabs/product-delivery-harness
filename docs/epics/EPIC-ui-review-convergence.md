@@ -1,6 +1,6 @@
 # EPIC-ui-review-convergence: fewer UI review passes and less browser time
 
-Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`); installed the same day (five-skill contract `dac0ed2d…`); consumers not yet adopted
+Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`); installed the same day (five-skill contract `dac0ed2d…`); patch 0.95.1 prepared on `fix/measure-hidden-text-at-zoom`, not yet published; consumers not yet adopted
 Design workflow: enhancement
 UI impact: none (review rules, evidence rules and UI scripts; no product UI)
 
@@ -39,6 +39,11 @@ Not in scope: fewer interaction attempts (every operation at every target with c
 | Packet removal refuses links, foreign directories, work trees and changed packets | `cc08bba3`, `78aa2693`, `a2fc79eb`, `740fb9e3`, `238f7d85` |
 | Two-reviewer waves, the visual inspection set, re-check scope | `9cfd4cae`, `a0678b96`, `4b6e2941`, `3e61b378`, `d359cf46`, `6192a7e7`, `1765027d` |
 | Release 0.95.0 | `e877f285`, `4a07bca3` |
+| 0.95.0 publication record | `6d059e9c` |
+| Measurements skip screen-reader-only text at any canvas zoom | `b152a453` |
+| A destination on the source page fails after 10 s; page loads keep 30 s | `6dcb0d48` |
+| A repair reruns only what it can affect; a verified tree is not run twice | `9ac20fa9` |
+| Release 0.95.1 | `3b7a13af` |
 
 ## Review And Repairs
 
@@ -75,12 +80,26 @@ The Codex review on PR #207 (`fc1b2de2`) found two more. The two-reviewer bullet
 
 - Not changed: a 0.94.0 parity manifest cannot carry into 0.95.0 because the HiFi carry key changed, so the first parity run after adoption recaptures every entry once; the cited-capture check compares file names with the index, not staged bytes, and a stale staged image fails the hash check in the next checkout.
 
+## Ten-Repository Check And 0.95.1
+
+After the merge the owner asked for a real run on the consumer repositories. 0.95.0 ran on scratch copies of ten repositories (nine UI packages), and seven backends ran in clean clones:
+
+- jolvex's full package took 52.6 minutes with four workers, against 1 h 41 min on 0.94.0. Interaction attempts were 77 to 99 % of measured browser time in every repository.
+- A destination that never applied waited the whole 30 s action limit: 276 attempts, about 2.3 worker-hours. 236 were state changes on the source page; 40 were agentkiosk navigations.
+- 580 of jolvex's 652 `text-clip` rows were screen-reader-only text: `zoom-200` doubled its 1 px box. Spot checks of the 1,658 `text-split` rows found real wrapping defects; 62 % of the rows sit in twelve shared components.
+- Six of seven backends cannot pass their own verification on this machine for environment reasons (pinned Node and Bun, workerd, a Clerk key, CRLF byte checks, wrangler local D1, a hanging `wrangler types`). Most suites take seconds to a minute (jolvex's full `check` takes 15.5 minutes); the time goes to repeated full suites (about 40 in one hk-car-care Epic) and identical trees verified again (agentkiosk RUN-005 to RUN-007). `verification-gates.md` said a repair reuses nothing, while Isolated Repair Protocol step 7 reruns only the failing suites.
+
+Owner decision, 2026-11-19: ship 0.95.1 with the hidden-text fix, a 10 s destination wait and the rule fix. The 10 s figure assumed jolvex's slowest passing attempt (10.98 s) spent under 10 s on its destination. It did not: its source page opens in about 0.56 s, and the navigation into jolvex's `index.html` waited about 10.4 s. So only a destination on the source page gets 10 s, and an attempt that loads a page keeps 30 s. On the measured runs that saves about 1.3 worker-hours instead of 1.5. New browser tests fail against the 0.95.0 wait and against a flat short wait.
+
+The rule fix covers the direct route. Managed RUNs still verify each new head fresh, because the runtime binds every gate PASS to the exact head; reusing a tree across RUNs needs runtime work. Fewer interaction attempts stays the owner's coverage decision.
+
 ## Verification
 
 - Full Required Verification matrix on `3cec026c` (`86ca5823` after the subject rewording, same tree): 9 of 9 passed on Windows, about 20 minutes.
 - After each repair: the affected modules, pyflakes over every script tree and the diff check passed; each new test failed before its repair.
 - Pull-request CI on `588008ac`: all 14 checks passed (Linux, macOS, Windows, browser and golden path). The Codex review threads were answered and resolved.
 - `promotion_readback.py pre` passed against `main` `0613b863`; PR #207 merged as `61278db1`; `post` returned `tree_equal_S`. Tag `v0.95.0` points at `61278db1`. `./install.sh` exited 0 and the installed contract equals the source: `dac0ed2dd3d2bd0a467b0cad4d74f301a297a7601651ca00b6558e16f2f6960a`.
+- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. The full matrix runs as pull-request CI.
 
 ## Consumer Impact
 
@@ -89,14 +108,14 @@ Earlier approvals stay valid: an intermediate receipt with every interaction row
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / ui-review-speed / cb7f022f / task/ (untracked)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / fix/measure-hidden-text-at-zoom / the commit that adds this block / task/ (untracked)
 Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
-Inputs consumed (path + hash or revision): main 0613b863 (v0.94.0); owner requests of 2026-11-19
-Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): unknown; not run in this round
-Approvals in force (gate, owner, date, candidate): owner, 2026-11-19: fix with Opus 5.5 workers, run the Harness flow, commit, push and merge
-Done and verified (command, exit code): focused driver, checker, readiness and packager suites, exit 0
-Remaining: full matrix, final review point, pull request, CI, merge, tag, install; then the ten-repository check and backend end-to-end tests the owner asked for
-Blocked / waiting (gate name or owner decision): whether to sample interaction attempts (owner)
-Next action (one command or one owner decision): run the full matrix and the final review point on the candidate
+Inputs consumed (path + hash or revision): main 61278db1 (v0.95.0); ten-repository and backend runs of 2026-11-19; owner decision of 2026-11-19
+Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.0, bundle dac0ed2d…; the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
+Approvals in force (gate, owner, date, candidate): owner, 2026-11-19: publish 0.95.1 with the hidden-text fix, the destination wait and the rule fix
+Done and verified (command, exit code): UI suite, doc-asserting Harness modules, spec, pyflakes and release checks, exit 0
+Remaining: review point, pull request, CI, merge, tag, install
+Blocked / waiting (gate name or owner decision): fewer interaction attempts (owner); removal of this round's worker worktrees and branches and the remote ui-review-speed branch (owner)
+Next action (one command or one owner decision): run the review point on the 0.95.1 candidate
 Next owner (skill or human): parent
 ```
