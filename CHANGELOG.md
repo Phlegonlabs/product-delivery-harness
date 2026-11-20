@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.92.0. Current releases are in [README.md](README.md#version-history).
+English release history through 0.93.0. Current releases are in [README.md](README.md#version-history).
+
+- **0.93.0** — A blocking code finding now carries a proof someone else can rerun: the command or input, the observed result and the required result. Without it the finding is a note. A change that touches a trust boundary, or a design the owner calls contested, gets a second reader from another vendor inside the same review point when agent policy offers one. The project `AGENTS.md` template gains the 24 engineering principles in full, adapted from the PStack plugin under its MIT license. A correction given twice is fixed in the structure, a check or a test before it becomes another rule.
 
 - **0.92.0** — One owner approval can now cover an Epic's push, pull request, review threads, merge, production deployment and cleanup. An eligible repository sets `"landing": "epic_grant"` in a new `.harness/landing-policy.json`, the owner's grant is recorded outside the checkout, and the new `landing_gate.py` checks it against the exact candidate before each action. Every review, check and read-back gate stays, and a seeded repository starts with every landing under the owner.
 
