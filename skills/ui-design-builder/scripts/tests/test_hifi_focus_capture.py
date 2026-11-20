@@ -207,6 +207,22 @@ class FocusBrowserTests(unittest.TestCase):
                     result = self.attempt_focus(markup, trigger)
                     self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
 
+    def test_the_runtime_moves_focus_to_the_new_view_only_when_the_control_is_hidden(self):
+        transition = "document.__hifiReviewerRuntime.selectState('loading')"
+        cases = {"hidden with its view": ('<section data-hifi-state-view="ready" data-responsive-target="390">'
+                                          '<button data-control-id="save" onclick="' + transition + '">Retry</button></section>', 2),
+                 "still shown": ('<button data-control-id="save" onclick="' + transition + '">Retry</button>', 1)}
+        for label, (markup, events) in cases.items():
+            driver = self.driver(markup)
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    reply = self.attempt(driver, kind="state", trigger=trigger,
+                                         destination={"surface": "UI-002", "state": "loading"})
+                    self.assertEqual(([], True), (reply["result"]["problems"], reply["result"]["focusCorrect"]), reply)
+                    product = [event for event in reply["events"]["focus"] if not event["reviewer"]]
+                    self.assertEqual(events, len(product), product)
+            driver.stop()
+
     def test_a_closed_details_opens_through_its_summary(self):
         save = '<button data-control-id="save" onclick="this.textContent+=\' saved\'">Save</button>'
         hiding = '<style>details:not([open]) > nav { display: none }</style>'

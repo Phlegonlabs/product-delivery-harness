@@ -1299,7 +1299,8 @@ def reviewer_focus_sites(files):
     canonical = script_re.search(runtime_source()).group("body")
     trusted = {hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
                "854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597",
-               "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146"}
+               "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146",
+               "dd2bfce3eafc311011ad89f0b64bb99a59e6f50bf1140e62e4432b850bb4400a"}
     sites = {}
     for name, path in files.items():
         html = path.read_text(encoding="utf-8")

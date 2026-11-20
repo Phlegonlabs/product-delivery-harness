@@ -113,8 +113,8 @@ class NavigationBrowserTests(unittest.TestCase):
                     result = self.attempt(driver, kind="state", trigger=trigger,
                         destination={"surface": "UI-002", "state": "loading"})["result"]
                     self.assertEqual(mode == "inert", bool(result["problems"]), result)
-                    # The hidden field keeps no focus the user can see, and nothing else takes it.
-                    self.assertEqual(mode == "inert", result["focusCorrect"], result)
+                    # The runtime moves focus to the new view when the state change hides the field.
+                    self.assertTrue(result["focusCorrect"], result)
             driver.stop()
 
     def test_same_page_state_hashes_keep_the_existing_non_navigation_contract(self):
