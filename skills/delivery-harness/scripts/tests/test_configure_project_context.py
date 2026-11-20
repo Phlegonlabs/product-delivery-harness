@@ -11,6 +11,7 @@ SCRIPTS_DIR = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(SCRIPTS_DIR))
 
 import configure_project_context  # noqa: E402
+import modern_web_guidance  # noqa: E402
 from configure_project_context import _level_two_sections, configure_context  # noqa: E402
 
 
@@ -81,6 +82,29 @@ class ConfigureProjectContextTests(unittest.TestCase):
                         encoding="utf-8",
                     )
                     findings = configure_project_context.unresolved_placeholders(root, stage=stage)
+                    self.assertEqual(expected, not findings, findings)
+
+    def test_web_guidance_row_in_strict_context_check(self) -> None:
+        package = modern_web_guidance.PACKAGE
+        cases = [
+            (f"`{package}`", "`" + "a" * 64 + "`", True),
+            ("pending", "pending", True),
+            ("`modern-web-guidance@latest`", "`" + "a" * 64 + "`", False),
+            (f"`{package}`", "pending", False),
+        ]
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            agents = root / "AGENTS.md"
+            for target, digest, expected in cases:
+                with self.subTest(target=target, digest=digest):
+                    agents.write_text(
+                        "## Skill Bindings\n"
+                        "| Slot | Stage | Bound skill | Pinned SHA-256 |\n"
+                        "| --- | --- | --- | --- |\n"
+                        f"| web_platform_guidance | optional | {target} | {digest} |\n",
+                        encoding="utf-8",
+                    )
+                    findings = configure_project_context.unresolved_placeholders(root, stage="product-definition")
                     self.assertEqual(expected, not findings, findings)
 
     def make_templates(self, root: Path) -> tuple[Path, Path]:
