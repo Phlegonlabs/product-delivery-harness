@@ -643,6 +643,16 @@ def capture_problems(root, package_rel, package, output_rel):
         problems.append((f"{sweep.get('output')}: the intermediate-width sweep has {sweep.get('fail')} failed cases, "
                          f"{sweep.get('interactionsFail')} failed interactions and {len(sweep.get('findings') or [])} "
                          "coverage findings", "fix them and rerun the driver"))
+    # The first wave judges the stress axes and the widths between targets from this one capture, so the author's
+    # own run must have them: a defect they show then surfaces before review, not in it.
+    axes = run.get("axes") if isinstance(run.get("axes"), list) else []
+    missing_axes = [axis for axis in matrix.AXES if axis not in axes]
+    if missing_axes:
+        problems.append((f"{output_rel} ran without the {', '.join(missing_axes)} axis sample",
+                         "rerun the driver with --axes " + ",".join(matrix.AXES)))
+    web = any(matrix.intermediate_widths(row) for row in package.manifest.get("surfaces") or [] if isinstance(row, dict))
+    if web and not isinstance(run.get("intermediate"), dict):
+        problems.append((f"{output_rel} has no intermediate-width sweep", "rerun the driver with --intermediate"))
     a11y = sidecar.get("a11y")
     if a11y is None:
         problems.append((f"{output_rel} has no a11y measurements", "rerun the driver with --measure-a11y"))
