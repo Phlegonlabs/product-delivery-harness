@@ -49,6 +49,8 @@ The printed JSON line's `seconds` object sums the measured browser seconds of th
 
 ## Product interactions
 
+After activation an attempt waits for its destination surface and state. A destination on the source page gets 10 s, because a state change that has not applied by then does not apply. An attempt that loads a page (`navigate`, or `state` with a destination on another page) keeps the 30 s action limit, because a large page can take most of it to load.
+
 Feedback interactions keep their source surface and state. The driver compares source DOM and form values before and after activation. Focus alone does not count. Each feedback row records different `observed.change.beforeSha256` and `afterSha256` values; an inert control fails.
 
 For a text input or textarea, activation enters a short probe value. For a select, it chooses a different enabled option. Keyboard activation starts from focus and types or uses arrow keys. Disabled and read-only fields fail. Entry alone never waives the required destination, focus or source-change proof.
@@ -108,7 +110,7 @@ Intermediate work inherits the base run's page and operation budgets, including 
 | `focus-visible` | the axis sample in the base scheme; `forced-colors` axis sample | A focusable control with no outline and no change in border, box-shadow or background when keyboard-focused. Under forced colors only an outline or a border change counts. Focus is restored afterwards. | That the indicator is visible enough, or the tab order. |
 | `text-growth` | `zoom-200` axis sample | Text, including the text of inputs, textareas and selects, whose rendered size grew less than 1.9 times against the same element in the same case without the axis. | Layout quality at 200%. |
 
-Rows carry `measure`, `surface`, `state`, `target`, `axis` (`base` or the axis name), `selector`, `level` (`fail`, `note` or `unmeasured`), the values and the `limit`. Elements clipped to 1 px or less are skipped. The probe's 400-element cap applies: a cut scan is listed in `incomplete`. An axis measurement needs its axis in `--axes`; without it the measurement is listed once in `notRun` and in the printed `a11y` summary, and no axis is turned on for it. Carried cases are still measured, and `--workers` gives the same rows in the same order.
+Rows carry `measure`, `surface`, `state`, `target`, `axis` (`base` or the axis name), `selector`, `level` (`fail`, `note` or `unmeasured`), the values and the `limit`. Visually hidden text is skipped: a box of 1 px or less in the canvas's own CSS px, also under `zoom-200`, and the `clip-path: inset(50%)` of screen-reader-only text, or its `clip: rect(0 0 0 0)` on an absolute or fixed box (`clip` does nothing on other boxes). The probe's 400-element cap applies: a cut scan is listed in `incomplete`. An axis measurement needs its axis in `--axes`; without it the measurement is listed once in `notRun` and in the printed `a11y` summary, and no axis is turned on for it. Carried cases are still measured, and `--workers` gives the same rows in the same order.
 
 ## What it does not prove
 

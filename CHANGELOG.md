@@ -1,6 +1,8 @@
 # Changelog
 
-English release history through 0.90.1. Current releases are in [README.md](README.md#version-history).
+English release history through 0.91.0. Current releases are in [README.md](README.md#version-history).
+
+- **0.91.0** — A direct task now reads the entry file and one short card instead of every contract. The direct steps moved into three cards: one for every direct task, one added for an initial delivery, one added for a UI change. Reading that serves only managed runs or only UI work now states its trigger. The new `check_commit_message.py` checks a commit message and states the fix, so the commit convention is read only when that check fails.
 
 - **0.90.1** — The installed dependency checker now finds frontend-design and Impeccable beside delivery-harness. It verifies both skills against their pinned hashes.
 
