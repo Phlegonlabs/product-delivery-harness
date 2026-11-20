@@ -261,6 +261,20 @@ class FocusBrowserTests(unittest.TestCase):
                     '<button data-control-id="save" onclick="const d=this.closest(\'details\');' + handler
                     + '">Close</button></details>', True, "focusReturn")
 
+    def test_a_summary_declared_as_a_panel_keeps_its_focus_entry(self):
+        reveal = "document.getElementById('picker').hidden=false;document.getElementById('inside').focus()"
+        self.check_attempts('<details id="outer" open><summary id="picker" hidden>'
+            '<span id="inside" tabindex="-1">Actions</span><button data-control-id="save" '
+            'onclick="this.textContent+=\' saved\'">Save</button></summary><button data-product-disclosure '
+            'aria-controls="picker" aria-expanded="false" onclick="' + reveal + '">Show actions</button></details>', True)
+
+    def test_nested_details_that_close_together_return_focus_to_the_outer_summary(self):
+        close = ("document.getElementById('inner').open=false;document.getElementById('outer').open=false;"
+                 "document.querySelector('#outer > summary').focus()")
+        self.check_attempts('<details id="outer" open><summary>Outer</summary><details id="inner" open>'
+            '<summary>Inner</summary><button data-control-id="save" onclick="' + close + '">Close all</button>'
+            '</details></details>', True, "focusReturn", panel="outer")
+
     def test_a_return_to_a_closed_panels_opener_stands_outside_the_destination_surface(self):
         root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         scratch = self.enterContext(tempfile.TemporaryDirectory())
