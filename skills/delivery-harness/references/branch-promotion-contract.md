@@ -92,6 +92,7 @@ Promotion to main requires all these conditions:
 A moving branch Preview URL is not immutable evidence. Record the fixed deployment URL or identity alongside the Git SHA.
 A changed tree, repaired code or configuration invalidates earlier exact-SHA evidence.
 Only receipt-verified archive A and provider-created tree-equal main S use the inheritance exceptions defined here.
+A direct-route head with an already verified tree reuses only that run's deterministic suite results ([Verification Gates](verification-gates.md)).
 Record S's observed SHA, the `post` JSON and original candidate/result identities.
 Do not repeat the full suite or security review solely because the server assigned tree-equal S a new SHA.
 Never relabel inherited candidate, security or CI results as fresh executions at S.
