@@ -1,6 +1,6 @@
 # EPIC-ui-review-convergence: fewer UI review passes and less browser time
 
-Status: candidate for 0.95.0 on branch `ui-review-speed`; not yet published
+Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`); installed the same day (five-skill contract `dac0ed2d…`); consumers not yet adopted
 Design workflow: enhancement
 UI impact: none (review rules, evidence rules and UI scripts; no product UI)
 
@@ -79,7 +79,8 @@ The Codex review on PR #207 (`fc1b2de2`) found two more. The two-reviewer bullet
 
 - Full Required Verification matrix on `3cec026c` (`86ca5823` after the subject rewording, same tree): 9 of 9 passed on Windows, about 20 minutes.
 - After each repair: the affected modules, pyflakes over every script tree and the diff check passed; each new test failed before its repair.
-- Pull-request CI: pending.
+- Pull-request CI on `588008ac`: all 14 checks passed (Linux, macOS, Windows, browser and golden path). The Codex review threads were answered and resolved.
+- `promotion_readback.py pre` passed against `main` `0613b863`; PR #207 merged as `61278db1`; `post` returned `tree_equal_S`. Tag `v0.95.0` points at `61278db1`. `./install.sh` exited 0 and the installed contract equals the source: `dac0ed2dd3d2bd0a467b0cad4d74f301a297a7601651ca00b6558e16f2f6960a`.
 
 ## Consumer Impact
 
