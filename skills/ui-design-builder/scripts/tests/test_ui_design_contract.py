@@ -465,16 +465,17 @@ def offline_output(top_navigation="blocked"):
 
 
 def bundle_output(manifest, component_types=("button", "input", "select", "a"), version=2, keyboard_at_every_target=False):
-    """Passing interaction evidence: a click at every source width and a keyboard row at the smallest, or, as an
-    earlier driver wrote it, at every width."""
+    """Passing interaction evidence: a click at every source target and a keyboard row at the smallest (the
+    narrowest width, or the first listed size class), or, as an earlier driver wrote it, at every target."""
     output = dict(offline_output("allowlisted-local-pages"), interactions=[])
     surfaces = {row["id"]: row for row in manifest["surfaces"]}
     for action in manifest["interactions"]:
         source = surfaces[action["source"]["surface"]]
         destination = surfaces[action["destination"]["surface"]]
-        smallest = min(int(target) for target in source["responsive"]["targets"])
+        targets = [str(target) for target in source["responsive"]["targets"]]
+        smallest = min(targets, key=int) if all(target.isdigit() for target in targets) else targets[0]
         for target in source["responsive"]["targets"]:
-            for trigger in ("click", "keyboard") if keyboard_at_every_target or int(target) == smallest else ("click",):
+            for trigger in ("click", "keyboard") if keyboard_at_every_target or str(target) == smallest else ("click",):
                 output["interactions"].append({"id": action["id"], "target": str(target), "trigger": trigger, "source": action["source"],
                                                "destination": action["destination"], "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS"})
                 if action["kind"] == "navigate":
