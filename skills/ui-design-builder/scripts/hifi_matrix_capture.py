@@ -601,11 +601,13 @@ async function start(request) {
         }
         if (activate) {
           // An open native details that holds the control is a panel too: its summary is the opener focus returns to.
+          // Keyed by the summary, it sits beside a declared panel on the same element, so each opener answers
+          // for its own way of closing: hidden for the declared one, collapsed for the summary.
           for (const [index, panel] of Array.from(root.querySelectorAll('details')).entries()) {
             const summary = panel.querySelector(':scope > summary');
             if (!panel.open || !summary || summary.contains(target) || !panel.contains(target)) continue;
             const id = panel.id && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1 ? panel.id : 'details:' + index;
-            layers.set(panel, { id, panel, opener: summary, visible: true, open: true, entry: false, details: true });
+            layers.set(summary, { id, panel, opener: summary, visible: true, open: true, entry: false, details: true });
           }
         }
         const returnLayers = Array.from(layers.values()).filter(layer => layer.open && layer.panel.contains(target));

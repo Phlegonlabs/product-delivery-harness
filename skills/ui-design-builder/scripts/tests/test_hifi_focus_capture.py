@@ -248,6 +248,17 @@ class FocusBrowserTests(unittest.TestCase):
                     if problem is None:
                         self.assertEqual("details:0", result["observed"].get("focusReturn"), result)
 
+    def test_a_details_that_a_declared_opener_reveals_returns_focus_to_the_opener_of_its_closing(self):
+        cases = {"hidden by the declared opener": "d.hidden=true;const opener=document.getElementById(\'opener\');"
+                                                  "opener.setAttribute(\'aria-expanded\',\'false\');opener.focus()",
+                 "collapsed to its summary": "d.open=false;d.querySelector(\'summary\').focus()"}
+        for label, handler in cases.items():
+            with self.subTest(case=label):
+                self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
+                    'aria-expanded="false">Pick</button><details id="picker" open hidden><summary>More</summary>'
+                    '<button data-control-id="save" onclick="const d=this.closest(\'details\');' + handler
+                    + '">Close</button></details>', True, "focusReturn")
+
     def test_a_details_keeps_its_identity_when_its_summary_inserts_another(self):
         result = self.attempt_focus('<details><summary id="more">More</summary><button data-control-id="save" '
             'onclick="this.textContent+=\' saved\'">Save</button></details><script>'
