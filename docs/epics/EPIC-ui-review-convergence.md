@@ -1,6 +1,6 @@
 # EPIC-ui-review-convergence: fewer UI review passes and less browser time
 
-Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`); installed the same day (five-skill contract `dac0ed2d…`); patch 0.95.1 prepared on `fix/measure-hidden-text-at-zoom`, not yet published; consumers not yet adopted
+Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`) and as patch 0.95.1 the same day (PR #208, `main` `112c2cfc`, tag `v0.95.1`); 0.95.1 installed (five-skill contract `4df73f77…`); consumers not yet adopted
 Design workflow: enhancement
 UI impact: none (review rules, evidence rules and UI scripts; no product UI)
 
@@ -107,7 +107,8 @@ Review point on `a0d3bddd`: one GPT-6.1 Sol call with the code, rules and securi
 - After each repair: the affected modules, pyflakes over every script tree and the diff check passed; each new test failed before its repair.
 - Pull-request CI on `588008ac`: all 14 checks passed (Linux, macOS, Windows, browser and golden path). The Codex review threads were answered and resolved.
 - `promotion_readback.py pre` passed against `main` `0613b863`; PR #207 merged as `61278db1`; `post` returned `tree_equal_S`. Tag `v0.95.0` points at `61278db1`. `./install.sh` exited 0 and the installed contract equals the source: `dac0ed2dd3d2bd0a467b0cad4d74f301a297a7601651ca00b6558e16f2f6960a`.
-- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. Pull-request CI on `a0d3bddd`: all 14 checks passed. After the repair: the UI suite (36 modules), the measured-accessibility browser tests and 249 contract and document tests passed; the reviewer's R2 command gives the 0.95.0 row again. The full matrix runs as pull-request CI on the repaired head.
+- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. Pull-request CI on `a0d3bddd`: all 14 checks passed. After the repair: the UI suite (36 modules), the measured-accessibility browser tests and 249 contract and document tests passed; the reviewer's R2 command gives the 0.95.0 row again. Targeted re-check on `d3eb789b`: PASS, every finding resolved, no new finding.
+- Pull-request CI on `d3eb789b`: all 14 checks passed. `promotion_readback.py pre` passed against `main` `61278db1`; PR #208 merged as `112c2cfc`; `post` returned `tree_equal_S`. Tag `v0.95.1` points at `112c2cfc`. `./install.sh` exited 0 and the installed contract equals the source: `4df73f7764e5de630842ff04fe1fd719216a9d013828e385e0cbc1f8fee6a36a` (previous `dac0ed2d…`, backup `20261119-230236`).
 
 ## Consumer Impact
 
@@ -119,11 +120,11 @@ Earlier approvals stay valid: an intermediate receipt with every interaction row
 Repository / branch / HEAD / dirty paths: product-delivery-harness / fix/measure-hidden-text-at-zoom / the commit that adds this block / task/ (untracked)
 Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main 61278db1 (v0.95.0); ten-repository and backend runs of 2026-11-19; owner decision of 2026-11-19
-Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.0, bundle dac0ed2d…; the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
+Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.0, bundle dac0ed2d… (0.95.1 leaves the template unchanged); the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
 Approvals in force (gate, owner, date, candidate): owner, 2026-11-19: publish 0.95.1 with the hidden-text fix, the destination wait and the rule fix
-Done and verified (command, exit code): UI suite, doc-asserting Harness modules, spec, pyflakes and release checks, exit 0; review point on a0d3bddd and one consolidated repair
-Remaining: targeted re-check, CI on the repaired head, merge, tag, install
-Blocked / waiting (gate name or owner decision): fewer interaction attempts (owner); removal of this round's worker worktrees and branches and the remote ui-review-speed branch (owner)
-Next action (one command or one owner decision): run the targeted re-check of a0d3bddd..HEAD
-Next owner (skill or human): parent
+Done and verified (command, exit code): review point, one consolidated repair, targeted re-check PASS; CI 14 of 14 on d3eb789b; merged as 112c2cfc (tree_equal_S), tag v0.95.1, ./install.sh exit 0 with the installed contract equal to the source
+Remaining: this record reaches main with the next pull request; consumers adopt 0.95.1 between rounds
+Blocked / waiting (gate name or owner decision): fewer interaction attempts (owner); tree reuse across managed RUNs, which needs runtime work (owner); removal of this round's worker worktrees and branches, the fix/measure-hidden-text-at-zoom and ui-review-speed remote branches (owner)
+Next action (one command or one owner decision): owner decision on the three waiting items
+Next owner (skill or human): owner
 ```
