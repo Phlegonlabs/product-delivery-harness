@@ -7,6 +7,7 @@ from pathlib import Path
 import shutil
 import sys
 import tempfile
+import time
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -358,12 +359,13 @@ class OperationBrowserTests(unittest.TestCase):
         driver.start()
         return driver
 
-    def attempt(self, driver, control="save", kind="feedback", destination=None, page="details.html", destination_page=None, trigger="click", **extra):
-        driver.call("open", page=page, timeoutMs=2000)
+    def attempt(self, driver, control="save", kind="feedback", destination=None, page="details.html", destination_page=None,
+                trigger="click", timeout_ms=2000, **extra):
+        driver.call("open", page=page, timeoutMs=timeout_ms)
         return driver.call("interact", page=page, interaction="operation", surface="UI-002", state="ready",
                            target="390", control=control, kind=kind,
                            destination=destination or {"surface": "UI-002", "state": "ready"},
-                           destinationPage=destination_page or page, trigger=trigger, timeoutMs=2000, **extra)
+                           destinationPage=destination_page or page, trigger=trigger, timeoutMs=timeout_ms, **extra)
 
     def test_feedback_requires_product_change_and_ignores_focus_alone(self):
         for handler, passes in (("this.textContent += ' saved'", True),
@@ -392,6 +394,22 @@ class OperationBrowserTests(unittest.TestCase):
         driver = self.driver('<button data-control-id="save" onclick="this.textContent += \' changed\'">Save</button>')
         reply = self.attempt(driver, kind="state")
         self.assertIn('state interaction needs a different destination state', reply["result"]["problems"])
+
+    def test_a_state_that_never_applies_on_the_source_page_fails_after_the_destination_wait(self):
+        driver = self.driver('<button data-control-id="save">Save</button>')
+        began = time.monotonic()
+        reply = self.attempt(driver, kind="state", destination={"surface": "UI-002", "state": "error"},
+                             timeout_ms=20000, destinationWaitMs=300)
+        self.assertIn("destination surface/state did not apply: UI-002 error", reply["result"]["problems"])
+        self.assertLess(time.monotonic() - began, 10)       # waiting out the 20 s action limit takes longer
+
+    def test_an_attempt_that_loads_a_slow_page_keeps_the_action_limit(self):
+        busy = "<script>for (const end = Date.now() + 1500; Date.now() < end;);</script>"
+        driver = self.driver(edit=lambda html: html.replace("</main>", busy + "</main>", 1))
+        reply = self.attempt(driver, control="to-desk", kind="navigate", destination={"surface": "UI-001", "state": "ready"},
+                             destination_page="index.html", timeout_ms=20000, destinationWaitMs=300)
+        self.assertEqual([], reply["result"]["problems"])
+        self.assertEqual("index.html", reply["result"]["arrivedTo"])
 
     def test_openers_reveal_menu_and_nested_disclosures_in_order(self):
         save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'

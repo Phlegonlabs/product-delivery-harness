@@ -61,6 +61,7 @@ DRIVER_BASE = "https://hifi.invalid/pkg/"
 SETTLE_CAP_MS = 2000
 SETTLE_MARGIN_MS = 50
 CASE_TIMEOUT_S = 30
+DESTINATION_WAIT_S = 10  # for a destination on the source page; an attempt that loads a page keeps CASE_TIMEOUT_S
 MAX_RESTARTS = 3
 MAX_WORKERS = 4         # one headless Chromium each; more than this overloads a laptop
 OVERFLOW_TOLERANCE_PX = 1
@@ -887,11 +888,15 @@ async function interact(request) {
         const after = await page.evaluate(FEEDBACK_SNAPSHOT, request.surface);
         if (before && after) observed.change = { beforeSha256: sha(before), afterSha256: sha(after) };
       }
+      // Loading a heavy page can take most of the action limit, so an attempt that loads a page keeps it.
+      // A state change on the source page that has not applied after destinationWaitMs does not apply.
+      const loadsPage = request.kind === 'navigate' || request.page !== request.destinationPage;
       try {
         await page.waitForFunction(([surface, state]) => {
           const el = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surface);
           return Boolean(el) && !el.hidden && el.dataset.hifiState === state;
-        }, [request.destination.surface, request.destination.state], { timeout });
+        }, [request.destination.surface, request.destination.state],
+        { timeout: loadsPage ? timeout : Math.min(timeout, request.destinationWaitMs ?? timeout) });
       } catch (_) {
         problems.push('destination surface/state did not apply: ' + request.destination.surface + ' ' + request.destination.state);
       }
@@ -2116,7 +2121,8 @@ class Runner:
                                      surface=action["source"]["surface"], state=action["source"]["state"],
                                      target=target, control=action["control"], kind=action["kind"],
                                      destination=action["destination"], destinationPage=action["destinationPage"],
-                                     trigger=trigger, timeoutMs=self.case_timeout_s * 1000)
+                                     trigger=trigger, timeoutMs=self.case_timeout_s * 1000,
+                                     destinationWaitMs=DESTINATION_WAIT_S * 1000)
         except DriverTimeout as error:
             reasons.append(f"interaction timed out after {self.case_timeout_s}s")
             events, result = error.events, {}

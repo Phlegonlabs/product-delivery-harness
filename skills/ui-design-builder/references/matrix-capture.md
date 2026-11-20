@@ -49,6 +49,8 @@ The printed JSON line's `seconds` object sums the measured browser seconds of th
 
 ## Product interactions
 
+After activation an attempt waits for its destination surface and state. A destination on the source page gets 10 s, because a state change that has not applied by then does not apply. An attempt that loads a page (`navigate`, or `state` with a destination on another page) keeps the 30 s action limit, because a large page can take most of it to load.
+
 Feedback interactions keep their source surface and state. The driver compares source DOM and form values before and after activation. Focus alone does not count. Each feedback row records different `observed.change.beforeSha256` and `afterSha256` values; an inert control fails.
 
 For a text input or textarea, activation enters a short probe value. For a select, it chooses a different enabled option. Keyboard activation starts from focus and types or uses arrow keys. Disabled and read-only fields fail. Entry alone never waives the required destination, focus or source-change proof.
