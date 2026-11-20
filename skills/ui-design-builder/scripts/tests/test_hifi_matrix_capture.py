@@ -1064,6 +1064,19 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual(["390", "1200"], plan[0]["targets"])
         self.assertEqual({"surface": "UI-001", "state": "ready"}, plan[0]["source"])
 
+    def test_each_interaction_is_clicked_at_every_target_and_keyed_once_at_the_smallest(self):
+        # Numeric widths compare by value, so a list that starts with its largest width still keys at 390;
+        # named size classes keep their listed order.
+        package = self.package(INTERACTIONS, [
+            {"id": "UI-001", "page": "index.html", "states": ["ready"], "responsive": {"targets": [1200, 390, 768]}},
+            {"id": "UI-002", "page": "details.html", "states": ["ready"],
+             "responsive": {"kind": "sizeClasses", "targets": ["compact", "regular"]}}])
+        runner = m.Runner(None, package, Path("."), Path("."), interactions=m.interaction_plan(package))
+        self.assertEqual([("1200", "click"), ("390", "click"), ("390", "keyboard"), ("768", "click")],
+                         [(target, trigger) for _, target, trigger in runner.interaction_attempts("index.html")])
+        self.assertEqual([("compact", "click"), ("compact", "keyboard"), ("regular", "click")],
+                         [(target, trigger) for _, target, trigger in runner.interaction_attempts("details.html")])
+
     def test_only_keeps_the_selected_surfaces_interactions(self):
         self.assertEqual(["UI-002-to-desk"], [a["id"] for a in m.interaction_plan(self.package(INTERACTIONS), only={"UI-002"})])
 
@@ -1098,17 +1111,17 @@ class InteractionTests(unittest.TestCase):
         expected, navigation = checker._interaction_expectations(manifest)
         self.assertEqual(0, code, summary)
         self.assertEqual((expected, navigation), (output["interactions"], output["navigation"]))
-        self.assertEqual((8, 0), (summary["interactions"], summary["interactionsFail"]))
+        self.assertEqual((6, 0), (summary["interactions"], summary["interactionsFail"]))
         self.assertEqual([("UI-001-to-details", "390", "click"), ("UI-001-to-details", "390", "keyboard"),
-                          ("UI-001-to-details", "1200", "click"), ("UI-001-to-details", "1200", "keyboard"),
+                          ("UI-001-to-details", "1200", "click"),
                           ("UI-002-to-desk", "390", "click"), ("UI-002-to-desk", "390", "keyboard"),
-                          ("UI-002-to-desk", "1200", "click"), ("UI-002-to-desk", "1200", "keyboard")],
+                          ("UI-002-to-desk", "1200", "click")],
                          [(f["interaction"], f["target"], f["trigger"]) for op, f in driver.calls if op == "interact"])
         first = next(f for op, f in driver.calls if op == "interact")
         self.assertEqual(("UI-001", "ready", "to-details", "navigate", "UI-002", "details.html", "click"),
                          (first["surface"], first["state"], first["control"], first["kind"],
                           first["destination"]["surface"], first["destinationPage"], first["trigger"]))
-        self.assertEqual(8, len(sidecar["interactions"]))
+        self.assertEqual(6, len(sidecar["interactions"]))
         self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"]})
         self.assertEqual({"details.html", "index.html"}, {r["arrived"] for r in sidecar["interactions"]})
         self.assertTrue(all(isinstance(r["durationMs"], int) and r["startedAt"] <= r["finishedAt"]
@@ -1125,7 +1138,7 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertEqual(("FAIL", False, None), (failed["result"], failed["visible"], failed["focusCorrect"]))
         self.assertIn("not unique", sidecar["interactions"][0]["reasons"][0])
-        self.assertEqual((8, 1), (summary["interactions"], summary["interactionsFail"]))
+        self.assertEqual((6, 1), (summary["interactions"], summary["interactionsFail"]))
 
     def test_a_reply_without_visibility_or_correct_focus_fails_the_run(self):
         for field, reason in (("focusCorrect", "product focus did not land on the control alone"),
@@ -1144,14 +1157,14 @@ class InteractionTests(unittest.TestCase):
     def test_an_undeclared_navigation_during_an_interaction_stays_raw_and_fails(self):
         cli, driver = self.cli(), FakeDriver()
         row = {"url": "https://hifi.invalid/pkg/missing.html", "method": "GET", "resourceType": "document", "allowlisted": True}
-        driver.interact_scripts[("UI-002-to-desk", "1200", "keyboard")] = {"events": {"navigation": [row]}}
+        driver.interact_scripts[("UI-002-to-desk", "390", "keyboard")] = {"events": {"navigation": [row]}}
         code, _, out = cli.run(driver)
         output, sidecar = cli.load(out)
         self.assertEqual(1, code)
         self.assertIn(dict(row, page="details.html"), output["navigation"])
-        self.assertEqual(7, len([r for r in output["navigation"] if set(r) == {"id", "target", "trigger", "from", "to"}]))
+        self.assertEqual(5, len([r for r in output["navigation"] if set(r) == {"id", "target", "trigger", "from", "to"}]))
         record = next(r for r in sidecar["interactions"] if (r["id"], r["target"], r["trigger"])
-                      == ("UI-002-to-desk", "1200", "keyboard"))
+                      == ("UI-002-to-desk", "390", "keyboard"))
         self.assertEqual("FAIL", record["result"])
         self.assertIn("the destination page did not load", record["reasons"])
         self.assertIn("navigation attempt", " | ".join(record["reasons"]))
@@ -1163,7 +1176,7 @@ class InteractionTests(unittest.TestCase):
         output, sidecar = cli.load(out)
         blocked = [r for r in sidecar["interactions"] if r["surface"] == "UI-002"]
         self.assertEqual(1, code)
-        self.assertEqual(4, len(blocked))
+        self.assertEqual(3, len(blocked))
         self.assertEqual({"BLOCKED"}, {r["result"] for r in blocked})
         self.assertIn("page did not open", blocked[0]["reasons"][0])
         self.assertEqual({"UI-001-to-details"}, {f["interaction"] for op, f in driver.calls if op == "interact"})
@@ -1172,7 +1185,7 @@ class InteractionTests(unittest.TestCase):
         cli, driver = self.cli(), FakeDriver()
         code, summary, out = cli.run(driver, "--only", "UI-001")
         output, _ = cli.load(out)
-        self.assertEqual((0, 4), (code, summary["interactions"]))
+        self.assertEqual((0, 3), (code, summary["interactions"]))
         self.assertEqual({"UI-001-to-details"}, {r["id"] for r in output["interactions"]})
 
     def test_an_interaction_timeout_fails_the_attempt_and_restarts(self):
@@ -1192,7 +1205,7 @@ class InteractionTests(unittest.TestCase):
         _, _, first = cli.run(FakeDriver())
         driver = FakeDriver()
         _, summary, _ = cli.run(driver, "--carry-from", str(first / m.OUTPUT_NAME))
-        self.assertEqual((12, 8, 8), (summary["carried"], summary["interactions"], driver.count("interact")))
+        self.assertEqual((12, 6, 6), (summary["carried"], summary["interactions"], driver.count("interact")))
 
 class ReviewerTests(unittest.TestCase):
     def contract(self, package):
@@ -1561,7 +1574,7 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual(0, code, text)
             report = json.loads(text)
             self.assertEqual(6, report["pass"])
-            self.assertEqual(18, report["interactions"])
+            self.assertEqual(12, report["interactions"])        # three operations: a click at each of 3 widths, one keyboard
             self.assertEqual(0, report["interactionsFail"])
             sidecar = json.loads((out / m.SIDECAR_NAME).read_text(encoding="utf-8"))
             self.assertEqual({"checked": 32, "fail": 0, "note": 0, "unmeasured": 0},
@@ -1712,7 +1725,7 @@ class RealBrowserTests(unittest.TestCase):
                                     row["renderFingerprint"])
             self.assertEqual([], output["network"] + output["popups"] + output["forms"])
             # the interaction pass after the axis still sees the declared widths
-            self.assertEqual((8, {"PASS"}), (len(sidecar["interactions"]), {r["result"] for r in sidecar["interactions"]}))
+            self.assertEqual((6, {"PASS"}), (len(sidecar["interactions"]), {r["result"] for r in sidecar["interactions"]}))
             self.assertEqual("PASS", build_receipt(root, "docs/evidence/reflow/" + m.OUTPUT_NAME)["result"])
     def test_the_drivers_own_open_is_not_a_navigation_but_a_later_allowlisted_one_is(self):
         module = self.playwright()
@@ -1812,11 +1825,12 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual(navigation, output["navigation"])
             self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
             self.assertEqual("PASS", build_receipt(root, "docs/evidence/interactions/" + m.OUTPUT_NAME)["result"])
-            self.assertEqual(8, len(sidecar["interactions"]))
+            self.assertEqual(6, len(sidecar["interactions"]))
             self.assertTrue(all(r["result"] == "PASS" and r["visible"] and r["focusCorrect"] and r["arrived"]
                                 for r in sidecar["interactions"]), sidecar["interactions"])
             arrivals = {(r["id"], r["target"], r["trigger"]): r["arrived"] for r in sidecar["interactions"]}
-            self.assertEqual("details.html", arrivals[("UI-001-to-details", "1200", "keyboard")])
+            self.assertEqual("details.html", arrivals[("UI-001-to-details", "390", "keyboard")])
+            self.assertEqual("details.html", arrivals[("UI-001-to-details", "1200", "click")])
             self.assertEqual("index.html", arrivals[("UI-002-to-desk", "390", "click")])
             for row in output["console"]:
                 self.assertEqual("Unrecognized Content-Security-Policy directive 'navigate-to'.", row["message"])
@@ -1921,7 +1935,7 @@ class RealBrowserTests(unittest.TestCase):
             self.assertEqual(expected, [{k: v for k, v in r.items() if k != "observed"} for r in output["interactions"]])
             self.assertEqual(navigation, output["navigation"])
             self.assertEqual([], checker._bundle_transcript_findings(output, manifest))
-            self.assertEqual(12, len(sidecar["interactions"]))
+            self.assertEqual(9, len(sidecar["interactions"]))
             self.assertEqual({"PASS"}, {r["result"] for r in sidecar["interactions"]})
             self.assertTrue(all(r["focusCorrect"] for r in sidecar["interactions"]), sidecar["interactions"])
 
@@ -1935,7 +1949,7 @@ class RealBrowserTests(unittest.TestCase):
             code, text = self.run_main(module, root, package, "--out", "docs/evidence/ghost")
             self.assertEqual(1, code, text)
             sidecar = json.loads((root / "docs/evidence/ghost" / m.SIDECAR_NAME).read_text(encoding="utf-8"))
-            self.assertEqual(4, len(sidecar["interactions"]))
+            self.assertEqual(3, len(sidecar["interactions"]))
             self.assertEqual({"FAIL"}, {r["result"] for r in sidecar["interactions"]})
             self.assertIn("missing or hidden", sidecar["interactions"][0]["reasons"][0])
 

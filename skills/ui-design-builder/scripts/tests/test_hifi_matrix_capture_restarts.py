@@ -42,9 +42,9 @@ class StuckOperationTests(unittest.TestCase):
                 output, sidecar = workers.load(out)
                 self.assertEqual((1, 2, []), (code, summary["restarts"], summary["problems"]))
                 stuck = [r for r in sidecar["interactions"] if r["id"] == SIGN_OUT["id"]]
-                self.assertEqual(["FAIL", "FAIL", "BLOCKED", "BLOCKED"], [r["result"] for r in stuck])
+                self.assertEqual(["FAIL", "FAIL", "BLOCKED"], [r["result"] for r in stuck])
                 self.assertTrue(all("interaction timed out" in r["reasons"][0] for r in stuck[:2]))
-                self.assertEqual([["operation browser driver restart limit (1) reached: UI-001-sign-out"]] * 2,
+                self.assertEqual([["operation browser driver restart limit (1) reached: UI-001-sign-out"]],
                                  [r["reasons"] for r in stuck[2:]])
                 # Its page's other operation, reviewer row and axis rows still run, and so does the other page.
                 others = [r for r in sidecar["interactions"] if r["id"] != SIGN_OUT["id"]]
@@ -147,11 +147,11 @@ class RealBrowserStuckOperationTests(unittest.TestCase):
             _, sidecar = workers.load(root / "docs/evidence/stuck")
             self.assertEqual(1, code, text)
             self.assertEqual([("UI-001-to-details", "390", "click", "PASS"), ("UI-001-to-details", "390", "keyboard", "PASS"),
-                              ("UI-001-to-details", "1200", "click", "PASS"), ("UI-001-to-details", "1200", "keyboard", "PASS"),
+                              ("UI-001-to-details", "1200", "click", "PASS"),
                               ("UI-002-sign-out", "390", "click", "FAIL"), ("UI-002-sign-out", "390", "keyboard", "FAIL"),
-                              ("UI-002-sign-out", "1200", "click", "BLOCKED"), ("UI-002-sign-out", "1200", "keyboard", "BLOCKED"),
+                              ("UI-002-sign-out", "1200", "click", "BLOCKED"),
                               ("UI-002-to-desk", "390", "click", "PASS"), ("UI-002-to-desk", "390", "keyboard", "PASS"),
-                              ("UI-002-to-desk", "1200", "click", "PASS"), ("UI-002-to-desk", "1200", "keyboard", "PASS")],
+                              ("UI-002-to-desk", "1200", "click", "PASS")],
                              rows(sidecar["interactions"]))
             self.assertEqual({"PASS"}, {r["result"] for r in sidecar["cases"] + sidecar["reviewer"]})
             self.assertEqual(3, len(trees))                     # the first browser and one per stuck attempt

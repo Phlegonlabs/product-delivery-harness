@@ -209,7 +209,7 @@ class NavigationBrowserTests(unittest.TestCase):
                 output = json.loads((root / "evidence/ui-output.json").read_text(encoding="utf-8"))
                 self.assertEqual({"PASS"} if passes else {"FAIL"}, {row["result"] for row in output["interactions"]})
                 if passes:
-                    self.assertEqual(4, len(output["navigation"]))
+                    self.assertEqual(3, len(output["navigation"]))      # a click at 390 and 1200, the keyboard at 390
 
     def test_product_arrival_ignores_other_page_and_previous_visit_selections(self):
         # Seed both legacy shared state and the destination's own previous selection.

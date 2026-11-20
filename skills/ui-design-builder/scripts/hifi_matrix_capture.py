@@ -5,8 +5,9 @@ One browser is the default; ``--workers N`` splits the work over up to N. A
 browser loads a page once for each run of cases on it; every interaction attempt
 and reviewer pass starts from a fresh load. Targets and states change through
 the real reviewer shell controls, never by reloading between cases. The matrix pass
-clicks no product control; the interaction pass then clicks and
-keyboard-activates every manifest interaction at every source target. Output:
+clicks no product control; the interaction pass then clicks every manifest
+interaction at every source target and keyboard-activates it once, at the
+smallest source target. Output:
 one PNG per case, ``ui-output.json``
 (``ui-output/3``: matrix, ``interactions`` rows, ``navigation`` events and the
 ``reviewer`` object) and ``matrix-capture.json`` (per-case fingerprints,
@@ -1965,16 +1966,18 @@ class Runner:
                 for axis in self.axes]
 
     def interaction_attempts(self, page):
-        """(action, target, trigger) for every selected manifest interaction at every source target."""
+        """(action, target, trigger) for every selected manifest interaction: a click at every source target and one
+        keyboard activation, at the smallest source target."""
         return [(action, target, trigger) for action in self.interactions if action["page"] == page
-                for target in action["targets"] for trigger in TRIGGERS]
+                for target in action["targets"] for trigger in TRIGGERS
+                if trigger == "click" or target == smallest_target(action["targets"])]
 
     def interaction_blocked(self, page):
         return (INTERACTIONS_UNOPENED if page in self.unopened
                 else self.page_blocked(page))
 
     def run_interactions(self, page):
-        """Click and keyboard-activate every selected manifest interaction at every source target."""
+        """Click every selected manifest interaction at every source target; keyboard-activate it at the smallest."""
         for action, target, trigger in self.interaction_attempts(page):
             self.interaction_records.append(self.observe_interaction(action, target, trigger, self.interaction_blocked(page)))
 

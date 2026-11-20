@@ -1,6 +1,6 @@
 # EPIC-ui-review-convergence: fewer UI review passes and less browser time
 
-Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`); installed the same day (five-skill contract `dac0ed2d…`); patch 0.95.1 prepared on `fix/measure-hidden-text-at-zoom`, not yet published; consumers not yet adopted
+Status: published as 0.95.0 on 2026-11-19 (PR #207, `main` `61278db1`, tag `v0.95.0`) and as patch 0.95.1 the same day (PR #208, `main` `112c2cfc`, tag `v0.95.1`); 0.95.1 installed (five-skill contract `4df73f77…`); 0.96.0 (one keyboard attempt per interaction) in review on `keyboard-once`; consumers not yet adopted
 Design workflow: enhancement
 UI impact: none (review rules, evidence rules and UI scripts; no product UI)
 
@@ -21,7 +21,7 @@ Owner decisions, 2026-11-19: stop the running UI threads; remove the 9-minute re
 - Raw capture output stays out of Git; the approval check lists cited captures missing from the index.
 - Stopping a process tree never follows a reused Windows parent id (matrix driver and release packager).
 
-Not in scope: fewer interaction attempts (every operation at every target with click and keyboard is 86% of the remaining measured work; that is a coverage decision for the owner); `--only` narrowing the reviewer pass (0.6% of the measured jolvex run, and the reviewer contract is package-wide); a targeted after-repair recapture option.
+Not in scope for 0.95.0: fewer interaction attempts (every operation at every target with click and keyboard is 86% of the remaining measured work; a coverage decision the owner took for 0.96.0, below); `--only` narrowing the reviewer pass (0.6% of the measured jolvex run, and the reviewer contract is package-wide); a targeted after-repair recapture option.
 
 ## Change Log
 
@@ -46,6 +46,10 @@ Not in scope: fewer interaction attempts (every operation at every target with c
 | Release 0.95.1 | `3b7a13af` |
 | Every evidence owner allows the tree reuse, for deterministic suites only | `0590f801` |
 | `clip` counts as hiding only on absolute and fixed boxes | `586322c9` |
+| 0.95.1 publication record | `da8ff28c` |
+| One keyboard attempt per interaction, at its smallest target; earlier receipts still pass | `1325fea2`, `b1b6c749` |
+| Release 0.96.0 | `bf4b5e78` |
+| The test helper places the keyboard row by size-class order (CI repair) | `6ebac2f4` |
 
 ## Review And Repairs
 
@@ -93,7 +97,7 @@ After the merge the owner asked for a real run on the consumer repositories. 0.9
 
 Owner decision, 2026-11-19: ship 0.95.1 with the hidden-text fix, a 10 s destination wait and the rule fix. The 10 s figure assumed jolvex's slowest passing attempt (10.98 s) spent under 10 s on its destination. It did not: its source page opens in about 0.56 s, and the navigation into jolvex's `index.html` waited about 10.4 s. So only a destination on the source page gets 10 s, and an attempt that loads a page keeps 30 s. On the measured runs that saves about 1.3 worker-hours instead of 1.5. New browser tests fail against the 0.95.0 wait and against a flat short wait.
 
-The rule fix covers the direct route. Managed RUNs still verify each new head fresh, because the runtime binds every gate PASS to the exact head; reusing a tree across RUNs needs runtime work. Fewer interaction attempts stays the owner's coverage decision.
+The rule fix covers the direct route. Managed RUNs still verify each new head fresh, because the runtime binds every gate PASS to the exact head; reusing a tree across RUNs needs runtime work.
 
 Review point on `a0d3bddd`: one GPT-6.1 Sol call with the code, rules and security lenses returned `fix_required`. The Codex review of the same head found nothing, and its CI passed.
 
@@ -101,29 +105,46 @@ Review point on `a0d3bddd`: one GPT-6.1 Sol call with the code, rules and securi
 - R2, reproduced in Chromium with the reviewer's command: the hidden-text rule counted `clip: rect(0 0 0 0)` on any box, so a visible 20 px static button lost its target-size failure. `clip` applies only to absolute and fixed boxes, and now counts only there (`586322c9`).
 - R3 (note): both screen-reader fixtures also had a clip, so neither the zoom division nor a clip rule was tested alone. Each new fixture needs one rule, and the text-clip test fails when that rule is removed.
 
+## One Keyboard Attempt And 0.96.0
+
+On 2026-11-20 the owner asked what fewer interaction attempts would cost. A replay over the ten-repository sidecars (9,946 attempts, 1,293 operations) compared two cuts:
+
+- Keyboard at the smallest target only, clicks at every target: 6,266 attempts and 34.7 % less interaction time (20 to 39 % per repository). It misses one of 623 failing operations: hk-car-care's `OP-sign-in-retry` fails its keyboard focus check only at `phone-large`.
+- Every operation at one target only: about 71 % less time, but it misses failures that appear only at some widths: seven problems at the smallest target, 56 operations at the largest.
+
+All 56 operations with mixed results differ by width; three also differ between click and keyboard. 567 of the 623 failing operations fail on every attempt, which flatters any cut. 17 % of operations use a different control path at different widths.
+
+Owner decision, 2026-11-20: the first cut. The driver keyboard-activates each interaction once, at its smallest source target by the rule `--derived-once` uses, and clicks it at every target. The checker accepts that form and, for a receipt an earlier driver wrote, a keyboard row at every target; nothing in between passes (`1325fea2`). The production keyboard gate in `verification-gates.md` is unchanged.
+
+Real runs on agentic-commons-site, four workers, in the order new, new, old, new, old: the 0.95.1 driver wrote 300 interaction rows in 137.7 and 139.9 interaction seconds (wall 191.2 and 193.1 s); this driver wrote 200 rows in 97.9, 98.2 and 95.4 s (wall 167.9, 166.0 and 164.8 s). That is 30 % less interaction time, against 32.5 % in the replay, and 13.5 % less wall time, since cases, axes, the reviewer pass and the intermediate sweep are unchanged. Every run found the same 24 failing operations and the same 44 distinct problems.
+
+Review point on `9ac38103`: one GPT-6.1 Sol call with the code, coverage, security and docs lenses returned PASS with no finding, and the Codex review of the same head found nothing. Its CI failed one shard: `linux-harness-0` runs the cross-skill iOS publication test, whose targets are the size classes `compact` and `regular`, and the test helper `bundle_output` took the smallest target with `int()`. The helper now takes the first listed size class, the rule the driver and the checker use; neither of them changed (`6ebac2f4`).
+
 ## Verification
 
 - Full Required Verification matrix on `3cec026c` (`86ca5823` after the subject rewording, same tree): 9 of 9 passed on Windows, about 20 minutes.
 - After each repair: the affected modules, pyflakes over every script tree and the diff check passed; each new test failed before its repair.
 - Pull-request CI on `588008ac`: all 14 checks passed (Linux, macOS, Windows, browser and golden path). The Codex review threads were answered and resolved.
 - `promotion_readback.py pre` passed against `main` `0613b863`; PR #207 merged as `61278db1`; `post` returned `tree_equal_S`. Tag `v0.95.0` points at `61278db1`. `./install.sh` exited 0 and the installed contract equals the source: `dac0ed2dd3d2bd0a467b0cad4d74f301a297a7601651ca00b6558e16f2f6960a`.
-- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. Pull-request CI on `a0d3bddd`: all 14 checks passed. After the repair: the UI suite (36 modules), the measured-accessibility browser tests and 249 contract and document tests passed; the reviewer's R2 command gives the 0.95.0 row again. The full matrix runs as pull-request CI on the repaired head.
+- 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. Pull-request CI on `a0d3bddd`: all 14 checks passed. After the repair: the UI suite (36 modules), the measured-accessibility browser tests and 249 contract and document tests passed; the reviewer's R2 command gives the 0.95.0 row again. Targeted re-check on `d3eb789b`: PASS, every finding resolved, no new finding.
+- Pull-request CI on `d3eb789b`: all 14 checks passed. `promotion_readback.py pre` passed against `main` `61278db1`; PR #208 merged as `112c2cfc`; `post` returned `tree_equal_S`. Tag `v0.95.1` points at `112c2cfc`. `./install.sh` exited 0 and the installed contract equals the source: `4df73f7764e5de630842ff04fe1fd719216a9d013828e385e0cbc1f8fee6a36a` (previous `dac0ed2d…`, backup `20261119-230236`).
+- 0.96.0: the UI suite passed (36 modules, three browser workers). Eight broken variants of the driver and the checker each fail one of the two new tests. The release and document modules (197 tests, and 89 after the procedure fix), `check_skill_spec.py`, pyflakes over the four script trees, `docs_weight.py`, `prepare_release.py --check` and `git diff --check` passed. The agentic-commons-site run wrote 200 interaction rows, exactly the checker's new form. After the helper repair: the cross-skill publication test, `test_ui_design_contract.py` and `test_ui_hifi_reviewer.py` (115 tests) and the three browser modules that use the helper (68 tests) passed.
 
 ## Consumer Impact
 
-Earlier approvals stay valid: an intermediate receipt with every interaction row still passes. Consumers adopt between rounds, never during one. No consumer is pinned above 0.94.0.
+Earlier approvals stay valid: an intermediate receipt with every interaction row still passes, and so does a base receipt with a keyboard row at every target. A receipt the 0.96.0 driver writes needs the 0.96.0 checker; a round keeps its Harness version, so its driver and checker match. Consumers adopt between rounds, never during one. No consumer is pinned above 0.94.0.
 
 ## Handoff
 
 ```text
-Repository / branch / HEAD / dirty paths: product-delivery-harness / fix/measure-hidden-text-at-zoom / the commit that adds this block / task/ (untracked)
+Repository / branch / HEAD / dirty paths: product-delivery-harness / keyboard-once / the commit that adds this block / task/ (untracked)
 Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
-Inputs consumed (path + hash or revision): main 61278db1 (v0.95.0); ten-repository and backend runs of 2026-11-19; owner decision of 2026-11-19
-Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.0, bundle dac0ed2d…; the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
-Approvals in force (gate, owner, date, candidate): owner, 2026-11-19: publish 0.95.1 with the hidden-text fix, the destination wait and the rule fix
-Done and verified (command, exit code): UI suite, doc-asserting Harness modules, spec, pyflakes and release checks, exit 0; review point on a0d3bddd and one consolidated repair
-Remaining: targeted re-check, CI on the repaired head, merge, tag, install
-Blocked / waiting (gate name or owner decision): fewer interaction attempts (owner); removal of this round's worker worktrees and branches and the remote ui-review-speed branch (owner)
-Next action (one command or one owner decision): run the targeted re-check of a0d3bddd..HEAD
+Inputs consumed (path + hash or revision): main 112c2cfc (v0.95.1); the ten-repository sidecars of 2026-11-19, replayed; owner decision of 2026-11-20
+Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.1, bundle 4df73f77… (0.96.0 leaves the template unchanged); the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
+Approvals in force (gate, owner, date, candidate): owner, 2026-11-20: one keyboard attempt per interaction, released through the 0.95.1 flow (branch, review, pull request, CI, merge, tag, install)
+Done and verified (command, exit code): UI suite 36 of 36; eight broken variants caught; release and document modules passed; agentic-commons-site run in the new form; review point PASS on 9ac38103; Codex review without findings; CI repair 6ebac2f4 and its affected modules passed
+Remaining: targeted re-check of the repair; CI on the repaired head; merge, tag v0.96.0, install; consumers adopt between rounds
+Blocked / waiting (gate name or owner decision): tree reuse across managed RUNs, which needs runtime work (owner); removal of this round's worker worktrees and branches, the fix/measure-hidden-text-at-zoom and ui-review-speed remote branches (owner)
+Next action (one command or one owner decision): targeted re-check of 9ac38103..this head
 Next owner (skill or human): parent
 ```

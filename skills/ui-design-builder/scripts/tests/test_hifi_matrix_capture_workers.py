@@ -416,7 +416,7 @@ class FakeWorkersTests(unittest.TestCase):
         code, _, out = fleet.go(*self.AXES, out="docs/evidence/serial")
         self.assertEqual(0, code)
         expected = comparable(out)
-        self.assertEqual(8, len(expected["sidecar"]["interactions"]))
+        self.assertEqual(6, len(expected["sidecar"]["interactions"]))
         self.assertTrue(expected["sidecar"]["axes"] and expected["sidecar"]["reviewer"])
         for workers in (2, 3, m.MAX_WORKERS):
             with self.subTest(workers=workers):
@@ -640,7 +640,7 @@ class RealBrowserWorkersTests(unittest.TestCase):
             output, sidecar = load(two)
             self.assertEqual(2, sidecar["run"]["workers"])
             self.assertEqual({"PASS"}, {r["result"] for r in output["results"]})
-            self.assertEqual((8, 8), (len(output["interactions"]), len(sidecar["interactions"])))
+            self.assertEqual((6, 6), (len(output["interactions"]), len(sidecar["interactions"])))
             self.assertEqual(4, sum(1 for r in sidecar["axes"] if r["axis"] == "dark"))
             self.assertEqual(drop_clock_and_encoding(comparable(one)),
                              relabel(drop_clock_and_encoding(comparable(two)), "docs/evidence/two", "docs/evidence/one"))

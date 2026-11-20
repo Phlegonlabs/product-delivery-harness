@@ -464,14 +464,18 @@ def offline_output(top_navigation="blocked"):
             "console": [], "network": [], "navigation": [], "popups": [], "forms": [], "popupAttempts": 0, "formAttempts": 0}
 
 
-def bundle_output(manifest, component_types=("button", "input", "select", "a"), version=2):
+def bundle_output(manifest, component_types=("button", "input", "select", "a"), version=2, keyboard_at_every_target=False):
+    """Passing interaction evidence: a click at every source target and a keyboard row at the smallest (the
+    narrowest width, or the first listed size class), or, as an earlier driver wrote it, at every target."""
     output = dict(offline_output("allowlisted-local-pages"), interactions=[])
     surfaces = {row["id"]: row for row in manifest["surfaces"]}
     for action in manifest["interactions"]:
         source = surfaces[action["source"]["surface"]]
         destination = surfaces[action["destination"]["surface"]]
+        targets = [str(target) for target in source["responsive"]["targets"]]
+        smallest = min(targets, key=int) if all(target.isdigit() for target in targets) else targets[0]
         for target in source["responsive"]["targets"]:
-            for trigger in ("click", "keyboard"):
+            for trigger in ("click", "keyboard") if keyboard_at_every_target or str(target) == smallest else ("click",):
                 output["interactions"].append({"id": action["id"], "target": str(target), "trigger": trigger, "source": action["source"],
                                                "destination": action["destination"], "control": action["control"], "visible": True, "focusCorrect": True, "result": "PASS"})
                 if action["kind"] == "navigate":
@@ -480,6 +484,9 @@ def bundle_output(manifest, component_types=("button", "input", "select", "a"), 
     return output
 
 
+INTERACTION_FINDING = ("HiFi interaction evidence must exactly cover click destination, visibility, and focus results "
+                       "at every target and keyboard results at the smallest target")
+NAVIGATION_FINDING = "HiFi navigation transcript must exactly match declared local-page transitions; extra or missing attempts fail"
 MOTION_EXPECTED = {"intent": "MM-001", "scope": "UI-001 / hero", "mode": "normal", "trigger": "on entry",
                    "endState": "Overlay settles", "states": [], "targets": ["390"], "provider": None,
                    "assetAction": None, "assetRequired": False}
@@ -625,8 +632,7 @@ class UiDesignContractTests(unittest.TestCase):
             self.assertTrue(any("sandboxed offline ui-output/1 transcript schema" in item for item in problems), problems)
             # Reaching the transcript rule, a missing interaction row still fails the bundle receipt.
             output = dict(bundle_output(manifest), interactions=[])
-            self.assertIn("HiFi interaction evidence must exactly cover click and keyboard destination, visibility, and focus results at every target",
-                          checker._bundle_transcript_findings(output, manifest))
+            self.assertIn(INTERACTION_FINDING, checker._bundle_transcript_findings(output, manifest))
 
     def test_public_hifi_checker_binds_product_menu_and_tab_panels(self):
         for kind, state_attr, panel in (("menu", "aria-expanded", "menu-panel"),
@@ -867,6 +873,29 @@ class UiDesignContractTests(unittest.TestCase):
                         output["popups"].append({"url": "details.html"})
                         output["popupAttempts"] = 1
                     self.assertTrue(checker._bundle_transcript_findings(output, manifest))
+
+    def test_keyboard_evidence_is_one_row_at_the_smallest_target_or_an_earlier_drivers_row_at_every_target(self):
+        with tempfile.TemporaryDirectory() as temp:
+            _, manifest, _ = materialize_hifi_bundle(Path(temp))
+            for row in manifest["surfaces"]:
+                row["responsive"]["targets"] = [1200, 390]      # widths compare by value, not by listed order
+            once, every = bundle_output(manifest), bundle_output(manifest, keyboard_at_every_target=True)
+            self.assertEqual({"390"}, {row["target"] for row in once["interactions"] if row["trigger"] == "keyboard"})
+            self.assertEqual([], checker._bundle_transcript_findings(once, manifest))
+            self.assertEqual([], checker._bundle_transcript_findings(every, manifest))
+            extra = next(row for row in every["interactions"] if (row["trigger"], row["target"]) == ("keyboard", "1200"))
+            for label, interactions, navigation, finding in (
+                ("keyboard at the largest width instead",
+                 [dict(row, target="1200") if row["trigger"] == "keyboard" else row for row in once["interactions"]],
+                 once["navigation"], INTERACTION_FINDING),
+                ("no keyboard row", [row for row in once["interactions"] if row["trigger"] == "click"],
+                 once["navigation"], INTERACTION_FINDING),
+                ("keyboard at one more width", once["interactions"] + [extra], once["navigation"], INTERACTION_FINDING),
+                ("navigation events of the other form", once["interactions"], every["navigation"], NAVIGATION_FINDING),
+            ):
+                with self.subTest(label):
+                    output = dict(once, interactions=interactions, navigation=navigation)
+                    self.assertEqual([finding], checker._bundle_transcript_findings(output, manifest))
 
     def test_public_validator_has_no_unscoped_pair_bypass_and_preflight_is_exact(self):
         self.assertNotIn("verify_design_system_pair", inspect.signature(checker.validate).parameters)
