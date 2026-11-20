@@ -2,7 +2,7 @@
 
 Index of live documents.
 
-Current Epic: [EPIC-ui-review-convergence](epics/EPIC-ui-review-convergence.md)
+Current Epic: [EPIC-modern-web-guidance](epics/EPIC-modern-web-guidance.md)
 
 | Document | Purpose | Status |
 | --- | --- | --- |
