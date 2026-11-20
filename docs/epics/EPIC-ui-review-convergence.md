@@ -49,6 +49,7 @@ Not in scope for 0.95.0: fewer interaction attempts (every operation at every ta
 | 0.95.1 publication record | `da8ff28c` |
 | One keyboard attempt per interaction, at its smallest target; earlier receipts still pass | `1325fea2`, `b1b6c749` |
 | Release 0.96.0 | `bf4b5e78` |
+| The test helper places the keyboard row by size-class order (CI repair) | `6ebac2f4` |
 
 ## Review And Repairs
 
@@ -117,6 +118,8 @@ Owner decision, 2026-11-20: the first cut. The driver keyboard-activates each in
 
 Real runs on agentic-commons-site, four workers, in the order new, new, old, new, old: the 0.95.1 driver wrote 300 interaction rows in 137.7 and 139.9 interaction seconds (wall 191.2 and 193.1 s); this driver wrote 200 rows in 97.9, 98.2 and 95.4 s (wall 167.9, 166.0 and 164.8 s). That is 30 % less interaction time, against 32.5 % in the replay, and 13.5 % less wall time, since cases, axes, the reviewer pass and the intermediate sweep are unchanged. Every run found the same 24 failing operations and the same 44 distinct problems.
 
+Review point on `9ac38103`: one GPT-6.1 Sol call with the code, coverage, security and docs lenses returned PASS with no finding, and the Codex review of the same head found nothing. Its CI failed one shard: `linux-harness-0` runs the cross-skill iOS publication test, whose targets are the size classes `compact` and `regular`, and the test helper `bundle_output` took the smallest target with `int()`. The helper now takes the first listed size class, the rule the driver and the checker use; neither of them changed (`6ebac2f4`).
+
 ## Verification
 
 - Full Required Verification matrix on `3cec026c` (`86ca5823` after the subject rewording, same tree): 9 of 9 passed on Windows, about 20 minutes.
@@ -125,7 +128,7 @@ Real runs on agentic-commons-site, four workers, in the order new, new, old, new
 - `promotion_readback.py pre` passed against `main` `0613b863`; PR #207 merged as `61278db1`; `post` returned `tree_equal_S`. Tag `v0.95.0` points at `61278db1`. `./install.sh` exited 0 and the installed contract equals the source: `dac0ed2dd3d2bd0a467b0cad4d74f301a297a7601651ca00b6558e16f2f6960a`.
 - 0.95.1: the UI suite passed (36 modules, three browser workers) after the wait change; the doc-asserting Harness modules passed (127 tests); `check_skill_spec.py`, pyflakes, `docs_weight.py` and `prepare_release.py --check` passed. Pull-request CI on `a0d3bddd`: all 14 checks passed. After the repair: the UI suite (36 modules), the measured-accessibility browser tests and 249 contract and document tests passed; the reviewer's R2 command gives the 0.95.0 row again. Targeted re-check on `d3eb789b`: PASS, every finding resolved, no new finding.
 - Pull-request CI on `d3eb789b`: all 14 checks passed. `promotion_readback.py pre` passed against `main` `61278db1`; PR #208 merged as `112c2cfc`; `post` returned `tree_equal_S`. Tag `v0.95.1` points at `112c2cfc`. `./install.sh` exited 0 and the installed contract equals the source: `4df73f7764e5de630842ff04fe1fd719216a9d013828e385e0cbc1f8fee6a36a` (previous `dac0ed2d…`, backup `20261119-230236`).
-- 0.96.0: the UI suite passed (36 modules, three browser workers). Eight broken variants of the driver and the checker each fail one of the two new tests. The release and document modules (197 tests, and 89 after the procedure fix), `check_skill_spec.py`, pyflakes over the four script trees, `docs_weight.py`, `prepare_release.py --check` and `git diff --check` passed. The agentic-commons-site run wrote 200 interaction rows, exactly the checker's new form.
+- 0.96.0: the UI suite passed (36 modules, three browser workers). Eight broken variants of the driver and the checker each fail one of the two new tests. The release and document modules (197 tests, and 89 after the procedure fix), `check_skill_spec.py`, pyflakes over the four script trees, `docs_weight.py`, `prepare_release.py --check` and `git diff --check` passed. The agentic-commons-site run wrote 200 interaction rows, exactly the checker's new form. After the helper repair: the cross-skill publication test, `test_ui_design_contract.py` and `test_ui_hifi_reviewer.py` (115 tests) and the three browser modules that use the helper (68 tests) passed.
 
 ## Consumer Impact
 
@@ -139,9 +142,9 @@ Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main 112c2cfc (v0.95.1); the ten-repository sidecars of 2026-11-19, replayed; owner decision of 2026-11-20
 Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template 82c457c0…, VERSION 0.95.1, bundle 4df73f77… (0.96.0 leaves the template unchanged); the five reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
 Approvals in force (gate, owner, date, candidate): owner, 2026-11-20: one keyboard attempt per interaction, released through the 0.95.1 flow (branch, review, pull request, CI, merge, tag, install)
-Done and verified (command, exit code): UI suite 36 of 36; eight broken variants caught; release and document modules passed; agentic-commons-site run in the new form
-Remaining: review point; pull request and CI; merge, tag v0.96.0, install; consumers adopt between rounds
+Done and verified (command, exit code): UI suite 36 of 36; eight broken variants caught; release and document modules passed; agentic-commons-site run in the new form; review point PASS on 9ac38103; Codex review without findings; CI repair 6ebac2f4 and its affected modules passed
+Remaining: targeted re-check of the repair; CI on the repaired head; merge, tag v0.96.0, install; consumers adopt between rounds
 Blocked / waiting (gate name or owner decision): tree reuse across managed RUNs, which needs runtime work (owner); removal of this round's worker worktrees and branches, the fix/measure-hidden-text-at-zoom and ui-review-speed remote branches (owner)
-Next action (one command or one owner decision): review point on this head
+Next action (one command or one owner decision): targeted re-check of 9ac38103..this head
 Next owner (skill or human): parent
 ```
