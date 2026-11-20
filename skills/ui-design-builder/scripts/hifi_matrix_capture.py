@@ -599,7 +599,13 @@ async function start(request) {
         const returnLayers = Array.from(layers.values()).filter(layer => layer.open && layer.panel.contains(target));
         // Snapshot the containing panels before activation, from innermost outward.
         returnLayers.sort((a, b) => a.panel.contains(b.panel) ? 1 : b.panel.contains(a.panel) ? -1 : 0);
-        focusStep = { step, target, layers: Array.from(layers.values()), returnLayers };
+        // What the destination surface already showed, so the end of the operation can tell new content from old.
+        const shownBefore = new WeakSet();
+        if (activate && step === 'operation')
+          for (const surface of document.querySelectorAll('[data-ui-surface]'))
+            if (surface.dataset.uiSurface === destination)
+              for (const el of [surface, ...surface.querySelectorAll('*')]) if (shown(el)) shownBefore.add(el);
+        focusStep = { step, target, destination, layers: Array.from(layers.values()), returnLayers, shownBefore };
       },
       outcome() {
         const layers = focusStep?.layers || [];
@@ -609,6 +615,16 @@ async function start(request) {
           returned: (focusStep?.returnLayers || []).filter(layer => !shown(layer.panel)
             && layer.opener === document.activeElement).map(layer => layer.id),
         };
+      },
+      end() {
+        const active = document.activeElement, target = focusStep?.target;
+        const surface = active && active !== document.body ? active.closest('[data-ui-surface]') : null;
+        const inDestination = Boolean(surface) && surface.dataset.uiSurface === focusStep?.destination && shown(active);
+        // A control that was hidden while it held focus keeps no focus the user can see.
+        const targetShown = Boolean(target) && shown(target);
+        return { ...this.outcome(), onTarget: targetShown && active === target, targetShown, inDestination,
+          fresh: inDestination && !focusStep?.shownBefore?.has(active),
+          closedPanel: (focusStep?.returnLayers || []).some(layer => !shown(layer.panel)) };
       },
     };
     addEventListener('focusin', event => {
@@ -684,23 +700,37 @@ async function open(request) {
 
 // One interaction attempt: reload the page, reset target/source state through the
 // reviewer shell, then activate the declared product control by click or keyboard. The
-// destination surface/state must apply. Each activation focuses its control once,
-// then may enter its new layer; the operation may instead return after closure.
+// destination surface/state must apply, and focus must end where assessOperationFocus accepts.
 const FEEDBACK_SNAPSHOT = surfaceId => {
   const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
   return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
     .map(el => [el.value, el.checked, el.selectedIndex])]) : null;
 };
 
-async function assessFocus(step, from, allowReturn) {
-  const outcome = await page.evaluate(() => window.__pdhFocusTrace.outcome()).catch(() => ({ entered: [], returned: [] }));
+// A preparatory opener takes focus once and may move it once into its newly opened panel.
+async function assessOpenerFocus(step, from) {
+  const outcome = await page.evaluate(() => window.__pdhFocusTrace.outcome()).catch(() => ({ entered: [] }));
   const focus = events.focus.slice(from).filter(event => !event.reviewer);
-  const last = focus[1];
-  const entered = last?.entered && outcome.entered.includes(last.entered) ? last.entered : null;
-  const returned = allowReturn && last?.returned && outcome.returned.includes(last.returned) ? last.returned : null;
-  return { correct: (focus.length === 1 || (focus.length === 2 && Boolean(entered || returned)))
-      && focus.every(event => event.step === step) && focus[0]?.target === true,
-    entered, returned, next: events.focus.length };
+  const entered = Boolean(focus[1]?.entered) && outcome.entered.includes(focus[1].entered);
+  return { correct: (focus.length === 1 || (focus.length === 2 && entered))
+      && focus.every(event => event.step === step) && focus[0]?.target === true, next: events.focus.length };
+}
+
+// An operation is judged by where focus ends. The control takes focus first and may keep it. While the
+// control is still shown, focus may move only into content the activation showed. When a panel that held
+// the control closed, focus returns to that panel's opener or moves into new content. When the control went
+// for another reason, focus stays inside the destination surface. A page the operation loads keeps its own
+// initial focus.
+async function assessOperationFocus(from, loadsPage) {
+  const focus = events.focus.slice(from).filter(event => !event.reviewer);
+  if (focus[0]?.target !== true || focus[0]?.step !== 'operation')
+    return { problem: 'did not start on the control', entered: null, returned: null };
+  const end = loadsPage ? null : await page.evaluate(() => window.__pdhFocusTrace.end()).catch(() => null);
+  const problem = loadsPage ? null : !end ? 'could not be read' : end.onTarget ? null
+    : end.targetShown ? (end.fresh ? null : 'left the shown control for content that was already shown')
+    : end.closedPanel ? (end.returned.length || end.fresh ? null : "did not return to the closed panel's opener")
+    : end.inDestination ? null : 'was lost';
+  return { problem, entered: (!problem && end?.entered[0]) || null, returned: (!problem && end?.returned[0]) || null };
 }
 
 async function interact(request) {
@@ -739,7 +769,7 @@ async function interact(request) {
       }
     }
   }
-  let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
+  let visible = null, focusCorrect = null, focusProblem = null, arrivedTo = null, observed = null;
   if (!problems.length) {
     observingFocus = true;
     let focusCursor = events.focus.length, openerFocusCorrect = true;
@@ -796,7 +826,7 @@ async function interact(request) {
         catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
         if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
             || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
-        const focus = await assessFocus(focusStep, focusCursor, false);
+        const focus = await assessOpenerFocus(focusStep, focusCursor);
         openerFocusCorrect = openerFocusCorrect && focus.correct;
         focusCursor = focus.next;
       }
@@ -913,14 +943,15 @@ async function interact(request) {
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
       observingNavigation = false;
-      const focus = await assessFocus('operation', focusCursor, true);
-      focusCorrect = openerFocusCorrect && focus.correct
-        && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
+      const focus = await assessOperationFocus(focusCursor, loadsPage);
+      focusProblem = !openerFocusCorrect ? 'did not stay on an opener or move into its panel'
+        : request.trigger === 'keyboard' && !pressedFocused ? 'did not start on the control' : focus.problem;
+      focusCorrect = !focusProblem;
       if (focusCorrect && focus.returned) observed.focusReturn = focus.returned;
-      if (focusCorrect && focus.entered) observed.focusEntry = focus.entered;
+      else if (focusCorrect && focus.entered) observed.focusEntry = focus.entered;
     }
   }
-  return { problems, visible, focusCorrect, arrivedTo, observed };
+  return { problems, visible, focusCorrect, focusProblem, arrivedTo, observed };
 }
 
 async function runCase(request) {
@@ -2161,7 +2192,7 @@ class Runner:
             if result.get("visible") is not True:
                 reasons.append("product control was not visible")
             if result.get("focusCorrect") is not True:
-                reasons.append("product focus did not land on the control alone")
+                reasons.append("product focus " + (result.get("focusProblem") or "was not observed"))
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
         if result.get("observed") is not None:
             record["observed"] = result["observed"]

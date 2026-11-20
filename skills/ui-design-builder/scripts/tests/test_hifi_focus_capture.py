@@ -1,4 +1,4 @@
-"""Event-time layer focus proof and complete product-focus recording."""
+"""Where operation focus ends, layer entry and return, and complete product-focus recording."""
 from pathlib import Path
 import tempfile
 import unittest
@@ -37,7 +37,7 @@ class FocusBrowserTests(unittest.TestCase):
                     self.assertNotIn("focusEntry", result["observed"])
         driver.stop()
 
-    def test_n1_closure_must_precede_the_return_focus_event(self):
+    def test_n1_a_return_to_the_opener_passes_whichever_comes_first(self):
         for close_first in (False, True):
             hide = "document.getElementById('picker').hidden=true;"
             focus = "document.getElementById('opener').focus();"
@@ -46,9 +46,9 @@ class FocusBrowserTests(unittest.TestCase):
                 self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
                     'aria-expanded="true">Pick</button><div id="picker">'
                     '<button data-control-id="save" onclick="' + handler + '">Cancel</button></div>',
-                    close_first, "focusReturn" if close_first else None)
+                    True, "focusReturn")
 
-    def test_n2_unmarked_focus_detour_cannot_hide_before_a_valid_return(self):
+    def test_n2_a_detour_before_the_return_still_ends_on_the_opener(self):
         for detour in (False, True):
             handler = "document.getElementById('picker').hidden=true;"
             if detour:
@@ -58,8 +58,7 @@ class FocusBrowserTests(unittest.TestCase):
                 self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
                     'aria-expanded="true">Pick</button><div id="picker">'
                     '<button data-control-id="save" onclick="' + handler + '">Cancel</button></div>'
-                    '<div tabindex="-1" id="thief">Unrelated</div>', not detour,
-                    None if detour else "focusReturn")
+                    '<div tabindex="-1" id="thief">Unrelated</div>', True, "focusReturn")
 
     def test_return_to_another_layers_opener_or_a_never_open_panel_fails(self):
         for other_open in (False, True):
@@ -105,7 +104,7 @@ class FocusBrowserTests(unittest.TestCase):
                     + 'document.getElementById(\'' + opener + '\').focus()">Cancel</button></div></div>',
                     True, "focusReturn", "outer" if close_outer else "picker")
 
-    def test_opening_a_layer_may_focus_its_title_or_first_field_once(self):
+    def test_opening_a_layer_may_end_focus_anywhere_new_inside_it(self):
         for semantic in (False, True):
             for field in (False, True):
                 for mode in ("new", "already-open", "detour", "second-focus"):
@@ -125,8 +124,8 @@ class FocusBrowserTests(unittest.TestCase):
                             + ('' if mode == "already-open" else ' hidden') + '>'
                             + ('<input id="inside">' if field else '<h2 tabindex="-1" id="inside">Title</h2>')
                             + '<div tabindex="-1" id="second">Second</div></div>'
-                            '<div tabindex="-1" id="thief">Unrelated</div>', mode == "new",
-                            "focusEntry" if mode == "new" else None)
+                            '<div tabindex="-1" id="thief">Unrelated</div>', mode != "already-open",
+                            "focusEntry" if mode != "already-open" else None)
 
     def test_preparatory_opener_may_focus_its_new_layer_before_cancel(self):
         self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
@@ -155,7 +154,7 @@ class FocusBrowserTests(unittest.TestCase):
                     self.assertEqual([False, True], [event["reviewer"] for event in reply["events"]["focus"]])
             driver.stop()
 
-    def test_reviewer_heading_callback_does_not_hide_product_focus_theft(self):
+    def test_a_page_the_operation_loads_keeps_its_own_initial_focus(self):
         driver = self.driver('<div tabindex="-1" id="thief">Unrelated</div><script>'
             'document.addEventListener("focusin",event=>{if(event.target.tagName==="H1")'
             'document.getElementById("thief").focus()})</script>')
@@ -166,9 +165,47 @@ class FocusBrowserTests(unittest.TestCase):
                     control="to-details", kind="navigate", destination={"surface": "UI-002", "state": "ready"},
                     destinationPage="details.html", trigger=trigger, timeoutMs=2000)
                 self.assertEqual([], reply["result"]["problems"], reply)
-                self.assertFalse(reply["result"]["focusCorrect"], reply)
+                self.assertTrue(reply["result"]["focusCorrect"], reply)
                 self.assertEqual([False, True, False], [event["reviewer"] for event in reply["events"]["focus"]])
         driver.stop()
+
+    def attempt_focus(self, markup, trigger):
+        driver = self.driver(markup)
+        result = self.attempt(driver, trigger=trigger)["result"]
+        driver.stop()
+        self.assertEqual([], result["problems"], result)
+        return result
+
+    def test_focus_may_follow_a_control_that_disappears_but_never_falls_to_the_page(self):
+        cases = {
+            "moves to the list": ('<div id="list" tabindex="-1"><button data-control-id="save" onclick="'
+                'document.getElementById(\'list\').focus();this.remove()">Remove</button><p>Other item</p></div>', None),
+            "moves to a new message": ('<button data-control-id="save" onclick="this.hidden=true;'
+                'const note=document.getElementById(\'note\');note.hidden=false;note.focus()">Allow</button>'
+                '<p id="note" tabindex="-1" hidden>Saved</p>', None),
+            "falls to the page": ('<div id="list"><button data-control-id="save" onclick="this.remove()">Remove</button>'
+                '<p>Other item</p></div>', "was lost"),
+        }
+        for label, (markup, problem) in cases.items():
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt_focus(markup, trigger)
+                    self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_focus_leaves_a_shown_control_only_for_content_the_activation_showed(self):
+        cases = {
+            "new note": ('<button data-control-id="save" onclick="this.textContent+=\' saved\';'
+                'const note=document.getElementById(\'note\');note.hidden=false;note.focus()">Save</button>'
+                '<p id="note" tabindex="-1" hidden>Saved</p>', None),
+            "existing heading": ('<h2 id="title" tabindex="-1">Title</h2><button data-control-id="save" onclick="'
+                'this.textContent+=\' saved\';document.getElementById(\'title\').focus()">Save</button>',
+                "left the shown control for content that was already shown"),
+        }
+        for label, (markup, problem) in cases.items():
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt_focus(markup, trigger)
+                    self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
 
 
 class FocusObservationTests(unittest.TestCase):
