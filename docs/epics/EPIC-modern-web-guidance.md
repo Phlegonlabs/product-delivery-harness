@@ -1,6 +1,6 @@
 # EPIC-modern-web-guidance: pinned Modern Web Guidance for frontend authors
 
-Status: in_progress (0.97.0 reviewed on branch `modern-web-guidance`, not yet published; pilot not started)
+Status: published as 0.97.0 on 2026-11-20 (PR #210, `main` `272fa168`, tag `v0.97.0`); installed (five-skill contract `9b40fb4b865df80d8126cb1f3996d1dd704f14d9d95dcb73d7b8de925e9f6d2d`); pilot not started
 Design workflow: enhancement
 UI impact: none (author rules, a binding row, a wrapper script and a PRD field; no product UI)
 
@@ -43,7 +43,8 @@ Pilot, written before it runs: one web consumer adopts 0.97.0 between rounds, bi
 | This Epic; release 0.97.0 | `01aaf56f`, `099c88b4` |
 | npx from absolute PATH directories only; cmd-safe arguments | `05d0697d` |
 | Pilot baseline split into native and web targets | `f12a9aa6` |
-| Review notes: CLI file logging off; Browser support and the rule in generated packets; the optional row in Installed Commands; README entries | `b605766f`, `78c54090`, `d1d77d72`, this commit |
+| Review notes: CLI file logging off; Browser support and the rule in generated packets; the optional row in Installed Commands; README entries | `b605766f`, `78c54090`, `d1d77d72`, `1cc2b695` |
+| Publication record | this commit |
 
 ## Verification
 
@@ -52,6 +53,8 @@ Pilot, written before it runs: one web consumer adopts 0.97.0 between rounds, bi
 - Before review: release, document, template and bindings modules (401 passed, 5 skipped), the product-definition suite (16 modules), `check_skill_spec.py`, pyflakes over the four script trees, `prepare_release.py --check` and `git diff --check` passed. A planted `npx.cmd` in the current directory and arguments with `&`, `|`, `%`, `^`, `<` or `"` became two more caught variants (14).
 - Review point, gpt-6.1-sol xhigh read-only, on `f12a9aa6` (a first run on `05d0697d` was cut off when the T3 server restarted): no blocking defect. Four notes. R1: an inherited `ENABLE_FILE_LOGGING=true` let the CLI append `modern-web.log` to `MODERN_WEB_LOG_DIR`, fixed in `b605766f`. R2: the generated author packet lacked the Browser support value and the rule, fixed in `78c54090`. R3: Installed Commands described every deferred row as a skill and a full-tree hash, fixed in `d1d77d72`. R4: this handoff was stale, fixed here. The reviewer noted that the tarball SHA-256 is binding metadata; the wrapper does not verify executed bytes against it, and npm, its configuration and its cache stay trusted.
 - After the notes: the wrapper, generator, bindings and document modules passed (33 and 82 tests, plus 116 README and release tests), and four more broken variants (logging left on, the Browser support line dropped, a commented-out line counted, the lines added at the direction stage) each failed a test.
+- Targeted re-check of `f12a9aa6..1cc2b695`, gpt-6.1-sol xhigh read-only: PASS, the four notes resolved and nothing new. The Codex review of `1cc2b695` had no findings.
+- Pull-request CI on `1cc2b695`: all 14 checks passed. `promotion_readback.py pre` passed against `main` `09941dde`; PR #210 merged as `272fa168`; `post` returned `tree_equal_S`. Tag `v0.97.0` (object `ce746b13`) points at `272fa168`. `./install.sh` exited 0 and the installed contract equals the source: `9b40fb4b865df80d8126cb1f3996d1dd704f14d9d95dcb73d7b8de925e9f6d2d` (previous `fcc88b8e…`, backup `20261120-080800`). The installed wrapper prints the binding row, and the installed template carries it.
 
 ## Consumer Impact
 
@@ -63,11 +66,11 @@ Nothing changes until a project fills the new row. `--check --merge-agents` list
 Repository / branch / HEAD / dirty paths: product-delivery-harness / modern-web-guidance / the commit that adds this block / task/ (untracked)
 Stage and skill: source maintenance of the skill suite; direct work, no PLAN/RUN
 Inputs consumed (path + hash or revision): main 09941dde (v0.96.0); modern-web-guidance 1.0.1 tarball 713d3d34…38a3; the ten-repository sidecars of 2026-11-19
-Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): pending; rerun after 0.97.0 is installed
-Approvals in force (gate, owner, date, candidate): owner, 2026-11-20: "照這個方向做" for the proposed 0.97.0 (pinned per-project binding, telemetry off, HiFi markers first, Baseline target, one-consumer pilot)
-Done and verified (command, exit code): see Verification; review point without a blocking defect on f12a9aa6, its four notes fixed
-Remaining: a targeted re-check of f12a9aa6..HEAD; pull request, CI, merge, tag v0.97.0, install; the pilot
-Blocked / waiting (gate name or owner decision): pilot consumer and round (owner)
-Next action (one command or one owner decision): run the targeted re-check of f12a9aa6..HEAD
-Next owner (skill or human): parent session
+Template audit (current | stale | unknown; template sha256, VERSION, bundle digest, loaded identity or unknown; differences, or the reused audit's matching hashes): current; installed template fafc1f21…, VERSION 0.97.0, bundle 9b40fb4b…; 0.97.0 changes only the template's Skill Bindings section, which this repository omits; the reported differences (Runtime Boundary, Engineering Principles, Mandatory Governance Routes, Delivery Autonomy, and the omitted Harness Version, Required Reading, Behavior Specs, Skill Bindings and Deployment sections) are this source repository's documented local choices
+Approvals in force (gate, owner, date, candidate): owner, 2026-11-20: "照這個方向做" for the proposed 0.97.0 (pinned per-project binding, telemetry off, HiFi markers first, Baseline target, one-consumer pilot), released through the 0.96.0 flow
+Done and verified (command, exit code): see Verification; CI 14 of 14 on 1cc2b695; merged as 272fa168 (tree_equal_S); tag v0.97.0; ./install.sh exit 0, installed contract 9b40fb4b… equals the source
+Remaining: this record reaches main with the next pull request; the pilot; review_input.py --remove refuses a packet whose clone .git gained commit-graph files after it was built (the two 0.96.0 packets stay in the session scratchpad)
+Blocked / waiting (gate name or owner decision): the pilot consumer and round, and whether to investigate the native-target focus failures in ticketradar first (owner); tree reuse across managed RUNs (owner); removal of the remote modern-web-guidance, keyboard-once, ui-review-speed and fix/measure-hidden-text-at-zoom branches and the worker worktrees of earlier rounds (owner)
+Next action (one command or one owner decision): owner decision on the pilot and the focus-failure investigation
+Next owner (skill or human): owner
 ```
