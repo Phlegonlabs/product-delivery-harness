@@ -1141,7 +1141,7 @@ class InteractionTests(unittest.TestCase):
         self.assertEqual((6, 1), (summary["interactions"], summary["interactionsFail"]))
 
     def test_a_reply_without_visibility_or_correct_focus_fails_the_run(self):
-        for field, reason in (("focusCorrect", "product focus did not land on the control alone"),
+        for field, reason in (("focusCorrect", "product focus was not observed"),
                               ("visible", "product control was not visible")):
             with self.subTest(field=field):
                 cli, driver = self.cli(), FakeDriver()

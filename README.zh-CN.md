@@ -8,7 +8,7 @@
 
 <p align="center">
   <a href="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml"><img alt="CI" src="https://github.com/Phlegonlabs/product-delivery-harness/actions/workflows/harness-ci.yml/badge.svg"></a>
-  <img alt="Version" src="https://img.shields.io/badge/version-0.97.0-059669?style=flat-square">
+  <img alt="Version" src="https://img.shields.io/badge/version-0.98.0-059669?style=flat-square">
 </p>
 
 # Product Delivery Harness
@@ -205,6 +205,8 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 
 ## 版本历史
 
+- **0.98.0** — HiFi 交互的判断方式改成让正确的页面第一次完整运行就通过。`hifi_matrix_capture.py` 改看焦点最后停在哪里，不再计算移动次数：焦点可以留在控件上、移进这次操作新显示的内容、回到已关闭面板的打开按钮，或在控件消失后停在目标界面内任何地方；焦点掉到页面上，或在控件还看得到时被抢走，才算失败；新加载的页面保留它自己的初始焦点。在 2026-11-19 的实测里，623 个失败的操作中有 399 个只因为这个计数失败，追踪显示那些产品是有意把焦点移到新内容。状态切换把有焦点的控件藏起来时，reviewer runtime 会把焦点移到新界面的标题，正式代码也照做。关闭的原生 `<details>` 通过 summary 打开，有没有 id 都可以。从禁用控件开始的操作会立刻失败并说明修法，不再等 30 秒超时。`review_evidence.py ready` 不接受缺少任何一个压力轴、或网页宽度缺少 `--intermediate` 的 capture，让这些缺陷在审查前就出现。
+
 - **0.97.0** — 项目现在可以让 HiFi 和前端作者查询 Google 的 Modern Web Guidance，而不必安装它。Skill Bindings 多了可选的 `web_platform_guidance` 行：保持 `pending`，或绑定 `modern-web-guidance@1.0.1` 和它 registry tarball 的 SHA-256；`check_skill_bindings.py` 只接受这个 pin。作者一律通过 `delivery-harness/scripts/modern_web_guidance.py` 运行：固定这个版本、关闭使用数据和它自己的文件日志、只允许 `search`、`list`、`retrieve`，并把 PRD 的 Baseline 目标交给 `retrieve`，让指南只列出这个目标还需要的 fallback。`visual_inputs.py` 生成的 HiFi 和 implementation 作者区块，现在会带上 PRD 的 Browser support 值和 Modern Web Guidance 规则的位置。在 HiFi 里，output contract 要求的标记和 ARIA 属性优先于任何指南。PRD 的 Frontend Delivery Requirements 改为以 `Browser support:` 开头，填 `Baseline Widely available`、`Baseline Newly available` 或 `Baseline <年份>` 其中之一；现有 PRD 不受影响。
 
 - **0.96.0** — `hifi_matrix_capture.py` 的交互测试改成每个产品交互只在最小的来源宽度用键盘触发一次，点击仍在每个宽度都测。在 0.95.0 实测的十个 repo 里，1,293 个操作中只有 3 个的点击和键盘结果不同，不同宽度结果不同的则有 56 个；而其他宽度的键盘测试占了交互时间的 35%。用那几次 run 重算，测试从 9,946 次减为 6,266 次，623 个有错的操作中只会漏掉 1 个：hk-car-care 较大手机宽度上的一个键盘焦点错误。检查器接受新的结果行，也接受旧版 driver 写的、每个宽度都有键盘行的收据；介于两者之间的都不通过。0.96.0 driver 写的收据需要 0.96.0 的检查器。
@@ -212,7 +214,5 @@ Archive-only A 须为 C 的直接子 commit，通过准确、receipt-bound 归�
 - **0.95.1** — 修补版本，收录用 0.95.0 实测十个 repo 后的三项修正。`hifi_matrix_capture.py` 的无障碍测量在任何画布缩放下都略过只给屏幕阅读器的文字：在 `zoom-200` 下，这类文字的 1 px 方框被放大一倍而被测量，上一次 jolvex run 的 652 条 `text-clip` 失败里有 580 条是这种情况。目的地在来源页面上的交互，现在 10 秒后判定失败，不再等满 30 秒的动作上限；那几次 run 的 276 次目的地等待失败里，有 236 次是这种状态切换。会加载页面的尝试仍保留 30 秒上限，因为进入 jolvex 大页面的导航最多等了约 10.4 秒。在 direct 路线上，修复只重跑失败的套件和改动文件选出的检查，其他套件沿用原结果并注明执行时的 SHA；tree 与已验证 tree 相同的 head 直接引用那次的确定性结果，不再重跑。这取代了“修复不沿用任何结果”的旧规则。
 
 - **0.95.0** — UI review 的次数更少，浏览器时间更短。一轮 review 固定两位 reviewer，即 lead grader 和 Impeccable operator，不按页组拆分；他们用肉眼看每页的最小尺寸、机器结果标记的每个案例和 stress axis 样本。他们的观察记录只需涵盖这个范围：critique、audit 和 grading 的 receipt 不再要求每个案例都有观察。复查只判断先前的发现和这次修复：未改动内容里原本就有的缺陷记为下一轮的备注，除非它是修复造成的，或属高或严重的安全问题。派出一轮 review 或复查之前，`review_evidence.py ready` 检查作者对冻结 package 的截取，打印 READY、NOT READY 或 INVALID；卡死或 driver 故障只重跑一次，之后交给 owner。`hifi_matrix_capture.py` 的中间宽度只扫每个画面的 axis 取样状态，也不再在那里重跑所有交互：jolvex 上一次 run 的 630 个案例变成 150 个，4,344 次重复尝试不再执行，约占那次浏览器时间的一半。旧的中间宽度 receipt 仍然有效。重启次数上限按页面和操作计算，同一操作的尝试无论几个 worker 都在同一个浏览器执行；无法重启的浏览器只挡住它所在的页面；结果行会打印时间花在哪里。新的 `text-split` 测量找出被断成两行的数字和短的中日韩词语。`parity_capture.py --recapture <IDs>` 只重拍修复影响的路由，HiFi 沿用改为逐页比对。一轮工作在结束前保持它的 Harness 版本，`review_input.py --remove` 删除已通过的 review packet，`docs/evidence/` 和 `docs/design/evidence/` 下的原始截取不进 Git，审批检查会列出需要强制加入的引用截图。停止卡住的 driver 或发布包 CLI 时，不再沿用 Windows 重用的父进程 id，因此不会误杀无关的程序。
-
-- **0.94.0** — 交接检查遇到读不懂的内容，现在会拒绝而不是跳过。已批准的公开主张会对照当前的研究：研究发现已撤回、未验证，或观察到的受访者少于三人，都会失败；campaign 稿引用过期、读不懂或重复的批准，也会失败。PRD 引用不存在的 `KW-*` 会失败，关键词地图指定的页面必须引用对应的 cluster。无界面的工具可以记录"没有公开曝光"及其理由，之后只能经自有渠道上线。Growth Contract 的 Launch Window 必须用六列表格，每行写明 Destination；旧的五列表格要补上这一列。`growth-review` 会把搜索需求对应到各语言的商店上架字段，优化新增公开页面时也会做需求研究。Release packager 会检查 npm 包文件内实际的图片和 CLI 示例，拒绝 shell 语法，并在时限到时停止 CLI 的整个进程树；无法确认已停止时会如实说明。默认的规范检查涵盖五个独立 skill。
 
 较早版本：[英文 CHANGELOG.md](CHANGELOG.md)。

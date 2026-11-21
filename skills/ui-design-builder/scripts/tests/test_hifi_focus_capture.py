@@ -1,8 +1,10 @@
-"""Event-time layer focus proof and complete product-focus recording."""
+"""Where operation focus ends, layer entry and return, and complete product-focus recording."""
 from pathlib import Path
+import shutil
 import tempfile
 import unittest
 
+import test_hifi_matrix_capture as matrix_tests
 import test_hifi_operation_alignment as alignment
 import test_ui_design_contract as contract
 import check_ui_design_contract as checker
@@ -37,7 +39,7 @@ class FocusBrowserTests(unittest.TestCase):
                     self.assertNotIn("focusEntry", result["observed"])
         driver.stop()
 
-    def test_n1_closure_must_precede_the_return_focus_event(self):
+    def test_n1_a_return_to_the_opener_passes_whichever_comes_first(self):
         for close_first in (False, True):
             hide = "document.getElementById('picker').hidden=true;"
             focus = "document.getElementById('opener').focus();"
@@ -46,9 +48,9 @@ class FocusBrowserTests(unittest.TestCase):
                 self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
                     'aria-expanded="true">Pick</button><div id="picker">'
                     '<button data-control-id="save" onclick="' + handler + '">Cancel</button></div>',
-                    close_first, "focusReturn" if close_first else None)
+                    True, "focusReturn")
 
-    def test_n2_unmarked_focus_detour_cannot_hide_before_a_valid_return(self):
+    def test_n2_a_detour_before_the_return_still_ends_on_the_opener(self):
         for detour in (False, True):
             handler = "document.getElementById('picker').hidden=true;"
             if detour:
@@ -58,8 +60,7 @@ class FocusBrowserTests(unittest.TestCase):
                 self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
                     'aria-expanded="true">Pick</button><div id="picker">'
                     '<button data-control-id="save" onclick="' + handler + '">Cancel</button></div>'
-                    '<div tabindex="-1" id="thief">Unrelated</div>', not detour,
-                    None if detour else "focusReturn")
+                    '<div tabindex="-1" id="thief">Unrelated</div>', True, "focusReturn")
 
     def test_return_to_another_layers_opener_or_a_never_open_panel_fails(self):
         for other_open in (False, True):
@@ -105,7 +106,7 @@ class FocusBrowserTests(unittest.TestCase):
                     + 'document.getElementById(\'' + opener + '\').focus()">Cancel</button></div></div>',
                     True, "focusReturn", "outer" if close_outer else "picker")
 
-    def test_opening_a_layer_may_focus_its_title_or_first_field_once(self):
+    def test_opening_a_layer_may_end_focus_anywhere_new_inside_it(self):
         for semantic in (False, True):
             for field in (False, True):
                 for mode in ("new", "already-open", "detour", "second-focus"):
@@ -125,8 +126,8 @@ class FocusBrowserTests(unittest.TestCase):
                             + ('' if mode == "already-open" else ' hidden') + '>'
                             + ('<input id="inside">' if field else '<h2 tabindex="-1" id="inside">Title</h2>')
                             + '<div tabindex="-1" id="second">Second</div></div>'
-                            '<div tabindex="-1" id="thief">Unrelated</div>', mode == "new",
-                            "focusEntry" if mode == "new" else None)
+                            '<div tabindex="-1" id="thief">Unrelated</div>', mode != "already-open",
+                            "focusEntry" if mode != "already-open" else None)
 
     def test_preparatory_opener_may_focus_its_new_layer_before_cancel(self):
         self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
@@ -155,7 +156,7 @@ class FocusBrowserTests(unittest.TestCase):
                     self.assertEqual([False, True], [event["reviewer"] for event in reply["events"]["focus"]])
             driver.stop()
 
-    def test_reviewer_heading_callback_does_not_hide_product_focus_theft(self):
+    def test_a_page_the_operation_loads_keeps_its_own_initial_focus(self):
         driver = self.driver('<div tabindex="-1" id="thief">Unrelated</div><script>'
             'document.addEventListener("focusin",event=>{if(event.target.tagName==="H1")'
             'document.getElementById("thief").focus()})</script>')
@@ -166,9 +167,238 @@ class FocusBrowserTests(unittest.TestCase):
                     control="to-details", kind="navigate", destination={"surface": "UI-002", "state": "ready"},
                     destinationPage="details.html", trigger=trigger, timeoutMs=2000)
                 self.assertEqual([], reply["result"]["problems"], reply)
-                self.assertFalse(reply["result"]["focusCorrect"], reply)
+                self.assertTrue(reply["result"]["focusCorrect"], reply)
                 self.assertEqual([False, True, False], [event["reviewer"] for event in reply["events"]["focus"]])
         driver.stop()
+
+    def attempt_focus(self, markup, trigger):
+        driver = self.driver(markup)
+        result = self.attempt(driver, trigger=trigger)["result"]
+        driver.stop()
+        self.assertEqual([], result["problems"], result)
+        return result
+
+    def test_focus_may_follow_a_control_that_disappears_but_never_falls_to_the_page(self):
+        cases = {
+            "moves to the list": ('<div id="list" tabindex="-1"><button data-control-id="save" onclick="'
+                'document.getElementById(\'list\').focus();this.remove()">Remove</button><p>Other item</p></div>', None),
+            "moves to a new message": ('<button data-control-id="save" onclick="this.hidden=true;'
+                'const note=document.getElementById(\'note\');note.hidden=false;note.focus()">Allow</button>'
+                '<p id="note" tabindex="-1" hidden>Saved</p>', None),
+            "moves to the list a frame later": ('<div id="list" tabindex="-1"><button data-control-id="save" onclick="'
+                'this.remove();requestAnimationFrame(()=>document.getElementById(\'list\').focus())">Remove</button>'
+                '<p>Other item</p></div>', None),
+            "falls to the page": ('<div id="list"><button data-control-id="save" onclick="this.remove()">Remove</button>'
+                '<p>Other item</p></div>', "was lost"),
+        }
+        for label, (markup, problem) in cases.items():
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt_focus(markup, trigger)
+                    self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_focus_leaves_a_shown_control_only_for_content_the_activation_showed(self):
+        cases = {
+            "new note": ('<button data-control-id="save" onclick="this.textContent+=\' saved\';'
+                'const note=document.getElementById(\'note\');note.hidden=false;note.focus()">Save</button>'
+                '<p id="note" tabindex="-1" hidden>Saved</p>', None),
+            "existing heading": ('<h2 id="title" tabindex="-1">Title</h2><button data-control-id="save" onclick="'
+                'this.textContent+=\' saved\';document.getElementById(\'title\').focus()">Save</button>',
+                "left the shown control for content that was already shown"),
+        }
+        for label, (markup, problem) in cases.items():
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt_focus(markup, trigger)
+                    self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_the_runtime_moves_focus_to_the_new_view_only_when_the_control_is_hidden(self):
+        transition = "document.__hifiReviewerRuntime.selectState('loading')"
+        cases = {"hidden with its view": ('<section data-hifi-state-view="ready" data-responsive-target="390">'
+                                          '<button data-control-id="save" onclick="' + transition + '">Retry</button></section>', 2),
+                 "still shown": ('<button data-control-id="save" onclick="' + transition + '">Retry</button>', 1)}
+        for label, (markup, events) in cases.items():
+            driver = self.driver(markup)
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    reply = self.attempt(driver, kind="state", trigger=trigger,
+                                         destination={"surface": "UI-002", "state": "loading"})
+                    self.assertEqual(([], True), (reply["result"]["problems"], reply["result"]["focusCorrect"]), reply)
+                    product = [event for event in reply["events"]["focus"] if not event["reviewer"]]
+                    self.assertEqual(events, len(product), product)
+            driver.stop()
+
+    def test_the_runtime_moves_focus_past_a_heading_that_cannot_take_it(self):
+        opening = '<main data-ui-surface="UI-002" data-ui-route="/details" class="desk">'
+        retry = ('<section data-hifi-state-view="ready" data-responsive-target="390"><button data-control-id="save" '
+                 'onclick="document.__hifiReviewerRuntime.selectState(\'loading\')">Retry</button></section>')
+        for label, before in (("in a closed details", "<details><summary>Notes</summary><h2>Hidden note</h2></details>"),
+                              ("inert", "<div inert><h2>Inert note</h2></div>")):
+            driver = self.driver(retry, edit=lambda html: html.replace(opening, opening + before, 1))
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt(driver, kind="state", trigger=trigger,
+                                          destination={"surface": "UI-002", "state": "loading"})["result"]
+                    self.assertEqual(([], True), (result["problems"], result["focusCorrect"]), result)
+            driver.stop()
+
+    def test_the_runtime_treats_a_control_in_skipped_content_as_hidden(self):
+        # The hidden view keeps its boxes, as a closed details does; only checkVisibility sees it is skipped.
+        driver = self.driver('<style>[data-hifi-state-view="ready"][hidden]{display:block!important;'
+            'content-visibility:hidden}</style><section data-hifi-state-view="ready" data-responsive-target="390">'
+            '<button data-control-id="save" onclick="document.__hifiReviewerRuntime.selectState(\'loading\')">Retry'
+            '</button></section>')
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt(driver, kind="state", trigger=trigger,
+                                      destination={"surface": "UI-002", "state": "loading"})["result"]
+                self.assertEqual(([], True), (result["problems"], result["focusCorrect"]), result)
+        driver.stop()
+
+    def test_a_navigation_inside_the_same_document_keeps_the_focus_rule(self):
+        driver = self.driver('<a data-control-id="save" href="details.html#hifi-state=UI-002/loading" onclick="'
+                             'event.preventDefault();history.pushState(null,\'\',this.getAttribute(\'href\'));'
+                             'document.__hifiReviewerRuntime.selectState(\'loading\');this.blur()">Go</a>')
+        result = self.attempt(driver, kind="navigate", destination={"surface": "UI-002", "state": "loading"})["result"]
+        driver.stop()
+        self.assertEqual((False, "was lost"), (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_a_fragment_arrival_is_judged_like_a_loaded_page(self):
+        link = '<a data-control-id="save" href="details.html#hifi-state=UI-002/{}"{}>Go</a>'
+        close = ' onclick="document.getElementById(\'menu\').hidden=true"'
+        drop = (' onclick="window.addEventListener(\'hashchange\',()=>setTimeout(()=>document.activeElement.blur()),'
+                '{once:true})"')
+        menu = '<button data-product-menu aria-controls="menu" aria-expanded="true">Menu</button><div id="menu">{}</div>'
+        opening = '<main data-ui-surface="UI-002" data-ui-route="/details" class="desk">'
+        # The runtime's arrival heading is the surface's first h1, here one in a hidden view, so its focus does not
+        # land; the state stays the same, so nothing else moves focus off the page body either.
+        hidden_heading = lambda html: html.replace(opening, opening + '<section data-hifi-state-view="error" hidden>'
+                                                   '<h1>Failed</h1></section>', 1)
+        cases = {"beside the view": (link.format("loading", ""), None, "loading"),
+                 "in a menu it closes": (menu.format(link.format("loading", close)), None, "loading"),
+                 "in a menu it closes, focus left on the page": (menu.format(link.format("ready", close)),
+                                                                 hidden_heading, "ready"),
+                 "the product drops focus after it": (link.format("loading", drop), None, "loading")}
+        for label, (markup, edit, state) in cases.items():
+            driver = self.driver(markup, edit=edit)
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt(driver, kind="navigate", trigger=trigger,
+                                          destination={"surface": "UI-002", "state": state})["result"]
+                    self.assertEqual(([], True), (result["problems"], result["focusCorrect"]), result)
+            driver.stop()
+
+    def test_a_feedback_operation_that_changes_the_fragment_keeps_the_focus_rule(self):
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt_focus('<button data-control-id="save" onclick="this.textContent+=\' saved\';'
+                    'location.hash=\'saved\'">Save</button>', trigger)
+                self.assertEqual((False, "left the shown control for content that was already shown"),
+                                 (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_a_hashchange_event_without_a_fragment_change_is_no_arrival(self):
+        # The product routes by history.pushState and then dispatches a hashchange the browser never fired.
+        driver = self.driver('<a data-control-id="save" href="details.html#hifi-state=UI-002/loading" onclick="'
+            'event.preventDefault();history.pushState(null,\'\',this.getAttribute(\'href\'));'
+            'document.__hifiReviewerRuntime.selectState(\'loading\');window.dispatchEvent(new Event(\'hashchange\'))">Go</a>')
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt(driver, kind="navigate", trigger=trigger,
+                                      destination={"surface": "UI-002", "state": "loading"})["result"]
+                self.assertEqual((False, "left the shown control for content that was already shown"),
+                                 (result["focusCorrect"], result["focusProblem"]), result)
+        driver.stop()
+
+    def test_closing_a_details_returns_focus_to_its_summary(self):
+        close = "const d=this.closest(\'details\');d.open=false;"
+        cases = {"summary": (close + "d.querySelector(\'summary\').focus()", None),
+                 "old content": (close + "document.getElementById(\'old\').focus()",
+                                 "did not return to the closed panel's opener")}
+        for label, (handler, problem) in cases.items():
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt_focus('<details open><summary>More</summary><button data-control-id="save" '
+                        'onclick="' + handler + '">Close</button></details><p id="old" tabindex="-1">Existing</p>', trigger)
+                    self.assertEqual((problem is None, problem), (result["focusCorrect"], result["focusProblem"]), result)
+                    if problem is None:
+                        self.assertEqual("details:0", result["observed"].get("focusReturn"), result)
+
+    def test_a_details_that_a_declared_opener_reveals_returns_focus_to_the_opener_of_its_closing(self):
+        cases = {"hidden by the declared opener": "d.hidden=true;const opener=document.getElementById(\'opener\');"
+                                                  "opener.setAttribute(\'aria-expanded\',\'false\');opener.focus()",
+                 "collapsed to its summary": "d.open=false;d.querySelector(\'summary\').focus()"}
+        for label, handler in cases.items():
+            with self.subTest(case=label):
+                self.check_attempts('<button id="opener" data-product-disclosure aria-controls="picker" '
+                    'aria-expanded="false">Pick</button><details id="picker" open hidden><summary>More</summary>'
+                    '<button data-control-id="save" onclick="const d=this.closest(\'details\');' + handler
+                    + '">Close</button></details>', True, "focusReturn")
+
+    def test_a_summary_declared_as_a_panel_keeps_its_focus_entry(self):
+        reveal = "document.getElementById('picker').hidden=false;document.getElementById('inside').focus()"
+        self.check_attempts('<details id="outer" open><summary id="picker" hidden>'
+            '<span id="inside" tabindex="-1">Actions</span><button data-control-id="save" '
+            'onclick="this.textContent+=\' saved\'">Save</button></summary><button data-product-disclosure '
+            'aria-controls="picker" aria-expanded="false" onclick="' + reveal + '">Show actions</button></details>', True)
+
+    def test_nested_details_that_close_together_return_focus_to_the_outer_summary(self):
+        close = ("document.getElementById('inner').open=false;document.getElementById('outer').open=false;"
+                 "document.querySelector('#outer > summary').focus()")
+        self.check_attempts('<details id="outer" open><summary>Outer</summary><details id="inner" open>'
+            '<summary>Inner</summary><button data-control-id="save" onclick="' + close + '">Close all</button>'
+            '</details></details>', True, "focusReturn", panel="outer")
+
+    def test_a_return_to_a_closed_panels_opener_stands_outside_the_destination_surface(self):
+        root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        scratch = self.enterContext(tempfile.TemporaryDirectory())
+        third = ('<main data-ui-surface="UI-003" data-ui-route="/third" hidden><h1 tabindex="-1">Destination</h1>'
+                 '<section data-hifi-state-view="ready"><p>Ready</p></section></main>')
+
+        def add_surface(manifest):
+            manifest.update(interactions=matrix_tests.INTERACTIONS)
+            manifest["surfaces"].append({"id": "UI-003", "page": "details.html", "route": "/third",
+                                         "platformGroup": "Web", "states": ["ready"],
+                                         "responsive": {"kind": "viewports", "targets": [390, 1200]},
+                                         "navigation": [], "controls": []})
+
+        menu = ('<details id="source-panel" open><summary id="source-summary">More</summary>'
+                '<button data-control-id="save" onclick="this.closest(\'details\').open=false;'
+                'const destination=document.querySelector(\'[data-ui-surface=UI-003]\');destination.hidden=false;'
+                'destination.dataset.hifiState=\'ready\';document.getElementById(\'source-summary\').focus()">Go</button>'
+                '</details>')
+        package = matrix_tests.build_package(root, details_extra=menu, manifest_edit=add_surface,
+            page_edit=lambda html: html.replace("</main>", "</main>" + third, 1) if 'data-ui-surface="UI-002"' in html else html)
+        driver = capture.NodeDriver(shutil.which("node"), self.playwright(), capture.read_package(package).files, scratch)
+        self.addCleanup(driver.stop)
+        driver.start()
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt(driver, kind="state", trigger=trigger,
+                                      destination={"surface": "UI-003", "state": "ready"})["result"]
+                self.assertEqual(([], True, "source-panel"),
+                                 (result["problems"], result["focusCorrect"], result["observed"].get("focusReturn")), result)
+
+    def test_a_details_keeps_its_identity_when_its_summary_inserts_another(self):
+        result = self.attempt_focus('<details><summary id="more">More</summary><button data-control-id="save" '
+            'onclick="this.textContent+=\' saved\'">Save</button></details><script>'
+            'document.getElementById("more").addEventListener("click", function () {'
+            'this.parentElement.insertAdjacentHTML("beforebegin", "<details><summary>Inserted</summary></details>");'
+            '});</script>', "click")
+        self.assertEqual((True, ["details:0"]), (result["focusCorrect"], result["observed"]["openers"]), result)
+
+    def test_a_closed_details_opens_through_its_summary(self):
+        save = '<button data-control-id="save" onclick="this.textContent+=\' saved\'">Save</button>'
+        hiding = '<style>details:not([open]) > nav { display: none }</style>'
+        for markup in ('<details id="more"><summary>More</summary>' + save + '</details>',
+                       hiding + '<details id="more"><summary>More</summary><nav>' + save + '</nav></details>'):
+            for trigger in ("click", "keyboard"):
+                with self.subTest(css=markup.startswith("<style>"), trigger=trigger):
+                    result = self.attempt_focus(markup, trigger)
+                    self.assertEqual((True, ["more"]), (result["focusCorrect"], result["observed"]["openers"]), result)
+        # Without an id, the details is named by its place among the surface's details elements.
+        result = self.attempt_focus('<details open><summary>Other</summary></details>'
+                                    '<details><summary>More</summary>' + save + '</details>', "click")
+        self.assertEqual((True, ["details:1"]), (result["focusCorrect"], result["observed"]["openers"]), result)
 
 
 class FocusObservationTests(unittest.TestCase):

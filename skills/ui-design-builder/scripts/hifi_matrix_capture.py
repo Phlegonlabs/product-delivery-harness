@@ -570,9 +570,12 @@ async function start(request) {
     const record = form => window.__pdhForm && window.__pdhForm({ action: String(form.action), method: String(form.method) });
     addEventListener('submit', event => { event.preventDefault(); record(event.target); }, true);
     HTMLFormElement.prototype.submit = function () { record(this); };
+    // checkVisibility also sees content a closed details or content-visibility skips, which keeps its boxes.
     const shown = panel => panel.isConnected && !panel.hidden && Boolean(panel.getClientRects().length)
-      && getComputedStyle(panel).visibility === 'visible';
+      && getComputedStyle(panel).visibility === 'visible' && (!panel.checkVisibility || panel.checkVisibility());
     let focusStep = null;
+    // A closed native details stays rendered by its summary, so it counts as closed by its open state.
+    const closed = layer => !shown(layer.panel) || (layer.details && !layer.panel.open);
     window.__pdhFocusTrace = {
       begin(target, [step, destination, activate]) {
         const root = target.closest('[data-ui-surface]');
@@ -596,21 +599,54 @@ async function start(request) {
             else layers.set(panel, { id: panel.id, panel, visible: shown(panel), open: false, entry: true });
           }
         }
+        if (activate) {
+          // An open native details that holds the control is a panel too: its summary is the opener focus returns to.
+          // Keyed by its place, not by an element, it never replaces a declared panel, even one on the details or
+          // its summary, so each opener answers for its own way of closing: hidden for a declared one, collapsed
+          // for the summary.
+          for (const [index, panel] of Array.from(root.querySelectorAll('details')).entries()) {
+            const summary = panel.querySelector(':scope > summary');
+            if (!panel.open || !summary || summary.contains(target) || !panel.contains(target)) continue;
+            const id = panel.id && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1 ? panel.id : 'details:' + index;
+            layers.set('details:' + index, { id, panel, opener: summary, visible: true, open: true, entry: false, details: true });
+          }
+        }
         const returnLayers = Array.from(layers.values()).filter(layer => layer.open && layer.panel.contains(target));
         // Snapshot the containing panels before activation, from innermost outward.
         returnLayers.sort((a, b) => a.panel.contains(b.panel) ? 1 : b.panel.contains(a.panel) ? -1 : 0);
-        focusStep = { step, target, layers: Array.from(layers.values()), returnLayers };
+        // What the destination surface already showed, so the end of the operation can tell new content from old.
+        const shownBefore = new WeakSet();
+        if (activate && step === 'operation')
+          for (const surface of document.querySelectorAll('[data-ui-surface]'))
+            if (surface.dataset.uiSurface === destination)
+              for (const el of [surface, ...surface.querySelectorAll('*')]) if (shown(el)) shownBefore.add(el);
+        focusStep = { step, target, destination, layers: Array.from(layers.values()), returnLayers, shownBefore };
       },
       outcome() {
         const layers = focusStep?.layers || [];
         return {
           entered: layers.filter(layer => layer.entry && !layer.visible && shown(layer.panel)
             && layer.panel.contains(document.activeElement)).map(layer => layer.id),
-          returned: (focusStep?.returnLayers || []).filter(layer => !shown(layer.panel)
+          returned: (focusStep?.returnLayers || []).filter(layer => closed(layer)
             && layer.opener === document.activeElement).map(layer => layer.id),
         };
       },
+      end() {
+        if (!focusStep) return { loaded: true };
+        const active = document.activeElement, target = focusStep?.target;
+        const surface = active && active !== document.body ? active.closest('[data-ui-surface]') : null;
+        const inDestination = Boolean(surface) && surface.dataset.uiSurface === focusStep?.destination && shown(active);
+        // A control that was hidden while it held focus keeps no focus the user can see.
+        const targetShown = Boolean(target) && shown(target);
+        return { ...this.outcome(), onTarget: targetShown && active === target, targetShown, inDestination,
+          arrival: Boolean(focusStep.arrival),
+          fresh: inDestination && !focusStep?.shownBefore?.has(active),
+          closedPanel: (focusStep?.returnLayers || []).some(closed) };
+      },
     };
+    // A fragment change is an arrival the reviewer runtime handles like a new page. Only the browser's own
+    // event proves the fragment changed; a page can dispatch a hashchange without one.
+    addEventListener('hashchange', event => { if (focusStep && event.isTrusted) focusStep.arrival = true; });
     addEventListener('focusin', event => {
       if (window.__pdhNoFocusLog) return;     // a measured-accessibility pass moves focus on purpose
       const el = event.target;
@@ -684,23 +720,46 @@ async function open(request) {
 
 // One interaction attempt: reload the page, reset target/source state through the
 // reviewer shell, then activate the declared product control by click or keyboard. The
-// destination surface/state must apply. Each activation focuses its control once,
-// then may enter its new layer; the operation may instead return after closure.
+// destination surface/state must apply, and focus must end where assessOperationFocus accepts.
 const FEEDBACK_SNAPSHOT = surfaceId => {
   const surface = Array.from(document.querySelectorAll('[data-ui-surface]')).find(n => n.dataset.uiSurface === surfaceId);
   return surface ? JSON.stringify([surface.outerHTML, Array.from(surface.querySelectorAll('input,select,textarea'))
     .map(el => [el.value, el.checked, el.selectedIndex])]) : null;
 };
 
-async function assessFocus(step, from, allowReturn) {
-  const outcome = await page.evaluate(() => window.__pdhFocusTrace.outcome()).catch(() => ({ entered: [], returned: [] }));
+// A preparatory opener takes focus once and may move it once into its newly opened panel.
+async function assessOpenerFocus(step, from) {
+  const outcome = await page.evaluate(() => window.__pdhFocusTrace.outcome()).catch(() => ({ entered: [] }));
   const focus = events.focus.slice(from).filter(event => !event.reviewer);
-  const last = focus[1];
-  const entered = last?.entered && outcome.entered.includes(last.entered) ? last.entered : null;
-  const returned = allowReturn && last?.returned && outcome.returned.includes(last.returned) ? last.returned : null;
-  return { correct: (focus.length === 1 || (focus.length === 2 && Boolean(entered || returned)))
-      && focus.every(event => event.step === step) && focus[0]?.target === true,
-    entered, returned, next: events.focus.length };
+  const entered = Boolean(focus[1]?.entered) && outcome.entered.includes(focus[1].entered);
+  return { correct: (focus.length === 1 || (focus.length === 2 && entered))
+      && focus.every(event => event.step === step) && focus[0]?.target === true, next: events.focus.length };
+}
+
+// An operation is judged by where focus ends. The control takes focus first and may keep it. While the
+// control is still shown, focus may move only into content the activation showed. When a panel that held
+// the control closed, focus returns to that panel's opener or moves into new content. When the control went
+// for another reason, focus stays inside the destination surface. A page the operation loads keeps its own
+// initial focus, and so does a navigation or state change that arrives by a fragment change inside the same
+// document, which the reviewer runtime handles like a new page.
+async function assessOperationFocus(from, navigates, arrives) {
+  const focus = events.focus.slice(from).filter(event => !event.reviewer);
+  if (focus[0]?.target !== true || focus[0]?.step !== 'operation')
+    return { problem: 'did not start on the control', entered: null, returned: null };
+  // A product often moves focus a frame after the change, once the new view has rendered: let two frames and
+  // their timers run before reading where focus ends.
+  await page.evaluate(() => new Promise(resolve =>
+    requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0))))).catch(() => {});
+  const end = await page.evaluate(() => window.__pdhFocusTrace.end()).catch(() => null);
+  // A page the operation loaded keeps its own initial focus, and so does a fragment arrival; a feedback operation
+  // that changes the fragment, and any other navigation inside the same document, keep the rule.
+  if (end?.loaded || (end?.arrival && arrives) || (!end && navigates))
+    return { problem: null, entered: null, returned: null };
+  const problem = !end ? 'could not be read' : end.onTarget ? null
+    : end.targetShown ? (end.fresh ? null : end.inDestination ? 'left the shown control for content that was already shown' : 'was lost')
+    : end.closedPanel ? (end.returned.length || end.fresh ? null : "did not return to the closed panel's opener")
+    : end.inDestination ? null : 'was lost';
+  return { problem, entered: (!problem && end?.entered[0]) || null, returned: (!problem && end?.returned[0]) || null };
 }
 
 async function interact(request) {
@@ -739,7 +798,7 @@ async function interact(request) {
       }
     }
   }
-  let visible = null, focusCorrect = null, arrivedTo = null, observed = null;
+  let visible = null, focusCorrect = null, focusProblem = null, arrivedTo = null, observed = null;
   if (!problems.length) {
     observingFocus = true;
     let focusCursor = events.focus.length, openerFocusCorrect = true;
@@ -770,11 +829,22 @@ async function interact(request) {
             const style = getComputedStyle(panel);
             const hidesVisibility = (style.visibility === 'hidden' || style.visibility === 'collapse')
               && (!panel.parentElement || getComputedStyle(panel.parentElement).visibility !== style.visibility);
-            if ((panel.hidden || style.display === 'none' || hidesVisibility) && !opener) {
+            // Author CSS often hides a closed details element's content as well; its summary still reveals it.
+            const closedDetails = panel.parentElement?.closest('details:not([open])');
+            const inClosedDetails = Boolean(closedDetails)
+              && !closedDetails.querySelector(':scope > summary')?.contains(panel);
+            if ((panel.hidden || style.display === 'none' || hidesVisibility) && !opener && !inClosedDetails) {
               reachable = false; break;
             }
             if (opener)
               panels.unshift({ panel: panel.id, index: buttons.indexOf(opener), selected: opener.hasAttribute('data-product-tab') });
+            // A closed native details element is a disclosure that its own summary opens.
+            const summary = panel.tagName === 'DETAILS' && panel !== el ? panel.querySelector(':scope > summary') : null;
+            if (summary && !panel.open && !summary.contains(el)) {
+              const unique = panel.id && document.querySelectorAll('#' + CSS.escape(panel.id)).length === 1;
+              panels.unshift({ panel: unique ? panel.id : null,
+                details: Array.from(surface.querySelectorAll('details')).indexOf(panel) });
+            }
             if (panel === surface) break;
           }
           if (reachable) return panels;
@@ -783,27 +853,39 @@ async function interact(request) {
       });
       const buttons = page.locator(surface + ' button[data-product-menu],'
         + surface + ' button[data-product-tab],' + surface + ' button[data-product-disclosure]');
-      for (const step of chain) {
-        const panel = page.locator('[id=' + quote(step.panel) + ']');
-        if (await panel.isVisible()) continue;
-        const opener = buttons.nth(step.index);
-        if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + step.panel); break; }
+      // A details without a unique id is named by its place among the surface's details elements, and held by
+      // element from before the first opener step, so a handler that inserts a details cannot shift it.
+      const held = await Promise.all(chain.map(step => typeof step.details === 'number' && !step.panel
+        ? page.locator(surface + ' details').nth(step.details).elementHandle() : null));
+      for (const [index, step] of chain.entries()) {
+        const isDetails = typeof step.details === 'number';
+        const name = step.panel || 'details:' + step.details;
+        const panel = held[index] || page.locator('[id=' + quote(step.panel) + ']');
+        const open = () => isDetails ? panel.evaluate(el => el.open) : panel.isVisible();
+        if (await open()) continue;
+        const opener = !isDetails ? buttons.nth(step.index)
+          : held[index] ? await held[index].$(':scope > summary') : panel.locator(':scope > summary');
+        if (!await opener.isVisible()) { problems.push('declared opener is hidden: ' + name); break; }
         const focusStep = 'opener:' + opened.length;
         await opener.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), [focusStep, request.surface, true]);
         await opener.click({ timeout });
-        opened.push(step.panel);
-        try { await panel.waitFor({ state: 'visible', timeout }); }
-        catch (_) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
-        if (await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true'
-            || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + step.panel); break; }
-        const focus = await assessFocus(focusStep, focusCursor, false);
+        opened.push(name);
+        try {
+          if (isDetails) await page.waitForFunction(el => el.open, held[index] || await panel.elementHandle(), { timeout });
+          else await panel.waitFor({ state: 'visible', timeout });
+        } catch (_) { problems.push('declared opener did not reveal its panel: ' + name); break; }
+        if ((isDetails ? !await open() : await opener.getAttribute(step.selected ? 'aria-selected' : 'aria-expanded') !== 'true')
+            || !await panel.isVisible()) { problems.push('declared opener did not reveal its panel: ' + name); break; }
+        const focus = await assessOpenerFocus(focusStep, focusCursor);
         openerFocusCorrect = openerFocusCorrect && focus.correct;
         focusCursor = focus.next;
       }
     }
     const instances = await product.count();
     observed = { instances, ...(opened.length ? { openers: opened } : {}) };
-    if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control);
+    if (instances < 1) problems.push('product control is missing or hidden; no instance is reachable: ' + request.control
+      + ' in ' + request.state + '; start the operation from the state that shows it, or reveal it through a declared '
+      + 'opener or a details element');
     else {
       const unselected = instances > 1 ? await product.evaluateAll(list => list.findIndex(el => {
         const selected = ['aria-pressed', 'aria-selected', 'aria-checked'].some(name => el.getAttribute(name) === 'true');
@@ -835,6 +917,11 @@ async function interact(request) {
       });
       if (field && (!await handle.isEnabled() || await handle.getAttribute('readonly') !== null))
         return { problems: ['data-entry control is disabled or read-only'], visible, focusCorrect: false, observed };
+      // A control disabled in the declared source state (natively or by aria-disabled) cannot be activated, and
+      // a click on it waits out the action limit: name it instead.
+      if (await handle.evaluate(el => el.matches(':disabled') || Boolean(el.closest('[aria-disabled="true"]'))))
+        return { problems: ['the control is disabled in ' + request.state + '; start the operation from the state that '
+          + 'enables it, or declare the step that enables it first'], visible, focusCorrect: false, observed };
       let pressedFocused = null;
       let before = null;
       await handle.evaluate((el, setup) => window.__pdhFocusTrace.begin(el, setup), ['operation', request.destination.surface, false]);
@@ -913,14 +1000,15 @@ async function interact(request) {
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
       observingNavigation = false;
-      const focus = await assessFocus('operation', focusCursor, true);
-      focusCorrect = openerFocusCorrect && focus.correct
-        && (request.trigger !== 'keyboard' || Boolean(pressedFocused));
+      const focus = await assessOperationFocus(focusCursor, loadsPage, request.kind !== 'feedback');
+      focusProblem = !openerFocusCorrect ? 'did not stay on an opener or move into its panel'
+        : request.trigger === 'keyboard' && !pressedFocused ? 'did not start on the control' : focus.problem;
+      focusCorrect = !focusProblem;
       if (focusCorrect && focus.returned) observed.focusReturn = focus.returned;
-      if (focusCorrect && focus.entered) observed.focusEntry = focus.entered;
+      else if (focusCorrect && focus.entered) observed.focusEntry = focus.entered;
     }
   }
-  return { problems, visible, focusCorrect, arrivedTo, observed };
+  return { problems, visible, focusCorrect, focusProblem, arrivedTo, observed };
 }
 
 async function runCase(request) {
@@ -1246,7 +1334,8 @@ def reviewer_focus_sites(files):
     canonical = script_re.search(runtime_source()).group("body")
     trusted = {hashlib.sha256(canonical.encode("utf-8")).hexdigest(),
                "854fc83eca20f90bbb976cd8555dba241018cf6adc891be6e7b604d011427597",
-               "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146"}
+               "e18c759f9f7ecf10fd2798c07ca3d28ac709678b1066b3e7243bf83b8619e146",
+               "dd2bfce3eafc311011ad89f0b64bb99a59e6f50bf1140e62e4432b850bb4400a"}
     sites = {}
     for name, path in files.items():
         html = path.read_text(encoding="utf-8")
@@ -2161,7 +2250,7 @@ class Runner:
             if result.get("visible") is not True:
                 reasons.append("product control was not visible")
             if result.get("focusCorrect") is not True:
-                reasons.append("product focus did not land on the control alone")
+                reasons.append("product focus " + (result.get("focusProblem") or "was not observed"))
         record["visible"], record["focusCorrect"] = result.get("visible"), result.get("focusCorrect")
         if result.get("observed") is not None:
             record["observed"] = result["observed"]

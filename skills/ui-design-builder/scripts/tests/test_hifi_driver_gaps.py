@@ -83,7 +83,7 @@ class NavigationBrowserTests(unittest.TestCase):
                     self.assertNotEqual(change["beforeSha256"], change["afterSha256"])
             driver.stop()
 
-    def test_g5_focus_return_rejects_unrelated_focus_and_still_open_layers(self):
+    def test_g5_focus_return_needs_the_opener_at_the_end_not_unrelated_focus_or_an_open_layer(self):
         for mode in ("unrelated", "still-open", "detour"):
             close = "document.getElementById('picker').hidden=true;" if mode != "still-open" else ""
             focus = "document.getElementById('" + ("thief" if mode == "unrelated" else "picker-opener") + "').focus();"
@@ -96,8 +96,8 @@ class NavigationBrowserTests(unittest.TestCase):
                 with self.subTest(mode=mode, trigger=trigger):
                     result = self.attempt(driver, trigger=trigger)["result"]
                     self.assertEqual([], result["problems"], result)
-                    self.assertFalse(result["focusCorrect"], result)
-                    self.assertNotIn("focusReturn", result["observed"])
+                    self.assertEqual(mode == "detour", result["focusCorrect"], result)
+                    self.assertEqual(mode == "detour", "focusReturn" in result["observed"], result)
             driver.stop()
 
     def test_f1_field_activation_can_hide_the_source_before_entry(self):
@@ -113,6 +113,7 @@ class NavigationBrowserTests(unittest.TestCase):
                     result = self.attempt(driver, kind="state", trigger=trigger,
                         destination={"surface": "UI-002", "state": "loading"})["result"]
                     self.assertEqual(mode == "inert", bool(result["problems"]), result)
+                    # The runtime moves focus to the new view when the state change hides the field.
                     self.assertTrue(result["focusCorrect"], result)
             driver.stop()
 

@@ -469,7 +469,8 @@ class OperationBrowserTests(unittest.TestCase):
         save = '<button data-control-id="save" onclick="this.textContent += \' saved\'">Save</button>'
         opener = '<button data-product-disclosure aria-controls="editor" aria-expanded="false">Editor</button>'
         panel = '<div id="editor" hidden>' + save + '</div>'
-        for markup, reason in ((opener + '<div hidden>' + panel + '</div>', 'no instance is reachable'),
+        for markup, reason in ((opener + '<div hidden>' + panel + '</div>', 'no instance is reachable: save in ready; '
+                                'start the operation from the state that shows it'),
                                (opener + '<div style="display:none">' + panel + '</div>', 'no instance is reachable'),
                                (opener + opener + panel, 'no instance is reachable'),
                                (opener.replace('<button ', '<button hidden ') + panel, 'declared opener is hidden'),
@@ -480,6 +481,21 @@ class OperationBrowserTests(unittest.TestCase):
                 self.assertIn(reason, "\n".join(reply["problems"]), reply)
                 self.assertEqual(0, reply["observed"]["instances"])
                 driver.stop()
+
+    def test_a_disabled_control_is_named_instead_of_waited_out(self):
+        hint = "the control is disabled in ready; start the operation from the state that enables it"
+        for markup in ('<button data-control-id="save" disabled>Confirm</button>',
+                       '<button data-control-id="save" aria-disabled="true">Confirm</button>',
+                       '<fieldset disabled><button data-control-id="save">Confirm</button></fieldset>',
+                       '<div aria-disabled="true"><button data-control-id="save">Confirm</button></div>'):
+            with self.subTest(markup=markup):
+                driver = self.driver(markup)
+                began = time.monotonic()
+                reply = self.attempt(driver, kind="state", destination={"surface": "UI-002", "state": "error"},
+                                     timeout_ms=20000, destinationWaitMs=300)
+                driver.stop()
+                self.assertIn(hint, "\n".join(reply["result"]["problems"]), reply)
+                self.assertLess(time.monotonic() - began, 10)
 
     def test_opener_exemption_does_not_allow_unrelated_product_focus(self):
         for field in ('<button id="thief" data-control-id="thief">Other</button>',

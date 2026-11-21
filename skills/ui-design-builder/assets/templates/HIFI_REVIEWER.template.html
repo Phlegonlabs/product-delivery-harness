@@ -301,7 +301,12 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
       packageId: config.packageId, platform, statesBySurface,
       page: currentPage, defaultSurface, pages, surfaces: surfaces.map(item => item.dataset.uiSurface), targets,
       targetsByPage,
-      onChange: () => apply({focus: false, syncHash: false})
+      onChange: () => {
+        const held = document.activeElement;
+        const product = held && held !== document.body && held.closest && held.closest("[data-ui-surface]");
+        apply({focus: false, syncHash: false});
+        if (product && !rendered(held)) focusNewView();
+      }
     });
     function refreshSpecimens(snapshot) {
       if (!canvas || typeof getComputedStyle !== "function") return;
@@ -335,6 +340,24 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
     }
   function currentLocation() {
       try { return typeof window === "object" && window.location ? window.location : location; } catch (_) { return {}; }
+    }
+    // checkVisibility also sees content a closed details or content-visibility skips, which keeps its boxes.
+    function rendered(element) {
+      return Boolean(element && element.isConnected && element.getClientRects().length)
+        && getComputedStyle(element).visibility !== "hidden" && (!element.checkVisibility || element.checkVisibility());
+    }
+    // A state change that hides the focused product control moves focus to the new view's first heading that
+    // takes it, or to the view itself, so it is never lost to the page.
+    function focusNewView() {
+      const surface = surfaces.find(item => !item.hidden && rendered(item));
+      if (!surface) return;
+      for (const view of [...Array.from(surface.querySelectorAll("h1, h2, h3")).filter(rendered), surface]) {
+        const added = view.getAttribute("tabindex") === null;
+        if (added) view.setAttribute("tabindex", "-1");
+        view.focus();
+        if (document.activeElement === view) return;
+        if (added) view.removeAttribute("tabindex");
+      }
     }
     function apply(options) {
       const settings = options || {};

@@ -37,6 +37,7 @@ Repeat `--capture` for each theme run. Before the re-review and the fix exchange
 - its matrix is smaller than the package's, as after `--only`;
 - a case, axis row, interaction, reviewer pass or intermediate-width sweep is not PASS. The author's last capture is a clean run; a hang or driver failure gets one rerun, then goes to the owner ([readiness gate](ui-grading-rubric.md#capability-and-authorization));
 - it ran without `--measure-a11y`, or a measured `fail` row has no disposition;
+- it ran without the whole axis sample (`--axes dark,reduced-motion,forced-colors,zoom-200,reflow-320`), or, when a surface has two or more numeric widths, without `--intermediate`: the first wave judges both from this capture, so their defects surface before review;
 - with `--ledger`, an `open` or `block` row has an acceptance case without a screenshot from this run. A carried case keeps its old screenshot; `--recapture-carried` takes a new one.
 
 The author records dispositions in `a11y-dispositions.json` beside `matrix-capture.json`, and copies it into each new `--out`:

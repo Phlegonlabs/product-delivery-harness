@@ -41,11 +41,12 @@ class ReadinessTests(unittest.TestCase):
         self.cli = Cli(self)
         self.root = self.cli.root
 
-    def capture(self, *extra, driver=None, a11y=clean_a11y, measure=True):
+    def capture(self, *extra, driver=None, a11y=clean_a11y, measure=True, full=True):
         """Run the driver as the author does; return the repository-relative ui-output.json path."""
         driver = driver or FakeDriver()
         driver.a11y_script = a11y
-        _, _, out = self.cli.run(driver, *(("--measure-a11y",) if measure else ()), *extra)
+        author = ("--axes", ",".join(m.AXES), "--intermediate") if full else ()
+        _, _, out = self.cli.run(driver, *(("--measure-a11y",) if measure else ()), *author, *extra)
         return (out / m.OUTPUT_NAME).relative_to(self.root).as_posix()
 
     def ready(self, *captures, package=PACKAGE_DIR, ledger=None):
@@ -227,6 +228,13 @@ class ReadinessTests(unittest.TestCase):
                 self.assertIsNotNone(line, f"{expected!r} not in:\n{text}")
                 self.assertTrue(line.endswith(rerun), line)
 
+    def test_a_capture_without_every_axis_or_the_intermediate_sweep_is_not_ready(self):
+        code, text = self.ready(self.capture("--axes", "forced-colors", full=False))
+        self.assertEqual(1, code, text)
+        self.assertIn("ran without the dark, reduced-motion, zoom-200, reflow-320 axis sample. Fix: rerun the "
+                      "driver with --axes dark,reduced-motion,forced-colors,zoom-200,reflow-320.", text)
+        self.assertIn("has no intermediate-width sweep. Fix: rerun the driver with --intermediate.", text)
+
     def test_a_capture_without_measured_accessibility_is_not_ready(self):
         code, text = self.ready(self.capture(measure=False))
         self.assertEqual(1, code, text)
@@ -237,8 +245,8 @@ class ReadinessTests(unittest.TestCase):
         dispositions = capture.replace(m.OUTPUT_NAME, evidence.A11Y_DISPOSITIONS)
         code, text = self.ready(capture)
         self.assertEqual(1, code, text)
-        self.assertIn("- contrast fails on p#price at UI-001/ready/390, UI-001/ready/1200 with no disposition. "
-                      f"Fix: fix it, or record the reason in {dispositions}.", text)
+        self.assertIn("- contrast fails on p#price at UI-001/ready/390, UI-001/ready/1200, ", text)
+        self.assertIn(f"with no disposition. Fix: fix it, or record the reason in {dispositions}.", text)
 
         reason = "The price sits on the brand plate the owner approved; contrast is checked there by eye."
         self.write_json(dispositions, {"schema": "a11y-dispositions/1", "dispositions": [
