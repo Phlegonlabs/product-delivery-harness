@@ -263,6 +263,25 @@ class FocusBrowserTests(unittest.TestCase):
         driver.stop()
         self.assertEqual((False, "was lost"), (result["focusCorrect"], result["focusProblem"]), result)
 
+    def test_a_fragment_arrival_passes_while_focus_rests_in_the_destination(self):
+        link = '<a data-control-id="save" href="details.html#hifi-state=UI-002/loading"{}>Go</a>'
+        drop = (' onclick="window.addEventListener(\'hashchange\',()=>setTimeout(()=>document.activeElement.blur()),'
+                '{once:true})"')
+        cases = {"beside the view": (link.format(""), None),
+                 "in a menu it closes": ('<button data-product-menu aria-controls="menu" aria-expanded="true">Menu'
+                     '</button><div id="menu">' + link.format(' onclick="document.getElementById(\'menu\').hidden=true"')
+                     + '</div>', None),
+                 "the product drops focus after it": (link.format(drop), "was lost")}
+        for label, (markup, problem) in cases.items():
+            driver = self.driver(markup)
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt(driver, kind="navigate", trigger=trigger,
+                                          destination={"surface": "UI-002", "state": "loading"})["result"]
+                    self.assertEqual(([], problem is None, problem),
+                                     (result["problems"], result["focusCorrect"], result["focusProblem"]), result)
+            driver.stop()
+
     def test_closing_a_details_returns_focus_to_its_summary(self):
         close = "const d=this.closest(\'details\');d.open=false;"
         cases = {"summary": (close + "d.querySelector(\'summary\').focus()", None),

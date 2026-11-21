@@ -639,10 +639,13 @@ async function start(request) {
         // A control that was hidden while it held focus keeps no focus the user can see.
         const targetShown = Boolean(target) && shown(target);
         return { ...this.outcome(), onTarget: targetShown && active === target, targetShown, inDestination,
+          arrival: Boolean(focusStep.arrival),
           fresh: inDestination && !focusStep?.shownBefore?.has(active),
           closedPanel: (focusStep?.returnLayers || []).some(closed) };
       },
     };
+    // A fragment change is an arrival the reviewer runtime handles like a new page.
+    addEventListener('hashchange', () => { if (focusStep) focusStep.arrival = true; });
     addEventListener('focusin', event => {
       if (window.__pdhNoFocusLog) return;     // a measured-accessibility pass moves focus on purpose
       const el = event.target;
@@ -736,7 +739,8 @@ async function assessOpenerFocus(step, from) {
 // control is still shown, focus may move only into content the activation showed. When a panel that held
 // the control closed, focus returns to that panel's opener or moves into new content. When the control went
 // for another reason, focus stays inside the destination surface. A page the operation loads keeps its own
-// initial focus.
+// initial focus, and so does a fragment arrival inside the same document while focus rests in the destination
+// surface.
 async function assessOperationFocus(from, navigates) {
   const focus = events.focus.slice(from).filter(event => !event.reviewer);
   if (focus[0]?.target !== true || focus[0]?.step !== 'operation')
@@ -746,8 +750,10 @@ async function assessOperationFocus(from, navigates) {
   await page.evaluate(() => new Promise(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0))))).catch(() => {});
   const end = await page.evaluate(() => window.__pdhFocusTrace.end()).catch(() => null);
-  // A page the operation loaded keeps its own initial focus; a navigation inside the same document does not.
-  if (end?.loaded || (!end && navigates)) return { problem: null, entered: null, returned: null };
+  // A page the operation loaded keeps its own initial focus, and so does a fragment arrival that leaves focus in
+  // the destination surface; any other navigation inside the same document keeps the rule.
+  if (end?.loaded || (end?.arrival && end.inDestination) || (!end && navigates))
+    return { problem: null, entered: null, returned: null };
   const problem = !end ? 'could not be read' : end.onTarget ? null
     : end.targetShown ? (end.fresh ? null : end.inDestination ? 'left the shown control for content that was already shown' : 'was lost')
     : end.closedPanel ? (end.returned.length || end.fresh ? null : "did not return to the closed panel's opener")
