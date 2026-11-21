@@ -263,32 +263,51 @@ class FocusBrowserTests(unittest.TestCase):
         driver.stop()
         self.assertEqual((False, "was lost"), (result["focusCorrect"], result["focusProblem"]), result)
 
-    def test_a_fragment_arrival_passes_while_focus_rests_in_the_destination(self):
-        link = '<a data-control-id="save" href="details.html#hifi-state=UI-002/loading"{}>Go</a>'
+    def test_a_fragment_arrival_is_judged_like_a_loaded_page(self):
+        link = '<a data-control-id="save" href="details.html#hifi-state=UI-002/{}"{}>Go</a>'
+        close = ' onclick="document.getElementById(\'menu\').hidden=true"'
         drop = (' onclick="window.addEventListener(\'hashchange\',()=>setTimeout(()=>document.activeElement.blur()),'
                 '{once:true})"')
-        cases = {"beside the view": (link.format(""), None),
-                 "in a menu it closes": ('<button data-product-menu aria-controls="menu" aria-expanded="true">Menu'
-                     '</button><div id="menu">' + link.format(' onclick="document.getElementById(\'menu\').hidden=true"')
-                     + '</div>', None),
-                 "the product drops focus after it": (link.format(drop), "was lost")}
-        for label, (markup, problem) in cases.items():
-            driver = self.driver(markup)
+        menu = '<button data-product-menu aria-controls="menu" aria-expanded="true">Menu</button><div id="menu">{}</div>'
+        opening = '<main data-ui-surface="UI-002" data-ui-route="/details" class="desk">'
+        # The runtime's arrival heading is the surface's first h1, here one in a hidden view, so its focus does not
+        # land; the state stays the same, so nothing else moves focus off the page body either.
+        hidden_heading = lambda html: html.replace(opening, opening + '<section data-hifi-state-view="error" hidden>'
+                                                   '<h1>Failed</h1></section>', 1)
+        cases = {"beside the view": (link.format("loading", ""), None, "loading"),
+                 "in a menu it closes": (menu.format(link.format("loading", close)), None, "loading"),
+                 "in a menu it closes, focus left on the page": (menu.format(link.format("ready", close)),
+                                                                 hidden_heading, "ready"),
+                 "the product drops focus after it": (link.format("loading", drop), None, "loading")}
+        for label, (markup, edit, state) in cases.items():
+            driver = self.driver(markup, edit=edit)
             for trigger in ("click", "keyboard"):
                 with self.subTest(case=label, trigger=trigger):
                     result = self.attempt(driver, kind="navigate", trigger=trigger,
-                                          destination={"surface": "UI-002", "state": "loading"})["result"]
-                    self.assertEqual(([], problem is None, problem),
-                                     (result["problems"], result["focusCorrect"], result["focusProblem"]), result)
+                                          destination={"surface": "UI-002", "state": state})["result"]
+                    self.assertEqual(([], True), (result["problems"], result["focusCorrect"]), result)
             driver.stop()
 
-    def test_a_hashchange_event_without_a_fragment_change_is_no_arrival(self):
+    def test_a_feedback_operation_that_changes_the_fragment_keeps_the_focus_rule(self):
         for trigger in ("click", "keyboard"):
             with self.subTest(trigger=trigger):
                 result = self.attempt_focus('<button data-control-id="save" onclick="this.textContent+=\' saved\';'
-                    'window.dispatchEvent(new Event(\'hashchange\'))">Save</button>', trigger)
+                    'location.hash=\'saved\'">Save</button>', trigger)
                 self.assertEqual((False, "left the shown control for content that was already shown"),
                                  (result["focusCorrect"], result["focusProblem"]), result)
+
+    def test_a_hashchange_event_without_a_fragment_change_is_no_arrival(self):
+        # The product routes by history.pushState and then dispatches a hashchange the browser never fired.
+        driver = self.driver('<a data-control-id="save" href="details.html#hifi-state=UI-002/loading" onclick="'
+            'event.preventDefault();history.pushState(null,\'\',this.getAttribute(\'href\'));'
+            'document.__hifiReviewerRuntime.selectState(\'loading\');window.dispatchEvent(new Event(\'hashchange\'))">Go</a>')
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt(driver, kind="navigate", trigger=trigger,
+                                      destination={"surface": "UI-002", "state": "loading"})["result"]
+                self.assertEqual((False, "left the shown control for content that was already shown"),
+                                 (result["focusCorrect"], result["focusProblem"]), result)
+        driver.stop()
 
     def test_closing_a_details_returns_focus_to_its_summary(self):
         close = "const d=this.closest(\'details\');d.open=false;"

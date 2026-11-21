@@ -740,9 +740,9 @@ async function assessOpenerFocus(step, from) {
 // control is still shown, focus may move only into content the activation showed. When a panel that held
 // the control closed, focus returns to that panel's opener or moves into new content. When the control went
 // for another reason, focus stays inside the destination surface. A page the operation loads keeps its own
-// initial focus, and so does a fragment arrival inside the same document while focus rests in the destination
-// surface.
-async function assessOperationFocus(from, navigates) {
+// initial focus, and so does a navigation or state change that arrives by a fragment change inside the same
+// document, which the reviewer runtime handles like a new page.
+async function assessOperationFocus(from, navigates, arrives) {
   const focus = events.focus.slice(from).filter(event => !event.reviewer);
   if (focus[0]?.target !== true || focus[0]?.step !== 'operation')
     return { problem: 'did not start on the control', entered: null, returned: null };
@@ -751,9 +751,9 @@ async function assessOperationFocus(from, navigates) {
   await page.evaluate(() => new Promise(resolve =>
     requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 0))))).catch(() => {});
   const end = await page.evaluate(() => window.__pdhFocusTrace.end()).catch(() => null);
-  // A page the operation loaded keeps its own initial focus, and so does a fragment arrival that leaves focus in
-  // the destination surface; any other navigation inside the same document keeps the rule.
-  if (end?.loaded || (end?.arrival && end.inDestination) || (!end && navigates))
+  // A page the operation loaded keeps its own initial focus, and so does a fragment arrival; a feedback operation
+  // that changes the fragment, and any other navigation inside the same document, keep the rule.
+  if (end?.loaded || (end?.arrival && arrives) || (!end && navigates))
     return { problem: null, entered: null, returned: null };
   const problem = !end ? 'could not be read' : end.onTarget ? null
     : end.targetShown ? (end.fresh ? null : end.inDestination ? 'left the shown control for content that was already shown' : 'was lost')
@@ -1000,7 +1000,7 @@ async function interact(request) {
       }
       if (arrivedTo && arrivedTo !== currentPage) currentPage = arrivedTo;
       observingNavigation = false;
-      const focus = await assessOperationFocus(focusCursor, loadsPage);
+      const focus = await assessOperationFocus(focusCursor, loadsPage, request.kind !== 'feedback');
       focusProblem = !openerFocusCorrect ? 'did not stay on an opener or move into its panel'
         : request.trigger === 'keyboard' && !pressedFocused ? 'did not start on the control' : focus.problem;
       focusCorrect = !focusProblem;
