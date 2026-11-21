@@ -282,6 +282,14 @@ class FocusBrowserTests(unittest.TestCase):
                                      (result["problems"], result["focusCorrect"], result["focusProblem"]), result)
             driver.stop()
 
+    def test_a_hashchange_event_without_a_fragment_change_is_no_arrival(self):
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt_focus('<button data-control-id="save" onclick="this.textContent+=\' saved\';'
+                    'window.dispatchEvent(new Event(\'hashchange\'))">Save</button>', trigger)
+                self.assertEqual((False, "left the shown control for content that was already shown"),
+                                 (result["focusCorrect"], result["focusProblem"]), result)
+
     def test_closing_a_details_returns_focus_to_its_summary(self):
         close = "const d=this.closest(\'details\');d.open=false;"
         cases = {"summary": (close + "d.querySelector(\'summary\').focus()", None),

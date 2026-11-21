@@ -644,8 +644,9 @@ async function start(request) {
           closedPanel: (focusStep?.returnLayers || []).some(closed) };
       },
     };
-    // A fragment change is an arrival the reviewer runtime handles like a new page.
-    addEventListener('hashchange', () => { if (focusStep) focusStep.arrival = true; });
+    // A fragment change is an arrival the reviewer runtime handles like a new page. Only the browser's own
+    // event proves the fragment changed; a page can dispatch a hashchange without one.
+    addEventListener('hashchange', event => { if (focusStep && event.isTrusted) focusStep.arrival = true; });
     addEventListener('focusin', event => {
       if (window.__pdhNoFocusLog) return;     // a measured-accessibility pass moves focus on purpose
       const el = event.target;
