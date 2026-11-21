@@ -228,6 +228,33 @@ class FocusBrowserTests(unittest.TestCase):
                     self.assertEqual(events, len(product), product)
             driver.stop()
 
+    def test_the_runtime_moves_focus_past_a_heading_that_cannot_take_it(self):
+        opening = '<main data-ui-surface="UI-002" data-ui-route="/details" class="desk">'
+        retry = ('<section data-hifi-state-view="ready" data-responsive-target="390"><button data-control-id="save" '
+                 'onclick="document.__hifiReviewerRuntime.selectState(\'loading\')">Retry</button></section>')
+        for label, before in (("in a closed details", "<details><summary>Notes</summary><h2>Hidden note</h2></details>"),
+                              ("inert", "<div inert><h2>Inert note</h2></div>")):
+            driver = self.driver(retry, edit=lambda html: html.replace(opening, opening + before, 1))
+            for trigger in ("click", "keyboard"):
+                with self.subTest(case=label, trigger=trigger):
+                    result = self.attempt(driver, kind="state", trigger=trigger,
+                                          destination={"surface": "UI-002", "state": "loading"})["result"]
+                    self.assertEqual(([], True), (result["problems"], result["focusCorrect"]), result)
+            driver.stop()
+
+    def test_the_runtime_treats_a_control_in_skipped_content_as_hidden(self):
+        # The hidden view keeps its boxes, as a closed details does; only checkVisibility sees it is skipped.
+        driver = self.driver('<style>[data-hifi-state-view="ready"][hidden]{display:block!important;'
+            'content-visibility:hidden}</style><section data-hifi-state-view="ready" data-responsive-target="390">'
+            '<button data-control-id="save" onclick="document.__hifiReviewerRuntime.selectState(\'loading\')">Retry'
+            '</button></section>')
+        for trigger in ("click", "keyboard"):
+            with self.subTest(trigger=trigger):
+                result = self.attempt(driver, kind="state", trigger=trigger,
+                                      destination={"surface": "UI-002", "state": "loading"})["result"]
+                self.assertEqual(([], True), (result["problems"], result["focusCorrect"]), result)
+        driver.stop()
+
     def test_a_navigation_inside_the_same_document_keeps_the_focus_rule(self):
         driver = self.driver('<a data-control-id="save" href="details.html#hifi-state=UI-002/loading" onclick="'
                              'event.preventDefault();history.pushState(null,\'\',this.getAttribute(\'href\'));'

@@ -341,18 +341,23 @@ reviewer-shell{display:block;position:fixed;inset:0 auto 0 0;width:236px;z-index
   function currentLocation() {
       try { return typeof window === "object" && window.location ? window.location : location; } catch (_) { return {}; }
     }
+    // checkVisibility also sees content a closed details or content-visibility skips, which keeps its boxes.
     function rendered(element) {
       return Boolean(element && element.isConnected && element.getClientRects().length)
-        && getComputedStyle(element).visibility !== "hidden";
+        && getComputedStyle(element).visibility !== "hidden" && (!element.checkVisibility || element.checkVisibility());
     }
-    // A state change that hides the focused product control moves focus to the new view's first heading,
-    // or to the view itself, so it is never lost to the page.
+    // A state change that hides the focused product control moves focus to the new view's first heading that
+    // takes it, or to the view itself, so it is never lost to the page.
     function focusNewView() {
       const surface = surfaces.find(item => !item.hidden && rendered(item));
       if (!surface) return;
-      const view = Array.from(surface.querySelectorAll("h1, h2, h3")).find(rendered) || surface;
-      if (view.getAttribute("tabindex") === null) view.setAttribute("tabindex", "-1");
-      view.focus();
+      for (const view of [...Array.from(surface.querySelectorAll("h1, h2, h3")).filter(rendered), surface]) {
+        const added = view.getAttribute("tabindex") === null;
+        if (added) view.setAttribute("tabindex", "-1");
+        view.focus();
+        if (document.activeElement === view) return;
+        if (added) view.removeAttribute("tabindex");
+      }
     }
     function apply(options) {
       const settings = options || {};
